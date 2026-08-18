@@ -229,10 +229,22 @@ NS.eventFrame:SetScript("OnUpdate", function(_, el)
     NS:Fire("TICK")
 end)
 
-NS:On("PLAYER_READY", function()
-    NS:After(2, function()
+local function autoload(attempt)
+    local ok, err = pcall(function()
         local id = NS.db.char.guide
-        if id and G.registry[id] then P.Load(id)
-        else local s = G.Suggest() if s then P.Load(s.id) else NS:Print("No guide selected. /or guides") end end
+        if id and G.registry[id] then P.Load(id) return end
+        local s = G.Suggest()
+        if s then P.Load(s.id)
+        elseif attempt < 3 then NS:After(6, function() autoload(attempt + 1) end)  -- adapters may still be importing
+        else NS:Print("No guide matched your level/faction. /or guides") end
     end)
+    if not ok then
+        NS.db.char.lastAutoloadError = tostring(err)
+        NS:Error("autoload failed: " .. tostring(err))
+        if attempt < 3 then NS:After(6, function() autoload(attempt + 1) end) end
+    end
+end
+NS:On("PLAYER_READY", function()
+    NS:After(2, function() autoload(1) end)
+    NS:After(25, function() if NS.RunVerify then pcall(NS.RunVerify, true) end end)
 end)

@@ -14,9 +14,11 @@ d:SetText("Community-driven guides + open travel routing. Slash: /or   Guides: /
 
 local y = -70
 local function check(label, get, set, tip)
-    local cb = CreateFrame("CheckButton", nil, panel, "InterfaceOptionsCheckButtonTemplate")
+    local tmpl = (C_XMLUtil and C_XMLUtil.GetTemplateInfo and C_XMLUtil.GetTemplateInfo("InterfaceOptionsCheckButtonTemplate")) and "InterfaceOptionsCheckButtonTemplate" or "SettingsCheckBoxTemplate"
+    local okcb, cb = pcall(CreateFrame, "CheckButton", nil, panel, tmpl)
+    if not okcb or not cb then cb = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate") end
     cb:SetPoint("TOPLEFT", 16, y); y = y - 26
-    cb.Text:SetText(label)
+    if cb.Text then cb.Text:SetText(label) else local fs = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight") fs:SetPoint("LEFT", cb, "RIGHT", 4, 0) fs:SetText(label) end
     cb.tooltipText = tip
     cb:SetScript("OnShow", function(self) self:SetChecked(get()) end)
     cb:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
