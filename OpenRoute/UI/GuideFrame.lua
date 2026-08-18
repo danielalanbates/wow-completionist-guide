@@ -6,14 +6,14 @@ local GF = {}
 NS.GuideFrame = GF
 
 local ROWS = 8
-local ROW_H = 34
+local ROW_H = 44
 
 local f = CreateFrame("Frame", "OpenRouteFrame", UIParent, "BackdropTemplate")
 GF.frame = f
-f:SetSize(330, 60 + ROWS * ROW_H)
+f:SetSize(430, 64 + ROWS * ROW_H)
 f:SetPoint("CENTER")
 f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-f:SetBackdropColor(0.05, 0.05, 0.08, 0.85)
+f:SetBackdropColor(0.03, 0.03, 0.05, 0.93)
 f:SetBackdropBorderColor(0.3, 0.6, 0.9, 0.9)
 f:SetMovable(true); f:EnableMouse(true); f:SetClampedToScreen(true); f:SetResizable(true)
 if f.SetResizeBounds then f:SetResizeBounds(240, 120) elseif f.SetMinResize then f:SetMinResize(240, 120) end
@@ -61,26 +61,44 @@ pathText:SetPoint("LEFT", bOpt, "RIGHT", 6, 0); pathText:SetPoint("RIGHT", -8, 0
 pathText:SetJustifyH("LEFT"); pathText:SetTextColor(0.6, 0.85, 1)
 pathText:SetWordWrap(false)
 
+-- resize grip (bottom-right): drag to scale the whole window
+local grip = CreateFrame("Button", nil, f)
+grip:SetSize(20, 20); grip:SetPoint("BOTTOMRIGHT", -2, 2)
+grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
+grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
+grip:SetScript("OnMouseDown", function()
+    grip.drag = true
+    grip.y0 = select(2, GetCursorPosition())
+    grip.s0 = f:GetScale()
+end)
+grip:SetScript("OnMouseUp", function() grip.drag = nil NS.db.profile.frame.scale = f:GetScale() end)
+grip:SetScript("OnUpdate", function()
+    if not grip.drag then return end
+    local y = select(2, GetCursorPosition())
+    local s = math.max(0.6, math.min(2.0, grip.s0 + (grip.y0 - y) / 400))
+    f:SetScale(s)
+end)
+
 -- rows
 local rows = {}
 local function makeRow(i)
     local r = CreateFrame("Button", nil, f)
     r:SetHeight(ROW_H)
-    r:SetPoint("TOPLEFT", 8, -50 - (i - 1) * ROW_H)
+    r:SetPoint("TOPLEFT", 8, -54 - (i - 1) * ROW_H)
     r:SetPoint("RIGHT", -8, 0)
     r.bg = r:CreateTexture(nil, "BACKGROUND")
     r.bg:SetAllPoints(); r.bg:SetColorTexture(1, 1, 1, 0.04)
     r.check = CreateFrame("CheckButton", nil, r, "UICheckButtonTemplate")
-    r.check:SetSize(22, 22); r.check:SetPoint("LEFT", 0, 0)
+    r.check:SetSize(26, 26); r.check:SetPoint("LEFT", 0, 0)
     r.check:SetScript("OnClick", function(self) if r.step then P.MarkDone(r.step, true) end end)
     r.icon = r:CreateTexture(nil, "ARTWORK")
-    r.icon:SetSize(18, 18); r.icon:SetPoint("LEFT", r.check, "RIGHT", 2, 0)
-    r.title = r:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    r.icon:SetSize(24, 24); r.icon:SetPoint("LEFT", r.check, "RIGHT", 2, 0)
+    r.title = r:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     r.title:SetPoint("TOPLEFT", r.icon, "TOPRIGHT", 4, 1); r.title:SetPoint("RIGHT", -4, 0)
     r.title:SetJustifyH("LEFT"); r.title:SetWordWrap(false)
-    r.note = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    r.note:SetPoint("TOPLEFT", r.title, "BOTTOMLEFT", 0, -1); r.note:SetPoint("RIGHT", -4, 0)
-    r.note:SetJustifyH("LEFT"); r.note:SetWordWrap(false); r.note:SetTextColor(0.75, 0.75, 0.75)
+    r.note = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    r.note:SetPoint("TOPLEFT", r.title, "BOTTOMLEFT", 0, -2); r.note:SetPoint("RIGHT", -4, 0)
+    r.note:SetJustifyH("LEFT"); r.note:SetWordWrap(false); r.note:SetTextColor(0.8, 0.8, 0.8)
     r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     r:SetScript("OnClick", function(self, button)
         if not self.step then return end
