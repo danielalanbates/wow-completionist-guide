@@ -44,6 +44,8 @@ SlashCmdList.OPENROUTE = function(msg)
     elseif cmd == "import" then
         if NS.Adapters then for _, ad in pairs(NS.Adapters) do if ad.Import then ad.Import(true) end end end
         NS.GuideMenu.Refresh()
+    elseif cmd == "verify" then
+        NS.RunVerify()
     elseif cmd == "log" then NS.Log.Toggle()
     elseif cmd == "stats" then
         local bySrc = {}
@@ -68,4 +70,38 @@ SlashCmdList.OPENROUTE = function(msg)
     else
         NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | arrow | options | route | order | taxi | hearth | import | test | debug")
     end
+end
+
+function NS.RunVerify(quiet)
+    local out = {}
+    local function chk(name, fn)
+        local ok, res, detail = pcall(fn)
+        local pass = ok and res and true or false
+        local line = ("%s %s%s"):format(pass and "PASS" or "FAIL", name, detail and (" - " .. tostring(detail)) or (not ok and (" - " .. tostring(res)) or ""))
+        out[#out + 1] = line
+        if not quiet then NS:Print((pass and "|cff00ff00PASS|r" or "|cffff4040FAIL|r") .. line:sub(5)) end
+    end
+    local P, G, U = NS.Progress, NS.Guide, NS.Util
+    chk("guide loaded", function() return P.guide ~= nil, P.guide and P.guide.id end)
+    chk("steps parsed", function() return P.steps and #P.steps > 0, P.steps and #P.steps end)
+    chk("current step", function() return P.current ~= nil, P.current and (P.current.action .. " " .. P.current.title) end)
+    chk("optimizer order", function() local u = P.Upcoming(10) return #u > 0, #u .. " upcoming" end)
+    chk("travel graph", function() return #NS.TravelGraph.nodes > 50, #NS.TravelGraph.nodes .. " nodes" end)
+    chk("taxi data flavor", function() return NS.TaxiData[NS.flavor] ~= nil, NS.flavor end)
+    chk("known flight paths", function() return true, U.tcount(NS.db.char.knownTaxi) end)
+    chk("hearth location", function() local wx, _, _, n = NS.TravelGraph.HearthWorld() return wx ~= nil, tostring(n or (GetBindLocation and GetBindLocation())) end)
+    chk("player world pos", function() local _, _, _, _, wx = U.PlayerPos() return wx ~= nil end)
+    chk("route to current step", function() local pth = NS.Router.CurrentPath(true) return pth ~= nil, pth and NS.TravelGraph.Describe(pth) end)
+    chk("arrow recommendation", function() local r = NS.Router.Recommendation() return r ~= nil, r and (r.mode .. ": " .. (r.text or "")) end)
+    chk("arrow frame shown", function() return NS.Arrow.frame:IsShown() end)
+    chk("secure button type", function() return true, tostring(NS.Arrow.button:GetAttribute("type")) end)
+    chk("guides registered", function() return #G.list > 0, #G.list end)
+    chk("suggest", function() local g = G.Suggest() return g ~= nil, g and g.id end)
+    chk("native guides", function() local n = 0 for _, id in ipairs(G.list) do if G.registry[id].source == "OpenRoute" then n = n + 1 end end return n > 0, n end)
+    chk("Zygor imported", function() local n = 0 for _, id in ipairs(G.list) do if G.registry[id].source == "Zygor" then n = n + 1 end end return true, n end)
+    chk("WoWPro imported", function() local n = 0 for _, id in ipairs(G.list) do if G.registry[id].source == "WoWPro" then n = n + 1 end end return true, n end)
+    chk("player info", function() return true, NS.player.faction .. " " .. NS.player.race .. " " .. NS.player.class .. " " .. string.format("%.2f", U.PlayerLevel()) end)
+    chk("autoload error", function() return NS.db.char.lastAutoloadError == nil, NS.db.char.lastAutoloadError end)
+    NS.db.char.lastVerify = { at = date("%Y-%m-%d %H:%M:%S"), lines = out }
+    return out
 end
