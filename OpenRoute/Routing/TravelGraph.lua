@@ -138,6 +138,17 @@ local function recordBindHere()
     end
 end
 NS:RegisterEvent("HEARTHSTONE_BOUND", function() NS:After(1, recordBindHere) end)
+-- learn the hearth spot whenever we are resting AT our bind location (inn name == bind name)
+NS:RegisterEvent("PLAYER_UPDATE_RESTING", function()
+    if IsResting and IsResting() then
+        local sub = GetSubZoneText and GetSubZoneText()
+        local bindname = GetBindLocation and GetBindLocation()
+        local b = NS.db.char.bind
+        if sub and bindname and (sub == bindname or (GetMinimapZoneText and GetMinimapZoneText() == bindname)) and (not b or b.name ~= bindname) then
+            recordBindHere()
+        end
+    end
+end)
 -- After hearthing we arrive at the inn: record position once loading finishes
 local hearthPending = false
 NS:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, _, spellID)

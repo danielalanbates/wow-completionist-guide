@@ -148,7 +148,7 @@ function G.Available(filterType)
     local out = {}
     for _, id in ipairs(G.list) do
         local g = G.registry[id]
-        if (not filterType or g.type == filterType) and Cond.FactionMatch(g.faction) then out[#out + 1] = g end
+        if (not filterType or (g.type or ""):lower() == filterType:lower()) and Cond.FactionMatch(g.faction) then out[#out + 1] = g end
     end
     table.sort(out, function(a, b)
         if (a.minlevel or 0) ~= (b.minlevel or 0) then return (a.minlevel or 0) < (b.minlevel or 0) end

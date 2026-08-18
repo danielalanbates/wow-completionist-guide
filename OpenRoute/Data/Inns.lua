@@ -4,6 +4,16 @@
 -- { zone = "uiMap name", x, y }  (map percentages)
 local ADDON, NS = ...
 NS.InnData = {
+    -- Bind-location names are often the INN name, not the subzone - common ones:
+    ["Gallows' End Tavern"] = { "Tirisfal Glades", 61.5, 52.3 }, ["The Lion's Pride Inn"] = { "Elwynn Forest", 43.7, 65.8 },
+    ["Lion's Pride Inn"] = { "Elwynn Forest", 43.7, 65.8 }, ["The Slaughtered Lamb"] = { "Stormwind City", 50.0, 74.4 },
+    ["The Gilded Rose"] = { "Stormwind City", 52.6, 65.7 }, ["The Blue Recluse"] = { "Stormwind City", 43.0, 79.0 },
+    ["Scarlet Raven Tavern"] = { "Duskwood", 73.9, 44.4 }, ["The Deepwater Tavern"] = { "Wetlands", 10.4, 60.9 },
+    ["Thunderbrew Distillery"] = { "Dun Morogh", 47.0, 52.4 }, ["The Stonefire Tavern"] = { "Ironforge", 18.2, 51.7 },
+    ["The Stoutlager Inn"] = { "Loch Modan", 35.3, 48.6 }, ["Farstrider Lodge"] = { "Loch Modan", 82.0, 63.5 },
+    ["The Wyvern's Tail"] = { "Orgrimmar", 53.7, 74.9 }, ["The Broken Tusk"] = { "Orgrimmar", 45.9, 63.4 },
+    ["The Crossroads Inn"] = { "The Barrens", 51.5, 30.3 }, ["The Salty Sailor Tavern"] = { "Stranglethorn Vale", 27.0, 77.3 },
+    ["World's End Tavern"] = { "Shattrath City", 55.5, 42.7 }, ["The Pig and Whistle Tavern"] = { "Stormwind City", 63.0, 76.0 },
     -- Alliance
     ["Northshire Abbey"] = { "Elwynn Forest", 48.9, 41.6 }, ["Northshire Valley"] = { "Elwynn Forest", 48.9, 41.6 },
     ["Goldshire"] = { "Elwynn Forest", 43.7, 65.8 }, ["Stormwind City"] = { "Stormwind City", 52.6, 65.7 }, ["Trade District"] = { "Stormwind City", 52.6, 65.7 },
