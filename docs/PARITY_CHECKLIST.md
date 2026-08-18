@@ -34,6 +34,11 @@ Round 2 (same session):
 - [x] TAXIMAP_OPENED handler runs against C_TaxiMap.GetTaxiNodesForMap (33 nodes returned; learns 0 outside taxi UI, correct); fixed a broken unreachable-state condition
 - [x] WoW-Pro adapter live: 39 guides imported after enabling WoWPro (AddOns.txt)
 
+Round 3:
+- [x] gold / dungeon / profession / dailies / titles guide types all load+parse through the same engine (Clefthoof Meat 5 steps, Ragefire Chasm 8, Felweed 2, Netherwing 147, Champion of the Naaru 137)
+- [x] gear advisor (UI/ItemScore.lua): class stat-weights, scores real items (equipped weapon 8.7, Felstone Spaulders 44.1), compares vs equipped slot, tooltip annotation hooked (OnTooltipSetItem / TooltipDataProcessor) — tooltip line render still to be eyeballed
+- [x] guide window readability pass: 430px wide, GameFontNormal rows, 44px row height, resize grip (scale drag) — Daniel's feedback addressed
+
 Still needs a real play session: turn-in/objective completion during actual questing, flight-master visit
 to confirm learned-taxi persistence, reorder quality over hours. Everything mechanical is verified.
 

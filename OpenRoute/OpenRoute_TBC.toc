@@ -33,6 +33,7 @@ UI\GuideFrame.lua
 UI\GuideMenu.lua
 UI\Options.lua
 UI\Log.lua
+UI\ItemScore.lua
 Adapters\WoWPro.lua
 Adapters\Zygor.lua
 Guides\Guides.xml
