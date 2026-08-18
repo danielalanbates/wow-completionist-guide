@@ -43,7 +43,7 @@ eta:SetTextColor(0.6, 0.85, 1)
 -- Secure item/spell button that takes the arrow's place
 local btn = CreateFrame("Button", "OpenRouteArrowItemButton", f, "SecureActionButtonTemplate")
 btn:SetSize(48, 48)
-btn:SetPoint("CENTER", arrow, "CENTER", 0, 0)
+btn:SetPoint("CENTER", f, "TOP", 0, -32)  -- NOTE: protected frames cannot anchor to regions (textures)
 btn:RegisterForClicks("AnyUp", "AnyDown")
 btn:SetAttribute("type", "item")
 local ring = btn:CreateTexture(nil, "BACKGROUND")

@@ -157,13 +157,19 @@ function G.Available(filterType)
     return out
 end
 
--- Best guess guide for current level (used on first run)
+-- Best guess guide for current level (used on first run).
+-- Prefer guides with an explicit level range containing the player, tightest range, native first.
 function G.Suggest()
     local lvl = U.PlayerLevel()
-    local best
+    local best, bestScore
     for _, g in ipairs(G.Available("Leveling")) do
-        if (g.minlevel or 0) <= lvl and (g.maxlevel or 999) >= lvl then
-            if not best or (g.source == "OpenRoute" and best.source ~= "OpenRoute") then best = g end
+        local minl, maxl = g.minlevel, g.maxlevel
+        if (minl or 0) <= lvl and (maxl or 999) >= lvl then
+            local score = 0
+            if minl and maxl then score = score + 1000 - (maxl - minl) end  -- explicit, tight ranges first
+            if minl then score = score + minl * 2 end                       -- closest start below our level
+            if g.source == "OpenRoute" then score = score + 50 end
+            if bestScore == nil or score > bestScore then best, bestScore = g, score end
         end
     end
     return best
