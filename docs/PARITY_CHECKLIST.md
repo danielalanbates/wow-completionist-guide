@@ -1,27 +1,35 @@
-# Zygor-parity verification checklist
+# Zygor-parity verification — RESULTS (2026-08-18, live on TBC Anniversary 2.5.6, char Meln/Dreamscythe)
 
-Automated (`/or verify`, auto-runs 25s after login, persisted to SavedVariables `lastVerify`):
-- [x] travel graph builds (156 nodes, tbc taxi data)
-- [x] guides registered (716: 2 native + 714 Zygor-imported)
-- [x] player world position via HBD
-- [ ] guide auto-loads at login (FIXED type-case bug 2026-08-18, pending retest)
-- [ ] current step + optimizer order
-- [ ] route to current step + arrow recommendation
-- [ ] secure item/hearth button exists (Arrow.lua load error, diagnosing via scriptErrors)
-- [ ] hearth location known (added tavern-name seeds + resting-learn, pending retest)
+Automated `/or verify` (auto-runs 25s after login, persisted to SavedVariables): **20/20 PASS**
+- guide loaded (zygor:Durotar 6-10, 186 steps parsed), suggest correct for level/faction
+- travel graph 156 nodes, tbc taxi data, player world pos
+- route to current step: "Walk 421 yd → zeppelin Orgrimmar<->Undercity → walk 1.3k yd (~8m)" — cross-continent, live
+- arrow recommendation + frame + secure button type=item
 
-Manual/visual (screenshots):
-- [x] guide window renders, buttons work (Guides menu opens, 715 listed)
-- [x] arrow frame renders
-- [ ] arrow points the right way (walk toward target, bearing decreases dist)
-- [ ] arrow becomes quest-item button at the spot; click uses item
-- [ ] arrow becomes Hearthstone when hearth is faster; click hearths
-- [ ] step auto-completes on quest accept/objective/turn-in
-- [ ] reordering: /or order differs from author order when player is far from step 1
-- [ ] guide chaining to `next` guide on completion
-- [ ] flight-path learning at flight master (TAXIMAP_OPENED)
-- [ ] cross-continent route includes zeppelin (Meln: UC -> Durotar route should use UC->Grom'gol/Org zeppelin)
+Live gameplay verification (screenshots in session log):
+- [x] arrow renders, rotates with facing in real time, distance/ETA update
+- [x] arrow direction agrees with Zygor's own arrow (both pointed at Brill zeppelin tower, ~205 yd)
+- [x] walking the wrong way increased distance and the route re-planned live (421→454→"walk 443")
+- [x] arrow → Hearthstone secure button swap, gold ring + cooldown + tooltip ("OpenRoute: Use your Hearthstone")
+- [x] clicking the button actually cast Hearthstone: character teleported UC → Gallows' End Tavern (Brill), end-to-end
+- [x] after hearth, router re-planned from Brill (Zygor agreed: same zeppelin, same direction)
+- [x] step auto-completion: injected R-step at player position auto-completed <1s and advanced to next step
+- [x] optimizer: /or order lists upcoming steps with per-step travel ETAs from player position
+- [x] guide viewer step list with action icons, checkboxes, skip/undo buttons
+- [x] guide sources: native 2 + Zygor 714 + WoW-Pro 39 imported at runtime
+- [x] hearth location learned from tavern-name seed (Gallows' End Tavern)
+- [x] /or verify, route, order, stats, log, guides menu (mouse), Options panel loads without error
 
-Known not-at-parity (documented gaps vs Zygor): gold/profession/dungeon guide engines, gear advisor,
-talent advisor, model viewer/creature detector, guide editor, dynamic XP-based guide skipping, walking
-wall-awareness (straight-line + terrain factor only).
+Fixed during verification:
+1. Suggest type-case bug (Zygor titles are "LEVELING" uppercase) — case-insensitive filter
+2. Suggest scoring (was picking level-less "Group Quests" guide) — tight explicit ranges preferred
+3. Arrow.lua:46 — protected SecureActionButton cannot anchor to a texture region → anchor to frame
+4. Inn seed list missed tavern-style bind names (Gallows' End Tavern etc.) + resting-based hearth learning
+5. keyboard focus: WoW must be clicked (key window) before synthetic keys land; !Swatter owns error handler
+
+Not yet verified live (mechanism exists, needs normal play): quest accept/objective/turn-in auto-complete
+(same CheckStep family as verified R-step), item-U button click (same secure path as verified hearth),
+TAXIMAP_OPENED flight-path learning, guide chaining to `next`, reorder quality A/B over a full session.
+
+Known feature gaps vs Zygor (by design, documented): gold/profession/dungeon guide engines, gear/talent
+advisors, model viewer, guide editor UI, wall-aware walking (straight-line x terrain factor).

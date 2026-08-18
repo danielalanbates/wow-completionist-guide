@@ -105,6 +105,32 @@ NS:RegisterEvent("ADDON_LOADED", function(_, name)
     NS:Fire("ADDON_READY")
 end)
 
+-- capture our own Lua errors for offline diagnosis (kept in SavedVariables, max 20)
+do
+    local orig = geterrorhandler and geterrorhandler()
+    local pending = {}
+    local function record(err)
+        local entry = err .. "\n" .. (debugstack and debugstack(3, 5, 5) or "")
+        if NS.db then
+            NS.db.char.luaErrors = NS.db.char.luaErrors or {}
+            if #NS.db.char.luaErrors < 20 then tinsert(NS.db.char.luaErrors, entry) end
+        elseif #pending < 20 then tinsert(pending, entry) end
+    end
+    if seterrorhandler then
+        seterrorhandler(function(err)
+            if type(err) == "string" and err:find("OpenRoute") then pcall(record, err) end
+            if orig then return orig(err) end
+        end)
+    end
+    NS:On("ADDON_READY", function()
+        if #pending > 0 then
+            NS.db.char.luaErrors = NS.db.char.luaErrors or {}
+            for _, e in ipairs(pending) do if #NS.db.char.luaErrors < 20 then tinsert(NS.db.char.luaErrors, e) end end
+        end
+        NS.db.char.luaErrors = NS.db.char.luaErrors or {}
+    end)
+end
+
 NS:RegisterEvent("PLAYER_LOGIN", function()
     NS:Fire("PLAYER_READY")
     NS:Print("v" .. NS.version .. " loaded (" .. NS.flavor .. "). Type /openroute or /or for help.")
