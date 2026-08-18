@@ -1,0 +1,12 @@
+# personal / local
+*.local.*
+.DS_Store
+tools/db2/**/*.csv.bak
+scratch/
+screenshots/private/
+# WoW SavedVariables never belong here
+WTF/
+*.wtf
+# secrets
+*.env
+CREDENTIALS*
