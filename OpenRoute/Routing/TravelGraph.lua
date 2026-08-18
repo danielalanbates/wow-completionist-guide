@@ -106,7 +106,8 @@ local function learnTaxi()
     local learned = 0
     for _, n in ipairs(list or {}) do
         -- state: Enum.FlightPathState.Current=0, Reachable=1, Unreachable=2
-        if n.nodeID and n.state ~= nil and n.state ~= 2 and (Enum and Enum.FlightPathState and n.state ~= Enum.FlightPathState.Unreachable or n.state ~= 2) then
+        local unreachable = (Enum and Enum.FlightPathState and Enum.FlightPathState.Unreachable) or 2
+        if n.nodeID and n.state ~= nil and n.state ~= unreachable then
             if not NS.db.char.knownTaxi[n.nodeID] then learned = learned + 1 end
             NS.db.char.knownTaxi[n.nodeID] = true
         end
