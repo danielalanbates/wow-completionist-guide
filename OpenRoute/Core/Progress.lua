@@ -185,9 +185,18 @@ function P.Refresh(force)
         NS:Fire("STEP_CHANGED", newcur)
     end
     NS:Fire("PROGRESS_REFRESHED")
-    if not newcur and P.guide and P.guide.next and G.registry[P.guide.next] then
-        NS:Print("Guide finished. Loading next: " .. G.registry[P.guide.next].name)
-        P.Load(P.guide.next)
+    if not newcur and P.guide then
+        -- pick what to run next: the authored chain if it still fits our level,
+        -- else the most optimal leveling guide for our level + position
+        local nxt = P.guide.next and G.registry[P.guide.next]
+        if nxt and nxt.maxlevel and U.PlayerLevel() > nxt.maxlevel + 0.9 then nxt = nil end
+        local eta
+        if not nxt then nxt, eta = G.SuggestNext(P.guide.id) end
+        if nxt and nxt.id ~= P.guide.id then
+            local where = eta and (" (~%dm away)"):format(math.max(1, math.floor(eta / 60 + 0.5))) or ""
+            NS:Print("Guide finished. Loading next: " .. nxt.name .. where)
+            P.Load(nxt.id)
+        end
     end
 end
 

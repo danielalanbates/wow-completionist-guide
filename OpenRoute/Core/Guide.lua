@@ -174,3 +174,57 @@ function G.Suggest()
     end
     return best
 end
+
+-- First located step of a guide (lazy-parses; call only on shortlisted candidates)
+local function guideStart(g)
+    for _, s in ipairs(G.Steps(g.id) or {}) do
+        if (s.coords or s.zone) and s.action ~= "h" then return s end
+    end
+end
+
+-- Next most optimal leveling guide after finishing one: level fit first,
+-- then actual travel time from the player's position to the guide's start.
+-- excludeId keeps us from re-suggesting the guide we just finished.
+function G.SuggestNext(excludeId)
+    local lvl = U.PlayerLevel()
+    local cands = {}
+    for _, g in ipairs(G.Available("Leveling")) do
+        if g.id ~= excludeId and (g.minlevel or 0) <= lvl + 0.5 and (g.maxlevel or 999) >= lvl then
+            cands[#cands + 1] = g
+        end
+    end
+    if #cands == 0 then
+        -- nothing spans our level (just dinged out of a bracket): take the nearest bracket above
+        local bestMin
+        for _, g in ipairs(G.Available("Leveling")) do
+            if g.id ~= excludeId and (g.minlevel or 0) > lvl and (not bestMin or g.minlevel < bestMin) then bestMin = g.minlevel end
+        end
+        if not bestMin then return nil end
+        for _, g in ipairs(G.Available("Leveling")) do
+            if g.id ~= excludeId and g.minlevel == bestMin then cands[#cands + 1] = g end
+        end
+    end
+    -- level-fit score, used both to shortlist and as the travel tiebreak base
+    local function fit(g)
+        local f = 0
+        if g.minlevel and g.maxlevel then f = f + 20 - math.min(20, g.maxlevel - g.minlevel) end -- tight ranges know what they're for
+        if g.minlevel then f = f + math.max(0, 10 - (lvl - g.minlevel)) end                      -- prefer ranges we just entered
+        if g.source == "OpenRoute" then f = f + 5 end
+        return f
+    end
+    table.sort(cands, function(a, b) return fit(a) > fit(b) end)
+    -- travel ETA only for the shortlist (parsing 700 guides would hitch the client)
+    local best, bestScore, bestEta
+    for i = 1, math.min(#cands, 8) do
+        local g = cands[i]
+        local eta
+        local s0 = guideStart(g)
+        if s0 and NS.Router then
+            local ok, v = pcall(NS.Router.TravelSecondsFromPlayer, s0)
+            if ok then eta = v end
+        end
+        local score = fit(g) - (eta and eta / 60 * 4 or 12) -- 4 pts/min of travel; unknown start ~ 3 min
+        if not bestScore or score > bestScore then best, bestScore, bestEta = g, score, eta end
+    end
+    return best, bestEta
+end
