@@ -55,6 +55,9 @@ SlashCmdList.OPENROUTE = function(msg)
         local nxt = G.SuggestNext(NS.Progress.guide and NS.Progress.guide.id)
         if nxt then NS.Progress.Load(nxt.id) NS:Print("Switched to: " .. nxt.name)
         else NS:Print("No better guide found.") end
+    elseif cmd == "scan" then
+        if NS.DynamicQuests then NS.DynamicQuests.Scan() NS:Print("Rescanned this zone's live quests.")
+        else NS:Print("Live quest scan is retail-only (classic flavors use the baked quest DB).") end
     elseif cmd == "verify" then
         NS.RunVerify()
     elseif cmd == "log" then NS.Log.Toggle()

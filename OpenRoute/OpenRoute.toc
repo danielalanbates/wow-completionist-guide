@@ -35,6 +35,7 @@ UI\Options.lua
 UI\Log.lua
 UI\ItemScore.lua
 Adapters\WoWPro.lua
+Adapters\DynamicQuests.lua
 Adapters\Commercial.lua
 Guides\Imported_Commercial.lua
 Guides\Imported_WoWPro.lua
