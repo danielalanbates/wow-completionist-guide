@@ -122,8 +122,20 @@ for qid, q in pairs(quests) do
     local name = clean(q[1])
     local startZid, startCoords, startNpc, itemStart = entitySpawn(q[2], false)
     local endZid, endCoords, endNpc = entitySpawn(q[3], true)
-    local zid = startZid or endZid or (type(q[17]) == "number" and q[17] > 0 and areaToUi[q[17]] and q[17]) or nil
-    if not zid or name == "" then skipped = skipped + 1 else
+    local objZid, objCoords
+    if type(q[10]) == "table" then
+        local oc = q[10][1]   -- creature objectives
+        if type(oc) == "table" then for _, o in ipairs(oc) do
+            local n = type(o) == "table" and npcs[o[1]]
+            if n then local zi, pts = firstSpawn(n[7]) if zi then objZid, objCoords = zi, table.concat(pts, ";") break end end
+        end end
+        if not objZid and type(q[10][2]) == "table" then for _, o in ipairs(q[10][2]) do
+            local ob = type(o) == "table" and objects[o[1]]
+            if ob then local zi, pts = firstSpawn(ob[4]) if zi then objZid, objCoords = zi, table.concat(pts, ";") break end end
+        end end
+    end
+    local zid = startZid or endZid or (type(q[17]) == "number" and q[17] > 0 and areaToUi[q[17]] and q[17]) or "OTHER"
+    if name == "" then skipped = skipped + 1 else
         local fac = factionOf(q[6])
         zones[zid] = zones[zid] or {}
         zones[zid][fac] = zones[zid][fac] or {}
@@ -133,6 +145,7 @@ for qid, q in pairs(quests) do
             endCoords = endCoords, endZid = endZid, endNpc = endNpc,
             pre = (type(q[13]) == "table" and q[13][1]) or nil,
             objText = type(q[8]) == "table" and clean(q[8][1]) or nil,
+            objZid = objZid, objCoords = objCoords,
             hasObjectives = type(q[10]) == "table",
             classes = classTag(q[7]),
         })
@@ -152,7 +165,11 @@ local function stepLines(e, zoneUi, zoneNm)
             ctag ~= "" and (ctag .. "|") or "", e.itemStart and "Started by an item drop." or "Starter location unknown.")
     end
     if e.hasObjectives then
-        out[#out + 1] = ("C %s|QID|%d|N|%s|"):format(e.name, e.qid, e.objText or "Complete the objectives.")
+        if e.objCoords then
+            out[#out + 1] = ("C %s|QID|%d|M|%s|Z|%s|N|%s|"):format(e.name, e.qid, e.objCoords, z(e.objZid), e.objText or "Complete the objectives.")
+        else
+            out[#out + 1] = ("C %s|QID|%d|N|%s|"):format(e.name, e.qid, e.objText or "Complete the objectives.")
+        end
     end
     if e.endCoords then
         out[#out + 1] = ("T %s|QID|%d|M|%s|Z|%s|N|To %s.|"):format(e.name, e.qid, e.endCoords, z(e.endZid), e.endNpc or "?")
@@ -171,11 +188,13 @@ f:write(('if NS.flavor ~= "%s" then return end\n'):format(FLAVOR == "era" and "e
 f:write("local R = NS.Guide.Register\n")
 
 local zoneIds = {}
-for zid in pairs(zones) do zoneIds[#zoneIds + 1] = zid end
+for zid in pairs(zones) do if zid ~= "OTHER" then zoneIds[#zoneIds + 1] = zid end end
 table.sort(zoneIds)
+if zones.OTHER then zoneIds[#zoneIds + 1] = "OTHER" end
 local guideCount, questCount = 0, 0
 for _, zid in ipairs(zoneIds) do
-    local zoneNm, zoneUi = areaName[zid], areaToUi[zid]
+    local zoneNm = zid == "OTHER" and "Instances & Other" or areaName[zid]
+    local zoneUi = zid == "OTHER" and 0 or areaToUi[zid]
     for fac, list in pairs(zones[zid]) do
         table.sort(list, function(a, b) if a.lvl ~= b.lvl then return a.lvl < b.lvl end return a.name < b.name end)
         local minl, maxl = 99, 1
@@ -189,9 +208,10 @@ for _, zid in ipairs(zoneIds) do
         if minl == 99 then minl = 1 end
         local facLabel = fac == "Both" and "" or (" (" .. fac .. ")")
         guideCount = guideCount + 1
-        f:write(("R({ id=%q, name=%q, type=\"Quests\", zone=%d, %sminlevel=%d, maxlevel=%d, author=\"Questie data\", source=\"OpenRoute\", text=[==[\n"):format(
-            ("qdb:%s:%d:%s"):format(FLAVOR, zid, fac), ("%s Quests%s"):format(zoneNm, facLabel),
-            zoneUi, fac ~= "Both" and ("faction=%q, "):format(fac) or "", minl, maxl))
+        local zoneField = zoneUi > 0 and tostring(zoneUi) or ("%q"):format(zoneNm)
+        f:write(("R({ id=%q, name=%q, type=\"Quests\", zone=%s, %sminlevel=%d, maxlevel=%d, author=\"Questie data\", source=\"OpenRoute\", text=[==[\n"):format(
+            ("qdb:%s:%s:%s"):format(FLAVOR, tostring(zid), fac), ("%s Quests%s"):format(zoneNm, facLabel),
+            zoneField, fac ~= "Both" and ("faction=%q, "):format(fac) or "", minl, maxl))
         f:write(table.concat(lines, "\n"))
         f:write("\n]==] })\n")
     end
