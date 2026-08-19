@@ -25,9 +25,21 @@ five ship in every TOC. Output is gitignored (Questie=GPL): run
   for fl in era tbc wotlk cata mop; do lua tools/gen_quest_guides.lua /tmp/Questie $fl; done
 (needs lua5.4 - luajit hits the 65k-constant limit). Verified in-game on Anniversary: Quests category
 (140 Horde-visible guides), Tirisfal Glades Quests (Horde) loads with 232 steps and live routing.
-Multi-version: TOCs exist for retail/vanilla/tbc/mists; addon installed to all four local flavors;
-single codebase, identical UI everywhere (Daniel's requirement). NOT yet launch-verified on
-retail/_classic_era_/_classic_ clients. Retail has no Questie DB -> no generated quest guides there.
+Multi-version (verified in-game 2026-08-19): single codebase, identical UI on every client.
+* BC Anniversary (_anniversary_): full verification incl. tree, icons, quest guides (Tirisfal 232 steps).
+* Classic Era (_classic_era_): 1347 guides, era Quests category (99), routing + chaining live.
+* Mists Classic (_classic_): 4264 guides, mop Quests category (280), all 11 icon categories.
+* Retail (_retail_): addon installed; DynamicQuests adapter (below) is the retail quest source;
+  client reaches login and token-auth enters the login queue, but the queue bounced to a password
+  prompt once and the client exited at login twice - in-world verification INCOMPLETE. Battle.net
+  password is Daniel-only; if a login prompt appears, he has to type it once (Remember Account is on).
+Retail quest coverage: Adapters/DynamicQuests.lua (retail-gated) builds '<Zone> Quests (Live)' guides
+from C_QuestLog.GetQuestsOnMap + C_QuestLine quest lines (Loremaster-style zone storylines), rebuilt
+on zone change / login / `/or scan`. Not yet exercised in-world (blocked on the login above).
+Launcher automation gotchas: Battle.net 'GAME VERSION' dropdown is per-page; era page lists only its
+3 rulesets - switch products via the retail page's GAME VERSION dropdown (PTRs + BCC Anniversary +
+WoW Classic + Mists + retail). Clicks need window-origin +30pt offset; front the app and click inside
+ONE python process.
 
 ## Testing tips
 * WoW keystrokes via scratch type.py only after `lsappinfo front` == "Wow" (a mis-focused burst
