@@ -1,0 +1,11 @@
+# BigWigs packager config (https://github.com/BigWigsMods/packager)
+package-as: OpenRoute
+
+ignore:
+  - docs
+  - tools
+  - archive
+  - README.md
+
+# Guides/ contains baked third-party-derived data that is gitignored locally;
+# packaged releases ship only what's committed.

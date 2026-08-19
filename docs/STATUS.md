@@ -56,3 +56,23 @@ ONE python process.
 2. More native guides (1-20 both factions).
 3. Road/wall data for walking accuracy (docs/ROUTING.md).
 4. Real-play-session polish items (arrow bearing at speed, item button timing).
+
+## Dev tooling & test suite (added 2026-08-19)
+Researched community/Blizzard addon-dev resources and adopted the standard toolchain:
+* `.luacheckrc` — luacheck (brew-installed) with WoW API read_globals; 0 errors.
+  Found+fixed a real bug: ItemScore tooltip hooks used `local _, link = tip.GetItem and tip:GetItem()`,
+  which truncates multi-returns, so `link` was ALWAYS nil (tooltip score annotation never fired).
+* `tools/validate_toc.lua` — all 4 TOCs: files exist, no dupes, Interface + SavedVariables consistent.
+  Gitignored baked `Guides/Imported_*` are skip-not-fail so CI checkouts pass.
+* `tools/test_load_all.lua` — loads every own file from each flavor TOC under an auto-stubbing
+  WoW mock (metatable stubs); catches syntax/load-time errors per flavor. 36/36 x4 clean.
+  Third-party Libs/ are skipped (need a real client env).
+* `tools/test_offline.lua` — baked-data assertions now BAKED-gated so it passes in fresh checkouts.
+* `.pkgmeta` + `.github/workflows/release.yml` — BigWigs packager release on `v*` tags (GitHub
+  releases now; add CF_API_KEY/WAGO_API_TOKEN secrets for CurseForge/Wago later).
+* `.github/workflows/ci.yml` — luacheck (fail on errors only; 38 benign unused-local warnings
+  remain visible) + all three Lua test tools on push/PR. Verified by simulating CI in a fresh
+  local clone (no baked guides): all green.
+Useful references: warcraft.wiki.gg addon API docs; in-client `ExportInterfaceFiles code` console
+command dumps Blizzard's own UI source; BigWigsMods/packager; luacheck; wowUnit (in-game test
+framework) if we ever want in-client assertions.
