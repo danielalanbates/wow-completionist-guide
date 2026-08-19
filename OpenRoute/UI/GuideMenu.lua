@@ -58,6 +58,24 @@ end
 local CAT_ORDER = { Leveling = 1, Dungeons = 2, Dailies = 3, Daily = 3, Gold = 4, Professions = 5, Profession = 5,
     Reputation = 6, Reputations = 6, Achievements = 7, Achievement = 7, Titles = 8, ["Pets & Mounts"] = 9, Events = 10 }
 
+-- Per-category icon + tint (TBC-era icons only). Rendered inline via |T escapes.
+local CAT_STYLE = {
+    Leveling   = { icon = "Interface\\Icons\\INV_Misc_Map_01",           color = "ffd200" },
+    Dungeons   = { icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01",   color = "ff6a5a" },
+    Dailies    = { icon = "Interface\\Icons\\INV_Misc_Note_01",          color = "6ac9ff" },
+    Gold       = { icon = "Interface\\Icons\\INV_Misc_Coin_02",          color = "ffe14d" },
+    Profession = { icon = "Interface\\Icons\\Trade_BlackSmithing",       color = "ff9e3d" },
+    Reputation = { icon = "Interface\\Icons\\INV_BannerPVP_02",          color = "b48cff" },
+    Achievements = { icon = "Interface\\Icons\\INV_Crown_02",            color = "ffc94d" },
+    Titles     = { icon = "Interface\\Icons\\INV_Crown_02",              color = "ffc94d" },
+    ["Pets & Mounts"] = { icon = "Interface\\Icons\\Ability_Mount_RidingHorse", color = "7ddf8f" },
+    Events     = { icon = "Interface\\Icons\\INV_Misc_Gift_01",          color = "5ad9c9" },
+}
+local DEFAULT_STYLE = { icon = "Interface\\Icons\\INV_Misc_QuestionMark", color = "cccccc" }
+local FOLDER_ICON = "Interface\\Icons\\INV_Misc_Bag_08"
+local function catStyle(name) return CAT_STYLE[name] or DEFAULT_STYLE end
+local function tex(path, size) return ("|T%s:%d:%d:0:-1|t"):format(path, size or 16, size or 16) end
+
 -- Path of a guide inside the tree: { "Leveling", "Starter Guides (1-12)" } (leaf shown separately)
 local function guidePath(g)
     if (g.id or ""):find("^zygor:") then
@@ -186,11 +204,18 @@ function M.Refresh()
         if row.kind == "node" then
             b.nodePath, b.gid = row.node.path, nil
             local mark = expanded[row.node.path] and "|cffaaaaaa[-]|r " or "|cffaaaaaa[+]|r "
-            b.text:SetText(("%s|cffffffff%s|r  |cff666666(%d)|r"):format(mark, row.node.name, row.node.count))
+            if row.depth == 0 then
+                local st = catStyle(row.node.name)
+                b.text:SetText(("%s%s |cff%s%s|r  |cff666666(%d)|r"):format(mark, tex(st.icon, 16), st.color, row.node.name, row.node.count))
+            else
+                b.text:SetText(("%s%s |cffffffff%s|r  |cff666666(%d)|r"):format(mark, tex(FOLDER_ICON, 14), row.node.name, row.node.count))
+            end
         else
             local g = row.guide
             b.nodePath, b.gid = nil, g.id
-            b.text:SetText(guideLabel(g) .. (P.guide and P.guide.id == g.id and "  |cff00ff00(active)|r" or ""))
+            -- in flat search results the tree context is gone, so show the category icon per guide
+            local prefix = filter ~= "" and (tex(catStyle(normCat(g.type)).icon, 14) .. " ") or ""
+            b.text:SetText(prefix .. guideLabel(g) .. (P.guide and P.guide.id == g.id and "  |cff00ff00(active)|r" or ""))
         end
         b:ClearAllPoints(); b:SetPoint("TOPLEFT", 0, -y); b:SetPoint("RIGHT", 0, 0)
         b:Show()
