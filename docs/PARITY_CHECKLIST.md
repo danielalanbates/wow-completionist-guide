@@ -44,3 +44,9 @@ to confirm learned-taxi persistence, reorder quality over hours. Everything mech
 
 Known feature gaps vs Zygor (by design, documented): gold/profession/dungeon guide engines, gear/talent
 advisors, model viewer, guide editor UI, wall-aware walking (straight-line x terrain factor).
+
+Round 4 (2026-08-19):
+- [x] smart next-guide recommendation: on guide finish, authored `next` chain is honored unless outleveled;
+      otherwise G.SuggestNext picks by level fit + real travel ETA from player position (routing graph),
+      shortlist-of-8 to avoid parse hitches; `/or next` previews the pick. Offline tests cover nearby-vs-far
+      tiebreak, finished-guide exclusion, level refilter after ding. In-game eyeball pending next play session.

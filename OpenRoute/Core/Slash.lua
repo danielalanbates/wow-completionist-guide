@@ -44,6 +44,11 @@ SlashCmdList.OPENROUTE = function(msg)
     elseif cmd == "import" then
         if NS.Adapters then for _, ad in pairs(NS.Adapters) do if ad.Import then ad.Import(true) end end end
         NS.GuideMenu.Refresh()
+    elseif cmd == "next" then
+        local nxt, eta = G.SuggestNext(NS.Progress.guide and NS.Progress.guide.id)
+        if nxt then
+            NS:Print(("Next recommended guide: %s [%s-%s]%s"):format(nxt.name, tostring(nxt.minlevel), tostring(nxt.maxlevel), eta and (" ~%dm travel"):format(math.max(1, math.floor(eta / 60 + 0.5))) or ""))
+        else NS:Print("No leveling guide fits your level/faction.") end
     elseif cmd == "verify" then
         NS.RunVerify()
     elseif cmd == "log" then NS.Log.Toggle()
