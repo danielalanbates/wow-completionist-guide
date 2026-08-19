@@ -36,5 +36,7 @@ UI\Log.lua
 UI\ItemScore.lua
 Adapters\WoWPro.lua
 Adapters\Zygor.lua
+Guides\Imported_Zygor.lua
+Guides\Imported_WoWPro.lua
 Guides\Guides.xml
 Core\Slash.lua
