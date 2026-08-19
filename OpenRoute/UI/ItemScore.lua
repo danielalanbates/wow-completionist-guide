@@ -90,7 +90,8 @@ local function hookTip(tip)
     if not tip then return end
     if tip.HookScript and TooltipDataProcessor == nil then
         tip:HookScript("OnTooltipSetItem", function(self)
-            local _, link = self.GetItem and self:GetItem()
+            if not self.GetItem then return end
+            local _, link = self:GetItem()
             annotate(self, link)
         end)
     end
@@ -98,7 +99,8 @@ end
 if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum.TooltipDataType then
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip)
         if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip and tooltip ~= ShoppingTooltip1 and tooltip ~= ShoppingTooltip2 then return end
-        local _, link = tooltip.GetItem and tooltip:GetItem()
+        if not tooltip.GetItem then return end
+        local _, link = tooltip:GetItem()
         annotate(tooltip, link)
     end)
 else

@@ -1,0 +1,31 @@
+name: CI
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install luacheck
+        run: sudo apt-get update && sudo apt-get install -y lua-check
+      - name: Luacheck (fail on errors, report warnings)
+        run: |
+          luacheck OpenRoute --no-color || code=$?
+          if [ "${code:-0}" -ge 2 ]; then exit "$code"; fi
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install luajit
+        run: sudo apt-get update && sudo apt-get install -y luajit
+      - name: Validate TOCs
+        run: luajit tools/validate_toc.lua
+      - name: Full-load smoke test (all 4 flavors)
+        run: luajit tools/test_load_all.lua
+      - name: Offline behavior tests
+        # Baked guide data is gitignored; the harness skips baked-guide checks when absent.
+        run: luajit tools/test_offline.lua
