@@ -45,12 +45,13 @@ local function srcColor(src)
     return "|cffaaaaaa"
 end
 
--- Normalize a category segment: "LEVELING" / "Leveling Guides" -> "Leveling"
+-- Normalize a category segment: "LEVELING" / "Leveling Guides" -> "Leveling"; merge singular/plural
+local CAT_ALIAS = { Dungeon = "Dungeons", Reputations = "Reputation", Daily = "Dailies",
+    Professions = "Profession", Title = "Titles", Event = "Events", Achievement = "Achievements" }
 local function normCat(s)
     s = (s or "Other"):gsub("%s+Guides$", "")
     s = s:lower():gsub("^%l", string.upper):gsub("%s%l", string.upper)
-    if s == "Gold" or s == "GOLD" then s = "Gold" end
-    return s
+    return CAT_ALIAS[s] or s
 end
 
 -- Category display order (Zygor-like); anything else lands after, alphabetical
