@@ -29,13 +29,14 @@ Multi-version (verified in-game 2026-08-19): single codebase, identical UI on ev
 * BC Anniversary (_anniversary_): full verification incl. tree, icons, quest guides (Tirisfal 232 steps).
 * Classic Era (_classic_era_): 1347 guides, era Quests category (99), routing + chaining live.
 * Mists Classic (_classic_): 4264 guides, mop Quests category (280), all 11 icon categories.
-* Retail (_retail_): addon installed; DynamicQuests adapter (below) is the retail quest source;
-  client reaches login and token-auth enters the login queue, but the queue bounced to a password
-  prompt once and the client exited at login twice - in-world verification INCOMPLETE. Battle.net
-  password is Daniel-only; if a login prompt appears, he has to type it once (Remember Account is on).
+* Retail (_retail_): VERIFIED in-world 2026-08-19 (Orialan, Orgrimmar Embassy). 9462 guides, all 11
+  icon categories; `/or scan` chat confirm; 'Orgrimmar Quests (Live)' loaded from the tree with 2
+  live-scanned steps (Complete/Turn in: Report to the Trading Post) and full routing (arrow +
+  "Walk 190 yd, ETA ~17s"). Login: token auth works, no password needed; Midnight launch queue was
+  the only delay (7 -> 108 -> cleared after ~1h; one BLZ51900001 disconnect mid-queue).
 Retail quest coverage: Adapters/DynamicQuests.lua (retail-gated) builds '<Zone> Quests (Live)' guides
 from C_QuestLog.GetQuestsOnMap + C_QuestLine quest lines (Loremaster-style zone storylines), rebuilt
-on zone change / login / `/or scan`. Not yet exercised in-world (blocked on the login above).
+on zone change / login / `/or scan`.
 Launcher automation gotchas: Battle.net 'GAME VERSION' dropdown is per-page; era page lists only its
 3 rulesets - switch products via the retail page's GAME VERSION dropdown (PTRs + BCC Anniversary +
 WoW Classic + Mists + retail). Clicks need window-origin +30pt offset; front the app and click inside
