@@ -47,8 +47,14 @@ SlashCmdList.OPENROUTE = function(msg)
     elseif cmd == "next" then
         local nxt, eta = G.SuggestNext(NS.Progress.guide and NS.Progress.guide.id)
         if nxt then
-            NS:Print(("Next recommended guide: %s [%s-%s]%s"):format(nxt.name, tostring(nxt.minlevel), tostring(nxt.maxlevel), eta and (" ~%dm travel"):format(math.max(1, math.floor(eta / 60 + 0.5))) or ""))
-        else NS:Print("No leveling guide fits your level/faction.") end
+            local msg = ("Next recommended guide: %s [%s-%s]%s"):format(nxt.name, tostring(nxt.minlevel), tostring(nxt.maxlevel), eta and (" ~%dm travel"):format(math.max(1, math.floor(eta / 60 + 0.5))) or "")
+            NS:Print(msg)
+            NS.db.char.lastNext = nxt.id .. " | " .. msg
+        else NS:Print("No leveling guide fits your level/faction.") NS.db.char.lastNext = "none" end
+    elseif cmd == "switch" then
+        local nxt = G.SuggestNext(NS.Progress.guide and NS.Progress.guide.id)
+        if nxt then NS.Progress.Load(nxt.id) NS:Print("Switched to: " .. nxt.name)
+        else NS:Print("No better guide found.") end
     elseif cmd == "verify" then
         NS.RunVerify()
     elseif cmd == "log" then NS.Log.Toggle()
