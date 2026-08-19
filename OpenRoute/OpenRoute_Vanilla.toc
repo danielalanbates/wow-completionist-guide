@@ -35,6 +35,7 @@ UI\Options.lua
 UI\Log.lua
 UI\ItemScore.lua
 Adapters\WoWPro.lua
+Adapters\DynamicQuests.lua
 Adapters\Zygor.lua
 Guides\Imported_Zygor.lua
 Guides\Imported_WoWPro.lua
