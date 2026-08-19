@@ -1,4 +1,4 @@
-## Interface: 120007, 120100
+## Interface: 120007, 120100, 121000, 121500
 ## Title: |cff3ec6ffOpen|r|cffffd200Route|r
 ## Notes: Community-driven leveling guides with Zygor-style optimal routing (flight paths, boats, portals, hearthstone) and a smart arrow that becomes the quest item / hearthstone when you should click it.
 ## Author: Daniel Bates (BatesAI) + contributors
