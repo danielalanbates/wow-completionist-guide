@@ -242,7 +242,7 @@ local function autoload(attempt)
     local ok, err = pcall(function()
         local id = NS.db.char.guide
         if id and G.registry[id] then P.Load(id) return end
-        local s = G.Suggest()
+        local s = G.SuggestNext(nil) or G.Suggest()  -- location-aware pick at login too
         if s then P.Load(s.id)
         elseif attempt < 3 then NS:After(6, function() autoload(attempt + 1) end)  -- adapters may still be importing
         else NS:Print("No guide matched your level/faction. /or guides") end
