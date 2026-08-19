@@ -1,12 +1,14 @@
 -- OpenRoute :: UI/GuideMenu.lua
--- Scrollable list of available guides (native + imported from WoW-Pro / Zygor when those addons are installed).
+-- Zygor-style guide browser: collapsible tree of Category (type) -> area/sub-folder -> guide.
+-- Zygor guides use their original folder paths (from the title); WoW-Pro guides group by zone.
+-- Typing in the filter box switches to a flat search across all guides.
 local ADDON, NS = ...
 local U, G, P = NS.Util, NS.Guide, NS.Progress
 local M = {}
 NS.GuideMenu = M
 
 local f = CreateFrame("Frame", "OpenRouteGuideMenu", UIParent, "BackdropTemplate")
-f:SetSize(420, 420)
+f:SetSize(460, 480)
 f:SetPoint("CENTER")
 f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
 f:SetBackdropColor(0.05, 0.05, 0.08, 0.95)
@@ -22,18 +24,20 @@ title:SetPoint("TOP", 0, -10); title:SetText("OpenRoute Guides")
 local close = CreateFrame("Button", nil, f, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -2, -2)
 
 local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-search:SetSize(200, 20); search:SetPoint("TOPLEFT", 16, -36); search:SetAutoFocus(false)
+search:SetSize(220, 20); search:SetPoint("TOPLEFT", 16, -36); search:SetAutoFocus(false)
 search:SetScript("OnTextChanged", function() M.Refresh() end)
 local searchLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-searchLabel:SetPoint("LEFT", search, "RIGHT", 6, 0); searchLabel:SetText("filter")
+searchLabel:SetPoint("LEFT", search, "RIGHT", 6, 0); searchLabel:SetText("search")
 
 local scroll = CreateFrame("ScrollFrame", "OpenRouteGuideMenuScroll", f, "UIPanelScrollFrameTemplate")
 scroll:SetPoint("TOPLEFT", 12, -62); scroll:SetPoint("BOTTOMRIGHT", -30, 12)
 local content = CreateFrame("Frame", nil, scroll)
-content:SetSize(360, 10)
+content:SetSize(400, 10)
 scroll:SetScrollChild(content)
 
 local buttons = {}
+local expanded = {}   -- [nodePath] = true
+
 local function srcColor(src)
     if src == "OpenRoute" then return "|cff3ec6ff" end
     if src == "WoWPro" then return "|cffff9900" end
@@ -41,45 +45,162 @@ local function srcColor(src)
     return "|cffaaaaaa"
 end
 
-function M.Refresh()
-    local filter = (search:GetText() or ""):lower()
-    local list = G.Available()
-    local y, n = 0, 0
-    for _, g in ipairs(list) do
-        local label = ("%s%s|r  |cff888888[%s%s]|r"):format(srcColor(g.source), g.name or g.id, g.type or "", (g.minlevel and (" %d-%d"):format(g.minlevel, g.maxlevel or g.minlevel) or ""))
-        if filter == "" or (g.name or g.id):lower():find(filter, 1, true) or (g.source or ""):lower():find(filter, 1, true) or (g.zone or ""):lower():find(filter, 1, true) then
-            n = n + 1
-            local b = buttons[n]
-            if not b then
-                b = CreateFrame("Button", nil, content)
-                b:SetHeight(20); b:SetPoint("LEFT", 0, 0); b:SetPoint("RIGHT", 0, 0)
-                b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-                b.text:SetPoint("LEFT", 4, 0); b.text:SetJustifyH("LEFT")
-                b.hl = b:CreateTexture(nil, "HIGHLIGHT"); b.hl:SetAllPoints(); b.hl:SetColorTexture(1, 1, 1, 0.1)
-                b:SetScript("OnClick", function(self) P.Load(self.gid) f:Hide() end)
-                b:SetScript("OnEnter", function(self)
-                    local gg = G.registry[self.gid]
-                    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                    GameTooltip:SetText(gg.name or gg.id)
-                    GameTooltip:AddLine("Source: " .. (gg.source or "?") .. "   Author: " .. (gg.author or "?"), 1, 1, 1)
-                    if gg.zone then GameTooltip:AddLine("Zone: " .. tostring(gg.zone), 1, 1, 1) end
-                    if gg.faction then GameTooltip:AddLine("Faction: " .. gg.faction, 1, 1, 1) end
-                    if gg.next then GameTooltip:AddLine("Next: " .. gg.next, 0.7, 0.7, 0.7) end
-                    GameTooltip:Show()
-                end)
-                b:SetScript("OnLeave", function() GameTooltip:Hide() end)
-                buttons[n] = b
+-- Normalize a category segment: "LEVELING" / "Leveling Guides" -> "Leveling"
+local function normCat(s)
+    s = (s or "Other"):gsub("%s+Guides$", "")
+    s = s:lower():gsub("^%l", string.upper):gsub("%s%l", string.upper)
+    if s == "Gold" or s == "GOLD" then s = "Gold" end
+    return s
+end
+
+-- Category display order (Zygor-like); anything else lands after, alphabetical
+local CAT_ORDER = { Leveling = 1, Dungeons = 2, Dailies = 3, Daily = 3, Gold = 4, Professions = 5, Profession = 5,
+    Reputation = 6, Reputations = 6, Achievements = 7, Achievement = 7, Titles = 8, ["Pets & Mounts"] = 9, Events = 10 }
+
+-- Path of a guide inside the tree: { "Leveling", "Starter Guides (1-12)" } (leaf shown separately)
+local function guidePath(g)
+    if (g.id or ""):find("^zygor:") then
+        local segs = {}
+        for seg in g.id:sub(7):gmatch("[^\\]+") do segs[#segs + 1] = seg end
+        segs[#segs] = nil -- last segment is the guide itself
+        if segs[1] then segs[1] = normCat(segs[1]) else segs[1] = normCat(g.type) end
+        return segs
+    end
+    local cat = normCat(g.type)
+    local area = g.zone
+    if type(area) == "number" then local mi = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(area) area = mi and mi.name end
+    return { cat, tostring(area or (g.source == "OpenRoute" and "OpenRoute" or "Other")) }
+end
+
+-- Build tree: node = { name, path, kids = {ordered}, kidByName = {}, guides = {}, count }
+local function buildTree()
+    local root = { kids = {}, kidByName = {}, guides = {}, count = 0 }
+    for _, g in ipairs(G.Available()) do
+        local segs = guidePath(g)
+        local node = root
+        local path = ""
+        for _, seg in ipairs(segs) do
+            path = path .. "\\" .. seg
+            local kid = node.kidByName[seg]
+            if not kid then
+                kid = { name = seg, path = path, kids = {}, kidByName = {}, guides = {}, count = 0 }
+                node.kidByName[seg] = kid
+                node.kids[#node.kids + 1] = kid
             end
-            b.gid = g.id
-            b.text:SetText(label .. (P.guide and P.guide.id == g.id and "  |cff00ff00(active)|r" or ""))
-            b:ClearAllPoints(); b:SetPoint("TOPLEFT", 0, -y); b:SetPoint("RIGHT", 0, 0)
-            b:Show()
-            y = y + 20
+            node = kid
+            node.count = node.count + 1
         end
+        node.guides[#node.guides + 1] = g
+        root.count = root.count + 1
+    end
+    local function sortNode(n)
+        table.sort(n.kids, function(a, b)
+            local oa, ob = CAT_ORDER[a.name], CAT_ORDER[b.name]
+            if oa or ob then return (oa or 99) < (ob or 99) end
+            -- sort "X (10-20)" style folders by their level, else alphabetically
+            local la = tonumber(a.name:match("%((%d+)%-")) local lb = tonumber(b.name:match("%((%d+)%-"))
+            if la and lb and la ~= lb then return la < lb end
+            return a.name < b.name
+        end)
+        table.sort(n.guides, function(a, b)
+            if (a.minlevel or 999) ~= (b.minlevel or 999) then return (a.minlevel or 999) < (b.minlevel or 999) end
+            return (a.name or a.id) < (b.name or b.id)
+        end)
+        for _, k in ipairs(n.kids) do sortNode(k) end
+    end
+    sortNode(root)
+    return root
+end
+
+local function guideLabel(g)
+    return ("%s%s|r%s"):format(srcColor(g.source), g.name or g.id,
+        g.minlevel and ("  |cff888888[%d-%d]|r"):format(g.minlevel, g.maxlevel or g.minlevel) or "")
+end
+
+-- Flatten visible tree into rows: { kind = "node"|"guide", depth, node|guide }
+local function visibleRows()
+    local rows = {}
+    local function walk(n, depth)
+        for _, k in ipairs(n.kids) do
+            rows[#rows + 1] = { kind = "node", depth = depth, node = k }
+            if expanded[k.path] then walk(k, depth + 1) end
+        end
+        for _, g in ipairs(n.guides) do
+            rows[#rows + 1] = { kind = "guide", depth = depth, guide = g }
+        end
+    end
+    walk(buildTree(), 0)
+    return rows
+end
+
+local function searchRows(filter)
+    local rows = {}
+    for _, g in ipairs(G.Available()) do
+        local hay = ((g.name or g.id) .. " " .. (g.type or "") .. " " .. tostring(g.zone or "") .. " " .. (g.source or "")):lower()
+        if hay:find(filter, 1, true) then rows[#rows + 1] = { kind = "guide", depth = 0, guide = g } end
+    end
+    table.sort(rows, function(a, b)
+        if (a.guide.minlevel or 999) ~= (b.guide.minlevel or 999) then return (a.guide.minlevel or 999) < (b.guide.minlevel or 999) end
+        return (a.guide.name or a.guide.id) < (b.guide.name or b.guide.id)
+    end)
+    return rows
+end
+
+function M.Refresh()
+    local filter = (search:GetText() or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
+    local rows = filter ~= "" and searchRows(filter) or visibleRows()
+    local y, n = 0, 0
+    for _, row in ipairs(rows) do
+        n = n + 1
+        local b = buttons[n]
+        if not b then
+            b = CreateFrame("Button", nil, content)
+            b:SetHeight(20); b:SetPoint("LEFT", 0, 0); b:SetPoint("RIGHT", 0, 0)
+            b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            b.text:SetPoint("LEFT", 4, 0); b.text:SetJustifyH("LEFT")
+            b.hl = b:CreateTexture(nil, "HIGHLIGHT"); b.hl:SetAllPoints(); b.hl:SetColorTexture(1, 1, 1, 0.1)
+            b:SetScript("OnClick", function(self)
+                if self.nodePath then
+                    expanded[self.nodePath] = not expanded[self.nodePath] or nil
+                    M.Refresh()
+                elseif self.gid then P.Load(self.gid) f:Hide() end
+            end)
+            b:SetScript("OnEnter", function(self)
+                if not self.gid then return end
+                local gg = G.registry[self.gid]
+                if not gg then return end
+                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                GameTooltip:SetText(gg.name or gg.id)
+                GameTooltip:AddLine("Source: " .. (gg.source or "?") .. "   Author: " .. (gg.author or "?"), 1, 1, 1)
+                if gg.zone then GameTooltip:AddLine("Zone: " .. tostring(gg.zone), 1, 1, 1) end
+                if gg.faction then GameTooltip:AddLine("Faction: " .. gg.faction, 1, 1, 1) end
+                if gg.next then GameTooltip:AddLine("Next: " .. gg.next, 0.7, 0.7, 0.7) end
+                GameTooltip:Show()
+            end)
+            b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            buttons[n] = b
+        end
+        local indent = 4 + row.depth * 14
+        b.text:SetPoint("LEFT", indent, 0)
+        if row.kind == "node" then
+            b.nodePath, b.gid = row.node.path, nil
+            local mark = expanded[row.node.path] and "|cffaaaaaa[-]|r " or "|cffaaaaaa[+]|r "
+            b.text:SetText(("%s|cffffffff%s|r  |cff666666(%d)|r"):format(mark, row.node.name, row.node.count))
+        else
+            local g = row.guide
+            b.nodePath, b.gid = nil, g.id
+            b.text:SetText(guideLabel(g) .. (P.guide and P.guide.id == g.id and "  |cff00ff00(active)|r" or ""))
+        end
+        b:ClearAllPoints(); b:SetPoint("TOPLEFT", 0, -y); b:SetPoint("RIGHT", 0, 0)
+        b:Show()
+        y = y + 20
     end
     for i = n + 1, #buttons do buttons[i]:Hide() end
     content:SetHeight(math.max(y, 10))
-    if #list == 0 then title:SetText("OpenRoute Guides (none registered)") else title:SetText(("OpenRoute Guides (%d)"):format(#list)) end
+    local total = #G.Available()
+    title:SetText(total == 0 and "OpenRoute Guides (none registered)" or ("OpenRoute Guides (%d)"):format(total))
 end
 function M.Toggle() if f:IsShown() then f:Hide() else M.Refresh() f:Show() end end
 function M.Show() M.Refresh() f:Show() end
+-- exposed for tools/test_offline.lua (headless tree checks); not used in-game
+M._test = { buildTree = buildTree, guidePath = guidePath, visibleRows = visibleRows, searchRows = searchRows, expanded = expanded }
