@@ -38,5 +38,10 @@ Adapters\WoWPro.lua
 Adapters\Zygor.lua
 Guides\Imported_Zygor.lua
 Guides\Imported_WoWPro.lua
+Guides\Imported_Quests_era.lua
+Guides\Imported_Quests_tbc.lua
+Guides\Imported_Quests_wotlk.lua
+Guides\Imported_Quests_cata.lua
+Guides\Imported_Quests_mop.lua
 Guides\Guides.xml
 Core\Slash.lua

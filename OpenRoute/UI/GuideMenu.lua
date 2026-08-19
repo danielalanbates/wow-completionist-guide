@@ -46,7 +46,7 @@ local function srcColor(src)
 end
 
 -- Normalize a category segment: "LEVELING" / "Leveling Guides" -> "Leveling"; merge singular/plural
-local CAT_ALIAS = { Dungeon = "Dungeons", Reputations = "Reputation", Daily = "Dailies",
+local CAT_ALIAS = { Quest = "Quests", Dungeon = "Dungeons", Reputations = "Reputation", Daily = "Dailies",
     Professions = "Profession", Title = "Titles", Event = "Events", Achievement = "Achievements" }
 local function normCat(s)
     s = (s or "Other"):gsub("%s+Guides$", "")
@@ -55,12 +55,13 @@ local function normCat(s)
 end
 
 -- Category display order (Zygor-like); anything else lands after, alphabetical
-local CAT_ORDER = { Leveling = 1, Dungeons = 2, Dailies = 3, Daily = 3, Gold = 4, Professions = 5, Profession = 5,
-    Reputation = 6, Reputations = 6, Achievements = 7, Achievement = 7, Titles = 8, ["Pets & Mounts"] = 9, Events = 10 }
+local CAT_ORDER = { Leveling = 1, Quests = 2, Dungeons = 3, Dailies = 4, Daily = 4, Gold = 5, Professions = 6, Profession = 6,
+    Reputation = 7, Reputations = 7, Achievements = 8, Achievement = 8, Titles = 9, ["Pets & Mounts"] = 10, Events = 11 }
 
 -- Per-category icon + tint (TBC-era icons only). Rendered inline via |T escapes.
 local CAT_STYLE = {
     Leveling   = { icon = "Interface\\Icons\\INV_Misc_Map_01",           color = "ffd200" },
+    Quests     = { icon = "Interface\\GossipFrame\\AvailableQuestIcon",   color = "ffee66" },
     Dungeons   = { icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01",   color = "ff6a5a" },
     Dailies    = { icon = "Interface\\Icons\\INV_Misc_Note_01",          color = "6ac9ff" },
     Gold       = { icon = "Interface\\Icons\\INV_Misc_Coin_02",          color = "ffe14d" },
