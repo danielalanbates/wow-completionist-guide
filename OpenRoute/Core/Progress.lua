@@ -42,13 +42,18 @@ function P.IsDone(step)
     if charDone()[step.index] or charSkipped()[step.index] then return true end
     -- opt-in: a step another character already finished counts as done for this one
     if NS.Account and NS.Account.Enabled() and P.guide then
-        return NS.Account.OtherDid(P.guide.id, step.index) and true or false
+        if NS.Account.OtherDid(P.guide.id, step.index) then return true end
+        -- quest IDs line up across guides; step indices only line up inside one guide
+        if step.qid and NS.Account.OtherDidQuest(step.qid) then return true end
     end
     return false
 end
 function P.MarkDone(step, manual)
     if not step then return end
     charDone()[step.index] = true
+    if (step.action == "T" or step.action == "t") and step.qid and NS.Account then
+        for _, q in ipairs(step.qid) do NS.Account.RecordQuest(q) end
+    end
     dirty = true
     NS:Debug("done: " .. step.action .. " " .. step.title)
     NS:Fire("STEP_DONE", step)

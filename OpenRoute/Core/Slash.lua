@@ -263,6 +263,10 @@ function NS.RunFeatureVerify(quiet)
         return leaked == false, "off => other characters ignored"
     end)
 
+    chk("account", "quest-level union", function()
+        local q = 0 for _ in pairs(A.me.quests or {}) do q = q + 1 end
+        return true, ("%d quests recorded, accountQuests=%s"):format(q, tostring(NS.db.profile.accountQuests))
+    end)
     chk("core", "guides registered", function() return #NS.Guide.list > 0, #NS.Guide.list end)
     chk("core", "guide loaded + routed", function()
         return P.current ~= nil, P.guide and (P.guide.id .. " -> " .. P.current.action .. " " .. P.current.title) or "none"

@@ -28,7 +28,8 @@ NS.defaults = {
         routing = { enabled = true, reorder = true, hearth = true, taxi = true, transit = true, window = 10,
                     runSpeed = 7, mountSpeed = nil, terrainFactor = 1.25, taxiSpeed = 32 },
         beacon = { enabled = true, scale = 1.0, pins = true, targetButton = true },
-        accountWide = false,  -- opt-in: treat any character's completion as this character's
+        accountWide = false,     -- opt-in: treat any character's completion as this character's
+        accountQuests = true,    -- when accountWide is on, also union by quest ID across guides
         autoAccept = false, autoTurnin = false, autoAdvance = true, minimapButton = true, debug = false,
     },
     char = {

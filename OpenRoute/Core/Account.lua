@@ -30,6 +30,7 @@ function A.Init()
     end
     me.done = me.done or {}
     me.skipped = me.skipped or {}
+    me.quests = me.quests or {}   -- [questID] = true, quests this character turned in
     me.name = NS.player.name
     me.realm = NS.player.realm
     me.class = NS.player.class
@@ -61,6 +62,32 @@ function A.OtherDid(guideid, index)
         if k ~= A.key then
             local g = c.done and c.done[guideid]
             if g and g[index] then return k end
+        end
+    end
+    return false
+end
+
+-- ---------------------------------------------------------------------------
+-- Quest-level union.  Step indices only line up inside one guide; quest IDs line up across
+-- every guide and every source, so a quest an alt finished also clears the equivalent step in
+-- a different guide covering the same content.
+-- ---------------------------------------------------------------------------
+function A.RecordQuest(qid)
+    if qid and A.me then A.me.quests[qid] = true end
+end
+
+-- true if some OTHER character completed the quest(s) this step is for.
+-- Honours the step's and/or semantics (|QID|1&2| = all, |QID|1^2| = any).
+function A.OtherDidQuest(qids)
+    if not A.Enabled() or not qids or not NS.db.profile.accountQuests then return false end
+    local wantAll = qids.andor == "and"
+    for k, c in pairs(NS.db.global.chars) do
+        if k ~= A.key and c.quests then
+            local hit, all = false, true
+            for _, q in ipairs(qids) do
+                if c.quests[q] then hit = true else all = false end
+            end
+            if (wantAll and all) or (not wantAll and hit) then return k end
         end
     end
     return false
@@ -102,5 +129,6 @@ function A.Forget(charkey)
 end
 
 NS:On("ADDON_READY", function() pcall(A.Init) end)
+NS:RegisterEvent("QUEST_TURNED_IN", function(_, qid) A.RecordQuest(qid) end)
 NS:RegisterEvent("PLAYER_LEVEL_UP", function(_, lvl) if A.me then A.me.level = lvl or UnitLevel("player") end end)
 NS:RegisterEvent("PLAYER_LOGOUT", function() if A.me then A.me.updated = date("%Y-%m-%d %H:%M:%S") A.me.level = UnitLevel("player") end end)
