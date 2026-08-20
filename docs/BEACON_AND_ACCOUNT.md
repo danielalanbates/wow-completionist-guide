@@ -49,6 +49,12 @@ Old per-character progress is migrated on first login (`me.migrated = true`).
 - **ON** — a step counts as done if **any** character on the account finished it. Skips never
   transfer: a skip is a personal choice, not account progress.
 
+**Quest-level union** (`profile.accountQuests`, default on, only active when `accountWide` is on):
+step indices only line up inside one guide, but quest IDs line up across every guide and every
+source. Each character records the quests it turns in (`QUEST_TURNED_IN`, plus manual `T` step
+completion) in `chars[key].quests`, so a quest an alt finished also clears the equivalent step in a
+*different* guide covering the same content. `|QID|1&2|` requires all, `|QID|1^2|` requires any.
+
 `/or chars` prints the roster (steps + guides completed per character), `/or forget <Name-Realm>`
 drops a deleted character. Guide list rows show a completion badge for guides already parsed
 (never forced — the quest DB is ~9k guides and the list refreshes per keystroke).
