@@ -26,7 +26,10 @@ Data\Taxi_mop.lua
 Data\Taxi_retail.lua
 Data\Transit.lua
 Data\Inns.lua
+Data\Roads_ek.lua
+Data\Roads_kalimdor.lua
 Routing\TravelGraph.lua
+Routing\Roads.lua
 Routing\StepOrder.lua
 Routing\Router.lua
 UI\Arrow.lua

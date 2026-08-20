@@ -211,14 +211,20 @@ function R.Recommendation()
     elseif leg.mode == "walk" then
         rec.mode = "walk"
         rec.wx, rec.wy, rec.inst = leg.to.wx, leg.to.wy, leg.to.inst
+        -- following a road: aim at the next road vertex that is still ahead of us, not the far end
+        if leg.via and wx then
+            for _, v in ipairs(leg.via) do
+                if math.sqrt((v.wx - wx) ^ 2 + (v.wy - wy) ^ 2) > 25 then rec.wx, rec.wy, rec.via = v.wx, v.wy, true break end
+            end
+        end
         local nxt = path.legs[2]
         if nxt then
-            if nxt.mode == "taxi" then rec.text = "Flight master: " .. (leg.to.name or "") .. " -> fly to " .. (nxt.to.name or "")
+            if nxt.mode == "taxi" then rec.text = "Flight master: " .. (leg.to.name or "") .. " -> fly to " .. (nxt.to.name or "") .. (nxt.discover and " (new path)" or "")
             else rec.text = nxt.title or ("Go to " .. (leg.to.name or "transport")) end
         elseif not rec.borrowedFrom then rec.text = step.title end
         rec.dist = leg.dist
     elseif leg.mode == "taxi" then
-        rec.mode = "taxi"; rec.text = "Fly to " .. (leg.to.name or "?")
+        rec.mode = "taxi"; rec.text = "Fly to " .. (leg.to.name or "?") .. (leg.discover and " (new flight path)" or "")
         rec.wx, rec.wy, rec.inst = leg.from.wx, leg.from.wy, leg.from.inst
     else
         rec.mode = "transit"; rec.text = leg.title or leg.mode
