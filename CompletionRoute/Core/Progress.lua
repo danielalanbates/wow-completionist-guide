@@ -279,6 +279,12 @@ NS:On("PLAYER_READY", function()
     -- File-driven verification pathway: set CompletionRouteDB.autoVerifyAll = true in the
     -- SavedVariables before launching and the client sweeps every guide by itself, then clears
     -- the flag. Far more reliable than typing a slash command through synthetic keystrokes.
+    NS:After(40, function()
+        if CompletionRouteDB and CompletionRouteDB.autoDemo and NS.Beacon then
+            CompletionRouteDB.autoDemo = nil
+            pcall(NS.Beacon.Demo)
+        end
+    end)
     NS:After(35, function()
         if CompletionRouteDB and CompletionRouteDB.autoVerifyAll and NS.RunVerifyAll then
             CompletionRouteDB.autoVerifyAll = nil

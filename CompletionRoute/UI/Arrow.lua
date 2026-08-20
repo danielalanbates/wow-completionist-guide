@@ -71,7 +71,11 @@ local pending
 local function applyButton(mode, itemID, spellID, reason)
     if InCombatLockdown() then pending = { mode, itemID, spellID, reason } return end
     pending = nil
-    if mode == "hide" then btn:Hide() btn.itemID, btn.spellID = nil, nil return end
+    -- "show" with neither an item nor a spell used to leave the empty ring painted on screen
+    if mode == "hide" or (not itemID and not spellID) then
+        btn:Hide(); btn.itemID, btn.spellID = nil, nil
+        return
+    end
     if itemID then
         btn:SetAttribute("type", "item"); btn:SetAttribute("item", "item:" .. itemID)
         icon:SetTexture(U.ItemIcon(itemID))
@@ -121,7 +125,7 @@ function A.Update()
     local rec = NS.Router and NS.Router.Recommendation()
     if not rec then arrow:Hide() applyButton("hide") title:SetText("") sub:SetText("") eta:SetText("") return end
     title:SetText(rec.text or "")
-    if rec.mode == "item" or rec.mode == "hearth" then
+    if (rec.mode == "item" or rec.mode == "hearth") and (rec.item or rec.spell) then
         arrow:Hide()
         applyButton("show", rec.item, rec.spell, rec.text)
         updateCooldown()
