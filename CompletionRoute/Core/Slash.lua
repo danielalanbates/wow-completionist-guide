@@ -67,6 +67,36 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "autoverify" then
         CompletionRouteDB.autoVerifyAll = not CompletionRouteDB.autoVerifyAll
         NS:Print("Run verifyall automatically at next login: " .. tostring(CompletionRouteDB.autoVerifyAll))
+    elseif cmd == "chars" or cmd == "account" then
+        NS:Print(("Account-wide progress: %s (toggle: /cr accountwide)"):format(NS.db.profile.accountWide and "|cff00ff00ON|r" or "|cff888888OFF|r"))
+        for _, c in ipairs(NS.Account.Characters()) do
+            NS:Print(("  %s%s  %s %s lvl %s  %s  %d steps in %d guides  (%s)"):format(
+                c.key == NS.Account.key and "|cffffd200*|r " or "  ", c.key,
+                tostring(c.faction), tostring(c.class), tostring(c.level), tostring(c.flavor),
+                c.steps or 0, c.guides or 0, tostring(c.updated)))
+        end
+    elseif cmd == "accountwide" then
+        NS.db.profile.accountWide = not NS.db.profile.accountWide
+        NS:Print("Account-wide progress " .. (NS.db.profile.accountWide and "ON - steps any character finished count as done" or "OFF - per-character progress"))
+        NS.Progress.Refresh() NS.GuideMenu.Refresh()
+    elseif cmd == "forget" then
+        if NS.Account.Forget(rest) then NS:Print("Forgot " .. rest) else NS:Print("No such character (or it is you): " .. rest) end
+    elseif cmd == "beacon" then
+        local b = NS.db.profile.beacon
+        b.enabled = not b.enabled
+        NS.Beacon.ApplySettings()
+        NS:Print("Target beacon " .. (b.enabled and "on" or "off") .. "; tracking: " .. (function()
+            local t = {} for _, n in pairs(NS.Beacon.WantedNames()) do t[#t + 1] = n end
+            return #t > 0 and table.concat(t, ", ") or "(nothing named on this step)" end)())
+    elseif cmd == "icon" then
+        local b = NS.db.profile.beacon
+        b.icon = (b.icon == "action") and "arrow" or "action"
+        NS.Beacon.RefreshIcons()
+        NS:Print("Over-head marker: " .. (b.icon == "action" and "the game's own step icons (quest !, ?, skull...)" or "plain arrow"))
+    elseif cmd == "demo" then
+        NS.Beacon.Demo()
+    elseif cmd == "verifyfeatures" then
+        NS.RunFeatureVerify()
     elseif cmd == "log" then NS.Log.Toggle()
     elseif cmd == "stats" then
         local bySrc = {}
@@ -89,7 +119,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | arrow | beacon | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | test | debug")
+        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | beacon | icon | demo | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | autoverify | test | debug")
     end
 end
 
@@ -148,6 +178,9 @@ function NS.RunVerifyAll(onDone)
     local res = { flavor = NS.flavor, total = #ids, done = 0, failed = 0, errors = {}, startedAt = date("%Y-%m-%d %H:%M:%S") }
     CompletionRouteDB.verifyAll = res
     local prevGuide = NS.Progress.guide and NS.Progress.guide.id
+    -- loading 9000 guides auto-completes steps in every one of them; keep that out of the
+    -- character's real progress
+    if NS.Account and NS.Account.me then NS.Account.BeginScratch() end
     local i, fr = 1, CreateFrame("Frame")
     NS:Print(("verifyall: checking %d guides..."):format(#ids))
     fr:SetScript("OnUpdate", function()
@@ -185,6 +218,7 @@ function NS.RunVerifyAll(onDone)
         if i > #ids then
             fr:SetScript("OnUpdate", nil)
             res.finishedAt = date("%Y-%m-%d %H:%M:%S")
+            if NS.Account and NS.Account.EndScratch then NS.Account.EndScratch() end
             if prevGuide then pcall(NS.Progress.Load, prevGuide) end
             NS:Print(("verifyall DONE: %d/%d guides OK, %d failed"):format(res.total - res.failed, res.total, res.failed))
             for k = 1, math.min(10, #res.errors) do NS:Print("  FAIL " .. res.errors[k]) end
@@ -213,17 +247,23 @@ function NS.RunFeatureVerify(quiet)
         local t = {} for _, n in pairs(B.WantedNames()) do t[#t + 1] = n end
         return true, (#t > 0 and table.concat(t, ", ") or "none on this step")
     end)
-    chk("beacon", "nameplate API present", function()
-        return C_NamePlate and C_NamePlate.GetNamePlates ~= nil, "plates visible: " ..
-            tostring(C_NamePlate and #(C_NamePlate.GetNamePlates(true) or {}) or 0)
+    chk("beacon", "nameplate source", function()
+        -- classic clients return an empty C_NamePlate list and need the WorldFrame fallback
+        B.RescanPlates()
+        local modern = C_NamePlate and C_NamePlate.GetNamePlates and #(C_NamePlate.GetNamePlates() or {}) or 0
+        local legacy = B.legacyPlateCount or 0
+        local api = (C_NamePlate and C_NamePlate.GetNamePlates ~= nil) or (WorldFrame ~= nil)
+        return api, ("modern=%d legacy=%d -> using %s"):format(modern, legacy, modern > 0 and "C_NamePlate" or "WorldFrame")
     end)
-    chk("beacon", "nameplate rescan runs", function() B.RescanPlates() return true, tostring(B.count) .. " tracked names" end)
+    chk("beacon", "nameplate rescan runs", function()
+        B.RescanPlates()
+        return true, ("%s tracked names, %d markers over heads"):format(tostring(B.count), (B.legacyMarked or 0) + (B.modernPlates or 0) > 0 and (B.legacyMarked or 0) or 0)
+    end)
     chk("beacon", "map pin library", function() return LibStub("HereBeDragons-Pins-2.0", true) ~= nil end)
     chk("beacon", "pins placed for step coords", function()
         B.UpdatePins()
-        local s = P.current
-        if not s or not s.coords then return true, "current step has no coords (nothing to pin)" end
-        return true, #s.coords .. " coord(s) on map " .. tostring(s.zone)
+        if B.pinError then return false, B.pinError end
+        return true, tostring(B.pinState)
     end)
     chk("beacon", "target button secure macro", function()
         B.UpdateTargetButton()

@@ -46,6 +46,19 @@ end
 
 function A.Enabled() return NS.db and NS.db.profile.accountWide and true or false end
 
+-- Sandbox: while a bulk sweep is loading every guide in the catalogue, progress writes must not
+-- land in the character's real record (otherwise /cr verifyall marks thousands of steps "done").
+function A.BeginScratch()
+    if A.scratch then return end
+    A.scratch = { done = A.me.done, skipped = A.me.skipped }
+    A.me.done, A.me.skipped = {}, {}
+end
+function A.EndScratch()
+    if not A.scratch then return end
+    A.me.done, A.me.skipped = A.scratch.done, A.scratch.skipped
+    A.scratch = nil
+end
+
 function A.Done(guideid)
     A.me.done[guideid] = A.me.done[guideid] or {}
     return A.me.done[guideid]

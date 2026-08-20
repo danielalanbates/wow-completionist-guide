@@ -44,6 +44,7 @@ check("Routing: use boats / zeppelins / portals / tram", function() return P().r
 check("Routing: suggest Hearthstone when it is faster", function() return P().routing.hearth end, function(v) P().routing.hearth = v NS.Router.Invalidate() end)
 check("Routing: assume ALL flight paths are known (not recommended)", function() return P().routing.assumeAllTaxi end, function(v) P().routing.assumeAllTaxi = v NS.Router.Invalidate() end)
 check("Target beacon: marker over the head of the step's NPC / mob", function() return P().beacon.enabled end, function(v) P().beacon.enabled = v NS.Beacon.ApplySettings() end)
+check("Target beacon: bob the marker up and down", function() return P().beacon.bounce end, function(v) P().beacon.bounce = v NS.Beacon.RescanPlates() end, "Turn this off for a completely still marker.")
 check("Target beacon: minimap + world map pins for the step location", function() return P().beacon.pins end, function(v) P().beacon.pins = v NS.Beacon.UpdatePins() end)
 check("Target beacon: one-click target button on the arrow", function() return P().beacon.targetButton end, function(v) P().beacon.targetButton = v NS.Beacon.UpdateTargetButton() end)
 check("Account-wide progress: count steps ANY of my characters finished", function() return P().accountWide end, function(v) P().accountWide = v NS.Progress.Refresh() NS.GuideMenu.Refresh() end, "Completionists: leave this OFF to do every guide on every character. Turn it ON to skip content the account has already cleared.")

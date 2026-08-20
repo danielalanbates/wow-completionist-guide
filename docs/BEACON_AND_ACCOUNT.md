@@ -9,7 +9,7 @@ Mists (Classic) and retail from the **same** addon folder — no per-flavor fork
 
 | Surface | What you get | API used | Availability |
 |---|---|---|---|
-| Nameplate | Downward arrow + additive glow ring bobbing over the unit's head | `C_NamePlate.GetNamePlates` / `NAME_PLATE_UNIT_ADDED` | all flavors |
+| Nameplate | **The game's own step icon** over the unit's head — the yellow quest `!` for accept steps, `?` for turn-ins, the raid-target skull for kills, coin/bag/boot for buy/use/run steps (`Guide.ACTION_ICON`). `/cr icon` switches to a plain arrow. | `C_NamePlate.GetNamePlates` with a WorldFrame fallback | all flavors |
 | Target / mouseover frame | Same marker pinned to the left of the unit frame, so you can confirm the click landed | `PLAYER_TARGET_CHANGED`, `UPDATE_MOUSEOVER_UNIT` | all flavors |
 | One-click select | Secure button on the arrow frame running `/cleartarget` + `/targetexact <name>` + `/target <name>` | `SecureActionButtonTemplate` macro | all flavors |
 | Minimap + world map | Pin on every coordinate the step carries | HereBeDragons-Pins-2.0 (bundled) | all flavors |
@@ -25,6 +25,17 @@ Mists (Classic) and retail from the **same** addon folder — no per-flavor fork
 
 The current step plus the next 4 upcoming steps contribute names, so sticky/parallel objectives
 stay marked (Zygor behaviour).
+
+### Two bugs only a live client could find
+* `C_NamePlate.GetNamePlates(true)` — that second argument is `isSecure`, and passing it from
+  insecure addon code returns **nothing**. The over-head marker silently never attached. Never
+  pass it; there is now an offline test asserting the call sites.
+* Re-anchoring the marker on every 0.5s rescan while its bob animation was mid-flight made it
+  stutter across the screen. `Beacon.Park` now anchors once and is idempotent, and the bob can be
+  turned off entirely (`profile.beacon.bounce`).
+
+Clients that expose nothing through `C_NamePlate` fall back to scanning `WorldFrame` children and
+reading the unit name out of the plate's FontString, the way classic nameplate addons do.
 
 ### Deliberate non-goals
 - **No world-space 3D overlay.** WoW's API cannot draw into the 3D scene; the nameplate anchor is
@@ -55,7 +66,12 @@ source. Each character records the quests it turns in (`QUEST_TURNED_IN`, plus m
 completion) in `chars[key].quests`, so a quest an alt finished also clears the equivalent step in a
 *different* guide covering the same content. `|QID|1&2|` requires all, `|QID|1^2|` requires any.
 
-`/or chars` prints the roster (steps + guides completed per character), `/or forget <Name-Realm>`
+**The bulk sweep is sandboxed.** `/cr verifyall` loads all ~9000 guides, which auto-completes a
+step in nearly every one of them. That used to land in the character's real record (4470 steps
+across 4384 guides on one test character). `Account.BeginScratch()` / `EndScratch()` now divert
+those writes; `tools/clean_sweep_progress.py` cleans up records written by older builds.
+
+`/cr chars` prints the roster (steps + guides completed per character), `/or forget <Name-Realm>`
 drops a deleted character. Guide list rows show a completion badge for guides already parsed
 (never forced — the quest DB is ~9k guides and the list refreshes per keystroke).
 
