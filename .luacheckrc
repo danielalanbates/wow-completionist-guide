@@ -47,7 +47,7 @@ read_globals = {
     "GetNumQuestLogEntries", "GetQuestLogTitle", "SelectQuestLogEntry", "GetQuestLogQuestText", "GetQuestObjectiveInfo", "IsQuestFlaggedCompleted", "GetQuestID", "AcceptQuest", "CompleteQuest", "GetQuestReward", "GetNumQuestChoices", "QuestFrame", "QuestGetAutoAccept", "AcknowledgeAutoAcceptQuest", "GetNumAutoQuestPopUps", "GetAutoQuestPopUp", "ShowQuestOffer", "ShowQuestComplete", "GetQuestLogIndexByID",
     "GossipFrame", "QuestFrameDetailPanel", "QuestFrameProgressPanel", "QuestFrameRewardPanel", "QuestFrameGreetingPanel",
     -- Namespaced C_ APIs
-    "C_NamePlate", "UnitExists", "HBD_PINS_WORLDMAP_SHOW_PARENT",
+    "C_NamePlate", "UnitExists", "ShowUIPanel", "QuestUtils_GetQuestName", "OpenWorldMap", "WorldMapFrame", "NumTaxiNodes", "TaxiNodeGetType", "TaxiNodeName", "HBD_PINS_WORLDMAP_SHOW_PARENT",
     "C_AddOns", "C_Timer", "C_Map", "C_QuestLog", "C_QuestLine", "C_TaskQuest", "C_Item", "C_Container", "C_GossipInfo", "C_SuperTrack", "C_Spell", "C_UnitAuras", "C_PlayerInfo", "C_Minimap", "C_TaxiMap", "C_EventUtils", "C_SpecializationInfo",
     -- Misc
     "LibStub", "hooksecurefunc", "SetOverrideBindingClick", "ClearOverrideBindings", "GetBindingKey", "SetBinding",

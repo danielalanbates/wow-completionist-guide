@@ -82,40 +82,114 @@ end
 -- ---------------------------------------------------------------------------
 -- Known flight paths (learned from the taxi map)
 -- ---------------------------------------------------------------------------
+-- Classic's legacy taxi API gives names, not node IDs, so map a flight master's name back to a
+-- graph node. Names are compared loosely: "Stormwind, Elwynn Forest" vs "Stormwind".
+function TG.NodeByName(name)
+    if not name or name == "" then return nil end
+    local want = name:lower()
+    local short = want:match("^([^,]+)") or want
+    local best
+    for _, n in ipairs(TG.nodes or {}) do
+        if n.taxiID and n.name then
+            local have = n.name:lower()
+            if have == want then return n end
+            if not best and (have:find(short, 1, true) or short:find((have:match("^([^,]+)") or have), 1, true)) then
+                best = n
+            end
+        end
+    end
+    return best
+end
+
 function TG.IsTaxiKnown(node)
     if cfg().assumeAllTaxi then return true end
     return NS.db.char.knownTaxi[node.taxiID] == true
 end
-local function learnTaxi()
-    local map = U.PlayerPos()
-    if not map then return end
-    local list
-    if C_TaxiMap and C_TaxiMap.GetAllTaxiNodes then list = C_TaxiMap.GetAllTaxiNodes(map)
-    elseif C_TaxiMap and C_TaxiMap.GetTaxiNodesForMap then list = C_TaxiMap.GetTaxiNodesForMap(map) end
-    if not list or #list == 0 then
-        -- try continent map
-        local info = C_Map.GetMapInfo(map)
-        while info and info.mapType and info.mapType > 2 and info.parentMapID and info.parentMapID > 0 do
-            info = C_Map.GetMapInfo(info.parentMapID)
-        end
-        if info and C_TaxiMap then
-            if C_TaxiMap.GetAllTaxiNodes then list = C_TaxiMap.GetAllTaxiNodes(info.mapID)
-            elseif C_TaxiMap.GetTaxiNodesForMap then list = C_TaxiMap.GetTaxiNodesForMap(info.mapID) end
-        end
-    end
+-- Harvesting flight paths ONLY when the player opens a flight master's map meant a character
+-- who had not done that this session routed with zero flights - the arrow then points in a
+-- straight line across the world instead of "fly Stormwind -> Morgan's Vigil". The game already
+-- knows which nodes you have; ask it for every continent at login, and support the classic
+-- taxi API too (C_TaxiMap does not exist on every client).
+local function harvestList(list)
     local learned = 0
+    local unreachable = (Enum and Enum.FlightPathState and Enum.FlightPathState.Unreachable) or 2
     for _, n in ipairs(list or {}) do
-        -- state: Enum.FlightPathState.Current=0, Reachable=1, Unreachable=2
-        local unreachable = (Enum and Enum.FlightPathState and Enum.FlightPathState.Unreachable) or 2
         if n.nodeID and n.state ~= nil and n.state ~= unreachable then
             if not NS.db.char.knownTaxi[n.nodeID] then learned = learned + 1 end
             NS.db.char.knownTaxi[n.nodeID] = true
         end
     end
-    -- the flight master we're talking to is known too
-    if learned > 0 then NS:Print("Learned " .. learned .. " flight path(s).") end
+    return learned
 end
-NS:RegisterEvent("TAXIMAP_OPENED", function() pcall(learnTaxi) end)
+
+local function nodesForMap(mapID)
+    if not (C_TaxiMap and mapID) then return nil end
+    if C_TaxiMap.GetAllTaxiNodes then return C_TaxiMap.GetAllTaxiNodes(mapID) end
+    if C_TaxiMap.GetTaxiNodesForMap then return C_TaxiMap.GetTaxiNodesForMap(mapID) end
+    return nil
+end
+
+-- every continent we have taxi data for, so a login harvest covers the whole world
+local function continentMaps()
+    local out, seen = {}, {}
+    local map = U.PlayerPos()
+    local info = map and C_Map.GetMapInfo(map)
+    while info and info.mapType and info.mapType > 2 and info.parentMapID and info.parentMapID > 0 do
+        info = C_Map.GetMapInfo(info.parentMapID)
+    end
+    if info and not seen[info.mapID] then out[#out + 1] = info.mapID seen[info.mapID] = true end
+    for _, n in ipairs(TG.nodes or {}) do
+        if n.map and not seen[n.map] then
+            local mi = C_Map.GetMapInfo(n.map)
+            while mi and mi.mapType and mi.mapType > 2 and mi.parentMapID and mi.parentMapID > 0 do
+                mi = C_Map.GetMapInfo(mi.parentMapID)
+            end
+            if mi and not seen[mi.mapID] then out[#out + 1] = mi.mapID seen[mi.mapID] = true end
+        end
+    end
+    return out
+end
+
+function TG.LearnTaxi(quiet)
+    local learned = 0
+    local map = U.PlayerPos()
+    learned = learned + harvestList(nodesForMap(map))
+    for _, m in ipairs(continentMaps()) do learned = learned + harvestList(nodesForMap(m)) end
+    -- classic clients: while a flight master's map is open the legacy API lists your nodes
+    if NumTaxiNodes and TaxiNodeGetType then
+        for i = 1, (NumTaxiNodes() or 0) do
+            local t = TaxiNodeGetType(i)
+            if t == "REACHABLE" or t == "CURRENT" then
+                local nm = TaxiNodeName and TaxiNodeName(i)
+                if nm then
+                    local node = TG.NodeByName and TG.NodeByName(nm)
+                    if node and node.taxiID and not NS.db.char.knownTaxi[node.taxiID] then
+                        NS.db.char.knownTaxi[node.taxiID] = true
+                        learned = learned + 1
+                    end
+                end
+            end
+        end
+    end
+    if learned > 0 then
+        NS.Router.Invalidate()
+        if not quiet then NS:Print("Learned " .. learned .. " flight path(s).") end
+    end
+    return learned
+end
+
+NS:RegisterEvent("TAXIMAP_OPENED", function() pcall(TG.LearnTaxi) end)
+NS:On("PLAYER_READY", function()
+    NS:After(8, function()
+        pcall(TG.LearnTaxi, true)
+        local n = 0
+        for _ in pairs(NS.db.char.knownTaxi) do n = n + 1 end
+        if n == 0 and not NS.db.char.taxiHintShown then
+            NS.db.char.taxiHintShown = true
+            NS:Print("|cffff9900No flight paths known yet|r - open any flight master's map once and I can route you by air. Until then the arrow walks. (/cr taxi)")
+        end
+    end)
+end)
 
 -- ---------------------------------------------------------------------------
 -- Hearth location (learned)
