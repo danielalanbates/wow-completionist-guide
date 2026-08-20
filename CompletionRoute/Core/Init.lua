@@ -26,7 +26,9 @@ NS.defaults = {
         arrow = { enabled = true, scale = 1.0, alpha = 1.0, lock = false, x = 0, y = -180, point = "TOP" },
         frame = { scale = 1.0, alpha = 0.95, width = 320, height = 300, showSteps = 6, lock = false, x = 0, y = 0, point = "CENTER" },
         routing = { enabled = true, reorder = true, hearth = true, taxi = true, transit = true, window = 10,
-                    runSpeed = 7, mountSpeed = nil, terrainFactor = 1.25, taxiSpeed = 32 },
+                    runSpeed = 7, mountSpeed = nil, terrainFactor = 1.25, taxiSpeed = 32,
+                    taxiPolicy = "faction",   -- "faction": any flight master your faction can use; "known": learned only
+                    roads = true, roadFactor = 1.0, recordRoads = true },
         beacon = { enabled = true, scale = 1.0, pins = true, targetButton = true, bounce = true, icon = "action" },
         accountWide = false,     -- opt-in: treat any character's completion as this character's
         accountQuests = true,    -- when accountWide is on, also union by quest ID across guides

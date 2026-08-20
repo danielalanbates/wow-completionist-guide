@@ -75,8 +75,9 @@ function TG.Build()
             else missing = missing + 1 end
         end
     end
+    TG.BuildRoads()
     TG.built = true
-    NS:Debug(("TravelGraph: %d nodes, %d transit entries unresolved"):format(#TG.nodes, missing))
+    NS:Debug(("TravelGraph: %d nodes (%d road), %d transit entries unresolved"):format(#TG.nodes, TG.roadCount or 0, missing))
 end
 
 -- ---------------------------------------------------------------------------
@@ -102,8 +103,19 @@ function TG.NodeByName(name)
 end
 
 function TG.IsTaxiKnown(node)
-    if cfg().assumeAllTaxi then return true end
     return NS.db.char.knownTaxi[node.taxiID] == true
+end
+-- "faction" (default): every flight master your faction can use is routable, learned or not -
+-- the route walks you to the one you need. "known": only flight paths this character has learned.
+function TG.TaxiPolicy()
+    local c = cfg()
+    if c.taxiPolicy == "known" then return "known" end
+    if c.taxiPolicy == "faction" or c.assumeAllTaxi or c.taxiPolicy == nil then return "faction" end
+    return "faction"
+end
+function TG.TaxiUsable(node)
+    if TG.TaxiPolicy() == "faction" then return true end
+    return TG.IsTaxiKnown(node)
 end
 -- Harvesting flight paths ONLY when the player opens a flight master's map meant a character
 -- who had not done that this session routed with zero flights - the arrow then points in a
@@ -184,7 +196,7 @@ NS:On("PLAYER_READY", function()
         pcall(TG.LearnTaxi, true)
         local n = 0
         for _ in pairs(NS.db.char.knownTaxi) do n = n + 1 end
-        if n == 0 and not NS.db.char.taxiHintShown then
+        if n == 0 and TG.TaxiPolicy() == "known" and not NS.db.char.taxiHintShown then
             NS.db.char.taxiHintShown = true
             NS:Print("|cffff9900No flight paths known yet|r - open any flight master's map once and I can route you by air. Until then the arrow walks. (/cr taxi)")
         end
@@ -235,6 +247,102 @@ end)
 NS:RegisterEvent("PLAYER_CONTROL_GAINED", function()
     if hearthPending then hearthPending = false NS:After(1, recordBindHere) end
 end)
+
+-- ---------------------------------------------------------------------------
+-- Roads: predetermined paths through zones (hand-authored Data/Roads_*.lua, image-traced via
+-- tools/trace_roads.py, or recorded from this account's own play by Routing/Roads.lua).
+-- A road is a polyline; every vertex is a graph node chained by "road" edges costed at
+-- roadFactor (1.0) instead of the off-road terrainFactor (1.25), so Dijkstra prefers the road
+-- when it is not much longer than the straight line. Road nodes are bucketed on a grid so the
+-- lazy complete-walking graph only has to look at nearby road vertices.
+-- ---------------------------------------------------------------------------
+TG.roadGrid = {}       -- [inst][cellKey] = { node, ... }
+TG.roadCount = 0
+local ROAD_CELL = 1500 -- yards
+local function cellKey(wx, wy) return math.floor(wx / ROAD_CELL) .. ":" .. math.floor(wy / ROAD_CELL) end
+local function gridAdd(n)
+    local g = TG.roadGrid[n.inst] if not g then g = {} TG.roadGrid[n.inst] = g end
+    local k = cellKey(n.wx, n.wy)
+    local cell = g[k] if not cell then cell = {} g[k] = cell end
+    cell[#cell + 1] = n
+end
+-- road vertices within ~radius of (wx,wy) on instance inst (3x3 cells)
+function TG.RoadNear(inst, wx, wy)
+    local g = TG.roadGrid[inst]
+    if not g then return nil end
+    local out = {}
+    local cx, cy = math.floor(wx / ROAD_CELL), math.floor(wy / ROAD_CELL)
+    for dx = -1, 1 do for dy = -1, 1 do
+        local cell = g[(cx + dx) .. ":" .. (cy + dy)]
+        if cell then for i = 1, #cell do out[#out + 1] = cell[i] end end
+    end end
+    return out
+end
+-- Join polyline ends to an existing vertex within `snap` yards (junctions between roads).
+local function roadVertex(inst, wx, wy, name, snap, mine)
+    for _, n in ipairs(TG.RoadNear(inst, wx, wy) or {}) do
+        if not mine[n] and dist(n.wx, n.wy, wx, wy) <= snap then return n end
+    end
+    local n = newNode("road", inst, wx, wy, name)
+    n.road = true
+    gridAdd(n)
+    TG.roadCount = TG.roadCount + 1
+    return n
+end
+local function addRoad(inst, pts, name, factor)
+    local prev
+    local mine = {}   -- never snap a polyline onto its own vertices (a 25-yd trace would eat its own tail)
+    for i, pt in ipairs(pts) do
+        local n = roadVertex(inst, pt[1], pt[2], name, (i == 1 or i == #pts) and 40 or 8, mine)
+        mine[n] = true
+        if prev and prev ~= n then
+            local d = dist(prev.wx, prev.wy, n.wx, n.wy)
+            addEdge(prev, n, 0, "road", nil, { dist = d, factor = factor })
+            addEdge(n, prev, 0, "road", nil, { dist = d, factor = factor })
+        end
+        prev = n
+    end
+end
+-- Accepts entries of the form
+--   { zone = "Elwynn Forest", name = "...", pts = { {x%, y%}, ... } }        (map percentages)
+--   { inst = 0, name = "...", w = { {wx, wy}, ... } }                         (world coordinates)
+-- plus optional flavors = {era=true,...}, fac = "A"|"H", factor = road cost factor override.
+function TG.AddRoadEntries(list, defaultFactor)
+    local added = 0
+    for _, r in ipairs(list or {}) do
+        local okFlavor = (not r.flavors) or r.flavors[NS.flavor]
+        local okFac = (not r.fac) or r.fac == faction()
+        if okFlavor and okFac then
+            local pts, inst = {}, r.inst
+            if r.w then
+                for _, pt in ipairs(r.w) do pts[#pts + 1] = { pt[1], pt[2] } end
+            elseif r.zone and r.pts then
+                for _, pt in ipairs(r.pts) do
+                    local wx, wy, i = zoneToWorld(r.zone, pt[1], pt[2])
+                    if wx then pts[#pts + 1] = { wx, wy } inst = i end
+                end
+            end
+            if inst and #pts >= 2 then addRoad(inst, pts, r.name or r.zone or "road", r.factor or defaultFactor) added = added + 1 end
+        end
+    end
+    return added
+end
+function TG.BuildRoads()
+    TG.roadGrid, TG.roadCount = {}, 0
+    if cfg().roads == false then return end
+    local n = TG.AddRoadEntries(NS.RoadData, nil)
+    -- roads this account has actually walked (Routing/Roads.lua recorder) - exact, so slightly preferred
+    if NS.Roads and NS.Roads.TraceEntries then n = n + TG.AddRoadEntries(NS.Roads.TraceEntries(), 0.97) end
+    NS:Debug(("Roads: %d polylines, %d vertices"):format(n, TG.roadCount))
+end
+function TG.RebuildRoads()
+    -- drop old road nodes and rebuild (recorder adds traces over time)
+    local keep = {}
+    for _, n in ipairs(TG.nodes) do if not n.road then keep[#keep + 1] = n end end
+    TG.nodes = keep
+    for i, n in ipairs(TG.nodes) do n.id = i end
+    TG.BuildRoads()
+end
 
 -- ---------------------------------------------------------------------------
 -- Dijkstra
@@ -316,12 +424,23 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     local heap = newHeap()
     d[start] = 0
     heap:push(0, start)
+    local roadFactor = c.roadFactor or 1.0
+    local function relaxTo(u, du, v)
+        local wc, dd = walkCost(u.wx, u.wy, v.wx, v.wy, speed)
+        local nd = du + wc
+        if nd < (d[v] or INF) then d[v] = nd prev[v] = u prevEdge[v] = { mode = "walk", cost = wc, dist = dd } heap:push(nd, v) end
+    end
     local function relaxWalk(u, du)
-        -- walk to every node in same instance (lazy complete graph)
+        -- nearby road vertices (grid lookup - the full sweep below skips road nodes)
+        local near = TG.RoadNear(u.inst, u.wx, u.wy)
+        if near then
+            for i = 1, #near do local v = near[i] if v ~= u and not closed[v] then relaxTo(u, du, v) end end
+        end
+        -- walk to every non-road node in same instance (lazy complete graph)
         for i = 1, #nodes do
             local v = nodes[i]
-            if v.inst == u.inst and v ~= u and not closed[v] then
-                local usable = (v.kind ~= "taxi") or (useTaxi and TG.IsTaxiKnown(v))
+            if v.inst == u.inst and v ~= u and not v.road and not closed[v] then
+                local usable = (v.kind ~= "taxi") or (useTaxi and TG.TaxiUsable(v))
                 if v.kind == "transit" and not useTransit then usable = false end
                 if usable then
                     local wc, dd = walkCost(u.wx, u.wy, v.wx, v.wy, speed)
@@ -344,15 +463,17 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             closed[u] = true
             if u == goal then break end
             iterations = iterations + 1
-            if iterations > 5000 then break end
+            if iterations > 20000 then break end
             -- explicit edges
             for _, e in ipairs(u.edges) do
                 local v = e.to
                 local ok = true
-                if e.mode == "taxi" and (not useTaxi or not TG.IsTaxiKnown(u) or not TG.IsTaxiKnown(v)) then ok = false end
+                if e.mode == "taxi" and (not useTaxi or not TG.TaxiUsable(u) or not TG.TaxiUsable(v)) then ok = false end
                 if (v.kind == "transit") and not useTransit and e.mode ~= "hearth" then ok = false end
                 if ok and not closed[v] then
-                    local nd = du + e.cost
+                    local ecost = e.cost
+                    if e.mode == "road" then ecost = e.data.dist * (e.data.factor or roadFactor) / speed end
+                    local nd = du + ecost
                     if nd < (d[v] or INF) then d[v] = nd prev[v] = u prevEdge[v] = e heap:push(nd, v) end
                 end
             end
@@ -367,14 +488,21 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     local v = goal
     while prev[v] do
         local e = prevEdge[v]
-        tinsert(legs, 1, { mode = e.mode, from = prev[v], to = v, cost = e.cost, title = e.title, data = e.data, dist = e.dist })
+        local leg = { mode = e.mode, from = prev[v], to = v, cost = e.cost, title = e.title, data = e.data, dist = e.dist }
+        if e.mode == "road" then leg.mode = "walk" leg.road = true leg.dist = e.data.dist leg.cost = d[v] - d[prev[v]] end
+        if e.mode == "taxi" then leg.discover = not TG.IsTaxiKnown(v) if leg.discover then leg.title = leg.title .. " (new flight path)" end end
+        tinsert(legs, 1, leg)
         v = prev[v]
     end
-    -- merge consecutive walk legs
+    -- merge consecutive walk legs; keep the intermediate vertices so the arrow can follow the road
     local merged = {}
     for _, l in ipairs(legs) do
         local last = merged[#merged]
-        if last and last.mode == "walk" and l.mode == "walk" then last.to = l.to last.cost = last.cost + l.cost last.dist = (last.dist or 0) + (l.dist or 0)
+        if last and last.mode == "walk" and l.mode == "walk" then
+            last.via = last.via or {}
+            last.via[#last.via + 1] = { wx = last.to.wx, wy = last.to.wy, road = last.road or l.road }
+            last.to = l.to last.cost = last.cost + l.cost last.dist = (last.dist or 0) + (l.dist or 0)
+            last.road = last.road or l.road
         else merged[#merged + 1] = l end
     end
     return { cost = d[goal], legs = merged }
@@ -385,7 +513,7 @@ function TG.Describe(path)
     if not path then return "no route" end
     local out = {}
     for _, l in ipairs(path.legs) do
-        if l.mode == "walk" then out[#out + 1] = ("Walk %s to %s"):format(U.FmtDist(l.dist), l.to.name or "?")
+        if l.mode == "walk" then out[#out + 1] = ("%s %s to %s"):format(l.road and "Follow the road" or "Walk", U.FmtDist(l.dist), l.to.name or "?")
         elseif l.mode == "taxi" then out[#out + 1] = ("Fly %s -> %s"):format(l.from.name, l.to.name)
         elseif l.mode == "hearth" then out[#out + 1] = l.title
         else out[#out + 1] = l.title or (l.mode .. " to " .. (l.to.name or "?")) end

@@ -39,7 +39,11 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         end
     elseif cmd == "taxi" then
         local n = 0 for _ in pairs(NS.db.char.knownTaxi) do n = n + 1 end
-        NS:Print(("Known flight paths: %d. Graph nodes: %d. Open a flight master's map to learn more."):format(n, #NS.TravelGraph.nodes))
+        local pol = NS.TravelGraph.TaxiPolicy()
+        NS:Print(("Flight paths: policy=%s, learned=%d, graph nodes=%d (%d road). %s"):format(pol, n, #NS.TravelGraph.nodes, NS.TravelGraph.roadCount or 0,
+            pol == "faction" and "Routing uses every flight master your faction can reach; unlearned ones are labelled (new flight path)." or "Routing uses learned flight paths only."))
+    elseif cmd == "road" or cmd == "roads" then
+        if NS.Roads then NS.Roads.Command(rest) else NS:Print("Road recorder not loaded.") end
     elseif cmd == "hearth" then
         local wx, wy, inst, name = NS.TravelGraph.HearthWorld()
         NS:Print(("Hearth: %s  (%s)"):format(tostring(GetBindLocation and GetBindLocation()), wx and ("known: " .. tostring(name)) or "location unknown - hearth once or bind at an inn to teach me"))

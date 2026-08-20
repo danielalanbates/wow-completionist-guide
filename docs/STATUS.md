@@ -1,4 +1,14 @@
-# Status / handoff (2026-08-19)
+# Status / handoff (2026-08-20)
+
+## Routing round 3 (2026-08-20): faction-wide flights + roads
+* Flight routing no longer depends on learned paths (`taxiPolicy=faction` default, unlearned legs labelled).
+* Road network: `Data/Roads_*.lua` polylines → graph vertices (grid-bucketed), arrow follows via points,
+  passive recorder turns play into road data, `tools/roads_from_trace.py` + `tools/trace_roads.py` make it
+  shareable / image-authored. Details + caveats in docs/ROUTING.md. Offline suite covers faction policy,
+  road preference, detour rejection, recorder → graph. NOT yet verified in game this round (Daniel is away and a
+  WoW Classic client is live on screen - no keystrokes sent). Next: `/reload`, `/cr taxi`, `/cr road`, `/cr route`
+  on the Stormwind → Burning Steppes case.
+
 
 ## Verified
 * luajit offline suite (`luajit tools/test_offline.lua`) passes end-to-end: parser, Dijkstra
