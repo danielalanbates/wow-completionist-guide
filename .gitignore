@@ -13,3 +13,5 @@ CREDENTIALS*
 
 # Baked third-party guide data (Zygor proprietary / WoW-Pro CC BY-NC-ND) - never commit
 OpenRoute/Guides/Imported_*.lua
+tools/__pycache__/
+__pycache__/

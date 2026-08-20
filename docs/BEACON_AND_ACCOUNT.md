@@ -1,0 +1,65 @@
+# Target Beacon + Account-Wide Progression
+
+Two features added on top of the routing core. Both work identically on Era, TBC Anniversary,
+Mists (Classic) and retail from the **same** addon folder — no per-flavor forks.
+
+## 1. Target Beacon (`UI/Beacon.lua`)
+
+"Where is the thing?" Zygor puts a marker over the quest giver's head; so does this.
+
+| Surface | What you get | API used | Availability |
+|---|---|---|---|
+| Nameplate | Downward arrow + additive glow ring bobbing over the unit's head | `C_NamePlate.GetNamePlates` / `NAME_PLATE_UNIT_ADDED` | all flavors |
+| Target / mouseover frame | Same marker pinned to the left of the unit frame, so you can confirm the click landed | `PLAYER_TARGET_CHANGED`, `UPDATE_MOUSEOVER_UNIT` | all flavors |
+| One-click select | Secure button on the arrow frame running `/cleartarget` + `/targetexact <name>` + `/target <name>` | `SecureActionButtonTemplate` macro | all flavors |
+| Minimap + world map | Pin on every coordinate the step carries | HereBeDragons-Pins-2.0 (bundled) | all flavors |
+
+### Where the name comes from
+1. `|T|Name|` on the guide line (authoritative — guide authors should supply this).
+2. Otherwise mined from the step title with the community phrasing conventions:
+   `A ... from <NPC>`, `T ... to <NPC>`, `K Kill <Mob>`, `C ... talk to <NPC>`.
+   Patterns are greedy-prefixed (`.*%f[%a]from`) so the **last** "from"/"to" wins —
+   "Report to Goldshire to Marshal Dughan" resolves to *Marshal Dughan*, not *Goldshire to …*.
+3. `cleanName` drops trailing parentheticals, `<Title>` fragments, trailing punctuation, and
+   anything that starts with a digit or runs over 48 characters.
+
+The current step plus the next 4 upcoming steps contribute names, so sticky/parallel objectives
+stay marked (Zygor behaviour).
+
+### Deliberate non-goals
+- **No world-space 3D overlay.** WoW's API cannot draw into the 3D scene; the nameplate anchor is
+  the only supported "over its head" attachment point and is what every addon of this class uses.
+- **No raid target icons.** `SetRaidTarget` needs group lead and would stomp the group's marks.
+
+### Settings
+`/or beacon` toggles it. Options panel: enable, scale, map pins, target button.
+
+## 2. Account-wide progression (`Core/Account.lua`)
+
+Every character's progress now lives in **one** account-level table,
+`OpenRouteDB.chars["Name-Realm"] = { done = {[guideID] = {[stepIndex] = true}}, skipped = …,
+level, class, faction, flavor, updated }`. The per-character SavedVariables file keeps settings only.
+Old per-character progress is migrated on first login (`me.migrated = true`).
+
+**Opt-in** (`profile.accountWide`, default **off**, `/or accountwide`):
+
+- **OFF** — classic per-character behaviour. Other characters' data is read for *display only*
+  (guide tooltips show "This character X% / Whole account Y%"). Completionists leave it off and
+  every character does every guide.
+- **ON** — a step counts as done if **any** character on the account finished it. Skips never
+  transfer: a skip is a personal choice, not account progress.
+
+`/or chars` prints the roster (steps + guides completed per character), `/or forget <Name-Realm>`
+drops a deleted character. Guide list rows show a completion badge for guides already parsed
+(never forced — the quest DB is ~9k guides and the list refreshes per keystroke).
+
+## Verification
+
+- Offline: `luajit tools/test_offline.lua` — sections 7 (account) and 8 (beacon) assert the name
+  mining, the nameplate rescan, the secure macro, the 25%/75% progress math, and that the opt-in
+  gate is honoured in **both** directions.
+- Per-flavor load: `luajit tools/test_load_all.lua`, `luajit tools/validate_toc.lua`.
+- In-game: `/or verifyfeatures` writes a named PASS/FAIL row per feature into
+  `OpenRouteDB.featureVerify`; it also runs automatically 30s after login.
+  `python3 tools/collect_verify.py` pulls those out of every flavor's SavedVariables into
+  `docs/verification.sqlite`; `docs/verification.sql` holds the schema and the report queries.

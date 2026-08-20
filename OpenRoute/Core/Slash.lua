@@ -60,6 +60,79 @@ SlashCmdList.OPENROUTE = function(msg)
         else NS:Print("Live quest scan is retail-only (classic flavors use the baked quest DB).") end
     elseif cmd == "verify" then
         NS.RunVerify()
+    elseif cmd == "verifyall" then
+        -- Bulk verifier: parse + fully load EVERY registered guide (all factions), chunked
+        -- across frames. Results land in OpenRouteDB.verifyAll for offline collection.
+        local ids = {}
+        for _, id in ipairs(G.list) do ids[#ids + 1] = id end
+        local res = { flavor = NS.flavor, total = #ids, done = 0, failed = 0, errors = {}, startedAt = date("%Y-%m-%d %H:%M:%S") }
+        OpenRouteDB.verifyAll = res
+        local prevGuide = NS.Progress.guide and NS.Progress.guide.id
+        local i, fr = 1, CreateFrame("Frame")
+        NS:Print(("verifyall: checking %d guides..."):format(#ids))
+        fr:SetScript("OnUpdate", function()
+            local budget = debugprofilestop() + 25 -- ~25ms per frame
+            while i <= #ids and debugprofilestop() < budget do
+                local id = ids[i]
+                local okS, steps = pcall(G.Steps, id)
+                local err
+                if not okS then err = "parse crash: " .. tostring(steps)
+                elseif not steps or #steps == 0 then
+                    local g = G.registry[id]
+                    if not (g.dynamic or (g.type or "") == "Quests" and NS.DynamicQuests) then
+                        local t = type(g.text) == "function" and g.text() or g.text
+                        err = ("0 steps (text=%s len=%s head=%q)"):format(type(t), t and #tostring(t) or "-", tostring(t):sub(1, 60))
+                    end
+                elseif (G.registry[id].parseErrors or 0) > 0 then
+                    local g = G.registry[id]
+                    local t = type(g.text) == "function" and g.text() or g.text
+                    local msgs, n = {}, 0
+                    for line in (tostring(t) .. "\n"):gmatch("([^\r\n]*)\r?\n") do
+                        n = n + 1
+                        local _, lerr = G.ParseLine(line, n, g.zone)
+                        if lerr and #msgs < 3 then msgs[#msgs + 1] = ("L%d %s | %s"):format(n, lerr, line:sub(1, 80)) end
+                    end
+                    err = g.parseErrors .. " line errors: " .. table.concat(msgs, " ;; ")
+                else
+                    local okL, lerr = pcall(NS.Progress.Load, id)
+                    if not okL then err = "load crash: " .. tostring(lerr) end
+                end
+                if err then res.failed = res.failed + 1 res.errors[#res.errors + 1] = id .. " :: " .. err end
+                res.done = i
+                i = i + 1
+                if i % 1000 == 0 then NS:Print(("verifyall: %d/%d (%d failed)"):format(i, #ids, res.failed)) end
+            end
+            if i > #ids then
+                fr:SetScript("OnUpdate", nil)
+                res.finishedAt = date("%Y-%m-%d %H:%M:%S")
+                if prevGuide then pcall(NS.Progress.Load, prevGuide) end
+                NS:Print(("verifyall DONE: %d/%d guides OK, %d failed (details in OpenRouteDB.verifyAll)"):format(res.total - res.failed, res.total, res.failed))
+                for k = 1, math.min(10, #res.errors) do NS:Print("  FAIL " .. res.errors[k]) end
+            end
+        end)
+    elseif cmd == "chars" or cmd == "account" then
+        NS:Print(("Account-wide progress: %s (toggle: /or accountwide)"):format(NS.db.profile.accountWide and "|cff00ff00ON|r" or "|cff888888OFF|r"))
+        for _, c in ipairs(NS.Account.Characters()) do
+            NS:Print(("  %s%s  %s %s lvl %s  %s  %d steps in %d guides  (%s)"):format(
+                c.key == NS.Account.key and "|cffffd200*|r " or "  ", c.key,
+                tostring(c.faction), tostring(c.class), tostring(c.level), tostring(c.flavor),
+                c.steps or 0, c.guides or 0, tostring(c.updated)))
+        end
+    elseif cmd == "accountwide" then
+        NS.db.profile.accountWide = not NS.db.profile.accountWide
+        NS:Print("Account-wide progress " .. (NS.db.profile.accountWide and "ON - steps any character finished count as done" or "OFF - per-character progress"))
+        NS.Progress.Refresh() NS.GuideMenu.Refresh()
+    elseif cmd == "forget" then
+        if NS.Account.Forget(rest) then NS:Print("Forgot " .. rest) else NS:Print("No such character (or it is you): " .. rest) end
+    elseif cmd == "beacon" then
+        local b = NS.db.profile.beacon
+        b.enabled = not b.enabled
+        NS.Beacon.ApplySettings()
+        NS:Print("Target beacon " .. (b.enabled and "on" or "off") .. "; tracking: " .. (function()
+            local t = {} for _, n in pairs(NS.Beacon.WantedNames()) do t[#t + 1] = n end
+            return #t > 0 and table.concat(t, ", ") or "(nothing named on this step)" end)())
+    elseif cmd == "verifyfeatures" then
+        NS.RunFeatureVerify()
     elseif cmd == "log" then NS.Log.Toggle()
     elseif cmd == "stats" then
         local bySrc = {}
@@ -82,7 +155,7 @@ SlashCmdList.OPENROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | arrow | options | route | order | taxi | hearth | import | test | debug")
+        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | arrow | beacon | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | test | debug")
     end
 end
 
@@ -115,7 +188,91 @@ function NS.RunVerify(quiet)
     chk("Zygor imported", function() local n = 0 for _, id in ipairs(G.list) do if G.registry[id].source == "Zygor" then n = n + 1 end end return true, n end)
     chk("WoWPro imported", function() local n = 0 for _, id in ipairs(G.list) do if G.registry[id].source == "WoWPro" then n = n + 1 end end return true, n end)
     chk("player info", function() return true, NS.player.faction .. " " .. NS.player.race .. " " .. NS.player.class .. " " .. string.format("%.2f", U.PlayerLevel()) end)
+    chk("beacon targets", function() local t = {} for _, n in pairs(NS.Beacon.WantedNames()) do t[#t + 1] = n end return true, #t > 0 and table.concat(t, ", ") or "none" end)
+    chk("beacon pins lib", function() return LibStub("HereBeDragons-Pins-2.0", true) ~= nil end)
+    chk("account store", function() return NS.Account and NS.Account.me ~= nil, NS.Account and NS.Account.key end)
+    chk("account characters", function() return true, #NS.Account.Characters() .. " known, accountWide=" .. tostring(NS.db.profile.accountWide) end)
     chk("autoload error", function() return NS.db.char.lastAutoloadError == nil, NS.db.char.lastAutoloadError end)
     NS.db.char.lastVerify = { at = date("%Y-%m-%d %H:%M:%S"), lines = out }
     return out
+end
+
+
+-- ---------------------------------------------------------------------------
+-- Feature verifier: one named PASS/FAIL row per feature, written to
+-- OpenRouteDB.featureVerify so tools/collect_verify.py can chart it in SQL.
+-- ---------------------------------------------------------------------------
+function NS.RunFeatureVerify(quiet)
+    local res = { flavor = NS.flavor, build = tostring(NS.tocversion), at = date("%Y-%m-%d %H:%M:%S"),
+                  addon = NS.version, checks = {} }
+    local function chk(feature, name, fn)
+        local ok, pass, detail = pcall(fn)
+        if not ok then detail = tostring(pass) pass = false end
+        res.checks[#res.checks + 1] = { feature = feature, name = name,
+            pass = (pass and true or false), detail = tostring(detail or "") }
+        if not quiet then
+            NS:Print(("%s [%s] %s%s"):format(pass and "|cff00ff00PASS|r" or "|cffff4040FAIL|r",
+                feature, name, detail and ("  - " .. tostring(detail)) or ""))
+        end
+    end
+    local B, A = NS.Beacon, NS.Account
+
+    chk("beacon", "module loaded", function() return B ~= nil end)
+    chk("beacon", "names mined from current step", function()
+        local t = {} for _, n in pairs(B.WantedNames()) do t[#t + 1] = n end
+        return true, (#t > 0 and table.concat(t, ", ") or "none on this step")
+    end)
+    chk("beacon", "nameplate API present", function()
+        return C_NamePlate and C_NamePlate.GetNamePlates ~= nil, "plates visible: " ..
+            tostring(C_NamePlate and #(C_NamePlate.GetNamePlates(true) or {}) or 0)
+    end)
+    chk("beacon", "nameplate rescan runs", function() B.RescanPlates() return true, tostring(B.count) .. " tracked names" end)
+    chk("beacon", "map pin library", function() return LibStub("HereBeDragons-Pins-2.0", true) ~= nil end)
+    chk("beacon", "pins placed for step coords", function()
+        B.UpdatePins()
+        local s = P.current
+        if not s or not s.coords then return true, "current step has no coords (nothing to pin)" end
+        return true, #s.coords .. " coord(s) on map " .. tostring(s.zone)
+    end)
+    chk("beacon", "target button secure macro", function()
+        B.UpdateTargetButton()
+        if not B.targetButton.targetName then return true, "no named target on this step" end
+        return B.targetButton:GetAttribute("macrotext") ~= nil, B.targetButton.targetName
+    end)
+
+    chk("account", "store initialised", function() return A and A.me ~= nil, A and A.key end)
+    chk("account", "opt-in flag", function() return true, "accountWide=" .. tostring(NS.db.profile.accountWide) end)
+    chk("account", "character roster", function()
+        local c = A.Characters()
+        return #c > 0, #c .. " character(s): " .. (function()
+            local t = {} for i, x in ipairs(c) do if i <= 6 then t[#t + 1] = x.key .. "(" .. tostring(x.steps) .. ")" end end
+            return table.concat(t, ", ") end)()
+    end)
+    chk("account", "per-guide progress math", function()
+        if not P.guide or not P.steps then return false, "no guide loaded" end
+        local cn, cp = A.GuideProgress(P.guide.id, #P.steps, "char")
+        local an, ap = A.GuideProgress(P.guide.id, #P.steps, "account")
+        return an >= cn, ("char %d/%d (%d%%), account %d/%d (%d%%)"):format(cn, #P.steps, cp, an, #P.steps, ap)
+    end)
+    chk("account", "opt-in gate honoured", function()
+        -- with the opt-in OFF, another character's completion must never mark a step done
+        local was = NS.db.profile.accountWide
+        NS.db.profile.accountWide = false
+        local leaked = A.OtherDid(P.guide and P.guide.id or "none", 1)
+        NS.db.profile.accountWide = was
+        return leaked == false, "off => other characters ignored"
+    end)
+
+    chk("core", "guides registered", function() return #NS.Guide.list > 0, #NS.Guide.list end)
+    chk("core", "guide loaded + routed", function()
+        return P.current ~= nil, P.guide and (P.guide.id .. " -> " .. P.current.action .. " " .. P.current.title) or "none"
+    end)
+    chk("core", "arrow shown", function() return NS.Arrow.frame:IsShown() end)
+
+    OpenRouteDB.featureVerify = res
+    local pass, fail = 0, 0
+    for _, c in ipairs(res.checks) do if c.pass then pass = pass + 1 else fail = fail + 1 end end
+    res.passed, res.failed = pass, fail
+    NS:Print(("feature verify: %d passed, %d failed (%s) - saved to OpenRouteDB.featureVerify"):format(pass, fail, NS.flavor))
+    return res
 end

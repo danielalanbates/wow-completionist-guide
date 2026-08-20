@@ -13,11 +13,13 @@ P.current = nil      -- current step table
 local dirty = true
 
 local function charDone()
+    if NS.Account and NS.Account.me then return NS.Account.Done(P.guide.id) end
     local c = NS.db.char
     c.done[P.guide.id] = c.done[P.guide.id] or {}
     return c.done[P.guide.id]
 end
 local function charSkipped()
+    if NS.Account and NS.Account.me then return NS.Account.Skipped(P.guide.id) end
     local c = NS.db.char
     c.skipped[P.guide.id] = c.skipped[P.guide.id] or {}
     return c.skipped[P.guide.id]
@@ -36,7 +38,14 @@ function P.Load(id)
     return true
 end
 
-function P.IsDone(step) return charDone()[step.index] or charSkipped()[step.index] end
+function P.IsDone(step)
+    if charDone()[step.index] or charSkipped()[step.index] then return true end
+    -- opt-in: a step another character already finished counts as done for this one
+    if NS.Account and NS.Account.Enabled() and P.guide then
+        return NS.Account.OtherDid(P.guide.id, step.index) and true or false
+    end
+    return false
+end
 function P.MarkDone(step, manual)
     if not step then return end
     charDone()[step.index] = true
@@ -56,6 +65,10 @@ function P.Undo()
 end
 function P.Reset()
     if not P.guide then return end
+    if NS.Account and NS.Account.me then
+        NS.Account.me.done[P.guide.id] = {}
+        NS.Account.me.skipped[P.guide.id] = {}
+    end
     NS.db.char.done[P.guide.id] = {}
     NS.db.char.skipped[P.guide.id] = {}
     dirty = true
@@ -256,4 +269,6 @@ end
 NS:On("PLAYER_READY", function()
     NS:After(2, function() autoload(1) end)
     NS:After(25, function() if NS.RunVerify then pcall(NS.RunVerify, true) end end)
+    -- feature matrix for the SQL chart; silent, results live in OpenRouteDB.featureVerify
+    NS:After(30, function() if NS.RunFeatureVerify then pcall(NS.RunFeatureVerify, true) end end)
 end)
