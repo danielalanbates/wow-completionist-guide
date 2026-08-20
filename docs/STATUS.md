@@ -109,8 +109,14 @@ map pins. If a future flavor exposes an object-tracking API, extend `Beacon.Upda
    quest done on an alt clears the equivalent step in a different guide too.
 
 ### Still open
-* In-game screenshot proof of the nameplate marker over a real NPC's head (needs a client session;
-  see the verification playbook in the memory file — never keystroke while WoW does not have focus).
+* **In-game verification of these two features has NOT been done.** On 2026-08-20 a live FFXI
+  client (another session's benchmark) held the display for the whole work window and Daniel's
+  standing rule is: if FFXI is running, do not take over the screen. Everything else — offline
+  tests, per-flavor load tests, TOC validation, install to all four flavors — is green.
+  When the display is free, run `python3 tools/verify_ingame.py _anniversary_ _classic_era_
+  _classic_ _retail_` then `python3 tools/collect_verify.py`; OpenRoute auto-runs its verifiers
+  25s/30s after login so nothing has to be typed into the client. In-game screenshot proof of the
+  nameplate marker over a real NPC's head is the one piece that still needs a human-visible pass.
 * The QID-level union described above.
 * Guide-list badge only shows for already-parsed guides; a cached step-count table would let every
   row show a percentage without parsing 9k guides.
