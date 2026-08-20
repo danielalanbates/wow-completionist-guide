@@ -196,3 +196,17 @@ end
 function U.tcount(t) local n = 0 for _ in pairs(t) do n = n + 1 end return n end
 function U.trim(s) return s and s:match("^%s*(.-)%s*$") end
 function U.split(s, sep) local out = {} for piece in string.gmatch(s, "([^" .. sep .. "]+)") do out[#out + 1] = U.trim(piece) end return out end
+
+-- Quest name for an ID, when the client can tell us (used by the step detail popup)
+function U.QuestTitle(qid)
+    if not qid then return nil end
+    if C_QuestLog and C_QuestLog.GetTitleForQuestID then
+        local ok, t = pcall(C_QuestLog.GetTitleForQuestID, qid)
+        if ok and t and t ~= "" then return t end
+    end
+    if QuestUtils_GetQuestName then
+        local ok, t = pcall(QuestUtils_GetQuestName, qid)
+        if ok and t and t ~= "" then return t end
+    end
+    return nil
+end

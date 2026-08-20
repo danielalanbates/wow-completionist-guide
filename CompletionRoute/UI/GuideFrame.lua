@@ -108,7 +108,8 @@ local function makeRow(i)
     r:SetScript("OnClick", function(self, button)
         if not self.step then return end
         if button == "RightButton" then P.Skip(self.step)
-        elseif IsShiftKeyDown() then P.MarkDone(self.step, true) end
+        elseif IsShiftKeyDown() then P.MarkDone(self.step, true)
+        else GF.ShowDetail(self.step) end
     end)
     r:SetScript("OnEnter", function(self)
         if not self.step then return end
@@ -121,7 +122,7 @@ local function makeRow(i)
         local secs = NS.Router and NS.Router.TravelSecondsFromPlayer(s)
         if secs then GameTooltip:AddLine("Travel from you: ~" .. U.FmtTime(secs), 0.6, 0.85, 1) end
         if s.item then GameTooltip:AddLine("Uses item: " .. U.ItemName(s.item), 0.6, 1, 0.6) end
-        GameTooltip:AddLine("|cff888888Click checkbox / Shift-click: complete   Right-click: skip|r")
+        GameTooltip:AddLine("|cff888888Click: details   Checkbox / Shift-click: complete   Right-click: skip|r")
         GameTooltip:Show()
     end)
     r:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -198,7 +199,96 @@ f:SetScript("OnUpdate", function(_, el)
     pcall(GF.Update)
 end)
 NS:On("PROGRESS_REFRESHED", function() pcall(GF.Update) end)
-NS:On("GUIDE_LOADED", function() pcall(GF.Update) end)
+NS:On("GUIDE_LOADED", function()
+    -- Selecting a guide in the browser used to close the browser and, if this window happened to
+    -- be hidden, show nothing at all - it read as "the guide was deleted".
+    if not f:IsShown() then f:Show() end
+    pcall(GF.Update)
+end)
+
+-- ---------------------------------------------------------------------------
+-- Step detail popup: everything known about one step, including live quest objectives.
+-- ---------------------------------------------------------------------------
+local detail = CreateFrame("Frame", "CompletionRouteStepDetail", UIParent, "BackdropTemplate")
+GF.detail = detail
+detail:SetSize(360, 260)
+detail:SetPoint("LEFT", f, "RIGHT", 8, 0)
+detail:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+detail:SetBackdropColor(0.03, 0.03, 0.05, 0.96)
+detail:SetBackdropBorderColor(0.3, 0.6, 0.9, 0.9)
+detail:SetFrameStrata("DIALOG")
+detail:SetMovable(true); detail:EnableMouse(true); detail:RegisterForDrag("LeftButton")
+detail:SetScript("OnDragStart", detail.StartMoving); detail:SetScript("OnDragStop", detail.StopMovingOrSizing)
+detail:Hide()
+tinsert(UISpecialFrames, "CompletionRouteStepDetail")
+
+local dTitle = detail:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+dTitle:SetPoint("TOPLEFT", 12, -10); dTitle:SetPoint("RIGHT", -30, 0)
+dTitle:SetJustifyH("LEFT"); dTitle:SetWordWrap(true)
+local dClose = CreateFrame("Button", nil, detail, "UIPanelCloseButton")
+dClose:SetPoint("TOPRIGHT", -2, -2)
+local dBody = detail:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+dBody:SetPoint("TOPLEFT", dTitle, "BOTTOMLEFT", 0, -8); dBody:SetPoint("RIGHT", -12, 0)
+dBody:SetJustifyH("LEFT"); dBody:SetWordWrap(true)
+
+local dDone = smallButton("Complete", 76, "Mark this step done", function()
+    if detail.step then P.MarkDone(detail.step, true) detail:Hide() end
+end)
+dDone:SetPoint("BOTTOMLEFT", 12, 10)
+local dSkip = smallButton("Skip", 50, "Skip this step", function()
+    if detail.step then P.Skip(detail.step) detail:Hide() end
+end)
+dSkip:SetPoint("LEFT", dDone, "RIGHT", 4, 0)
+local dTrack = smallButton("Show on map", 96, "Open the world map at this step", function()
+    local s2 = detail.step
+    if s2 and s2.zone and OpenWorldMap then pcall(OpenWorldMap, s2.zone)
+    elseif s2 and s2.zone and WorldMapFrame then pcall(function() WorldMapFrame:SetMapID(s2.zone) ShowUIPanel(WorldMapFrame) end) end
+end)
+dTrack:SetPoint("LEFT", dSkip, "RIGHT", 4, 0)
+
+function GF.ShowDetail(step)
+    if not step then return end
+    detail.step = step
+    dTitle:SetText(("|cffffd200%s|r: %s"):format(G.ACTION_LABEL[step.action] or step.action, step.title))
+    local lines = {}
+    if step.note and step.note ~= "" then lines[#lines + 1] = step.note end
+    if step.target then lines[#lines + 1] = "|cff7ddf8fWho / what:|r " .. tostring(step.target) end
+    if step.qid then
+        for _, q in ipairs(step.qid) do
+            local title = U.QuestTitle and U.QuestTitle(q)
+            lines[#lines + 1] = ("|cff7ddf8fQuest %d|r%s"):format(q, title and (" - " .. title) or "")
+            if U.IsOnQuest(q) then
+                local objs = C_QuestLog and C_QuestLog.GetQuestObjectives and C_QuestLog.GetQuestObjectives(q)
+                if objs and #objs > 0 then
+                    for _, o in ipairs(objs) do
+                        lines[#lines + 1] = ("   %s %s"):format(o.finished and "|cff00ff00[x]|r" or "|cffff9900[ ]|r", o.text or "?")
+                    end
+                else
+                    lines[#lines + 1] = "   on this quest"
+                end
+            elseif U.IsQuestComplete(q) then lines[#lines + 1] = "   |cff00ff00already completed|r"
+            else lines[#lines + 1] = "   |cff888888not picked up yet|r" end
+        end
+    end
+    if step.item then lines[#lines + 1] = "|cff7ddf8fItem:|r " .. U.ItemName(step.item) end
+    if step.loot then
+        for _, l in ipairs(step.loot) do
+            lines[#lines + 1] = ("|cff7ddf8fNeeds:|r %s x%d (have %d)"):format(U.ItemName(l.id), l.qty, U.ItemCount(l.id))
+        end
+    end
+    if step.zone then
+        lines[#lines + 1] = ("|cff7ddf8fWhere:|r %s%s"):format(U.MapName(step.zone),
+            step.coords and (" " .. string.format("%.1f, %.1f", step.coords[1].x * 100, step.coords[1].y * 100)) or " (no exact spot in this guide)")
+    end
+    local secs = NS.Router and NS.Router.TravelSecondsFromPlayer(step)
+    if secs then
+        local path = NS.Router.CurrentPath and select(1, NS.Router.CurrentPath())
+        lines[#lines + 1] = ("|cff7ddf8fTravel:|r ~%s%s"):format(U.FmtTime(secs),
+            (step == P.current and path) and ("\n   " .. NS.TravelGraph.Describe(path)) or "")
+    end
+    dBody:SetText(table.concat(lines, "\n"))
+    detail:Show()
+end
 
 function GF.ApplySettings()
     local p = NS.db.profile.frame
