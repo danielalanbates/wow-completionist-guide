@@ -13,7 +13,10 @@ NS.Guide = G
 G.registry = {}      -- id -> guide record
 G.list = {}          -- ordered ids
 
-local ACTIONS = { A=1, a=1, C=1, T=1, t=1, K=1, R=1, H=1, h=1, F=1, f=1, N=1, B=1, b=1, U=1, L=1, l=1, r=1, D=1, J=1, M=1, ["!"]=1, ["$"]=1, ["="]=1 }
+local ACTIONS = { A=1, a=1, C=1, T=1, t=1, K=1, R=1, H=1, h=1, F=1, f=1, N=1, B=1, b=1, U=1, L=1, l=1, r=1, D=1, J=1, M=1, ["!"]=1, ["$"]=1, ["="]=1,
+    P=1, ["*"]=1, d=1 } -- WoW-Pro extras: P portal/teleport, * destroy-item, d death-step
+-- non-native actions normalize to a note step (waypoint still honored via M/Z tags)
+local ACTION_ALIAS = { P = "N", ["*"] = "N", d = "N" }
 G.ACTIONS = ACTIONS
 G.ACTION_LABEL = { A="Accept", a="Accept", C="Complete", T="Turn in", t="Turn in", K="Kill", R="Run to", H="Hearth to", h="Set hearth",
     F="Fly to", f="Get flight path", N="Note", B="Buy", b="Boat/Zeppelin", U="Use", L="Level", l="Loot", r="Repair/Sell", D="Dungeon",
@@ -60,7 +63,7 @@ function G.ParseLine(text, lineno, defaultZone)
     local action = text:sub(1, 1)
     if not ACTIONS[action] or text:sub(2, 2) ~= " " then return nil, "bad action '" .. action .. "'" end
     local parts = { strsplit("|", text) }
-    local step = { action = action, title = U.trim(parts[1]:sub(3)):gsub("\\n", "\n"), line = lineno }
+    local step = { action = ACTION_ALIAS[action] or action, title = U.trim(parts[1]:sub(3)):gsub("\\n", "\n"), line = lineno }
     local i = 2
     while i <= #parts do
         local tag = U.trim(parts[i]); local val = parts[i + 1]
@@ -115,6 +118,12 @@ end
 function G.Register(def)
     if not def or not def.id then return end
     if G.registry[def.id] then return G.registry[def.id] end
+    -- some imported sources ship empty placeholder guides (WIP dungeon guides, umbrella
+    -- achievement entries); registering them gives unloadable 0-step guides
+    if type(def.text) == "string" and not def.text:find("%S") then
+        NS:Debug("skip empty guide " .. def.id)
+        return
+    end
     def.type = def.type or "Leveling"
     def.source = def.source or "OpenRoute"
     G.registry[def.id] = def

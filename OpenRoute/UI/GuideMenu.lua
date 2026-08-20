@@ -132,9 +132,21 @@ local function buildTree()
     return root
 end
 
+-- completion badge, but only for guides whose steps are already parsed (never force a parse here:
+-- the quest DB has thousands of guides and the list refreshes on every keystroke)
+local function pctBadge(g)
+    if not (NS.Account and NS.Account.me) or not g.steps then return "" end
+    local scope = NS.db.profile.accountWide and "account" or "char"
+    local _, pct = NS.Account.GuideProgress(g.id, #g.steps, scope)
+    if not pct or pct <= 0 then return "" end
+    local color = pct >= 100 and "00ff00" or "ffd200"
+    return ("  |cff%s%d%%|r"):format(color, pct)
+end
+
 local function guideLabel(g)
-    return ("%s%s|r%s"):format(srcColor(g.source), g.name or g.id,
-        g.minlevel and ("  |cff888888[%d-%d]|r"):format(g.minlevel, g.maxlevel or g.minlevel) or "")
+    return ("%s%s|r%s%s"):format(srcColor(g.source), g.name or g.id,
+        g.minlevel and ("  |cff888888[%d-%d]|r"):format(g.minlevel, g.maxlevel or g.minlevel) or "",
+        pctBadge(g))
 end
 
 -- Flatten visible tree into rows: { kind = "node"|"guide", depth, node|guide }
@@ -195,6 +207,19 @@ function M.Refresh()
                 if gg.zone then GameTooltip:AddLine("Zone: " .. tostring(gg.zone), 1, 1, 1) end
                 if gg.faction then GameTooltip:AddLine("Faction: " .. gg.faction, 1, 1, 1) end
                 if gg.next then GameTooltip:AddLine("Next: " .. gg.next, 0.7, 0.7, 0.7) end
+                if NS.Account and NS.Account.me then
+                    local okS, st = pcall(G.Steps, gg.id)
+                    local total = okS and st and #st or 0
+                    if total > 0 then
+                        local cn, cp = NS.Account.GuideProgress(gg.id, total, "char")
+                        local an, ap = NS.Account.GuideProgress(gg.id, total, "account")
+                        GameTooltip:AddLine(("This character: %d/%d (%d%%)"):format(cn, total, cp), 1, 0.82, 0)
+                        GameTooltip:AddLine(("Whole account: %d/%d (%d%%)"):format(an, total, ap), 0.25, 0.78, 1)
+                        if not NS.db.profile.accountWide then
+                            GameTooltip:AddLine("Account-wide skipping is OFF (/or accountwide)", 0.6, 0.6, 0.6)
+                        end
+                    end
+                end
                 GameTooltip:Show()
             end)
             b:SetScript("OnLeave", function() GameTooltip:Hide() end)

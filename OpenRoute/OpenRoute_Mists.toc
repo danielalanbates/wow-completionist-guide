@@ -18,6 +18,7 @@ Core\Init.lua
 Core\Util.lua
 Core\Conditions.lua
 Core\Guide.lua
+Core\Account.lua
 Core\Progress.lua
 Data\Taxi_era.lua
 Data\Taxi_tbc.lua
@@ -30,6 +31,7 @@ Routing\StepOrder.lua
 Routing\Router.lua
 UI\Arrow.lua
 UI\GuideFrame.lua
+UI\Beacon.lua
 UI\GuideMenu.lua
 UI\Options.lua
 UI\Log.lua
