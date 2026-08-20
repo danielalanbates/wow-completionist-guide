@@ -204,6 +204,8 @@ function GF.Update()
     if path then pathText:SetText(NS.TravelGraph.Describe(path)) else pathText:SetText("") end
 end
 
+function GF.RowsShown() local n = 0 for i = 1, ROWS do if rows[i].step then n = n + 1 end end return n end
+
 local acc = 0
 f:SetScript("OnUpdate", function(_, el)
     acc = acc + el

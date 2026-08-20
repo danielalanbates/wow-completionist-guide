@@ -51,4 +51,5 @@ Guides\Imported_Quests_wotlk.lua
 Guides\Imported_Quests_cata.lua
 Guides\Imported_Quests_mop.lua
 Guides\Guides.xml
+Core\Sweep.lua
 Core\Slash.lua

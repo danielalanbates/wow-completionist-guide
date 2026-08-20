@@ -66,6 +66,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         else NS:Print("Live quest scan is retail-only (classic flavors use the baked quest DB).") end
     elseif cmd == "verify" then
         NS.RunVerify()
+    elseif cmd == "sweep" then NS.RunRouteSweep(rest)
     elseif cmd == "verifyall" then
         NS.RunVerifyAll()
     elseif cmd == "autoverify" then
@@ -165,7 +166,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | beacon | icon | demo | why | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | autoverify | test | debug")
+        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | beacon | icon | demo | why | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 
