@@ -134,6 +134,10 @@ function SO.Order(steps, router)
             if improved then break end
         end
     end
+    -- the author's order is always feasible; if the heuristic did not beat it, keep it
+    local authorOrder = {}
+    for j = 1, n do authorOrder[j] = j end
+    if feasibleOrder(authorOrder) and total(authorOrder) <= bestT + 0.5 then return steps end
     local out = {}
     for k, j in ipairs(order) do out[k] = steps[j] end
     return out

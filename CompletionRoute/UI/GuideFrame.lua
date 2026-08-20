@@ -98,8 +98,10 @@ local function makeRow(i)
     r.check:SetScript("OnClick", function(self) if r.step then P.MarkDone(r.step, true) end end)
     r.icon = r:CreateTexture(nil, "ARTWORK")
     r.icon:SetSize(24, 24); r.icon:SetPoint("LEFT", r.check, "RIGHT", 2, 0)
+    r.dist = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    r.dist:SetPoint("TOPRIGHT", -4, -3); r.dist:SetJustifyH("RIGHT"); r.dist:SetTextColor(0.6, 0.85, 1)
     r.title = r:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    r.title:SetPoint("TOPLEFT", r.icon, "TOPRIGHT", 4, 1); r.title:SetPoint("RIGHT", -4, 0)
+    r.title:SetPoint("TOPLEFT", r.icon, "TOPRIGHT", 4, 1); r.title:SetPoint("RIGHT", r.dist, "LEFT", -4, 0)
     r.title:SetJustifyH("LEFT"); r.title:SetWordWrap(false)
     r.note = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     r.note:SetPoint("TOPLEFT", r.title, "BOTTOMLEFT", 0, -2); r.note:SetPoint("RIGHT", -4, 0)
@@ -177,8 +179,19 @@ function GF.Update()
                 local fu, req = U.QuestObjective(s.qid[1], tonumber(s.qo) or 1)
                 if req and req > 0 then extra = (" |cffaaaaaa(%d/%d)|r"):format(fu, req) end
             end
-            r.title:SetText(label .. ": " .. s.title .. extra)
+            r.title:SetText(("%d. |cffffd200%s|r  %s%s"):format(i, label, s.title, extra))
             r.title:SetTextColor(stepColor(s))
+            -- where: distance if we can measure it, else the zone name; blank rather than a guess
+            local where = ""
+            if NS.Router then
+                local _, _, _, pinst, pwx, pwy = U.PlayerPos()
+                local tx, ty, ti = NS.Router.StepWorld(s)
+                if tx and pwx then
+                    if ti == pinst then where = U.FmtDist(math.sqrt((tx - pwx) ^ 2 + (ty - pwy) ^ 2))
+                    elseif s.zone then where = U.MapName(s.zone) end
+                elseif s.zone then where = U.MapName(s.zone) end
+            end
+            r.dist:SetText(where)
             local note = s.note or ""
             if s.optional then note = "|cff888888(optional)|r " .. note end
             r.note:SetText(note)
