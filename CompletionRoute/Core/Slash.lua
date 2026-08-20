@@ -63,78 +63,10 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "verify" then
         NS.RunVerify()
     elseif cmd == "verifyall" then
-        -- Bulk verifier: parse + fully load EVERY registered guide (all factions), chunked
-        -- across frames. Results land in CompletionRouteDB.verifyAll for offline collection.
-        local ids = {}
-        for _, id in ipairs(G.list) do ids[#ids + 1] = id end
-        local res = { flavor = NS.flavor, total = #ids, done = 0, failed = 0, errors = {}, startedAt = date("%Y-%m-%d %H:%M:%S") }
-        CompletionRouteDB.verifyAll = res
-        local prevGuide = NS.Progress.guide and NS.Progress.guide.id
-        local i, fr = 1, CreateFrame("Frame")
-        NS:Print(("verifyall: checking %d guides..."):format(#ids))
-        fr:SetScript("OnUpdate", function()
-            local budget = debugprofilestop() + 25 -- ~25ms per frame
-            while i <= #ids and debugprofilestop() < budget do
-                local id = ids[i]
-                local okS, steps = pcall(G.Steps, id)
-                local err
-                if not okS then err = "parse crash: " .. tostring(steps)
-                elseif not steps or #steps == 0 then
-                    local g = G.registry[id]
-                    if not (g.dynamic or (g.type or "") == "Quests" and NS.DynamicQuests) then
-                        local t = type(g.text) == "function" and g.text() or g.text
-                        err = ("0 steps (text=%s len=%s head=%q)"):format(type(t), t and #tostring(t) or "-", tostring(t):sub(1, 60))
-                    end
-                elseif (G.registry[id].parseErrors or 0) > 0 then
-                    local g = G.registry[id]
-                    local t = type(g.text) == "function" and g.text() or g.text
-                    local msgs, n = {}, 0
-                    for line in (tostring(t) .. "\n"):gmatch("([^\r\n]*)\r?\n") do
-                        n = n + 1
-                        local _, lerr = G.ParseLine(line, n, g.zone)
-                        if lerr and #msgs < 3 then msgs[#msgs + 1] = ("L%d %s | %s"):format(n, lerr, line:sub(1, 80)) end
-                    end
-                    err = g.parseErrors .. " line errors: " .. table.concat(msgs, " ;; ")
-                else
-                    local okL, lerr = pcall(NS.Progress.Load, id)
-                    if not okL then err = "load crash: " .. tostring(lerr) end
-                end
-                if err then res.failed = res.failed + 1 res.errors[#res.errors + 1] = id .. " :: " .. err end
-                res.done = i
-                i = i + 1
-                if i % 1000 == 0 then NS:Print(("verifyall: %d/%d (%d failed)"):format(i, #ids, res.failed)) end
-            end
-            if i > #ids then
-                fr:SetScript("OnUpdate", nil)
-                res.finishedAt = date("%Y-%m-%d %H:%M:%S")
-                if prevGuide then pcall(NS.Progress.Load, prevGuide) end
-                NS:Print(("verifyall DONE: %d/%d guides OK, %d failed (details in CompletionRouteDB.verifyAll)"):format(res.total - res.failed, res.total, res.failed))
-                for k = 1, math.min(10, #res.errors) do NS:Print("  FAIL " .. res.errors[k]) end
-            end
-        end)
-    elseif cmd == "chars" or cmd == "account" then
-        NS:Print(("Account-wide progress: %s (toggle: /cr accountwide)"):format(NS.db.profile.accountWide and "|cff00ff00ON|r" or "|cff888888OFF|r"))
-        for _, c in ipairs(NS.Account.Characters()) do
-            NS:Print(("  %s%s  %s %s lvl %s  %s  %d steps in %d guides  (%s)"):format(
-                c.key == NS.Account.key and "|cffffd200*|r " or "  ", c.key,
-                tostring(c.faction), tostring(c.class), tostring(c.level), tostring(c.flavor),
-                c.steps or 0, c.guides or 0, tostring(c.updated)))
-        end
-    elseif cmd == "accountwide" then
-        NS.db.profile.accountWide = not NS.db.profile.accountWide
-        NS:Print("Account-wide progress " .. (NS.db.profile.accountWide and "ON - steps any character finished count as done" or "OFF - per-character progress"))
-        NS.Progress.Refresh() NS.GuideMenu.Refresh()
-    elseif cmd == "forget" then
-        if NS.Account.Forget(rest) then NS:Print("Forgot " .. rest) else NS:Print("No such character (or it is you): " .. rest) end
-    elseif cmd == "beacon" then
-        local b = NS.db.profile.beacon
-        b.enabled = not b.enabled
-        NS.Beacon.ApplySettings()
-        NS:Print("Target beacon " .. (b.enabled and "on" or "off") .. "; tracking: " .. (function()
-            local t = {} for _, n in pairs(NS.Beacon.WantedNames()) do t[#t + 1] = n end
-            return #t > 0 and table.concat(t, ", ") or "(nothing named on this step)" end)())
-    elseif cmd == "verifyfeatures" then
-        NS.RunFeatureVerify()
+        NS.RunVerifyAll()
+    elseif cmd == "autoverify" then
+        CompletionRouteDB.autoVerifyAll = not CompletionRouteDB.autoVerifyAll
+        NS:Print("Run verifyall automatically at next login: " .. tostring(CompletionRouteDB.autoVerifyAll))
     elseif cmd == "log" then NS.Log.Toggle()
     elseif cmd == "stats" then
         local bySrc = {}
@@ -204,6 +136,63 @@ end
 -- Feature verifier: one named PASS/FAIL row per feature, written to
 -- CompletionRouteDB.featureVerify so tools/collect_verify.py can chart it in SQL.
 -- ---------------------------------------------------------------------------
+-- Bulk verifier: parse + fully load EVERY registered guide (all factions), chunked across frames.
+-- Results land in CompletionRouteDB.verifyAll for tools/collect_verify.py.
+-- Callable without typing in the client: set CompletionRouteDB.autoVerifyAll = true in the
+-- SavedVariables file before launching (see tools/queue_verify.py) - typing long slash commands
+-- through synthetic keystrokes is unreliable, this pathway is not.
+function NS.RunVerifyAll(onDone)
+    local G = NS.Guide
+    local ids = {}
+    for _, id in ipairs(G.list) do ids[#ids + 1] = id end
+    local res = { flavor = NS.flavor, total = #ids, done = 0, failed = 0, errors = {}, startedAt = date("%Y-%m-%d %H:%M:%S") }
+    CompletionRouteDB.verifyAll = res
+    local prevGuide = NS.Progress.guide and NS.Progress.guide.id
+    local i, fr = 1, CreateFrame("Frame")
+    NS:Print(("verifyall: checking %d guides..."):format(#ids))
+    fr:SetScript("OnUpdate", function()
+        local budget = debugprofilestop() + 25
+        while i <= #ids and debugprofilestop() < budget do
+            local id = ids[i]
+            local okS, steps = pcall(G.Steps, id)
+            local err
+            if not okS then err = "parse crash: " .. tostring(steps)
+            elseif not steps or #steps == 0 then
+                local g = G.registry[id]
+                if not (g.empty or g.dynamic or (g.type or "") == "Quests" and NS.DynamicQuests) then
+                    local t = type(g.text) == "function" and g.text() or g.text
+                    err = ("0 steps (text=%s len=%s head=%q)"):format(type(t), t and #tostring(t) or "-", tostring(t):sub(1, 60))
+                end
+            elseif (G.registry[id].parseErrors or 0) > 0 then
+                local g = G.registry[id]
+                local t = type(g.text) == "function" and g.text() or g.text
+                local msgs, n = {}, 0
+                for line in (tostring(t) .. "\n"):gmatch("([^\r\n]*)\r?\n") do
+                    n = n + 1
+                    local _, lerr = G.ParseLine(line, n, g.zone)
+                    if lerr and #msgs < 3 then msgs[#msgs + 1] = ("L%d %s | %s"):format(n, lerr, line:sub(1, 80)) end
+                end
+                err = g.parseErrors .. " line errors: " .. table.concat(msgs, " ;; ")
+            else
+                local okL, lerr = pcall(NS.Progress.Load, id)
+                if not okL then err = "load crash: " .. tostring(lerr) end
+            end
+            if err then res.failed = res.failed + 1 res.errors[#res.errors + 1] = id .. " :: " .. err end
+            res.done = i
+            i = i + 1
+            if i % 1000 == 0 then NS:Print(("verifyall: %d/%d (%d failed)"):format(i, #ids, res.failed)) end
+        end
+        if i > #ids then
+            fr:SetScript("OnUpdate", nil)
+            res.finishedAt = date("%Y-%m-%d %H:%M:%S")
+            if prevGuide then pcall(NS.Progress.Load, prevGuide) end
+            NS:Print(("verifyall DONE: %d/%d guides OK, %d failed"):format(res.total - res.failed, res.total, res.failed))
+            for k = 1, math.min(10, #res.errors) do NS:Print("  FAIL " .. res.errors[k]) end
+            if onDone then pcall(onDone) end
+        end
+    end)
+end
+
 function NS.RunFeatureVerify(quiet)
     local res = { flavor = NS.flavor, build = tostring(NS.tocversion), at = date("%Y-%m-%d %H:%M:%S"),
                   addon = NS.version, checks = {} }

@@ -14,9 +14,9 @@ G.registry = {}      -- id -> guide record
 G.list = {}          -- ordered ids
 
 local ACTIONS = { A=1, a=1, C=1, T=1, t=1, K=1, R=1, H=1, h=1, F=1, f=1, N=1, B=1, b=1, U=1, L=1, l=1, r=1, D=1, J=1, M=1, ["!"]=1, ["$"]=1, ["="]=1,
-    P=1, ["*"]=1, d=1 } -- WoW-Pro extras: P portal/teleport, * destroy-item, d death-step
+    P=1, ["*"]=1, d=1, s=1 } -- WoW-Pro extras: P portal/teleport, * destroy-item, d death-step, s speak-with
 -- non-native actions normalize to a note step (waypoint still honored via M/Z tags)
-local ACTION_ALIAS = { P = "N", ["*"] = "N", d = "N" }
+local ACTION_ALIAS = { P = "N", ["*"] = "N", d = "N", s = "N" }
 G.ACTIONS = ACTIONS
 G.ACTION_LABEL = { A="Accept", a="Accept", C="Complete", T="Turn in", t="Turn in", K="Kill", R="Run to", H="Hearth to", h="Set hearth",
     F="Fly to", f="Get flight path", N="Note", B="Buy", b="Boat/Zeppelin", U="Use", L="Level", l="Loot", r="Repair/Sell", D="Dungeon",
@@ -138,7 +138,13 @@ function G.Steps(id)
     if not g then return nil end
     if g.steps then return g.steps end
     local text = type(g.text) == "function" and g.text() or g.text
-    if type(text) ~= "string" then g.steps = {} return g.steps end
+    if type(text) ~= "string" or not text:find("%S") then
+        -- placeholder entry (some imported sources ship empty WIP/umbrella guides, sometimes
+        -- behind a lazy function so Register cannot see it). Hide it instead of offering a
+        -- guide that loads zero steps.
+        g.steps, g.empty = {}, true
+        return g.steps
+    end
     local steps, errors = {}, 0
     local n = 0
     for line in (text .. "\n"):gmatch("([^\r\n]*)\r?\n") do
@@ -157,7 +163,7 @@ function G.Available(filterType)
     local out = {}
     for _, id in ipairs(G.list) do
         local g = G.registry[id]
-        if (not filterType or (g.type or ""):lower() == filterType:lower()) and Cond.FactionMatch(g.faction) then out[#out + 1] = g end
+        if not g.empty and (not filterType or (g.type or ""):lower() == filterType:lower()) and Cond.FactionMatch(g.faction) then out[#out + 1] = g end
     end
     table.sort(out, function(a, b)
         if (a.minlevel or 0) ~= (b.minlevel or 0) then return (a.minlevel or 0) < (b.minlevel or 0) end
