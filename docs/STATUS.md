@@ -1,5 +1,21 @@
 # Status / handoff (2026-08-20)
 
+## Route sweep: every guide, every zone, every flavor (2026-08-20)
+`luajit tools/route_sweep.lua <era|tbc|mop|retail>` routes EVERY guide offline with REAL zone bounds
+(tools/maps_<flavor>.lua from wago.tools UiMap/UiMapAssignment via tools/gen_maps.py), player placed at the
+guide's zone centre at the guide's min level, and checks: steps resolve to a location, the optimizer's order
+respects A < C < T and PRE-before-accept, the optimized head window is never slower than author order, and a
+route exists to step 1. `python3 tools/collect_route_sweep.py` → `docs/verification.sqlite` table `route_sweep`.
+Result (all four): 0 load errors, 0 precedence violations, 0 optimizer-slower, 0 no-route;
+located steps era 76.4 % (the rest are TBC/Outland guides that cannot exist on an era client), tbc 97.5 %,
+mop 98.2 %, retail 97.0 % (rest: profession/"Instances & Other" guides with no zone at all).
+Three real bugs this found and fixed: (1) quest-DB guides carry Classic-era uiMapIDs (Eastern Plaguelands 1423)
+which MoP Classic / retail number differently (23) → 36k MoP steps had NO location — now resolved by name via
+`Data/ZoneAliases.lua` (+ renamed/split-zone aliases, e.g. The Barrens → Northern Barrens); (2) a step without |Z|
+now inherits the previous step's zone (Zygor/WoW-Pro semantics) instead of having none; (3) StepOrder keeps the
+author's order when its heuristic is not strictly cheaper. Guide window rows are now "1. Accept  Title" with the
+distance (or zone) on the right. In-game check of the new rows still pending (client was live, no keystrokes).
+
 ## Routing round 3 (2026-08-20): faction-wide flights + roads
 * Flight routing no longer depends on learned paths (`taxiPolicy=faction` default, unlearned legs labelled).
 * Road network: `Data/Roads_*.lua` polylines → graph vertices (grid-bucketed), arrow follows via points,

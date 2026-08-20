@@ -75,7 +75,15 @@ function G.ParseLine(text, lineno, defaultZone)
         elseif tag == "ACTIVE" then local n = val and val:match("%-?%d+") step.active = tonumber(n)
         elseif tag == "AVAILABLE" then step.available = tonumber(val and val:match("%d+"))
         elseif tag == "M" then step.coords = coords(val)
-        elseif tag == "Z" then local id, name = val:match("^%s*(%d+)%s*;?%s*(.-)%s*$") step.zone = tonumber(id) or U.MapIDByName(val) step.zoneName = (name ~= "" and name) or val
+        elseif tag == "Z" then
+            local id, name = val:match("^%s*(%d+)%s*;?%s*(.-)%s*$")
+            local mid = tonumber(id)
+            -- "1423; Eastern Plaguelands" or bare "1454": the number is a Classic-era uiMapID. MoP Classic and
+            -- retail number their maps differently (23 / 85), so resolve by name (Data/ZoneAliases.lua) whenever
+            -- the id is unknown on this client or the names disagree.
+            if mid then mid = U.MapIDByIDOrName(mid, name) or mid end
+            step.zone = mid or U.MapIDByName(val)
+            step.zoneName = (name ~= "" and name) or val
         elseif tag == "N" then step.note = (val or ""):gsub("\\n", "\n"):gsub("%[color=(%x%x%x%x%x%x)%]", "|cff%1"):gsub("%[/color%]", "|r")
         elseif tag == "L" then step.loot = {} for pair in (val or ""):gmatch("[^;]+") do local id, q = pair:match("(%d+)%s*(%-?%d*)") if id then step.loot[#step.loot + 1] = { id = tonumber(id), qty = tonumber(q) or 1 } end end
         elseif tag == "QO" then step.qo = val
@@ -147,10 +155,15 @@ function G.Steps(id)
     end
     local steps, errors = {}, 0
     local n = 0
+    local lastZone, lastZoneName
     for line in (text .. "\n"):gmatch("([^\r\n]*)\r?\n") do
         n = n + 1
         local s, err = G.ParseLine(line, n, g.zone)
-        if s then s.index = #steps + 1 s.guide = id steps[#steps + 1] = s
+        if s then
+            -- Zygor/WoW-Pro semantics: a zone stays in force until the guide names another one
+            if s.zone then lastZone, lastZoneName = s.zone, s.zoneName
+            elseif lastZone then s.zone, s.zoneName, s.zoneInherited = lastZone, lastZoneName, true end
+            s.index = #steps + 1 s.guide = id steps[#steps + 1] = s
         elseif err then errors = errors + 1 NS:Debug("guide " .. id .. " line " .. n .. ": " .. err) end
     end
     g.steps = steps

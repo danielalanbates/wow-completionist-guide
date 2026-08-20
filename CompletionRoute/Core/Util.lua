@@ -24,9 +24,24 @@ local function buildNameIndex()
 end
 function U.MapIDByName(name)
     if not name then return nil end
-    if tonumber(name) then return tonumber(name) end
+    if tonumber(name) then return U.MapIDByIDOrName(tonumber(name), nil) or tonumber(name) end
     if not nameToMap then buildNameIndex() end
-    return nameToMap[name] or nameToMap[strtrim(name)]
+    local hit = nameToMap[name] or nameToMap[strtrim(name)]
+    if hit then return hit end
+    -- old guide text: a zone this client renamed or split (The Barrens -> Northern Barrens)
+    local alts = NS.ZoneNameAliases and NS.ZoneNameAliases[strtrim(name)]
+    if alts then for _, alt in ipairs(alts) do if nameToMap[alt] then return nameToMap[alt] end end end
+    return nil
+end
+-- Resolve a zone given as a number that may be a Classic-era uiMapID on a differently numbered client.
+function U.MapIDByIDOrName(mid, name)
+    local info = mid and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(mid)
+    if info and (not name or name == "" or info.name == name) then return mid end
+    local byName = (name and name ~= "") and U.MapIDByName(name)
+    if byName then return byName end
+    local alias = mid and NS.ZoneIDNames and NS.ZoneIDNames[mid]
+    if alias then byName = U.MapIDByName(alias) if byName then return byName end end
+    return info and mid or nil
 end
 function U.MapName(id) local i = id and C_Map.GetMapInfo(id) return i and i.name or ("map " .. tostring(id)) end
 
