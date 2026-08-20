@@ -88,6 +88,48 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         NS:Print("Target beacon " .. (b.enabled and "on" or "off") .. "; tracking: " .. (function()
             local t = {} for _, n in pairs(NS.Beacon.WantedNames()) do t[#t + 1] = n end
             return #t > 0 and table.concat(t, ", ") or "(nothing named on this step)" end)())
+    elseif cmd == "why" then
+        -- Explains, in plain words, what the addon is doing right now and why the arrow may be blank.
+        local g, st = P.guide, P.current
+        NS:Print("--- why ---")
+        if not g then NS:Print("No guide loaded. /cr guides") return end
+        local done = 0
+        for _ in pairs((NS.Account and NS.Account.me and NS.Account.me.done[g.id]) or {}) do done = done + 1 end
+        NS:Print(("Guide: %s (%s) - %d/%d steps done, %d still applicable"):format(
+            g.name or g.id, g.source or "?", done, P.steps and #P.steps or 0, #P.Pending(999)))
+        if NS.db.profile.accountWide then NS:Print("Account-wide is ON: steps another character finished count as done (/cr accountwide)") end
+        if not st then
+            NS:Print("No current step. Either the guide is finished, or every remaining step is filtered out by faction/class/race/level.")
+            local shown = 0
+            for _, s2 in ipairs(P.steps or {}) do
+                if not P.IsDone(s2) and not Cond.StepApplies(s2) and shown < 5 then
+                    shown = shown + 1
+                    NS:Print(("  filtered: [%s] %s  (faction=%s class=%s race=%s lvl=%s)"):format(
+                        s2.action, s2.title, tostring(s2.faction), tostring(s2.class), tostring(s2.race), tostring(s2.minlevel)))
+                end
+            end
+            return
+        end
+        NS:Print(("Current step: [%s] %s"):format(st.action, st.title))
+        NS:Print(("  guide coords: %s   zone: %s   quest: %s"):format(
+            st.coords and (#st.coords .. " point(s)") or "|cffff9900none|r",
+            st.zone and U.MapName(st.zone) or "|cffff9900none|r",
+            st.qid and table.concat(st.qid, ", ") or "none"))
+        if st.qid then
+            for _, q in ipairs(st.qid) do
+                NS:Print(("  quest %d: onQuest=%s complete=%s"):format(q, tostring(U.IsOnQuest(q)), tostring(U.IsQuestComplete(q))))
+            end
+        end
+        local rec = NS.Router.Recommendation()
+        if not rec then NS:Print("  no recommendation at all") return end
+        NS:Print(("  arrow: mode=%s source=%s%s"):format(rec.mode, tostring(rec.locSource or "-"),
+            rec.borrowedFrom and (" (pointing at a later step: " .. rec.borrowedFrom.title .. ")") or ""))
+        if rec.why then NS:Print("  |cffff9900" .. rec.why .. "|r") end
+        if rec.mode == "none" then
+            NS:Print("  |cffff9900This guide line has no map data. Nothing to point at until you pick up the quest (then the game's own objective location is used).|r")
+        else
+            NS:Print(("  distance %s, ETA %s"):format(U.FmtDist(rec.dist), U.FmtTime(rec.eta)))
+        end
     elseif cmd == "icon" then
         local b = NS.db.profile.beacon
         b.icon = (b.icon == "action") and "arrow" or "action"
@@ -119,7 +161,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | beacon | icon | demo | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | autoverify | test | debug")
+        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | beacon | icon | demo | why | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | autoverify | test | debug")
     end
 end
 

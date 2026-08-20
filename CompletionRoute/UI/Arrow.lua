@@ -135,7 +135,12 @@ function A.Update()
         return
     end
     if btn:IsShown() or pending then applyButton("hide") end
-    if not rec.wx then arrow:Hide() sub:SetText("(no location for this step)") eta:SetText("") return end
+    if not rec.wx then
+        arrow:Hide()
+        sub:SetText("|cffff9900no location - /cr why|r")
+        eta:SetText("")
+        return
+    end
     -- rotate arrow
     local map, x, y, inst, pwx, pwy = U.PlayerPos()
     if not pwx or inst ~= rec.inst then
@@ -151,7 +156,11 @@ function A.Update()
     arrow:SetTexture(colorFor(dist))
     arrow:SetRotation(bearing - facing)
     local speed = U.TravelSpeed()
-    sub:SetText(("%s"):format(U.FmtDist(dist)))
+    local tag = ""
+    if rec.locSource == "quest" then tag = "  |cff6ac9ff(quest objective)|r"
+    elseif rec.locSource == "zone" then tag = "  |cffff9900(zone only)|r"
+    elseif rec.locSource == "borrowed" then tag = "  |cffff9900(next known step)|r" end
+    sub:SetText(U.FmtDist(dist) .. tag)
     if rec.eta then eta:SetText("ETA ~" .. U.FmtTime(rec.eta)) else eta:SetText("ETA ~" .. U.FmtTime(dist / speed)) end
     lastMode = rec.mode
 end

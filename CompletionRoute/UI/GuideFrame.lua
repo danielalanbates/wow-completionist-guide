@@ -29,7 +29,7 @@ f:SetFrameStrata("MEDIUM")
 -- title bar
 local titleText = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 titleText:SetPoint("TOPLEFT", 10, -8); titleText:SetPoint("RIGHT", -70, 0); titleText:SetJustifyH("LEFT")
-titleText:SetText("|cff3ec6ffOpen|r|cffffd200Route|r")
+titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r")
 
 local function smallButton(text, w, tip, onClick)
     local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
@@ -78,6 +78,11 @@ grip:SetScript("OnUpdate", function()
     local s = math.max(0.6, math.min(2.0, grip.s0 + (grip.y0 - y) / 400))
     f:SetScale(s)
 end)
+
+-- shown instead of an empty list, so finishing the last step never looks like the addon died
+local empty = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+empty:SetPoint("TOPLEFT", 14, -60); empty:SetPoint("RIGHT", -14, 0)
+empty:SetJustifyH("LEFT"); empty:SetWordWrap(true); empty:Hide()
 
 -- rows
 local rows = {}
@@ -135,11 +140,30 @@ local function stepColor(step)
 end
 
 function GF.Update()
-    if not P.guide then titleText:SetText("|cff3ec6ffOpen|r|cffffd200Route|r - no guide (/or guides)") for i = 1, ROWS do rows[i]:Hide() end return end
+    if not P.guide then
+        titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r - no guide (/cr guides)")
+        for i = 1, ROWS do rows[i]:Hide() end
+        empty:SetText("No guide loaded.\nClick |cffffd200Guides|r above, or type /cr guides.")
+        empty:Show()
+        return
+    end
     local done, total = 0, #P.steps
     for _ in pairs(NS.db.char.done[P.guide.id] or {}) do done = done + 1 end
     titleText:SetText(("|cff3ec6ff%s|r  |cff888888%d/%d|r"):format(P.guide.name or P.guide.id, done, total))
     local list = P.Upcoming(ROWS)
+    if #list == 0 then
+        local applicable = #P.Pending(1)
+        if done >= total and total > 0 then
+            empty:SetText(("|cff00ff00Guide complete|r - all %d steps done.\nClick |cffffd200Guides|r for the next one (the |cff7ddf8fNext Step|r category lists everything matched to your level)."):format(total))
+        elseif applicable == 0 then
+            empty:SetText("No steps in this guide apply to you right now.\nThey may be for the other faction, another class, or a level you have passed.\nTry |cffffd200Guides|r -> |cff7ddf8fNext Step|r, or /cr why.")
+        else
+            empty:SetText("Nothing to show - type /cr why for the reason.")
+        end
+        empty:Show()
+    else
+        empty:Hide()
+    end
     for i = 1, ROWS do
         local r, s = rows[i], list[i]
         if s then

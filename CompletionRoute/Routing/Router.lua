@@ -8,19 +8,57 @@ local U, HBD, TG = NS.Util, NS.HBD, NS.TravelGraph
 local R = {}
 NS.Router = R
 
+-- Many imported guide lines carry no |M| coordinates at all. Rather than showing nothing, ask the
+-- GAME where the quest objective is - that is exactly what the built-in quest tracker points at.
+-- Not cached on the step: the answer moves as objectives complete.
+function R.QuestWorld(step)
+    if not step or not step.qid or not C_QuestLog then return nil end
+    local map = U.PlayerPos()
+    for _, q in ipairs(step.qid) do
+        if U.IsOnQuest(q) then
+            local uiMapID, qx, qy
+            if C_QuestLog.GetNextWaypoint then
+                local ok, a, b, c = pcall(C_QuestLog.GetNextWaypoint, q)
+                if ok and a and b and c then uiMapID, qx, qy = a, b, c end
+            end
+            if not uiMapID and map and C_QuestLog.GetNextWaypointForMap then
+                local ok, a, b = pcall(C_QuestLog.GetNextWaypointForMap, q, map)
+                if ok and a and b then uiMapID, qx, qy = map, a, b end
+            end
+            if uiMapID and qx and qy and (qx ~= 0 or qy ~= 0) then
+                local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(qx, qy, uiMapID)
+                if wx then return wx, wy, inst, uiMapID, qx, qy end
+            end
+        end
+    end
+    return nil
+end
+
 -- world position of a step (first coordinate). returns wx, wy, inst
+-- step._locSource records how we got it, so the UI can be honest about a fuzzy answer.
 function R.StepWorld(step)
     if not step then return nil end
-    if step._wx and step._winst then return step._wx, step._wy, step._winst end
     if step.coords and step.zone then
+        if step._wx and step._winst then return step._wx, step._wy, step._winst end
         local c = step.coords[1]
         local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(c.x, c.y, step.zone)
-        if wx then step._wx, step._wy, step._winst = wx, wy, inst return wx, wy, inst end
-    elseif step.zone and not step.coords then
-        -- zone-only step: zone centre
-        local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(0.5, 0.5, step.zone)
-        if wx then step._wx, step._wy, step._winst = wx, wy, inst return wx, wy, inst end
+        if wx then
+            step._wx, step._wy, step._winst, step._locSource = wx, wy, inst, "guide"
+            return wx, wy, inst
+        end
     end
+    -- no coordinates in the guide: fall back to the live quest objective
+    local qx, qy, qi = R.QuestWorld(step)
+    if qx then step._locSource = "quest" return qx, qy, qi end
+    if step.zone then
+        if step._zwx then step._locSource = "zone" return step._zwx, step._zwy, step._zwinst end
+        local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(0.5, 0.5, step.zone)
+        if wx then
+            step._zwx, step._zwy, step._zwinst, step._locSource = wx, wy, inst, "zone"
+            return wx, wy, inst
+        end
+    end
+    step._locSource = nil
     return nil
 end
 
@@ -133,9 +171,35 @@ function R.Recommendation()
         rec.mode = "hearth"; rec.item = NS.HEARTH_ITEM; rec.text = ready and "Use your Hearthstone" or ("Hearthstone ready in " .. U.FmtTime(cd))
         return rec
     end
-    if not target then rec.mode = "none" return rec end
+    -- Still nothing to aim at? Borrow the location of the nearest upcoming step that does have
+    -- one, so the player is at least walking the right way instead of staring at a dead arrow.
+    if not target then
+        for _, s2 in ipairs(NS.Progress.Upcoming(8)) do
+            if s2 ~= step then
+                local bx, by, bi = R.StepWorld(s2)
+                if bx then
+                    rec.borrowedFrom = s2
+                    target = { wx = bx, wy = by, inst = bi }
+                    if wx then
+                        local ok, p2 = pcall(TG.FindPath, wx, wy, inst, bx, by, bi, {})
+                        path = ok and p2 or nil
+                    end
+                    break
+                end
+            end
+        end
+    end
+    if not target then rec.mode = "none" rec.why = "no coordinates, no quest objective and no zone on this step" return rec end
+    rec.locSource = rec.borrowedFrom and "borrowed" or step._locSource
     rec.wx, rec.wy, rec.inst = target.wx, target.wy, target.inst
-    if not path or not path.legs[1] then rec.mode = "walk" rec.text = "Go to " .. step.title return rec end
+    if rec.borrowedFrom then
+        rec.text = "Toward: " .. (rec.borrowedFrom.title or "the next known spot")
+    end
+    if not path or not path.legs[1] then
+        rec.mode = "walk"
+        if not rec.borrowedFrom then rec.text = "Go to " .. step.title end
+        return rec
+    end
     rec.eta = path.cost
     local leg = path.legs[1]
     if leg.mode == "hearth" then
@@ -151,7 +215,7 @@ function R.Recommendation()
         if nxt then
             if nxt.mode == "taxi" then rec.text = "Flight master: " .. (leg.to.name or "") .. " -> fly to " .. (nxt.to.name or "")
             else rec.text = nxt.title or ("Go to " .. (leg.to.name or "transport")) end
-        else rec.text = step.title end
+        elseif not rec.borrowedFrom then rec.text = step.title end
         rec.dist = leg.dist
     elseif leg.mode == "taxi" then
         rec.mode = "taxi"; rec.text = "Fly to " .. (leg.to.name or "?")
