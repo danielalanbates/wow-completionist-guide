@@ -276,4 +276,17 @@ NS:On("PLAYER_READY", function()
     NS:After(25, function() if NS.RunVerify then pcall(NS.RunVerify, true) end end)
     -- feature matrix for the SQL chart; silent, results live in CompletionRouteDB.featureVerify
     NS:After(30, function() if NS.RunFeatureVerify then pcall(NS.RunFeatureVerify, true) end end)
+    -- File-driven verification pathway: set CompletionRouteDB.autoVerifyAll = true in the
+    -- SavedVariables before launching and the client sweeps every guide by itself, then clears
+    -- the flag. Far more reliable than typing a slash command through synthetic keystrokes.
+    NS:After(35, function()
+        if CompletionRouteDB and CompletionRouteDB.autoVerifyAll and NS.RunVerifyAll then
+            CompletionRouteDB.autoVerifyAll = nil
+            pcall(NS.RunVerifyAll, function()
+                if CompletionRouteDB.autoVerifyQuit then
+                    if ForceQuit then ForceQuit() elseif Quit then Quit() end
+                end
+            end)
+        end
+    end)
 end)
