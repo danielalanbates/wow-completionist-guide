@@ -5,7 +5,7 @@
 
 For each flavor it: refuses to run if FFXI (a `wine` window) is on screen, brings the
 Battle.net launcher up, picks the game version, presses Play, waits for the client window,
-screenshots it, and quits the client cleanly so SavedVariables flush. OpenRoute runs
+screenshots it, and quits the client cleanly so SavedVariables flush. CompletionRoute runs
 /or verify + /or verifyfeatures on its own 25s/30s after login, so nothing has to be typed.
 Afterwards run tools/collect_verify.py to fold the results into docs/verification.sqlite.
 
@@ -76,7 +76,7 @@ def main(flavors):
             print("  no client window appeared - skipping")
             continue
         print(f"  client window {num} {b}")
-        time.sleep(120)   # let OpenRoute's 25s/30s auto-verifies run after character login
+        time.sleep(120)   # let CompletionRoute's 25s/30s auto-verifies run after character login
         shot(num, SHOTS / f"verify_{fl.strip('_')}.png")
         subprocess.run(["osascript", "-e", 'tell application "World of Warcraft" to quit'], check=False)
         time.sleep(45)

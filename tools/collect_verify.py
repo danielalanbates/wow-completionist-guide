@@ -2,7 +2,7 @@
 """Collect /or verifyall results from each flavor's SavedVariables into docs/verification.sqlite.
 
 Usage: python3 tools/collect_verify.py
-Reads OpenRouteDB.verifyAll from every WoW flavor's WTF SavedVariables and upserts one
+Reads CompletionRouteDB.verifyAll from every WoW flavor's WTF SavedVariables and upserts one
 row per run into `runs`, one per failing guide into `failures`. Chart of record for the
 "every guide works on every version" goal.
 """
@@ -14,7 +14,9 @@ FLAVORS = ["_retail_", "_classic_", "_classic_era_", "_anniversary_"]
 DB = Path(__file__).resolve().parent.parent / "docs" / "verification.sqlite"
 
 def find_sv(flavor_dir):
-    return sorted(flavor_dir.glob("WTF/Account/*/SavedVariables/OpenRoute.lua"))
+    """SavedVariables for this addon, including the pre-rename OpenRoute files."""
+    return sorted(flavor_dir.glob("WTF/Account/*/SavedVariables/CompletionRoute.lua")) + \
+           sorted(flavor_dir.glob("WTF/Account/*/SavedVariables/OpenRoute.lua"))
 
 def parse_verifyall(text):
     m = re.search(r'\["verifyAll"\]\s*=\s*{', text)
@@ -58,30 +60,36 @@ def brace_slice(text, key):
 
 
 def parse_featureverify(text):
-    """OpenRouteDB.featureVerify -> {flavor, build, at, checks:[{feature,name,pass,detail}]}"""
+    """CompletionRouteDB.featureVerify -> {flavor, build, at, checks:[{feature,name,pass,detail}]}
+
+    Key order inside each check is not guaranteed by the SavedVariables writer, so entries are
+    split by brace matching and each field is looked up by name rather than by position.
+    """
     blob = brace_slice(text, "featureVerify")
     if not blob:
         return None
 
-    def field(name):
-        fm = re.search(r'\["%s"\]\s*=\s*"?([^",\n]*)"?,' % name, blob)
+    def field(name, src=None):
+        fm = re.search(r'\["%s"\]\s*=\s*"?((?:[^"\\\n]|\\.)*?)"?,' % name, src if src is not None else blob)
         return fm.group(1) if fm else None
 
     checks = []
-    for cm in re.finditer(
-            r'{\s*\["detail"\]\s*=\s*"((?:[^"\\]|\\.)*)",\s*\["pass"\]\s*=\s*(true|false),'
-            r'\s*\["name"\]\s*=\s*"((?:[^"\\]|\\.)*)",\s*\["feature"\]\s*=\s*"([^"]*)",', blob):
-        checks.append({"detail": cm.group(1), "pass": cm.group(2) == "true",
-                       "name": cm.group(3), "feature": cm.group(4)})
-    if not checks:  # key order is not guaranteed by the SV writer - fall back to a per-entry scan
-        for entry in re.finditer(r'{\s*(\[".*?)\s*},', blob, re.S):
-            e = entry.group(1)
-            def f(k):
-                fm = re.search(r'\["%s"\]\s*=\s*"?((?:[^"\\]|\\.)*?)"?,' % k, e, re.S)
-                return fm.group(1) if fm else None
-            if f("feature"):
-                checks.append({"detail": f("detail") or "", "pass": (f("pass") == "true"),
-                               "name": f("name") or "", "feature": f("feature")})
+    cblob = brace_slice(blob, "checks")
+    if cblob:
+        depth, entry_start = 0, None
+        for i, ch in enumerate(cblob):
+            if ch == "{":
+                depth += 1
+                if depth == 2:
+                    entry_start = i
+            elif ch == "}":
+                if depth == 2 and entry_start is not None:
+                    e = cblob[entry_start:i + 1]
+                    if field("feature", e):
+                        checks.append({"feature": field("feature", e), "name": field("name", e) or "",
+                                       "pass": field("pass", e) == "true", "detail": field("detail", e) or ""})
+                    entry_start = None
+                depth -= 1
     return {"flavor": field("flavor"), "build": field("build"), "at": field("at"),
             "addon": field("addon"), "checks": checks}
 

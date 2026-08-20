@@ -1,11 +1,11 @@
--- Luacheck config for OpenRoute (WoW addon, all flavors).
+-- Luacheck config for CompletionRoute (WoW addon, all flavors).
 std = "lua51"
 max_line_length = false
 self = false
 exclude_files = {
-    "OpenRoute/Libs/**",
-    "OpenRoute/Guides/**",      -- generated/baked guide data (huge)
-    "OpenRoute/Data/Taxi_*.lua", -- generated taxi data
+    "CompletionRoute/Libs/**",
+    "CompletionRoute/Guides/**",      -- generated/baked guide data (huge)
+    "CompletionRoute/Data/Taxi_*.lua", -- generated taxi data
     "archive/**",
     "tools/db2/**",
 }
@@ -19,10 +19,10 @@ ignore = {
 }
 -- Addon's own globals (SavedVariables + slash handlers)
 globals = {
-    "OpenRouteDB", "OpenRouteCharDB",
+    "CompletionRouteDB", "CompletionRouteCharDB",
     "SLASH_OPENROUTE1", "SLASH_OPENROUTE2",
     "SlashCmdList", "StaticPopupDialogs", "UISpecialFrames",
-    "OpenRoute_ItemButton",
+    "CompletionRoute_ItemButton",
 }
 -- WoW API surface (read-only)
 read_globals = {

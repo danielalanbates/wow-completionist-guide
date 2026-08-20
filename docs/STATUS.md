@@ -49,7 +49,7 @@ ONE python process.
   Anniversary -> Play. Client loads from /Volumes/x10 and can take minutes to show a window.
 * Install: `tools/install.sh` (bakes guides + rsyncs into _anniversary_ AddOns).
 * Offline tests need luajit (lua5.4 lacks unpack); first run after iCloud eviction may need
-  `cat OpenRoute/Guides/Imported_*.lua > /dev/null` to materialize the baked data.
+  `cat CompletionRoute/Guides/Imported_*.lua > /dev/null` to materialize the baked data.
 
 ## Next
 1. In-game screenshot pass on the new tree menu (open `/or guides`, expand Leveling, load a guide).
@@ -79,11 +79,11 @@ framework) if we ever want in-client assertions.
 
 ## 2026-08-20 — Target beacon + account-wide progression (PR #1, branch `beacon-and-account-progress`)
 Shipped (see docs/BEACON_AND_ACCOUNT.md for the full design):
-* `OpenRoute/UI/Beacon.lua` — marker over the step NPC/mob's head via nameplates, matching marker
+* `CompletionRoute/UI/Beacon.lua` — marker over the step NPC/mob's head via nameplates, matching marker
   on target/mouseover frames, secure `/targetexact` button on the arrow, minimap + world map pins.
-* `OpenRoute/Core/Account.lua` — all progress in `OpenRouteDB.chars["Name-Realm"]`, opt-in
+* `CompletionRoute/Core/Account.lua` — all progress in `CompletionRouteDB.chars["Name-Realm"]`, opt-in
   `profile.accountWide` (default OFF so completionists do everything on every character).
-* `/or verifyfeatures` (+ silent auto-run 30s after login) → `OpenRouteDB.featureVerify`;
+* `/or verifyfeatures` (+ silent auto-run 30s after login) → `CompletionRouteDB.featureVerify`;
   `tools/collect_verify.py` → `docs/verification.sqlite`; `docs/verification.sql` = schema + reports.
 * Offline coverage: `tools/test_offline.lua` sections 7 and 8. All green, all 4 flavors load clean.
 
@@ -99,7 +99,7 @@ Ground objects and loot containers have no nameplate and no world anchor, so tho
 map pins. If a future flavor exposes an object-tracking API, extend `Beacon.UpdatePins`.
 
 ### Pathways considered for cross-character progress
-1. **Single account table + per-character keys (chosen).** One `OpenRouteDB.chars` map; reads union
+1. **Single account table + per-character keys (chosen).** One `CompletionRouteDB.chars` map; reads union
    on demand. Cheap, survives character deletion (`/or forget`), and the opt-in gate is a single
    branch in `Progress.IsDone`.
 2. Mirror-on-write into both SV files — rejected, two sources of truth drift.
@@ -114,7 +114,7 @@ map pins. If a future flavor exposes an object-tracking API, extend `Beacon.Upda
   standing rule is: if FFXI is running, do not take over the screen. Everything else — offline
   tests, per-flavor load tests, TOC validation, install to all four flavors — is green.
   When the display is free, run `python3 tools/verify_ingame.py _anniversary_ _classic_era_
-  _classic_ _retail_` then `python3 tools/collect_verify.py`; OpenRoute auto-runs its verifiers
+  _classic_ _retail_` then `python3 tools/collect_verify.py`; CompletionRoute auto-runs its verifiers
   25s/30s after login so nothing has to be typed into the client. In-game screenshot proof of the
   nameplate marker over a real NPC's head is the one piece that still needs a human-visible pass.
 * The QID-level union described above.

@@ -13,7 +13,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y lua-check
       - name: Luacheck (fail on errors, report warnings)
         run: |
-          luacheck OpenRoute --no-color || code=$?
+          luacheck CompletionRoute --no-color || code=$?
           if [ "${code:-0}" -ge 2 ]; then exit "$code"; fi
 
   test:
