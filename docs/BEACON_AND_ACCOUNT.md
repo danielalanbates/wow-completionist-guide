@@ -37,7 +37,7 @@ stay marked (Zygor behaviour).
 ## 2. Account-wide progression (`Core/Account.lua`)
 
 Every character's progress now lives in **one** account-level table,
-`OpenRouteDB.chars["Name-Realm"] = { done = {[guideID] = {[stepIndex] = true}}, skipped = …,
+`CompletionRouteDB.chars["Name-Realm"] = { done = {[guideID] = {[stepIndex] = true}}, skipped = …,
 level, class, faction, flavor, updated }`. The per-character SavedVariables file keeps settings only.
 Old per-character progress is migrated on first login (`me.migrated = true`).
 
@@ -66,6 +66,28 @@ drops a deleted character. Guide list rows show a completion badge for guides al
   gate is honoured in **both** directions.
 - Per-flavor load: `luajit tools/test_load_all.lua`, `luajit tools/validate_toc.lua`.
 - In-game: `/or verifyfeatures` writes a named PASS/FAIL row per feature into
-  `OpenRouteDB.featureVerify`; it also runs automatically 30s after login.
+  `CompletionRouteDB.featureVerify`; it also runs automatically 30s after login.
   `python3 tools/collect_verify.py` pulls those out of every flavor's SavedVariables into
   `docs/verification.sqlite`; `docs/verification.sql` holds the schema and the report queries.
+
+## 3. "Next Step" category (`UI/GuideMenu.lua`)
+
+The first category in the guide browser is synthetic: **everything you could do right now that is
+level-matched to you**, so a completionist can see the full menu of currently-appropriate content
+without hunting through the tree.
+
+A guide qualifies when:
+* it declares a level bracket **and that bracket contains your current level**
+  (`min <= level <= max + 0.99`). Level-agnostic guides — professions, most reputation entries —
+  are things you could do at *any* level and would drown the bucket, so they stay in their own
+  category; and
+* it is not already at 100% for the active scope (character, or account when `accountWide` is on).
+
+Ordering is "cheapest thing to do next": tightest bracket → most-progressed → our own guides first,
+then the top 12 are priced by **actual travel time** (`Guide.GuideETA`, which routes from where you
+are standing) and re-sorted so the nearest one floats to the top. Only 12 are priced because
+`GuideETA` parses the guide and the quest DB holds thousands. Priced rows show `~Nm` next to the
+level bracket. The result is cached for 30 seconds and invalidated when your level changes.
+
+Verified live on TBC Anniversary at level 66: 77 matches, top entry Terokkar Forest [64-66] ~4m,
+then Blade's Edge Mountains [65-67] ~7m (active).

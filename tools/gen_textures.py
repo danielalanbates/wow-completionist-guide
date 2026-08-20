@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate OpenRoute/Textures/*.tga (uncompressed 32-bit TGA, power-of-two)."""
+"""Generate CompletionRoute/Textures/*.tga (uncompressed 32-bit TGA, power-of-two)."""
 from PIL import Image, ImageDraw, ImageFilter
 import os
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "OpenRoute", "Textures")
+OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "CompletionRoute", "Textures")
 os.makedirs(OUT, exist_ok=True)
 
 def arrow(name, fill, outline, size=128):

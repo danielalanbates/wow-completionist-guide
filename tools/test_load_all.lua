@@ -9,10 +9,10 @@
 -- addon LOADING cleanly on every flavor.
 
 local FLAVORS = {
-    { toc = "OpenRoute.toc",         tocver = 121500, name = "retail" },
-    { toc = "OpenRoute_Mists.toc",   tocver = 50501,  name = "mists" },
-    { toc = "OpenRoute_TBC.toc",     tocver = 20504,  name = "tbc-anniversary" },
-    { toc = "OpenRoute_Vanilla.toc", tocver = 11507,  name = "era" },
+    { toc = "CompletionRoute.toc",         tocver = 121500, name = "retail" },
+    { toc = "CompletionRoute_Mists.toc",   tocver = 50501,  name = "mists" },
+    { toc = "CompletionRoute_TBC.toc",     tocver = 20504,  name = "tbc-anniversary" },
+    { toc = "CompletionRoute_Vanilla.toc", tocver = 11507,  name = "era" },
 }
 
 -- callable stub whose every field is another stub; tostring/number-safe
@@ -62,7 +62,7 @@ local anyfail = false
 for _, fl in ipairs(FLAVORS) do
     local env = freshEnv(fl.tocver)
     local NS = {}
-    local files, fh = {}, assert(io.open("OpenRoute/" .. fl.toc, "r"))
+    local files, fh = {}, assert(io.open("CompletionRoute/" .. fl.toc, "r"))
     for line in fh:lines() do
         line = line:gsub("\r$", "")
         if line ~= "" and not line:match("^#") then files[#files + 1] = (line:gsub("\\", "/")) end
@@ -72,15 +72,15 @@ for _, fl in ipairs(FLAVORS) do
     for _, rel in ipairs(files) do
         if rel:match("^Libs/") then
             loaded = loaded + 1 -- third-party libs need a real client env; not our code under test
-        elseif rel:match("^Guides/Imported_") and not io.open("OpenRoute/" .. rel, "r") then
+        elseif rel:match("^Guides/Imported_") and not io.open("CompletionRoute/" .. rel, "r") then
             loaded = loaded + 1 -- baked locally, gitignored; absent in CI checkouts
         elseif rel:match("%.lua$") then
-            local chunk, err = loadfile("OpenRoute/" .. rel)
+            local chunk, err = loadfile("CompletionRoute/" .. rel)
             if not chunk then
                 print(("FAIL %-16s %s: %s"):format(fl.name, rel, err)); failed = failed + 1
             else
                 setfenv(chunk, env)
-                local ok, rerr = pcall(chunk, "OpenRoute", NS)
+                local ok, rerr = pcall(chunk, "CompletionRoute", NS)
                 if ok then loaded = loaded + 1
                 else print(("FAIL %-16s %s: %s"):format(fl.name, rel, rerr)); failed = failed + 1 end
             end

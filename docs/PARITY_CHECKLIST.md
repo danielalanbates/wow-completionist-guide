@@ -10,7 +10,7 @@ Live gameplay verification (screenshots in session log):
 - [x] arrow renders, rotates with facing in real time, distance/ETA update
 - [x] arrow direction agrees with Zygor's own arrow (both pointed at Brill zeppelin tower, ~205 yd)
 - [x] walking the wrong way increased distance and the route re-planned live (421→454→"walk 443")
-- [x] arrow → Hearthstone secure button swap, gold ring + cooldown + tooltip ("OpenRoute: Use your Hearthstone")
+- [x] arrow → Hearthstone secure button swap, gold ring + cooldown + tooltip ("CompletionRoute: Use your Hearthstone")
 - [x] clicking the button actually cast Hearthstone: character teleported UC → Gallows' End Tavern (Brill), end-to-end
 - [x] after hearth, router re-planned from Brill (Zygor agreed: same zeppelin, same direction)
 - [x] step auto-completion: injected R-step at player position auto-completed <1s and advanced to next step

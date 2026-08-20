@@ -1,4 +1,10 @@
-# OpenRoute — open leveling guides with real travel routing for World of Warcraft
+# CompletionRoute — the completionist's guide to World of Warcraft
+
+*(formerly OpenRoute — same addon, renamed to say what it is. `/or` still works.)*
+
+Community-driven guides for **every** quest, with the optimal travel routing Zygor charges for,
+progress tracked **across all your characters**, and a marker over the head of whatever the current
+step wants you to find. One addon, every version of the game — Era, TBC Anniversary, Mists, retail.
 
 **Status: v0.1.0 — first playable prototype (TBC Anniversary / Classic Era / Mists / Retail TOCs).**
 Built as a replacement for Zygor Guides Viewer that keeps the *one thing* no free addon has:
@@ -7,7 +13,7 @@ smart arrow — while the guide content is community-driven and open.
 
 ## What it does today
 
-| Zygor feature | OpenRoute |
+| Zygor feature | CompletionRoute |
 |---|---|
 | Guide viewer with steps that auto-complete | ✅ `UI/GuideFrame.lua` + `Core/Progress.lua` (quest accept / objectives / turn-in / run-to / hearth / fly / level / item events) |
 | Waypoint arrow | ✅ `UI/Arrow.lua` — world-coordinate bearing via HereBeDragons, distance + ETA, colour by distance |
@@ -24,10 +30,10 @@ Not yet: gold/profession/dungeon guide types beyond what adapters import, talent
 ## Install
 
 ```
-tools/install.sh                     # copies OpenRoute/ into _anniversary_/Interface/AddOns
+tools/install.sh                     # copies CompletionRoute/ into _anniversary_/Interface/AddOns
 tools/install.sh _classic_era_ _retail_
 ```
-Or copy the `OpenRoute/` folder into `Interface/AddOns/`.
+Or copy the `CompletionRoute/` folder into `Interface/AddOns/`.
 
 ## Use
 
@@ -42,13 +48,13 @@ Hearth once (or bind at an inn) so the router learns exactly where your inn is (
 ## Guide format
 
 See [docs/GUIDE_FORMAT.md](docs/GUIDE_FORMAT.md). It is the WoW-Pro community syntax
-(`A Quest|QID|123|M|48.1,42.9|Z|1429; Elwynn Forest|N|note|`) plus OpenRoute-only tags `|ROUTE|`, `|FIXED|`.
-Guides are plain Lua files registered in `OpenRoute/Guides/Guides.xml`.
+(`A Quest|QID|123|M|48.1,42.9|Z|1429; Elwynn Forest|N|note|`) plus CompletionRoute-only tags `|ROUTE|`, `|FIXED|`.
+Guides are plain Lua files registered in `CompletionRoute/Guides/Guides.xml`.
 
 ## Repository layout
 
 ```
-OpenRoute/            the addon (copy this folder into Interface/AddOns)
+CompletionRoute/            the addon (copy this folder into Interface/AddOns)
   Core/               Init, Util (HBD wrappers, quest/item helpers), Conditions, Guide parser, Progress, Slash
   Routing/            TravelGraph (Dijkstra), StepOrder (optimizer), Router (facade + arrow recommendation)
   Data/               Taxi_<flavor>.lua (generated), Transit.lua (hand-authored), Inns.lua (seed)
