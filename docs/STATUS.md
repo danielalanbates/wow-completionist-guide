@@ -76,3 +76,41 @@ Researched community/Blizzard addon-dev resources and adopted the standard toolc
 Useful references: warcraft.wiki.gg addon API docs; in-client `ExportInterfaceFiles code` console
 command dumps Blizzard's own UI source; BigWigsMods/packager; luacheck; wowUnit (in-game test
 framework) if we ever want in-client assertions.
+
+## 2026-08-20 — Target beacon + account-wide progression (PR #1, branch `beacon-and-account-progress`)
+Shipped (see docs/BEACON_AND_ACCOUNT.md for the full design):
+* `OpenRoute/UI/Beacon.lua` — marker over the step NPC/mob's head via nameplates, matching marker
+  on target/mouseover frames, secure `/targetexact` button on the arrow, minimap + world map pins.
+* `OpenRoute/Core/Account.lua` — all progress in `OpenRouteDB.chars["Name-Realm"]`, opt-in
+  `profile.accountWide` (default OFF so completionists do everything on every character).
+* `/or verifyfeatures` (+ silent auto-run 30s after login) → `OpenRouteDB.featureVerify`;
+  `tools/collect_verify.py` → `docs/verification.sqlite`; `docs/verification.sql` = schema + reports.
+* Offline coverage: `tools/test_offline.lua` sections 7 and 8. All green, all 4 flavors load clean.
+
+### Pathways considered for "graphic over its head"
+1. **Nameplate anchor (chosen).** `C_NamePlate.GetNamePlateForUnit` exists in Era through retail and
+   is the only supported way to attach a frame to a unit's world position. Downside: the unit must
+   have a nameplate up (in range, nameplates enabled).
+2. World-space 3D overlay — **impossible**, no API projects world→screen for arbitrary points.
+3. Raid target icons (`SetRaidTarget`) — **rejected**, needs group lead and overwrites the group's marks.
+4. `C_SuperTrack` / blizzard quest POI arrows — retail-only, and hands control to Blizzard's own
+   tracker; kept out so behaviour is identical across flavors.
+Ground objects and loot containers have no nameplate and no world anchor, so those fall back to the
+map pins. If a future flavor exposes an object-tracking API, extend `Beacon.UpdatePins`.
+
+### Pathways considered for cross-character progress
+1. **Single account table + per-character keys (chosen).** One `OpenRouteDB.chars` map; reads union
+   on demand. Cheap, survives character deletion (`/or forget`), and the opt-in gate is a single
+   branch in `Progress.IsDone`.
+2. Mirror-on-write into both SV files — rejected, two sources of truth drift.
+3. Quest-ID-level union instead of step-index union — more accurate across *different* guides
+   covering the same quest, but needs a quest→step reverse index for ~50k quests. **This is the
+   natural next improvement**: build `qid -> {guide, step}` once at login and union on QID so a
+   quest done on an alt clears the equivalent step in a different guide too.
+
+### Still open
+* In-game screenshot proof of the nameplate marker over a real NPC's head (needs a client session;
+  see the verification playbook in the memory file — never keystroke while WoW does not have focus).
+* The QID-level union described above.
+* Guide-list badge only shows for already-parsed guides; a cached step-count table would let every
+  row show a percentage without parsing 9k guides.
