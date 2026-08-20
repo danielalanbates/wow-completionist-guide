@@ -108,7 +108,12 @@ map pins. If a future flavor exposes an object-tracking API, extend `Beacon.Upda
    natural next improvement**: build `qid -> {guide, step}` once at login and union on QID so a
    quest done on an alt clears the equivalent step in a different guide too.
 
-### Still open
+### Superseded — verification is DONE (see docs/VERIFICATION_2026-08-20.md)
+All four flavors were launched and verified live on 2026-08-20: era 1445/1445, tbc 1641/1641,
+mop 4430/4430, retail 9519/9519 guides load, and 16/16 feature checks pass on every flavor.
+The note below is kept for history.
+
+### (historical) Still open
 * **In-game verification of these two features has NOT been done.** On 2026-08-20 a live FFXI
   client (another session's benchmark) held the display for the whole work window and Daniel's
   standing rule is: if FFXI is running, do not take over the screen. Everything else — offline
@@ -120,3 +125,23 @@ map pins. If a future flavor exposes an object-tracking API, extend `Beacon.Upda
 * The QID-level union described above.
 * Guide-list badge only shows for already-parsed guides; a cached step-count table would let every
   row show a percentage without parsing 9k guides.
+
+
+## 2026-08-20 (afternoon) — renamed to CompletionRoute, Next Step category, all four flavors verified
+* Addon renamed **OpenRoute -> CompletionRoute** (folder, TOCs, title, chat prefix,
+  `CompletionRouteDB`). `/cr` and `/completionroute` are the new slashes; `/or` and `/openroute`
+  still work. Installed SavedVariables were migrated in place and progress survived (verified in
+  the live client). The old installed folders were moved to `<WoW>/AddOns-archive/`, so exactly one
+  copy is live per client.
+* **Next Step** is now the first category in the guide browser: everything level-matched to you
+  right now, ETA-sorted. See docs/BEACON_AND_ACCOUNT.md section 3.
+* `tools/queue_verify.py` arms the whole-catalogue sweep from disk, so no slash command has to be
+  typed into the client (this is the reliable pathway — see the verification doc for why).
+* Three real defects the sweep found were fixed and re-verified: WoW-Pro `s` steps, lazily-empty
+  placeholder guides, and the arrow-check race in the feature verifier.
+
+### Next
+1. Native 1-20 guides for both factions (still the weakest content area).
+2. Quest→step reverse index so the account-wide union is per-quest everywhere, not just on T steps.
+3. Cached step counts so every guide row can show a completion badge without parsing.
+4. Road/wall data for walking accuracy (docs/ROUTING.md).
