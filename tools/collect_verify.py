@@ -53,7 +53,7 @@ def parse_routesweep(text):
         return fm.group(1) if fm else None
     eblob = brace_slice(blob, "errors") or ""
     errors = re.findall(r'"((?:[^"\\]|\\.)*)"', eblob)
-    out = {k: field(k) for k in ("flavor", "total", "done", "loadFail", "precedence", "slower", "noRoute", "steps", "located", "uiEmpty", "startedAt", "finishedAt", "where")}
+    out = {k: field(k) for k in ("flavor", "total", "done", "loadFail", "precedence", "slower", "noRoute", "noRouteInstance", "steps", "located", "uiEmpty", "startedAt", "finishedAt", "where")}
     out["errors"] = errors
     return out
 
@@ -160,11 +160,13 @@ def main():
                     print(f"recorded features {fl} {fv['flavor']}: {p}/{len(fv['checks'])} passed")
             sw = parse_routesweep(text)
             if sw and sw.get("finishedAt"):
-                cur = con.execute(
+                try: con.execute("ALTER TABLE ingame_sweeps ADD COLUMN no_route_instance INTEGER DEFAULT 0")   # 'no route' INTO an instance map: expected, not a gap
+            except sqlite3.OperationalError: pass
+            cur = con.execute(
                     "INSERT OR IGNORE INTO ingame_sweeps(flavor, client_dir, started, finished, location, total, steps, located,"
-                    " precedence, slower, no_route, ui_empty, load_fail) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    " precedence, slower, no_route, ui_empty, load_fail, no_route_instance) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (sw["flavor"], fl, sw["startedAt"], sw["finishedAt"], sw["where"], *(int(sw[k] or 0) for k in
-                     ("total", "steps", "located", "precedence", "slower", "noRoute", "uiEmpty", "loadFail"))))
+                     ("total", "steps", "located", "precedence", "slower", "noRoute", "uiEmpty", "loadFail", "noRouteInstance"))))
                 if cur.rowcount:
                     rid = cur.lastrowid
                     for e in sw["errors"]:
