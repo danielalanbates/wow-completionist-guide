@@ -141,7 +141,7 @@ function A.HarvestCompleted(quiet)
     for _, q in ipairs(list or {}) do if not A.me.quests[q] then A.me.quests[q] = true added = added + 1 end end
     A.me.questCount = 0 for _ in pairs(A.me.quests) do A.me.questCount = A.me.questCount + 1 end
     A.me.harvested = date("%Y-%m-%d %H:%M:%S")
-    A.completedCache = {}
+    A.ClearCompletionCaches()
     if added > 0 and not quiet then NS:Print(("Synced %d completed quest(s) from the game (%d known for this character)."):format(added, A.me.questCount)) end
     return added
 end
@@ -181,6 +181,28 @@ function A.GuideCompletedBy(g)
     end
     A.completedCache[g.id] = false
     return nil
+end
+
+-- Scope-aware "is this guide finished?".  scope = "char" (this character only) or "account" (any
+-- character).  Same rule as GuideCompletedBy: every non-optional quest the guide turns in must be
+-- complete, or - for guides with no quests - every step ticked.  Cached; the caches are dropped
+-- whenever the completed-quest set or a guide's progress changes.
+A.doneCache = { char = {}, account = {} }
+function A.GuideIsComplete(g, scope)
+    if not g or not A.me then return false end
+    scope = (scope == "account") and "account" or "char"
+    local cache = A.doneCache[scope]
+    local hit = cache[g.id]
+    if hit ~= nil then return hit end
+    local key = A.GuideCompletedBy(g)
+    local ok
+    if scope == "account" then ok = key ~= nil else ok = (key == A.key) end
+    cache[g.id] = ok
+    return ok
+end
+function A.ClearCompletionCaches()
+    A.completedCache = {}
+    A.doneCache = { char = {}, account = {} }
 end
 
 function A.Characters()

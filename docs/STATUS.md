@@ -312,3 +312,24 @@ not a direct 404; confirm by trying to claim the project name at upload time.
 Offline tests: `death handling OK`, `pointer style OK`. Whole suite plus load/TOC/access tests green,
 installed to all four flavors. Still not driven in a live client this session — the hand was
 pixel-checked as a rendered PNG at in-game size in three class colours, not in game.
+
+## 2026-08-21 (evening) — guide menu: scope check box + completion counts
+* **Big scope check box** at the top of the guide browser, above the search field. Checked reads
+  **"All characters"**, unchecked reads **"This character"**, with a grey line under it saying what
+  that means. It is the same setting as `/cr accountwide`, so the two stay in sync in both
+  directions, and flipping it re-scans the counts and refreshes the loaded guide's progress.
+* **Completion count on the right of every row.** Category and folder rows show
+  "*n* completed" (green once every guide under them is done, amber otherwise); guide rows show
+  "completed" or their percentage.
+* Deciding whether a guide is finished means parsing its steps and comparing the quests it turns in
+  against what has been done — impossible to do inline for a 9.5k-guide retail catalogue on every
+  keystroke. So it runs as a **background scan while the menu is open**, 40 guides per frame (~4s
+  for retail, once), rows showing `...` until their guide has been answered. Step tables parsed
+  purely to answer the question are dropped again, so the scan does not balloon memory. Results are
+  cached per scope in `Account.doneCache` and cleared by `Account.ClearCompletionCaches()` whenever
+  the completed-quest set or the scope changes.
+* New `Account.GuideIsComplete(guide, "char"|"account")` is the scope-aware form of the existing
+  `GuideCompletedBy`.
+* Offline test `guide menu OK` covers the check box, the per-guide scan verdicts and the category
+  roll-up. Whole suite plus load/TOC tests green; installed to all four flavors. Not seen in a live
+  client yet — the numbers and layout are verified headlessly only.
