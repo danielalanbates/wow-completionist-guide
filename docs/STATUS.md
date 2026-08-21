@@ -17,7 +17,15 @@
   arrow to Rut'theran portal, 147 yd + ETA, route line) - run_classic_0061.png. Sweep FINISHED: 1151 guides,
   79,366 steps, 77,502 located, 0 order violations, 0 slower, 0 empty windows, 0 load failures, 122 no-route;
   verifyall 1311/1311 OK; features 16/16. All rows in docs/verification.sqlite (+ .sql dump).
-* Remaining: a FULL retail sweep (9,456 guides, ~2 h) - launched as the next step of this round.
+* retail FULL sweep done (resumable across the 30-min AFK logouts; driver re-enters the world): 9,456 guides,
+  263,329 steps, 239,009 located, 0 order violations, 0 optimizer-slower, 0 empty windows, 0 load failures;
+  verifyall 9,519/9,519 OK. no-route 2,706 -> 1,637 after the retail transit edges (docs/ROUTING.md "Retail
+  cross-continent transit"); the remainder is mostly instance maps (raids/dungeons/scenarios/pet battles in
+  instances - labelled "(instance map, expected)" from the next sweep on) plus real gaps on BfA/Draenor/
+  Shadowlands/Dragonflight/TWW (Oribos ring + BfA boats added, in-game numbers pending; see route_sweep_from).
+* Offline from Orgrimmar (Horde, 837 baked guides): routed 413, 0 real no-route, 24 instance maps.
+* Retail lessons: AFK logout at 30 min (sweep/verifyall now resume; driver re-arms + clicks Enter World);
+  "Arathi Highlands" exists 7 times on retail -> deterministic zone-name resolution; router 37x cheaper.
 
 # Status / handoff (2026-08-20)
 
