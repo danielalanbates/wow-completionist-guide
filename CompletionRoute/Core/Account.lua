@@ -123,6 +123,66 @@ function A.GuideProgress(guideid, total, scope)
     return n, math.floor(n / total * 100 + 0.5)
 end
 
+-- ---------------------------------------------------------------------------
+-- Login sync: everything the game already knows this character has finished.
+-- Completed quest IDs come straight from the client, so a guide picked up mid-way autofills, and
+-- every other character on the account sees them too (their harvest happens when they log in).
+-- ---------------------------------------------------------------------------
+function A.HarvestCompleted(quiet)
+    if not A.me then return 0 end
+    local list
+    if C_QuestLog and C_QuestLog.GetAllCompletedQuestIDs then
+        local ok, r = pcall(C_QuestLog.GetAllCompletedQuestIDs) if ok then list = r end
+    end
+    if not list and GetQuestsCompleted then
+        local ok, r = pcall(GetQuestsCompleted) if ok and type(r) == "table" then list = {} for q in pairs(r) do list[#list + 1] = q end end
+    end
+    local added = 0
+    for _, q in ipairs(list or {}) do if not A.me.quests[q] then A.me.quests[q] = true added = added + 1 end end
+    A.me.questCount = 0 for _ in pairs(A.me.quests) do A.me.questCount = A.me.questCount + 1 end
+    A.me.harvested = date("%Y-%m-%d %H:%M:%S")
+    A.completedCache = {}
+    if added > 0 and not quiet then NS:Print(("Synced %d completed quest(s) from the game (%d known for this character)."):format(added, A.me.questCount)) end
+    return added
+end
+
+-- Which character (if any) finished the WHOLE guide?  Whole = every quest the guide turns in is
+-- complete for that character (or, for guides without quests, every step ticked). Partial progress
+-- is never reported as complete.  Returns charkey, displayName or nil.
+A.completedCache = {}
+function A.GuideCompletedBy(g)
+    if not g or not NS.db or not NS.db.global.chars then return nil end
+    local c = A.completedCache[g.id]
+    if c ~= nil then return c ~= false and c.key or nil, c ~= false and c.name or nil end
+    local steps = g.steps or (NS.Guide and NS.Guide.Steps(g.id))
+    if not steps or #steps == 0 then A.completedCache[g.id] = false return nil end
+    local qids, nq = {}, 0
+    for _, s in ipairs(steps) do
+        if (s.action == "T" or s.action == "t") and s.qid and not s.optional then
+            for _, q in ipairs(s.qid) do if not qids[q] then qids[q] = true nq = nq + 1 end end
+        end
+    end
+    local function fits(ch)
+        if not ch or (ch.faction and g.faction and g.faction ~= "Both" and ch.faction ~= g.faction) then return false end
+        if nq > 0 then
+            if not ch.quests then return false end
+            for q in pairs(qids) do if not ch.quests[q] then return false end end
+            return true
+        end
+        local d = ch.done and ch.done[g.id]
+        if not d then return false end
+        local n = 0 for _ in pairs(d) do n = n + 1 end
+        return n >= #steps
+    end
+    -- this character first, then the others
+    if fits(A.me) then A.completedCache[g.id] = { key = A.key, name = A.me.name or A.key } return A.key, A.completedCache[g.id].name end
+    for k, ch in pairs(NS.db.global.chars) do
+        if k ~= A.key and fits(ch) then A.completedCache[g.id] = { key = k, name = ch.name or k } return k, ch.name or k end
+    end
+    A.completedCache[g.id] = false
+    return nil
+end
+
 function A.Characters()
     local out = {}
     for k, c in pairs(NS.db.global.chars or {}) do
@@ -142,6 +202,12 @@ function A.Forget(charkey)
 end
 
 NS:On("ADDON_READY", function() pcall(A.Init) end)
+-- the completed-quest list is not always populated the instant we log in: harvest twice
+NS:On("PLAYER_READY", function()
+    NS:After(3, function() pcall(A.HarvestCompleted, true) if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end end)
+    NS:After(20, function() pcall(A.HarvestCompleted, true) end)
+end)
+NS:RegisterEvent("QUEST_TURNED_IN", function(_, qid) if qid and A.me then A.me.quests[qid] = true A.completedCache = {} end end)
 NS:RegisterEvent("QUEST_TURNED_IN", function(_, qid) A.RecordQuest(qid) end)
 NS:RegisterEvent("PLAYER_LEVEL_UP", function(_, lvl) if A.me then A.me.level = lvl or UnitLevel("player") end end)
 NS:RegisterEvent("PLAYER_LOGOUT", function() if A.me then A.me.updated = date("%Y-%m-%d %H:%M:%S") A.me.level = UnitLevel("player") end end)

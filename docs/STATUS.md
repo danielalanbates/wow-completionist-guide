@@ -1,5 +1,17 @@
 # Status / handoff (2026-08-20)
 
+## One-step window + login sync (2026-08-20, evening)
+* Guide window shows ONE step (Zygor-style): icon, "Accept  Title", note, distance/zone, route line; back/forward
+  page arrows (back = un-complete last, forward = mark done). No tick box - steps complete themselves
+  (Progress.CheckStep from quest log / bags / position / taxi / bind). Click the card for the detail popup.
+* Login sync: Account.HarvestCompleted pulls C_QuestLog.GetAllCompletedQuestIDs (GetQuestsCompleted on old
+  clients) into the character's account record at +3 s and +20 s, QUEST_TURNED_IN keeps it live; Progress.Refresh
+  now auto-completes in passes until stable, so a guide picked up mid-way autofills. Other characters' records
+  fill in when THEY log in; account-wide step crediting stays opt-in (Options).
+* Guide browser: a guide shows "(CharacterName)" in green only when WHOLLY complete (every turn-in quest done, or
+  every step ticked for quest-less guides); partial progress keeps the yellow percentage.
+* Not yet verified on screen (client live). Offline suite covers harvest/autofill/(Character)/UI shape.
+
 ## Route sweep: every guide, every zone, every flavor (2026-08-20)
 `luajit tools/route_sweep.lua <era|tbc|mop|retail>` routes EVERY guide offline with REAL zone bounds
 (tools/maps_<flavor>.lua from wago.tools UiMap/UiMapAssignment via tools/gen_maps.py), player placed at the
