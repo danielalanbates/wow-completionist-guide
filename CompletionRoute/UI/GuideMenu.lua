@@ -214,7 +214,10 @@ end
 -- completion badge, but only for guides whose steps are already parsed (never force a parse here:
 -- the quest DB has thousands of guides and the list refreshes on every keystroke)
 local function pctBadge(g)
-    if not (NS.Account and NS.Account.me) or not g.steps then return "" end
+    if not (NS.Account and NS.Account.me) then return "" end
+    local _, who = NS.Account.GuideCompletedBy(g)
+    if who then return ("  |cff00ff00(%s)|r"):format(who) end
+    if not g.steps then return "" end
     local scope = NS.db.profile.accountWide and "account" or "char"
     local _, pct = NS.Account.GuideProgress(g.id, #g.steps, scope)
     if not pct or pct <= 0 then return "" end

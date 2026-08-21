@@ -184,11 +184,15 @@ end
 function P.Refresh(force)
     if not P.guide then return end
     -- 1) auto-complete anything already satisfied (scan a window ahead so obsolete steps vanish)
-    local changed = false
-    local pend = P.Pending(40)
-    for _, s in ipairs(pend) do
-        if P.CheckStep(s) then charDone()[s.index] = true changed = true end
-    end
+    local changed, passes = false, 0
+    repeat
+        local any = false
+        for _, s in ipairs(P.Pending(40)) do
+            if P.CheckStep(s) then charDone()[s.index] = true any = true end
+        end
+        changed = changed or any
+        passes = passes + 1
+    until not any or passes >= 25   -- a guide picked up mid-way can have hundreds of already-done steps
     if changed then NS:Fire("STEPS_AUTOCOMPLETED") end
     -- 2) let optimizer order the upcoming window
     local window = NS.db.profile.routing.window or 10

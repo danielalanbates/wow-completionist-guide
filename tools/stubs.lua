@@ -38,7 +38,8 @@ WorldFrame = { GetChildren = function() return unpack(WORLDFRAME_KIDS) end }
 C_NamePlate = { GetNamePlates = function() return NAMEPLATES end,
     GetNamePlateForUnit = function(u) for _, pl in ipairs(NAMEPLATES) do if pl.namePlateUnitToken == u then return pl end end end }
 HBD_PINS_WORLDMAP_SHOW_PARENT = 1
-C_QuestLog = { IsQuestFlaggedCompleted = function() return false end, IsOnQuest = function() return false end, GetQuestObjectives = function() return {} end, GetLogIndexForQuestID = function() return nil end }
+COMPLETED_QUESTS = {}
+C_QuestLog = { GetAllCompletedQuestIDs = function() return COMPLETED_QUESTS end, IsQuestFlaggedCompleted = function(q) for _, c in ipairs(COMPLETED_QUESTS) do if c == q then return true end end return false end, IsOnQuest = function() return false end, GetQuestObjectives = function() return {} end, GetLogIndexForQuestID = function() return nil end }
 C_Item = { GetItemCount = function(id) return id == 6948 and 1 or 0 end, GetItemNameByID = function(id) return "item" .. id end, GetItemIconByID = function() return "" end }
 C_Container = { GetItemCooldown = function() return 0, 0 end }
 IsSpellKnown = function() return false end
@@ -55,4 +56,4 @@ HBD_STUB = { GetAllMapIDs = function() local t = {} for id in pairs(MAPS) do t[#
   GetZoneDistance = function(_, m1, x1, y1, m2, x2, y2) local ax, ay, ai = z2w(x1, y1, m1) local bx, by, bi = z2w(x2, y2, m2) if ai ~= bi then return nil end return math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2) end,
   GetPlayerWorldPosition = function() return PLAYER.wx, PLAYER.wy, PLAYER.inst end,
   GetPlayerZonePosition = function() return PLAYER.x, PLAYER.y, PLAYER.map end }
-LibStub = function(name) if name == "HereBeDragons-2.0" then return HBD_STUB end return { Fire = function() end } end
+LibStub = function(name) if name == "HereBeDragons-2.0" then return HBD_STUB end return { Fire = function() end, RemoveAllMinimapIcons = function() end, RemoveAllWorldMapIcons = function() end, AddMinimapIconMap = function() end, AddWorldMapIconMap = function() end } end
