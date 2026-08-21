@@ -38,6 +38,16 @@ WorldFrame = { GetChildren = function() return unpack(WORLDFRAME_KIDS) end }
 C_NamePlate = { GetNamePlates = function() return NAMEPLATES end,
     GetNamePlateForUnit = function(u) for _, pl in ipairs(NAMEPLATES) do if pl.namePlateUnitToken == u then return pl end end end }
 HBD_PINS_WORLDMAP_SHOW_PARENT = 1
+-- death state (the pointer switches to a corpse run when these say the player is dead)
+PLAYER_DEAD, PLAYER_GHOST, CORPSE_POS = false, false, nil   -- CORPSE_POS = { mapID, x, y }
+UnitIsDeadOrGhost = function(u) return u == "player" and (PLAYER_DEAD or PLAYER_GHOST) or false end
+UnitIsGhost = function(u) return u == "player" and PLAYER_GHOST or false end
+GetCorpseRecoveryDelay = function() return 0 end
+C_DeathInfo = { GetCorpseMapPosition = function(m)
+    if CORPSE_POS and CORPSE_POS[1] == m then return { GetXY = function() return CORPSE_POS[2], CORPSE_POS[3] end } end
+    return nil
+end }
+RAID_CLASS_COLORS = setmetatable({}, { __index = function() return { r = 0.25, g = 0.78, b = 0.92 } end })
 COMPLETED_QUESTS = {}
 C_QuestLog = { GetAllCompletedQuestIDs = function() return COMPLETED_QUESTS end, IsQuestFlaggedCompleted = function(q) for _, c in ipairs(COMPLETED_QUESTS) do if c == q then return true end end return false end, IsOnQuest = function() return false end, GetQuestObjectives = function() return {} end, GetLogIndexForQuestID = function() return nil end }
 C_Item = { GetItemCount = function(id) return id == 6948 and 1 or 0 end, GetItemNameByID = function(id) return "item" .. id end, GetItemIconByID = function() return "" end }

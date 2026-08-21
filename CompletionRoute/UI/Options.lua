@@ -37,6 +37,9 @@ local function P() return NS.db.profile end
 
 check("Show arrow", function() return P().arrow.enabled end, function(v) P().arrow.enabled = v NS.Arrow.ApplySettings() end)
 check("Lock arrow position", function() return P().arrow.lock end, function(v) P().arrow.lock = v end)
+check("Pointer: hand in your class colour (off = chevron arrow)",
+    function() return (P().arrow.style or "hand") == "hand" end,
+    function(v) P().arrow.style = v and "hand" or "arrow" end)
 check("Lock guide window", function() return P().frame.lock end, function(v) P().frame.lock = v end)
 check("Route optimizer: reorder upcoming steps by travel time", function() return P().routing.reorder end, function(v) P().routing.reorder = v NS.Progress.Refresh() end)
 check("Routing: use flight paths", function() return P().routing.taxi end, function(v) P().routing.taxi = v NS.Router.Invalidate() end)

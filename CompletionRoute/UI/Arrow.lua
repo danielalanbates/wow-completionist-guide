@@ -119,12 +119,70 @@ local function colorFor(dist)
     return TEX .. "arrow_red"
 end
 
+-- Pointer styles: "hand" (default) is a pointing hand tinted to the player's class colour, "arrow"
+-- is the original three-colour chevron.  The hand texture is white, so SetVertexColor tints it and
+-- its dark outline stays a darker shade of the same colour.
+local function classRGB()
+    local c = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[NS.player.class]) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[NS.player.class])
+    if c then return c.r, c.g, c.b end
+    return 1, 0.82, 0
+end
+-- distance still has to read at a glance, so the class colour is dimmed when the target is far and
+-- brightened when you are on top of it
+local function distFactor(dist)
+    if not dist then return 1 end
+    if dist < 60 then return 1.25 end
+    if dist < 400 then return 1 end
+    return 0.72
+end
+local function setPointer(dist, forceStyle)
+    local style = forceStyle or (NS.db.profile.arrow.style or "hand")
+    if style == "arrow" then
+        arrow:SetTexture(colorFor(dist))
+        arrow:SetVertexColor(1, 1, 1)
+        return
+    end
+    arrow:SetTexture(TEX .. "hand")
+    local r, g, b = classRGB()
+    local k = distFactor(dist)
+    arrow:SetVertexColor(math.min(1, r * k), math.min(1, g * k), math.min(1, b * k))
+end
+A.SetPointer = setPointer
+
 function A.Update()
-    if not NS.db or not NS.db.profile.arrow.enabled or not NS.Progress.current then f:Hide() return end
+    if not NS.db or not NS.db.profile.arrow.enabled then f:Hide() return end
+    -- while dead the pointer still has a job (get back to the body) even with no step loaded
+    local dead = NS.Router and NS.Router.IsDead()
+    if not NS.Progress.current and not dead then f:Hide() return end
     f:Show()
     local rec = NS.Router and NS.Router.Recommendation()
     if not rec then arrow:Hide() applyButton("hide") title:SetText("") sub:SetText("") eta:SetText("") return end
     title:SetText(rec.text or "")
+    if rec.dead then
+        -- no Hearthstone, no quest item, no turn-in: hide the secure button outright
+        if btn:IsShown() or pending then applyButton("hide") end
+        title:SetTextColor(1, 0.55, 0.55)
+        if rec.mode == "release" or not rec.wx then
+            arrow:Hide()
+            sub:SetText(rec.why and ("|cffff9900" .. rec.why .. "|r") or "")
+            eta:SetText("")
+            lastMode = rec.mode
+            return
+        end
+        local map, x, y, inst, pwx, pwy = U.PlayerPos()
+        if not pwx or inst ~= rec.inst then
+            arrow:Hide() sub:SetText("|cffff9900corpse is on another continent|r") eta:SetText("")
+            return
+        end
+        arrow:Show()
+        setPointer(rec.dist)
+        arrow:SetRotation(math.atan2(rec.wx - pwx, rec.wy - pwy) - (GetPlayerFacing() or 0))
+        sub:SetText(U.FmtDist(rec.dist) .. "  |cffff9900(your corpse)|r")
+        eta:SetText(rec.eta and ("ETA ~" .. U.FmtTime(rec.eta)) or "")
+        lastMode = rec.mode
+        return
+    end
+    title:SetTextColor(1, 0.82, 0)
     if (rec.mode == "item" or rec.mode == "hearth") and (rec.item or rec.spell) then
         arrow:Hide()
         applyButton("show", rec.item, rec.spell, rec.text)
@@ -144,7 +202,9 @@ function A.Update()
     -- rotate arrow
     local map, x, y, inst, pwx, pwy = U.PlayerPos()
     if not pwx or inst ~= rec.inst then
-        arrow:Show(); arrow:SetTexture(TEX .. "arrow_blue"); arrow:SetRotation(0)
+        arrow:Show()
+        if (NS.db.profile.arrow.style or "hand") == "hand" then setPointer(nil) else arrow:SetTexture(TEX .. "arrow_blue") arrow:SetVertexColor(1, 1, 1) end
+        arrow:SetRotation(0)
         sub:SetText("Different continent - follow the guide"); eta:SetText(rec.eta and ("ETA ~" .. U.FmtTime(rec.eta)) or "")
         return
     end
@@ -156,7 +216,7 @@ function A.Update()
     local bearing = math.atan2(dx, dy)
     local facing = GetPlayerFacing() or 0
     arrow:Show()
-    arrow:SetTexture(colorFor(dist))
+    setPointer(dist)
     arrow:SetRotation(bearing - facing)
     local speed = U.TravelSpeed()
     local tag = ""

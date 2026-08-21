@@ -48,6 +48,8 @@ end
 -- returns { [lowercased name] = displayName }
 function B.WantedNames()
     local out, n = {}, 0
+    -- a corpse cannot talk to quest givers: no over-head markers or target macro while dead
+    if NS.Router and NS.Router.IsDead() then return out, 0 end
     local function add(name)
         name = cleanName(name)
         if name and not out[name:lower()] then out[name:lower()] = name n = n + 1 end
@@ -68,7 +70,7 @@ function B.WantedNames()
         end
     end
     B.count = n
-    return out
+    return out, n
 end
 
 -- ---------------------------------------------------------------------------
@@ -330,6 +332,7 @@ NS:RegisterEvent("PLAYER_REGEN_ENABLED", function() if pendingMacro ~= nil then 
 
 function B.UpdateTargetButton()
     if not NS.db or not NS.db.profile.beacon.enabled or not NS.db.profile.beacon.targetButton then applyMacro(nil) return end
+    if NS.Router and NS.Router.IsDead() then applyMacro(nil) return end
     local s = NS.Progress.current
     if not s then applyMacro(nil) return end
     local names = B.WantedNames()
