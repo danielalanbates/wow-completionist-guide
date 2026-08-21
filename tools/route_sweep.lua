@@ -149,7 +149,9 @@ for _, id in ipairs(G.list) do
                 -- and a FindPath error must show up as an error, not as "no route")
                 local okP, path = pcall(NS.TravelGraph.FindPath, PLAYER.wx, PLAYER.wy, PLAYER.inst, tx, ty, ti, {})
                 if not okP then err = (err and err .. "; " or "") .. "FindPath: " .. tostring(path) path = nil end
-                routeOK = path and "yes" or "no"
+                local z = order[1].zone and MAPS[tonumber(order[1].zone) or -1]
+                local instanceMap = z and (z[8] == 4 or z[8] == 5 or z[8] == 6)
+                routeOK = path and "yes" or (instanceMap and "no-instance" or "no")
                 routeTxt = path and NS.TravelGraph.Describe(path) or ("step1 inst=" .. tostring(ti) .. " player inst=" .. tostring(PLAYER.inst))
             else routeOK = placed and "n/a" or "unplaced" end
         end

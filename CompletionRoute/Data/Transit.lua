@@ -93,4 +93,16 @@ NS.TransitData = {
     -- Pandaria shrines (one-way back to the capitals); Legion Dalaran / Oribos / Valdrakken / Dornogal return portals are the two-way edges above
     { from = { "Vale of Eternal Blossoms", 62.5, 22.5 }, to = { "Orgrimmar", 57.6, 89.5 }, mode = "portal", fac = "H", cost = 6, twoway = false, flavors = { mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }, title = "Take the Shrine of Two Moons portal to Orgrimmar" },
     { from = { "Vale of Eternal Blossoms", 84.5, 62.0 }, to = { "Stormwind City", 49.2, 87.2 }, mode = "portal", fac = "A", cost = 6, twoway = false, flavors = { mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }, title = "Take the Shrine of Seven Stars portal to Stormwind" },
+    -- Shadowlands: Oribos Ring of Transference portals to the four zones (two-way; the zones' return portals land in Oribos)
+    { from = { "Oribos", 40.0, 40.0 }, to = { "Bastion", 49.5, 50.0 }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Take the Oribos portal to Bastion" },
+    { from = { "Oribos", 60.0, 40.0 }, to = { "Maldraxxus", 50.0, 50.0 }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Take the Oribos portal to Maldraxxus" },
+    { from = { "Oribos", 40.0, 60.0 }, to = { "Ardenweald", 50.0, 50.0 }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Take the Oribos portal to Ardenweald" },
+    { from = { "Oribos", 60.0, 60.0 }, to = { "Revendreth", 50.0, 50.0 }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Take the Oribos portal to Revendreth" },
+    -- Battle for Azeroth: Horde war-campaign boats Zuldazar harbor -> Kul Tiras footholds, Alliance Boralus harbor -> Zandalar footholds
+    { from = { "Zuldazar", 58.0, 62.5 }, to = { "Tiragarde Sound", 61.5, 84.0 }, mode = "boat", fac = "H", cost = 60, flavors = { retail = true }, title = "Take the Zuldazar harbor boat to Plunder Harbor (Tiragarde Sound)" },
+    { from = { "Zuldazar", 58.0, 62.5 }, to = { "Drustvar", 69.5, 63.5 }, mode = "boat", fac = "H", cost = 60, flavors = { retail = true }, title = "Take the Zuldazar harbor boat to Krazzlefrazz Outpost (Drustvar)" },
+    { from = { "Zuldazar", 58.0, 62.5 }, to = { "Stormsong Valley", 35.5, 35.0 }, mode = "boat", fac = "H", cost = 60, flavors = { retail = true }, title = "Take the Zuldazar harbor boat to Warfang Hold (Stormsong Valley)" },
+    { from = { "Boralus", 69.0, 22.0 }, to = { "Zuldazar", 43.5, 38.5 }, mode = "boat", fac = "A", cost = 60, flavors = { retail = true }, title = "Take the Boralus harbor boat to Xibala (Zuldazar)" },
+    { from = { "Boralus", 69.0, 22.0 }, to = { "Nazmir", 45.5, 82.0 }, mode = "boat", fac = "A", cost = 60, flavors = { retail = true }, title = "Take the Boralus harbor boat to Redfield's Watch (Nazmir)" },
+    { from = { "Boralus", 69.0, 22.0 }, to = { "Vol'dun", 56.5, 81.0 }, mode = "boat", fac = "A", cost = 60, flavors = { retail = true }, title = "Take the Boralus harbor boat to Port of Zem'lan (Vol'dun)" },
 }

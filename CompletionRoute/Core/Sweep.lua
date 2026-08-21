@@ -103,7 +103,16 @@ function NS.RunRouteSweep(zoneFilter, resume)
                 if okC and a > b + 1 then res.slower = res.slower + 1 err = (err and err .. "; " or "") .. ("slower %.0fs vs %.0fs"):format(a, b) end
                 if order[1] and R.StepWorld(order[1]) then
                     local path = R.CurrentPath(true)
-                    if not path then res.noRoute = res.noRoute + 1 err = (err and err .. "; " or "") .. "no route to step 1" end
+                    if not path then
+                        -- an instance map (dungeon/raid/scenario/garrison) has no transit edge INTO it by design: the
+                        -- guide's own steps walk you in. Label it so the SQL chart separates "expected" from a real gap.
+                        local z = order[1].zone and U.MapIDByName(order[1].zone)
+                        local info = z and C_Map.GetMapInfo(z)
+                        local mt = info and info.mapType
+                        local kind = (mt == 4 or mt == 5 or mt == 6) and " (instance map, expected)" or ""
+                        if kind == "" then res.noRoute = res.noRoute + 1 else res.noRouteInstance = (res.noRouteInstance or 0) + 1 end
+                        err = (err and err .. "; " or "") .. "no route to step 1" .. kind
+                    end
                 end
                 if NS.GuideFrame and NS.GuideFrame.Update then
                     pcall(NS.GuideFrame.Update)
