@@ -306,12 +306,13 @@ NS:On("PLAYER_READY", function()
     end
     NS:After(35, function()
         if CompletionRouteDB and CompletionRouteDB.autoVerifyAll and NS.RunVerifyAll then
+            local resume = CompletionRouteDB.autoVerifyAll == "resume"
             CompletionRouteDB.autoVerifyAll = nil
             pcall(NS.RunVerifyAll, function()
                 if CompletionRouteDB.autoVerifyQuit then
                     if ForceQuit then ForceQuit() elseif Quit then Quit() end
                 end
-            end)
+            end, resume)
         end
     end)
 end)
