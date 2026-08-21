@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS route_sweep(
   opt_cost REAL, author_cost REAL, route_ok TEXT, route TEXT, error TEXT, PRIMARY KEY(flavor, guide));
 """)
 at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-for f in sorted(f for f in glob.glob(str(ROOT / "docs" / "route_sweep_*.tsv")) if not f.endswith("_unknown.tsv")):
+for f in sorted(f for f in glob.glob(str(ROOT / "docs" / "route_sweep_*.tsv")) if not f.endswith("_unknown.tsv") and "/route_sweep_from_" not in f):
     rows = list(csv.DictReader(open(f, encoding="utf-8"), delimiter="\t"))
     if not rows: continue
     fl = rows[0]["flavor"]
@@ -30,4 +30,23 @@ for f in sorted(f for f in glob.glob(str(ROOT / "docs" / "route_sweep_*.tsv")) i
     nor = sum(1 for r in rows if r["route_ok"] == "no"); err = sum(1 for r in rows if r["error"])
     faster = sum(1 for r in rows if float(r["opt_cost"]) < float(r["author_cost"]) - 1)
     print(f"{fl:7s} guides={n:5d} steps={steps:6d} located={100*loc/max(1,steps):5.1f}% precedence-violations={prec} optimizer-slower={slow} optimizer-faster={faster} no-route={nor} load-errors={err}")
+# "from a capital" sweeps: tools/route_sweep.lua <flavor> --from <uiMapID> --faction <F> --out docs/route_sweep_from_<flavor>_<map>_<F>.tsv
+# Every guide routed from ONE real place (the in-game sweep's vantage point), so no-route here means a transit gap.
+con.executescript("""
+CREATE TABLE IF NOT EXISTS route_sweep_from(
+  flavor TEXT, origin_map INTEGER, faction TEXT, at TEXT, guide TEXT, name TEXT, type TEXT, steps INTEGER, located INTEGER,
+  order_ok INTEGER, opt_cost REAL, author_cost REAL, route_ok TEXT, route TEXT, error TEXT, PRIMARY KEY(flavor, origin_map, faction, guide));
+""")
+import re
+for f in sorted(glob.glob(str(ROOT / "docs" / "route_sweep_from_*.tsv"))):
+    m = re.search(r"route_sweep_from_(\w+)_(\d+)_(\w+)\.tsv$", f)
+    if not m: continue
+    fl, origin, fac = m.group(1), int(m.group(2)), m.group(3)
+    rows = list(csv.DictReader(open(f, encoding="utf-8"), delimiter="\t"))
+    con.execute("DELETE FROM route_sweep_from WHERE flavor=? AND origin_map=? AND faction=?", (fl, origin, fac))
+    con.executemany("INSERT OR REPLACE INTO route_sweep_from VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [(fl, origin, fac, at, r["guide"], r["name"], r["type"], int(r["steps"]), int(r["located"]), int(r["order_ok"]),
+          float(r["opt_cost"]), float(r["author_cost"]), r["route_ok"], r["route"], r["error"]) for r in rows])
+    nor = sum(1 for r in rows if r["route_ok"] == "no")
+    print(f"{fl:7s} from map {origin} ({fac}): guides={len(rows)} no-route={nor}")
 con.commit()
