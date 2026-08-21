@@ -204,10 +204,14 @@ end
 NS:On("ADDON_READY", function() pcall(A.Init) end)
 -- the completed-quest list is not always populated the instant we log in: harvest twice
 NS:On("PLAYER_READY", function()
+    -- Classic clients only fill GetQuestsCompleted() after QueryQuestsCompleted(); retail has neither
+    if QueryQuestsCompleted then pcall(QueryQuestsCompleted) end
     NS:After(3, function() pcall(A.HarvestCompleted, true) if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end end)
-    NS:After(20, function() pcall(A.HarvestCompleted, true) end)
+    NS:After(20, function() pcall(A.HarvestCompleted, true) if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end end)
 end)
 NS:RegisterEvent("QUEST_TURNED_IN", function(_, qid) if qid and A.me then A.me.quests[qid] = true A.completedCache = {} end end)
 NS:RegisterEvent("QUEST_TURNED_IN", function(_, qid) A.RecordQuest(qid) end)
+-- the server's completed-quest list arrived (classic): harvest it and let the loaded guide autofill
+NS:RegisterEvent("QUEST_QUERY_COMPLETE", function() pcall(A.HarvestCompleted, true) if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end end)
 NS:RegisterEvent("PLAYER_LEVEL_UP", function(_, lvl) if A.me then A.me.level = lvl or UnitLevel("player") end end)
 NS:RegisterEvent("PLAYER_LOGOUT", function() if A.me then A.me.updated = date("%Y-%m-%d %H:%M:%S") A.me.level = UnitLevel("player") end end)

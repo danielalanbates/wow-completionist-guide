@@ -131,6 +131,9 @@ do
         end)
     end
     NS:On("ADDON_READY", function()
+        -- errors recorded by an older build are stale once the addon is updated: keep the log per version
+        local ver = tostring(NS.version or (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON, "Version")) or (GetAddOnMetadata and GetAddOnMetadata(ADDON, "Version")) or "?")
+        if NS.db.char.luaErrorsVersion ~= ver then NS.db.char.luaErrors, NS.db.char.luaErrorsVersion = {}, ver end
         if #pending > 0 then
             NS.db.char.luaErrors = NS.db.char.luaErrors or {}
             for _, e in ipairs(pending) do if #NS.db.char.luaErrors < 20 then tinsert(NS.db.char.luaErrors, e) end end
