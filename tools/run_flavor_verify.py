@@ -60,6 +60,7 @@ def main(argv):
         print("FFXI (wine) window on screen - refusing to take over the display"); return 2
     arm = ["python3", str(HERE / "queue_verify.py"), flavor]
     if "--no-sweep" not in argv: arm.append("--sweep")
+    arm.append("--resume")   # continue an unfinished sweep of this flavor (fresh start if none / finished)
     arm.append(f"--quit-after={minutes * 60 - 30}")
     subprocess.run(arm, check=False)
     subprocess.run(["open", "/Applications/Battle.net.app"]); time.sleep(6)
@@ -76,16 +77,42 @@ def main(argv):
     print("client window", win, wb, "after", int(time.time() - t0), "s")
     time.sleep(45)   # character select
     shot(win, SHOTS / f"run_{flavor.strip('_')}_charselect.png")
+    if not front_is("Wow"):   # another app (Notes...) may have taken focus while loading - raise the client once
+        subprocess.run(["osascript", "-e", 'tell application "World of Warcraft" to activate'], check=False); time.sleep(3)
     if not front_is("Wow"): print("client not frontmost - not clicking Enter World"); return 1
     sx, sy = wb["Width"], wb["Height"]
     click(wb["X"] + sx * 0.498, wb["Y"] + sy * 0.918)   # Enter World
     print("clicked Enter World")
     start = time.time(); popup_done = False
+    svs = list((WOW / flavor).glob("WTF/Account/*/SavedVariables/CompletionRoute.lua"))
+    sv_m = max((p.stat().st_mtime for p in svs), default=0)
+    sessions = 1
     while time.time() - start < minutes * 60:
         el = int(time.time() - start)
         win, wb = find("Wow")
         if not win: print("client window gone"); break
         shot(win, SHOTS / f"run_{flavor.strip('_')}_{el:04d}.png")
+        # retail logs an idle character out after ~30 min -> SavedVariables get written -> the client sits
+        # at character select. Re-arm the sweep in resume mode and Enter World again (one click per logout).
+        m = max((p.stat().st_mtime for p in svs), default=0)
+        if m > sv_m:
+            sv_m = m
+            text = "".join(p.read_text(errors="replace") for p in svs)
+            sweep_done = '["finishedAt"]' in (text.split('["routeSweep"]')[1].split("\n}")[0] if '["routeSweep"]' in text else "")
+            vall_done = '["finished"]' in (text.split('["verifyAll"]')[1].split("\n}")[0] if '["verifyAll"]' in text else "")
+            if sweep_done and vall_done:
+                print(f"logged out after {el}s and both sweeps are finished"); break
+            sessions += 1
+            print(f"logged out after {el}s (sweep finished={sweep_done}, verifyall finished={vall_done}) -> session {sessions}, resuming")
+            subprocess.run(["python3", str(HERE / "queue_verify.py"), flavor, "--sweep", "--resume"], check=False)
+            time.sleep(20)
+            if not front_is("Wow"):
+                subprocess.run(["osascript", "-e", 'tell application "World of Warcraft" to activate'], check=False); time.sleep(3)
+            if front_is("Wow"):
+                shot(win, SHOTS / f"run_{flavor.strip('_')}_charselect_s{sessions}.png")
+                click(wb["X"] + wb["Width"] * 0.5, wb["Y"] + wb["Height"] * 0.897); print("clicked Enter World again")
+            else:
+                print("client not frontmost - cannot re-enter world"); break
         time.sleep(30)
     # the Blizzard "blocked from an action" popup (if any) sits under the minimap; Ignore is at ~(0.515, 0.24)
     if win and front_is("Wow"):

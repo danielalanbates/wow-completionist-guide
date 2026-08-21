@@ -17,7 +17,7 @@ from pathlib import Path
 WOW = Path("/Volumes/x10/Video Games/Mac/World of Warcraft")
 
 
-def arm(sv: Path, also_quit: bool, demo: bool = False, account_wide: bool = False, sweep: bool = False, quit_after: int = 0) -> bool:
+def arm(sv: Path, also_quit: bool, demo: bool = False, account_wide: bool = False, sweep: bool = False, quit_after: int = 0, resume: bool = False) -> bool:
     text = sv.read_text(errors="replace")
     if not text.lstrip().startswith("CompletionRouteDB"):
         return False
@@ -26,9 +26,10 @@ def arm(sv: Path, also_quit: bool, demo: bool = False, account_wide: bool = Fals
         text = re.sub(r'\["accountWide"\]\s*=\s*(true|false)', '["accountWide"] = true', text)
     # insert right after the opening brace of the root table
     i = text.index("{")
-    add = '\n["autoVerifyAll"] = true,'
+    val = '"resume"' if resume else 'true'   # "resume" continues an unfinished sweep/verifyall of the same flavor
+    add = '\n["autoVerifyAll"] = %s,' % val
     if sweep:
-        add += '\n["autoSweep"] = true,'
+        add += '\n["autoSweep"] = %s,' % val
     if quit_after:
         add += '\n["autoQuitAfter"] = %d,' % quit_after
     if demo:
@@ -44,6 +45,7 @@ def main(argv):
     demo = "--demo" in argv
     account_wide = "--account-wide" in argv
     sweep = "--sweep" in argv
+    resume = "--resume" in argv
     quit_after = 0
     for a in argv:
         if a.startswith("--quit-after="): quit_after = int(a.split("=", 1)[1])
@@ -51,7 +53,7 @@ def main(argv):
     n = 0
     for fl in flavors:
         for sv in (WOW / fl).glob("WTF/Account/*/SavedVariables/CompletionRoute.lua"):
-            if arm(sv, also_quit, demo, account_wide, sweep, quit_after):
+            if arm(sv, also_quit, demo, account_wide, sweep, quit_after, resume):
                 print("armed", sv)
                 n += 1
             else:
