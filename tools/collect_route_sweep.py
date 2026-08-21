@@ -47,6 +47,7 @@ for f in sorted(glob.glob(str(ROOT / "docs" / "route_sweep_from_*.tsv"))):
     con.executemany("INSERT OR REPLACE INTO route_sweep_from VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         [(fl, origin, fac, at, r["guide"], r["name"], r["type"], int(r["steps"]), int(r["located"]), int(r["order_ok"]),
           float(r["opt_cost"]), float(r["author_cost"]), r["route_ok"], r["route"], r["error"]) for r in rows])
-    nor = sum(1 for r in rows if r["route_ok"] == "no")
-    print(f"{fl:7s} from map {origin} ({fac}): guides={len(rows)} no-route={nor}")
+    nor = sum(1 for r in rows if r["route_ok"] == "no"); noi = sum(1 for r in rows if r["route_ok"] == "no-instance")
+    yes = sum(1 for r in rows if r["route_ok"] == "yes")
+    print(f"{fl:7s} from map {origin} ({fac}): guides={len(rows)} routed={yes} no-route={nor} no-route-into-instance-map(expected)={noi}")
 con.commit()

@@ -40,7 +40,7 @@ TG.zoneToWorld = zoneToWorld
 -- Build static part of the graph (taxi + transit)
 -- ---------------------------------------------------------------------------
 function TG.Build()
-    TG.nodes, TG.taxiByID = {}, {}
+    TG.nodes, TG.taxiByID, TG.unresolved = {}, {}, {}
     local flavor = NS.flavor
     local taxi = NS.TaxiData and (NS.TaxiData[flavor] or NS.TaxiData.tbc)
     local fac = faction()
@@ -72,7 +72,7 @@ function TG.Build()
                 local b = newNode("transit", bi, bx, by, t.to.name or t.to[1]); b.mode = t.mode
                 addEdge(a, b, t.cost, t.mode, t.title, t)
                 if t.twoway ~= false then addEdge(b, a, t.cost, t.mode, t.title, t) end
-            else missing = missing + 1 end
+            else missing = missing + 1 TG.unresolved = TG.unresolved or {} TG.unresolved[#TG.unresolved + 1] = (t.title or "?") .. " [" .. tostring(ax and "" or t.from[1]) .. (bx and "" or (" " .. tostring(t.to[1]))) .. "]" end
         end
     end
     TG.BuildRoads()

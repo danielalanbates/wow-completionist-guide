@@ -289,6 +289,33 @@ NS:On("PLAYER_READY", function()
             pcall(NS.Beacon.Demo)
         end
     end)
+    -- Probe: the client's truth about map instances and which transit edges resolved, written to
+    -- CompletionRouteDB.probe so an offline reader can compare with tools/maps_<flavor>.lua (no typing needed).
+    NS:After(42, function()
+        if not (CompletionRouteDB and NS.TravelGraph and NS.TravelGraph.Build) then return end
+        local ok, err = pcall(function()
+            local HBD = LibStub("HereBeDragons-2.0")
+            local TG = NS.TravelGraph
+            if not TG.built then TG.Build() end
+            local probe = { at = date("%Y-%m-%d %H:%M:%S"), flavor = NS.flavor, nodes = #TG.nodes, unresolved = {}, maps = {} }
+            for _, u in ipairs(TG.unresolved or {}) do probe.unresolved[#probe.unresolved + 1] = u end
+            local ids = { 85, 84, 1, 18, 590, 582, 588, 622, 624, 1533, 1536, 1565, 1525, 1670, 2248, 2339, 2022, 2112, 862, 895, 1161, 1409,
+                          627, 125, 630, 371, 390, 114, 117, 198, 201, 207, 249, 241, 245, 71, 81, 2354, 2432, 2424, 122, 1270, 14, 1244, 2257 }
+            for _, id in ipairs(ids) do
+                local info = C_Map.GetMapInfo(id)
+                local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(0.5, 0.5, id)
+                probe.maps[#probe.maps + 1] = ("%d|%s|type %s|inst %s|%s"):format(id, info and info.name or "?", tostring(info and info.mapType), tostring(inst), wx and "ok" or "NO WORLD COORDS")
+            end
+            for _, t in ipairs(NS.TransitData or {}) do
+                for _, side in ipairs({ t.from, t.to }) do
+                    local m = NS.Util.MapIDByName(side[1])
+                    if not m then probe.unresolved[#probe.unresolved + 1] = "zone name unknown: " .. tostring(side[1]) end
+                end
+            end
+            CompletionRouteDB.probe = probe
+        end)
+        if not ok then CompletionRouteDB.probe = { error = tostring(err) } end
+    end)
     -- same file-driven pathway for the route sweep and for a clean self-quit (flushes SavedVariables)
     NS:After(45, function()
         if CompletionRouteDB and CompletionRouteDB.autoSweep and NS.RunRouteSweep then
