@@ -68,8 +68,8 @@ function TG.Build()
             local ax, ay, ai = zoneToWorld(t.from[1], t.from[2], t.from[3])
             local bx, by, bi = zoneToWorld(t.to[1], t.to[2], t.to[3])
             if ax and bx then
-                local a = newNode("transit", ai, ax, ay, t.from[1]); a.mode = t.mode
-                local b = newNode("transit", bi, bx, by, t.to[1]); b.mode = t.mode
+                local a = newNode("transit", ai, ax, ay, t.from.name or t.from[1]); a.mode = t.mode
+                local b = newNode("transit", bi, bx, by, t.to.name or t.to[1]); b.mode = t.mode
                 addEdge(a, b, t.cost, t.mode, t.title, t)
                 if t.twoway ~= false then addEdge(b, a, t.cost, t.mode, t.title, t) end
             else missing = missing + 1 end
