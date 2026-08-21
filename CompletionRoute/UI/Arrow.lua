@@ -150,7 +150,10 @@ function A.Update()
     end
     local dx, dy = rec.wx - pwx, rec.wy - pwy
     local dist = math.sqrt(dx * dx + dy * dy)
-    local bearing = math.atan2(dy, dx)             -- 0 = north, CCW positive (world y = west)
+    -- HereBeDragons world axes: x grows WEST, y grows NORTH (GetXY() returns top, left). Bearing measured like
+    -- GetPlayerFacing(): 0 = north, counter-clockwise positive -> atan2(west, north). With the arguments the
+    -- other way round the arrow was a compass rose (rotated/mirrored), not "up = you are facing the target".
+    local bearing = math.atan2(dx, dy)
     local facing = GetPlayerFacing() or 0
     arrow:Show()
     arrow:SetTexture(colorFor(dist))

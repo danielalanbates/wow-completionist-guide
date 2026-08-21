@@ -103,7 +103,12 @@ end
 -- ---------------------------------------------------------------------------
 function U.IsQuestComplete(qid)
     if not qid then return false end
-    if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then return C_QuestLog.IsQuestFlaggedCompleted(qid) end
+    -- Classic-era clients (Era / TBC Anniversary / MoP Classic) answer IsQuestFlaggedCompleted from a cache that
+    -- is empty for quests done before this session until the server list arrives; the account harvest
+    -- (GetQuestsCompleted after QueryQuestsCompleted) has the full list, so ask both.
+    local me = NS.Account and NS.Account.me
+    if me and me.quests and me.quests[qid] then return true end
+    if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then return C_QuestLog.IsQuestFlaggedCompleted(qid) or false end
     return IsQuestFlaggedCompleted and IsQuestFlaggedCompleted(qid) or false
 end
 function U.IsOnQuest(qid)
