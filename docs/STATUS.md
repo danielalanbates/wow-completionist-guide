@@ -29,6 +29,11 @@
   instance maps, expected). The 37: pet/mount guides on special maps, Midnight's later zones (Harandar/Voidstorm
   need the campaign chain past Quel'Danas), phased race starters, three BfA dungeon-entrance guides. 4 guides
   "optimizer slower" by a few seconds - chain edges in the head-window cost; harmless, noted.
+* Midnight per-zone chains (Silvermoon / Eversong / Harandar / Voidstorm, stacked in route order) are installed
+  and pass tools/test_access.lua but are NOT yet swept in game: FFXI was on screen when the run was due. Next:
+  `python3 tools/run_flavor_verify.py _retail_ --sweep-only --minutes=65` (launcher on retail), then
+  `tools/collect_verify.py`. Expected: the 37 drop to ~10 (race starters Kezan/Wandering Isle/Haranir are phased
+  intro maps - unreachable by design; Underrot/MOTHERLODE/Shrine of the Storm guides start inside the dungeon).
 * Offline from Orgrimmar (Horde, 837 baked guides): routed 413, 0 real no-route, 24 instance maps.
 * Retail lessons: AFK logout at 30 min (sweep/verifyall now resume; driver re-arms + clicks Enter World);
   "Arathi Highlands" exists 7 times on retail -> deterministic zone-name resolution; router 37x cheaper.
