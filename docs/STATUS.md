@@ -23,6 +23,12 @@
   cross-continent transit"); the remainder is mostly instance maps (raids/dungeons/scenarios/pet battles in
   instances - labelled "(instance map, expected)" from the next sweep on) plus real gaps on BfA/Draenor/
   Shadowlands/Dragonflight/TWW (Oribos ring + BfA boats added, in-game numbers pending; see route_sweep_from).
+* **Access chains** (Data/Access.lua, docs/ROUTING.md): Siren Isle, K'aresh, Zereth Mortis, Isle of Thunder, Argus,
+  Nazjatar, Undermine, Midnight now carry their unlock quest line as steps that get injected before any guide
+  starting there + a router edge. Sweep 4 (access chains live): real no-route **261 -> 37** of 9,456 (895 into
+  instance maps, expected). The 37: pet/mount guides on special maps, Midnight's later zones (Harandar/Voidstorm
+  need the campaign chain past Quel'Danas), phased race starters, three BfA dungeon-entrance guides. 4 guides
+  "optimizer slower" by a few seconds - chain edges in the head-window cost; harmless, noted.
 * Offline from Orgrimmar (Horde, 837 baked guides): routed 413, 0 real no-route, 24 instance maps.
 * Retail lessons: AFK logout at 30 min (sweep/verifyall now resume; driver re-arms + clicks Enter World);
   "Arathi Highlands" exists 7 times on retail -> deterministic zone-name resolution; router 37x cheaper.
