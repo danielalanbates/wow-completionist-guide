@@ -52,7 +52,7 @@ local function chainCost(list)
     return t
 end
 
-function NS.RunRouteSweep(zoneFilter)
+function NS.RunRouteSweep(zoneFilter, resume)
     local G, P, R = NS.Guide, NS.Progress, NS.Router
     local want = zoneFilter and zoneFilter ~= "" and zoneFilter:lower() or nil
     local ids = {}
@@ -66,12 +66,19 @@ function NS.RunRouteSweep(zoneFilter)
     if #ids == 0 then NS:Print("sweep: no guides match '" .. tostring(zoneFilter) .. "'") return end
     local res = { flavor = NS.flavor, zoneFilter = zoneFilter, total = #ids, done = 0, loadFail = 0, precedence = 0, slower = 0, noRoute = 0,
                   steps = 0, located = 0, uiEmpty = 0, errors = {}, startedAt = date("%Y-%m-%d %H:%M:%S"), where = GetZoneText and GetZoneText() or "?" }
+    -- resume: retail logs an idle character out after 30 min, which ends the session long before 9k guides are
+    -- swept; an unfinished sweep of the same flavor/guide count continues from its last guide (counters kept)
+    local old = CompletionRouteDB.routeSweep
+    if resume and old and not old.finishedAt and old.flavor == NS.flavor and old.total == #ids and (old.done or 0) < #ids then
+        res = old
+        res.sessions = (res.sessions or 1) + 1
+    end
     CompletionRouteDB.routeSweep = res
     local prevGuide = P.guide and P.guide.id
     if NS.Account and NS.Account.BeginScratch then NS.Account.BeginScratch() end
     local window = NS.db.profile.routing.window or 10
-    local i, fr = 1, CreateFrame("Frame")
-    NS:Print(("sweep: %d guides from %s..."):format(#ids, res.where))
+    local i, fr = (res.done or 0) + 1, CreateFrame("Frame")
+    NS:Print(("sweep: %d guides from %s%s..."):format(#ids, res.where, i > 1 and (" (resuming at %d)"):format(i) or ""))
     fr:SetScript("OnUpdate", function()
         local budget = debugprofilestop() + 20
         while i <= #ids and debugprofilestop() < budget do

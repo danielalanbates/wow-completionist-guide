@@ -292,8 +292,9 @@ NS:On("PLAYER_READY", function()
     -- same file-driven pathway for the route sweep and for a clean self-quit (flushes SavedVariables)
     NS:After(45, function()
         if CompletionRouteDB and CompletionRouteDB.autoSweep and NS.RunRouteSweep then
+            local resume = CompletionRouteDB.autoSweep == "resume"
             CompletionRouteDB.autoSweep = nil
-            pcall(NS.RunRouteSweep, nil)
+            pcall(NS.RunRouteSweep, nil, resume)
         end
     end)
     if CompletionRouteDB and tonumber(CompletionRouteDB.autoQuitAfter) then

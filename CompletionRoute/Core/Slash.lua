@@ -218,18 +218,23 @@ end
 -- Callable without typing in the client: set CompletionRouteDB.autoVerifyAll = true in the
 -- SavedVariables file before launching (see tools/queue_verify.py) - typing long slash commands
 -- through synthetic keystrokes is unreliable, this pathway is not.
-function NS.RunVerifyAll(onDone)
+function NS.RunVerifyAll(onDone, resume)
     local G = NS.Guide
     local ids = {}
     for _, id in ipairs(G.list) do ids[#ids + 1] = id end
     local res = { flavor = NS.flavor, total = #ids, done = 0, failed = 0, errors = {}, startedAt = date("%Y-%m-%d %H:%M:%S") }
+    local old = CompletionRouteDB.verifyAll   -- continue an unfinished run of this flavor (see Sweep.lua)
+    if resume and old and not old.finished and old.flavor == NS.flavor and old.total == #ids and (old.done or 0) < #ids then
+        res = old
+        res.sessions = (res.sessions or 1) + 1
+    end
     CompletionRouteDB.verifyAll = res
     local prevGuide = NS.Progress.guide and NS.Progress.guide.id
     -- loading 9000 guides auto-completes steps in every one of them; keep that out of the
     -- character's real progress
     if NS.Account and NS.Account.me then NS.Account.BeginScratch() end
-    local i, fr = 1, CreateFrame("Frame")
-    NS:Print(("verifyall: checking %d guides..."):format(#ids))
+    local i, fr = (res.done or 0) + 1, CreateFrame("Frame")
+    NS:Print(("verifyall: checking %d guides%s..."):format(#ids, i > 1 and (" (resuming at %d)"):format(i) or ""))
     fr:SetScript("OnUpdate", function()
         local budget = debugprofilestop() + 25
         while i <= #ids and debugprofilestop() < budget do
