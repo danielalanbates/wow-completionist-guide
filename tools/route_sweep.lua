@@ -9,6 +9,8 @@ local limit, outPath = math.huge, nil
 for i = 2, #arg do
     if arg[i] == "--limit" then limit = tonumber(arg[i + 1]) end
     if arg[i] == "--out" then outPath = arg[i + 1] end
+    if arg[i] == "--from" then FROM_MAP = tonumber(arg[i + 1]) end        -- route every guide from this uiMapID (e.g. 85 Orgrimmar) instead of the guide's own zone
+    if arg[i] == "--faction" then FORCE_FACTION = arg[i + 1] end         -- Horde|Alliance: skip guides of the other faction
 end
 outPath = outPath or ("docs/route_sweep_" .. flavor .. ".tsv")
 local TOC = { era = 11507, tbc = 20506, mop = 50504, retail = 120100 }
@@ -108,7 +110,7 @@ for _, id in ipairs(G.list) do
     if n >= limit then break end
     local g = G.registry[id]
     local steps = G.Steps(id)
-    if steps and #steps > 0 and not g.empty then
+    if steps and #steps > 0 and not g.empty and not (FORCE_FACTION and g.faction and g.faction ~= FORCE_FACTION) then
         n = n + 1
         FACTION = (g.faction == "Horde") and "Horde" or "Alliance"
         NS.player.faction = FACTION
@@ -117,6 +119,7 @@ for _, id in ipairs(G.list) do
         -- place the player at the centre of the guide's zone (first located step's zone if the guide has none)
         local zone = g.zone
         if not zone then for _, s in ipairs(steps) do if s.zone then zone = s.zone break end end end
+        if FROM_MAP then zone = FROM_MAP end
         local placed = zone and place(zone, 0.5, 0.5)
         local located, unknownZone = 0, 0
         for _, s in ipairs(steps) do
@@ -160,4 +163,5 @@ local uf = assert(io.open(outPath:gsub("%.tsv$", "") .. "_unknown.tsv", "w"))
 local keys = {} for k in pairs(unknown) do keys[#keys + 1] = k end
 table.sort(keys, function(a, b) return unknown[a] > unknown[b] end)
 uf:write("zone\tsteps\n") for _, k in ipairs(keys) do uf:write(k .. "\t" .. unknown[k] .. "\n") end uf:close()
+local st = NS.TravelGraph.stats if st then io.stderr:write(("router: %d FindPath calls, %d pops, %d walk-relaxations, %d capped, %d skipped-unreachable\n"):format(st.calls, st.pops, st.relax, st.capped, st.skipped or 0)) end
 io.stderr:write(("DONE %s: %d guides in %.0fs -> %s | load-fail=%d precedence-violations=%d optimizer-slower=%d no-route=%d\n"):format(flavor, n, os.clock() - t0, outPath, fails, prec, slower, noRoute))
