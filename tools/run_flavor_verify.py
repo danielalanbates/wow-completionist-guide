@@ -51,6 +51,10 @@ def main(argv):
         if a.startswith("--minutes="): minutes = int(a.split("=")[1])
     if subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip():
         print("a WoW client is already running - not launching another (one app per variety)"); return 2
+    import Quartz as _Q
+    if (_Q.CGSessionCopyCurrentDictionary() or {}).get("CGSSessionScreenIsLocked"):
+        print("screen is locked - clicks and captures cannot reach the client; unlock (or caffeinate -dimsu) first"); return 2
+    subprocess.Popen(["caffeinate", "-dimsu", "-t", str(minutes * 60 + 600)])   # keep display awake for the run
     if any(o == "wine" for o, _, _ in windows()):
         print("FFXI (wine) window on screen - refusing to take over the display"); return 2
     arm = ["python3", str(HERE / "queue_verify.py"), flavor]

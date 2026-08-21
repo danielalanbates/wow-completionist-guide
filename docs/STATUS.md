@@ -13,6 +13,10 @@ verification.sqlite tables `ingame_sweeps` / `ingame_sweep_errors`.
   0 order violations, 0 empty windows, 3 no-route; verifyall 1445/1445; features 16/16.
 * Bugs found live and fixed: detail-popup buttons were parented to the main window (showed at its bottom);
   GameTooltip:SetText 5th arg must be alpha not wrap (luaErrors in char SV); self-quit is impossible (protected).
+* mop (Thorfirn, Darnassus): window + route via Rut'theran portal live (run_classic_0457.png), features 16/16;
+  sweep did NOT finish in the 8-min slot (4430 guides) → rerun with --minutes=15.
+* retail: launched, but the Mac screen locked (idle) before character select, so no capture/clicks were possible;
+  client quit cleanly, flags disarmed. Rerun with --minutes=30 while the screen is unlocked (caffeinate -dimsu).
 * Cross-game sync verified: 6 characters / 897 completed-quest records unioned across the 4 clients
   (docs/CROSS_GAME_SYNC.md; launchd agent blocked by TCC until luajit gets Full Disk Access).
 
