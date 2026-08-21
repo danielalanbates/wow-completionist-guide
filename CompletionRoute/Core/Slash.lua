@@ -18,9 +18,9 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             if id:lower() == rest:lower() or (g.name or ""):lower() == rest:lower() or id:lower():find(rest:lower(), 1, true) or (g.name or ""):lower():find(rest:lower(), 1, true) then P.Load(id) return end
         end
         NS:Print("No guide matches '" .. rest .. "'. /cr guides")
-    elseif cmd == "next" or cmd == "done" then if P.current then P.MarkDone(P.current, true) end
+    elseif cmd == "next" or cmd == "done" then P.Forward()
     elseif cmd == "skip" then if P.current then P.Skip(P.current) end
-    elseif cmd == "undo" or cmd == "back" then P.Undo()
+    elseif cmd == "undo" or cmd == "back" or cmd == "prev" then P.Undo()
     elseif cmd == "reset" then P.Reset() NS:Print("Guide progress reset.")
     elseif cmd == "arrow" then NS.db.profile.arrow.enabled = not NS.db.profile.arrow.enabled NS.Arrow.ApplySettings() NS:Print("Arrow " .. (NS.db.profile.arrow.enabled and "on" or "off"))
     elseif cmd == "options" or cmd == "opt" or cmd == "config" then NS.Options.Open()
@@ -122,8 +122,18 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             st.qid and table.concat(st.qid, ", ") or "none"))
         if st.qid then
             for _, q in ipairs(st.qid) do
-                NS:Print(("  quest %d: onQuest=%s complete=%s"):format(q, tostring(U.IsOnQuest(q)), tostring(U.IsQuestComplete(q))))
+                local harvested = NS.Account and NS.Account.me and NS.Account.me.quests and NS.Account.me.quests[q] and "yes" or "no"
+                local flagged = (C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and tostring(C_QuestLog.IsQuestFlaggedCompleted(q))) or "n/a"
+                NS:Print(("  quest %d: onQuest=%s complete=%s (client=%s, harvested=%s)"):format(
+                    q, tostring(U.IsOnQuest(q)), tostring(U.IsQuestComplete(q)), flagged, harvested))
             end
+        end
+        if st.pre then
+            local parts = {}
+            for _, q in ipairs(st.pre) do
+                parts[#parts + 1] = ("%d=%s"):format(q, (U.IsQuestComplete(q) and "done") or (U.IsOnQuest(q) and "on") or "|cffff9900NOT DONE|r")
+            end
+            NS:Print(("  prereq (%s): %s"):format(st.pre.andor == "and" and "all needed" or "any one", table.concat(parts, ", ")))
         end
         local rec = NS.Router.Recommendation()
         if not rec then NS:Print("  no recommendation at all") return end
@@ -135,6 +145,26 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         else
             NS:Print(("  distance %s, ETA %s"):format(U.FmtDist(rec.dist), U.FmtTime(rec.eta)))
         end
+    elseif cmd == "quest" then
+        local q = tonumber(rest)
+        if not q then NS:Print("Usage: /cr quest <questID>") return end
+        local harvested = NS.Account and NS.Account.me and NS.Account.me.quests and NS.Account.me.quests[q]
+        NS:Print(("Quest %d: onQuest=%s  complete=%s  client=%s  harvested=%s  (%d harvested total)"):format(
+            q, tostring(U.IsOnQuest(q)), tostring(U.IsQuestComplete(q)),
+            tostring(C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(q)),
+            tostring(harvested and true or false),
+            (NS.Account and NS.Account.me and NS.Account.me.questCount) or 0))
+        local hits = 0
+        for _, st2 in ipairs(P.steps or {}) do
+            local match = false
+            for _, qq in ipairs(st2.qid or {}) do if qq == q then match = true end end
+            if match and hits < 8 then
+                hits = hits + 1
+                NS:Print(("  step %d [%s] %s -> done=%s applies=%s"):format(
+                    st2.index, st2.action, st2.title, tostring(P.IsDone(st2)), tostring(Cond.StepApplies(st2))))
+            end
+        end
+        if hits == 0 then NS:Print("  not in the loaded guide") end
     elseif cmd == "icon" then
         local b = NS.db.profile.beacon
         b.icon = (b.icon == "action") and "arrow" or "action"
@@ -166,7 +196,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | beacon | icon | demo | why | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | beacon | icon | demo | why | quest <id> | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 

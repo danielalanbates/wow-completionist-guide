@@ -18,6 +18,14 @@ local function charDone()
     c.done[P.guide.id] = c.done[P.guide.id] or {}
     return c.done[P.guide.id]
 end
+-- Steps the player manually stepped BACK to. Auto-completion must not immediately re-tick them,
+-- otherwise the Back arrow looks like it does nothing (the quest is still complete in the game).
+local function charReopened()
+    local c = NS.db.char
+    c.reopened = c.reopened or {}
+    c.reopened[P.guide.id] = c.reopened[P.guide.id] or {}
+    return c.reopened[P.guide.id]
+end
 local function charSkipped()
     if NS.Account and NS.Account.me then return NS.Account.Skipped(P.guide.id) end
     local c = NS.db.char
@@ -49,6 +57,7 @@ function P.Load(id)
 end
 
 function P.IsDone(step)
+    if charReopened()[step.index] then return false end
     if charDone()[step.index] or charSkipped()[step.index] then return true end
     -- opt-in: a step another character already finished counts as done for this one
     if NS.Account and NS.Account.Enabled() and P.guide then
@@ -60,6 +69,7 @@ function P.IsDone(step)
 end
 function P.MarkDone(step, manual)
     if not step then return end
+    charReopened()[step.index] = nil
     charDone()[step.index] = true
     if (step.action == "T" or step.action == "t") and step.qid and NS.Account then
         for _, q in ipairs(step.qid) do NS.Account.RecordQuest(q) end
@@ -69,15 +79,34 @@ function P.MarkDone(step, manual)
     NS:Fire("STEP_DONE", step)
     P.Refresh()
 end
-function P.Skip(step) if step then charSkipped()[step.index] = true dirty = true P.Refresh() end end
+function P.Skip(step) if step then charReopened()[step.index] = nil charSkipped()[step.index] = true dirty = true P.Refresh() end end
+-- Back one step: reopen the newest done/skipped step that sits BEFORE the current one.  The look-ahead
+-- auto-completer ticks steps up to 40 ahead, so "the highest done index" is often a future step; using it
+-- made Back appear to do nothing.  Reopened steps are pinned (see charReopened) until ticked forward again.
 function P.Undo()
-    -- un-complete the most recent done/skipped step by original index before current
     local d, s = charDone(), charSkipped()
+    local limit = P.current and P.current.index or math.huge
     local best
-    for idx in pairs(d) do if not best or idx > best then best = idx end end
-    for idx in pairs(s) do if not best or idx > best then best = idx end end
-    if best then d[best] = nil s[best] = nil dirty = true P.Refresh() end
+    local function consider(idx) if idx < limit and (not best or idx > best) then best = idx end end
+    for idx in pairs(d) do consider(idx) end
+    for idx in pairs(s) do consider(idx) end
+    if not best then   -- nothing before the current step: fall back to the newest done step anywhere
+        for idx in pairs(d) do if not best or idx > best then best = idx end end
+        for idx in pairs(s) do if not best or idx > best then best = idx end end
+    end
+    if not best then return end
+    charReopened()[best] = true
+    d[best] = nil s[best] = nil
+    if NS.Account and NS.Account.me and P.guide then
+        local ad, as = NS.Account.Done(P.guide.id), NS.Account.Skipped(P.guide.id)
+        if ad then ad[best] = nil end
+        if as then as[best] = nil end
+    end
+    dirty = true
+    P.Refresh()
 end
+-- Forward one step by hand (same as the arrow): tick the current step done.
+function P.Forward() if P.current then P.MarkDone(P.current, true) end end
 function P.Reset()
     if not P.guide then return end
     if NS.Account and NS.Account.me then
@@ -86,6 +115,7 @@ function P.Reset()
     end
     NS.db.char.done[P.guide.id] = {}
     NS.db.char.skipped[P.guide.id] = {}
+    if NS.db.char.reopened then NS.db.char.reopened[P.guide.id] = {} end
     dirty = true
     P.Refresh()
 end
@@ -197,8 +227,9 @@ function P.Refresh(force)
     local changed, passes = false, 0
     repeat
         local any = false
+        local reopened = charReopened()
         for _, s in ipairs(P.Pending(40)) do
-            if P.CheckStep(s) then charDone()[s.index] = true any = true end
+            if not reopened[s.index] and P.CheckStep(s) then charDone()[s.index] = true any = true end
         end
         changed = changed or any
         passes = passes + 1

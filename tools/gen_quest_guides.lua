@@ -58,6 +58,15 @@ local objects = loadDB("object")
 -- ---- helpers -------------------------------------------------------------------------------
 local ALLIANCE = { [1]=true, [4]=true, [8]=true, [64]=true, [1024]=true, [2097152]=true }  -- human dwarf nelf gnome draenei worgen
 local HORDE    = { [2]=true, [16]=true, [32]=true, [128]=true, [512]=true, [256]=true }    -- orc undead tauren troll belf goblin
+-- join a Questie prerequisite list into a WoW-Pro PRE tag value
+local function prelist(t, sep)
+    if type(t) ~= "table" or #t == 0 then return nil end
+    local out = {}
+    for _, v in ipairs(t) do if type(v) == "number" and v > 0 then out[#out + 1] = tostring(v) end end
+    if #out == 0 then return nil end
+    return table.concat(out, sep)
+end
+
 local function factionOf(mask)
     if not mask or mask == 0 then return "Both" end
     local a, h = false, false
@@ -143,7 +152,9 @@ for qid, q in pairs(quests) do
             qid = qid, name = name, lvl = q[5] or 0, req = q[4] or 0,
             startCoords = startCoords, startZid = startZid, startNpc = startNpc, itemStart = itemStart,
             endCoords = endCoords, endZid = endZid, endNpc = endNpc,
-            pre = (type(q[13]) == "table" and q[13][1]) or nil,
+            -- preQuestSingle (q[13]) = any ONE of these opens the quest -> ";" list (OR)
+            -- preQuestGroup  (q[12]) = ALL of them are needed          -> "&" list (AND)
+            pre = prelist(q[13], ";") or prelist(q[12], "&"),
             objText = type(q[8]) == "table" and clean(q[8][1]) or nil,
             objZid = objZid, objCoords = objCoords,
             hasObjectives = type(q[10]) == "table",
