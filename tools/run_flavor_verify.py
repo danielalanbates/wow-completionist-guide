@@ -50,7 +50,8 @@ def main(argv):
     minutes = 7
     for a in argv:
         if a.startswith("--minutes="): minutes = int(a.split("=")[1])
-    if subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip():
+    attach = "--attach" in argv   # resume driving a client that is already in the world (driver restart)
+    if not attach and subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip():
         print("a WoW client is already running - not launching another (one app per variety)"); return 2
     import Quartz as _Q
     if (_Q.CGSessionCopyCurrentDictionary() or {}).get("CGSSessionScreenIsLocked"):
@@ -58,31 +59,36 @@ def main(argv):
     subprocess.Popen(["caffeinate", "-dimsu", "-t", str(minutes * 60 + 600)])   # keep display awake for the run
     if any(o == "wine" for o, _, _ in windows()):
         print("FFXI (wine) window on screen - refusing to take over the display"); return 2
+    if attach:
+        win, wb = find("Wow")
+        if not win: print("--attach: no client window"); return 1
+        print("attached to client window", win, wb)
     arm = ["python3", str(HERE / "queue_verify.py"), flavor]
     if "--no-sweep" not in argv: arm.append("--sweep")
     arm.append("--resume")   # continue an unfinished sweep of this flavor (fresh start if none / finished)
     arm.append(f"--quit-after={minutes * 60 - 30}")
-    subprocess.run(arm, check=False)
-    subprocess.run(["open", "/Applications/Battle.net.app"]); time.sleep(6)
-    n, b = find("Battle.net", 800)
-    if not n: print("no launcher window"); return 1
-    if not front_is("Battle.net"): print("launcher not frontmost - not clicking"); return 1
-    click(b["X"] + 155, b["Y"] + 696); print("pressed Play")
-    t0 = time.time(); win = None
-    while time.time() - t0 < 480:
-        win, wb = find("Wow")
-        if win: break
-        time.sleep(5)
-    if not win: print("client window never appeared"); return 1
-    print("client window", win, wb, "after", int(time.time() - t0), "s")
-    time.sleep(45)   # character select
-    shot(win, SHOTS / f"run_{flavor.strip('_')}_charselect.png")
-    if not front_is("Wow"):   # another app (Notes...) may have taken focus while loading - raise the client once
-        subprocess.run(["osascript", "-e", 'tell application "World of Warcraft" to activate'], check=False); time.sleep(3)
-    if not front_is("Wow"): print("client not frontmost - not clicking Enter World"); return 1
-    sx, sy = wb["Width"], wb["Height"]
-    click(wb["X"] + sx * 0.498, wb["Y"] + sy * 0.918)   # Enter World
-    print("clicked Enter World")
+    if not attach: subprocess.run(arm, check=False)
+    if not attach:
+      subprocess.run(["open", "/Applications/Battle.net.app"]); time.sleep(6)
+      n, b = find("Battle.net", 800)
+      if not n: print("no launcher window"); return 1
+      if not front_is("Battle.net"): print("launcher not frontmost - not clicking"); return 1
+      click(b["X"] + 155, b["Y"] + 696); print("pressed Play")
+      t0 = time.time(); win = None
+      while time.time() - t0 < 480:
+          win, wb = find("Wow")
+          if win: break
+          time.sleep(5)
+      if not win: print("client window never appeared"); return 1
+      print("client window", win, wb, "after", int(time.time() - t0), "s")
+      time.sleep(45)   # character select
+      shot(win, SHOTS / f"run_{flavor.strip('_')}_charselect.png")
+      if not front_is("Wow"):   # another app (Notes...) may have taken focus while loading - raise the client once
+          subprocess.run(["osascript", "-e", 'tell application "World of Warcraft" to activate'], check=False); time.sleep(3)
+      if not front_is("Wow"): print("client not frontmost - not clicking Enter World"); return 1
+      sx, sy = wb["Width"], wb["Height"]
+      click(wb["X"] + sx * 0.498, wb["Y"] + sy * 0.918)   # Enter World
+      print("clicked Enter World")
     start = time.time(); popup_done = False
     svs = list((WOW / flavor).glob("WTF/Account/*/SavedVariables/CompletionRoute.lua"))
     sv_m = max((p.stat().st_mtime for p in svs), default=0)
@@ -105,6 +111,7 @@ def main(argv):
             sessions += 1
             print(f"logged out after {el}s (sweep finished={sweep_done}, verifyall finished={vall_done}) -> session {sessions}, resuming")
             subprocess.run(["python3", str(HERE / "queue_verify.py"), flavor, "--sweep", "--resume"], check=False)
+            sv_m = max((p.stat().st_mtime for p in svs), default=0)   # arming rewrote the file - not a logout
             time.sleep(20)
             if not front_is("Wow"):
                 subprocess.run(["osascript", "-e", 'tell application "World of Warcraft" to activate'], check=False); time.sleep(3)
