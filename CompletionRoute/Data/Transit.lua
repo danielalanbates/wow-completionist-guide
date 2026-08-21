@@ -6,6 +6,7 @@
 -- NOTE: some coordinates are approximate (±2%). Walking cost is derived from them; a small error is harmless.
 -- Contributions welcome — keep this list factual and flavour-tagged.
 local ADDON, NS = ...
+local R = { cata = true, mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }   -- Cataclysm-onward clients
 NS.TransitData = {
     -- ===================== NEUTRAL BOATS =====================
     { from = { "Stranglethorn Vale", 27.4, 77.2 }, to = { "The Barrens", 63.9, 38.6 }, mode = "boat", cost = 150, title = "Take the boat Booty Bay <-> Ratchet" },
@@ -39,4 +40,57 @@ NS.TransitData = {
     -- Blasted Lands portal in capitals (TBC 2.4+ / for wrath onward retail differs)
     { from = { "Stormwind City", 49.6, 86.9 }, to = { "Blasted Lands", 55.4, 54.0 }, mode = "portal", fac = "A", cost = 5, twoway = false, flavors = { tbc = true }, title = "Take the Mage Quarter portal to Blasted Lands" },
     { from = { "Orgrimmar", 39.7, 85.7 }, to = { "Blasted Lands", 55.4, 54.0 }, mode = "portal", fac = "H", cost = 5, twoway = false, flavors = { tbc = true }, title = "Take the Valley of Spirits portal to Blasted Lands" },
+
+    -- ===================== RETAIL (Cataclysm -> Midnight) =====================
+    -- Zone given as a uiMapID string where the English name is ambiguous on this client (two Dalarans, two
+    -- Shadowmoon Valleys); `name` is then the display name. Coordinates approximate (+-2%), see header.
+    -- Stormwind Portal Room (Wizard's Sanctum, Mage Quarter), 8.1.5+
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "Boralus", 70.0, 15.5 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Boralus" },
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "Stormshield", 61.0, 37.0 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Stormshield (Ashran)" },
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "627", 58.0, 43.0, name = "Dalaran" }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Dalaran (Broken Isles)" },
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "The Jade Forest", 45.7, 85.0 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Paw'don Village (Jade Forest)" },
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "Tanaris", 64.8, 50.0 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to the Caverns of Time" },
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "Silithus", 41.5, 44.5 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Silithus" },
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "Azsuna", 46.7, 41.4 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Azsuna" },
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "Oribos", 47.0, 60.0 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Oribos" },
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "Valdrakken", 59.5, 41.0 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Valdrakken" },
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "Dornogal", 48.0, 42.6 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Dornogal" },
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "Ironforge", 27.0, 8.5 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Ironforge" },
+    { from = { "Stormwind City", 49.2, 87.2 }, to = { "The Exodar", 48.0, 62.0 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to the Exodar" },
+    -- Stormwind: Eastern Earthshrine (Cataclysm zones) and the harbor
+    { from = { "Stormwind City", 76.0, 18.5 }, to = { "Mount Hyjal", 62.7, 23.5 }, mode = "portal", fac = "A", cost = 6, flavors = R, title = "Take the Eastern Earthshrine portal to Mount Hyjal" },
+    { from = { "Stormwind City", 76.0, 18.5 }, to = { "Kelp'thar Forest", 60.0, 34.0 }, mode = "portal", fac = "A", cost = 6, flavors = R, title = "Take the Eastern Earthshrine portal to Vashj'ir" },
+    { from = { "Stormwind City", 76.0, 18.5 }, to = { "Deepholm", 49.0, 53.0 }, mode = "portal", fac = "A", cost = 6, flavors = R, title = "Take the Eastern Earthshrine portal to Deepholm" },
+    { from = { "Stormwind City", 76.0, 18.5 }, to = { "Uldum", 54.5, 33.5 }, mode = "portal", fac = "A", cost = 6, flavors = R, title = "Take the Eastern Earthshrine portal to Uldum" },
+    { from = { "Stormwind City", 76.0, 18.5 }, to = { "Twilight Highlands", 79.5, 78.0 }, mode = "portal", fac = "A", cost = 6, flavors = R, title = "Take the Eastern Earthshrine portal to Twilight Highlands" },
+    { from = { "Stormwind City", 76.0, 18.5 }, to = { "Tol Barad Peninsula", 73.3, 60.0 }, mode = "portal", fac = "A", cost = 6, flavors = R, title = "Take the Eastern Earthshrine portal to Tol Barad" },
+    { from = { "Stormwind City", 18.5, 25.5 }, to = { "Borean Tundra", 59.5, 69.0 }, mode = "boat", fac = "A", cost = 170, flavors = { wrath = true, cata = true, mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }, title = "Take the ship Stormwind Harbor <-> Valiance Keep (Borean Tundra)" },
+    { from = { "Stormwind City", 22.5, 32.0 }, to = { "Teldrassil", 55.4, 93.5 }, mode = "boat", fac = "A", cost = 170, flavors = { cata = true, mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }, title = "Take the ship Stormwind Harbor <-> Rut'theran Village" },
+    { from = { "Wetlands", 4.9, 57.0 }, to = { "Howling Fjord", 58.5, 62.0 }, mode = "boat", fac = "A", cost = 170, flavors = { wrath = true, cata = true, mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }, title = "Take the ship Menethil Harbor <-> Valgarde (Howling Fjord)" },
+    -- Orgrimmar Portal Room (Gates of Orgrimmar), 8.1.5+
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "Zuldazar", 58.5, 59.5 }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to Dazar'alor" },
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "Warspear", 53.0, 38.0 }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to Warspear (Ashran)" },
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "627", 49.0, 48.0, name = "Dalaran" }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to Dalaran (Broken Isles)" },
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "The Jade Forest", 28.3, 15.5 }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to Honeydew Village (Jade Forest)" },
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "Tanaris", 64.8, 50.0 }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to the Caverns of Time" },
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "Silithus", 41.5, 44.5 }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to Silithus" },
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "Azsuna", 46.7, 41.4 }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to Azsuna" },
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "Oribos", 47.0, 60.0 }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to Oribos" },
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "Valdrakken", 59.5, 41.0 }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to Valdrakken" },
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "Dornogal", 48.0, 42.6 }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to Dornogal" },
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "Thunder Bluff", 22.0, 17.0 }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to Thunder Bluff" },
+    { from = { "Orgrimmar", 57.6, 89.5 }, to = { "Silvermoon City", 58.0, 19.5 }, mode = "portal", fac = "H", cost = 6, flavors = { retail = true }, title = "Take the Orgrimmar Portal Room portal to Silvermoon City" },
+    -- Orgrimmar: Western Earthshrine (Cataclysm zones) and the zeppelin towers
+    { from = { "Orgrimmar", 48.5, 37.5 }, to = { "Mount Hyjal", 62.7, 23.5 }, mode = "portal", fac = "H", cost = 6, flavors = R, title = "Take the Western Earthshrine portal to Mount Hyjal" },
+    { from = { "Orgrimmar", 48.5, 37.5 }, to = { "Kelp'thar Forest", 60.0, 34.0 }, mode = "portal", fac = "H", cost = 6, flavors = R, title = "Take the Western Earthshrine portal to Vashj'ir" },
+    { from = { "Orgrimmar", 48.5, 37.5 }, to = { "Deepholm", 49.0, 53.0 }, mode = "portal", fac = "H", cost = 6, flavors = R, title = "Take the Western Earthshrine portal to Deepholm" },
+    { from = { "Orgrimmar", 48.5, 37.5 }, to = { "Uldum", 54.5, 33.5 }, mode = "portal", fac = "H", cost = 6, flavors = R, title = "Take the Western Earthshrine portal to Uldum" },
+    { from = { "Orgrimmar", 48.5, 37.5 }, to = { "Twilight Highlands", 73.5, 52.5 }, mode = "portal", fac = "H", cost = 6, flavors = R, title = "Take the Western Earthshrine portal to Twilight Highlands" },
+    { from = { "Orgrimmar", 48.5, 37.5 }, to = { "Tol Barad Peninsula", 59.5, 75.0 }, mode = "portal", fac = "H", cost = 6, flavors = R, title = "Take the Western Earthshrine portal to Tol Barad" },
+    { from = { "Durotar", 51.0, 12.0 }, to = { "Borean Tundra", 41.5, 54.0 }, mode = "zeppelin", fac = "H", cost = 170, flavors = { wrath = true, cata = true, mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }, title = "Take the zeppelin Orgrimmar <-> Warsong Hold (Borean Tundra)" },
+    { from = { "Tirisfal Glades", 60.9, 58.8 }, to = { "Howling Fjord", 78.5, 29.0 }, mode = "zeppelin", fac = "H", cost = 170, flavors = { wrath = true, cata = true, mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }, title = "Take the zeppelin Undercity <-> Vengeance Landing (Howling Fjord)" },
+    { from = { "Durotar", 51.0, 12.0 }, to = { "Thunder Bluff", 22.0, 16.0 }, mode = "zeppelin", fac = "H", cost = 170, flavors = R, title = "Take the zeppelin Orgrimmar <-> Thunder Bluff" },
+    -- Pandaria shrines (one-way back to the capitals); Legion Dalaran / Oribos / Valdrakken / Dornogal return portals are the two-way edges above
+    { from = { "Vale of Eternal Blossoms", 62.5, 22.5 }, to = { "Orgrimmar", 57.6, 89.5 }, mode = "portal", fac = "H", cost = 6, twoway = false, flavors = { mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }, title = "Take the Shrine of Two Moons portal to Orgrimmar" },
+    { from = { "Vale of Eternal Blossoms", 84.5, 62.0 }, to = { "Stormwind City", 49.2, 87.2 }, mode = "portal", fac = "A", cost = 6, twoway = false, flavors = { mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }, title = "Take the Shrine of Seven Stars portal to Stormwind" },
 }
