@@ -1,5 +1,21 @@
 # Status / handoff (2026-08-20)
 
+## In-game verification, evening round (tools/run_flavor_verify.py — one deliberate launch per flavor)
+Driver: arms SavedVariables (autoVerifyAll + autoSweep), presses Play in Battle.net (Quartz click at window
+origin + (155,696); the GAME VERSION dropdown is changed by hand/click first), clicks Enter World at (0.498, 0.918)
+of the client window, screenshots every 30 s to docs/screenshots/run_<flavor>_*.png, quits from OUTSIDE
+(Quit()/ForceQuit() are protected in the world → taint popup). Results → tools/collect_verify.py →
+verification.sqlite tables `ingame_sweeps` / `ingame_sweep_errors`.
+* tbc (Solcus 66, Terokkar): one-step window + arrows + route line on screen (onestep_window_tbc.png); sweep 1524
+  guides, 78,480 steps, 75,781 located, 0 order violations, 0 empty windows, 67 no-route (all instance-map guides:
+  BRD/BRS/... no transit into instances), 2 "slower" by 6 s.
+* era (Majaba, Orgrimmar): window + route "walk 369 yd; zeppelin Orgrimmar↔Undercity" live; sweep 1341 guides,
+  0 order violations, 0 empty windows, 3 no-route; verifyall 1445/1445; features 16/16.
+* Bugs found live and fixed: detail-popup buttons were parented to the main window (showed at its bottom);
+  GameTooltip:SetText 5th arg must be alpha not wrap (luaErrors in char SV); self-quit is impossible (protected).
+* Cross-game sync verified: 6 characters / 897 completed-quest records unioned across the 4 clients
+  (docs/CROSS_GAME_SYNC.md; launchd agent blocked by TCC until luajit gets Full Disk Access).
+
 ## One-step window + login sync (2026-08-20, evening)
 * Guide window shows ONE step (Zygor-style): icon, "Accept  Title", note, distance/zone, route line; back/forward
   page arrows (back = un-complete last, forward = mark done). No tick box - steps complete themselves
