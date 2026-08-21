@@ -289,6 +289,18 @@ NS:On("PLAYER_READY", function()
             pcall(NS.Beacon.Demo)
         end
     end)
+    -- same file-driven pathway for the route sweep and for a clean self-quit (flushes SavedVariables)
+    NS:After(45, function()
+        if CompletionRouteDB and CompletionRouteDB.autoSweep and NS.RunRouteSweep then
+            CompletionRouteDB.autoSweep = nil
+            pcall(NS.RunRouteSweep, nil)
+        end
+    end)
+    if CompletionRouteDB and tonumber(CompletionRouteDB.autoQuitAfter) then
+        local secs = tonumber(CompletionRouteDB.autoQuitAfter)
+        CompletionRouteDB.autoQuitAfter = nil
+        NS:After(secs, function() NS:Print("auto-quit (verification run)") if ForceQuit then ForceQuit() elseif Quit then Quit() end end)
+    end
     NS:After(35, function()
         if CompletionRouteDB and CompletionRouteDB.autoVerifyAll and NS.RunVerifyAll then
             CompletionRouteDB.autoVerifyAll = nil
