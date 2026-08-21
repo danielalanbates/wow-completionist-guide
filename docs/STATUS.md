@@ -1,3 +1,24 @@
+# Status / handoff (2026-08-21)
+
+## In-game verification, morning round (retail + MoP rerun)
+* retail (Orialan 58, Orgrimmar Embassy, build 12.1.0.69404): one-step window live ("Netherwing - step 1 of 147",
+  note, zone, route line "Walk 519 yd to Durotar; take the zeppelin Orgrimmar<->Grom'gol", arrow + ETA on screen,
+  detail tooltip on hover) - docs/screenshots/run_retail_0062.png. features 16/16 (feature_runs 2026-08-21 07:45:34).
+  The 30-minute slot was NOT enough for a full sweep of 9,456 guides: 2,230 swept (174k steps, 167.7k located,
+  0 order violations, 0 empty windows, 0 load failures, 541 no-route) and verifyall 1,981/9,519 (0 failed).
+  Recorded honestly in the new `ingame_sweep_partials` / `run_partials` tables. A full retail sweep needs ~2 h.
+* Driver lessons: another app (Notes) was frontmost when the client reached character select, so
+  run_flavor_verify.py refused to click Enter World (correct: never click into the wrong app). New
+  tools/resume_flavor_verify.py picks a run up from character select (AppleScript `activate` - `open -a` does not
+  raise the client). Driver output is now flushed live. The launcher GAME VERSION dropdown is at window origin
+  +(175,628); with it open the rows are MoP Classic +(140,537), Burning Crusade Anniversary +(140,505),
+  World of Warcraft Classic +(140,473), World of Warcraft (retail) +(140,584) (1440x788 launcher window).
+* mop (Thorfirn, Darnassus) rerun --minutes=20: window live ("Western Plaguelands Quests (Alliance) - step 1 of 170",
+  arrow to Rut'theran portal, 147 yd + ETA, route line) - run_classic_0061.png. Sweep FINISHED: 1151 guides,
+  79,366 steps, 77,502 located, 0 order violations, 0 slower, 0 empty windows, 0 load failures, 122 no-route;
+  verifyall 1311/1311 OK; features 16/16. All rows in docs/verification.sqlite (+ .sql dump).
+* Remaining: a FULL retail sweep (9,456 guides, ~2 h) - launched as the next step of this round.
+
 # Status / handoff (2026-08-20)
 
 ## In-game verification, evening round (tools/run_flavor_verify.py — one deliberate launch per flavor)

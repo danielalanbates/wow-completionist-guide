@@ -12,7 +12,8 @@ if it appears, and after --minutes quits the client from outside (quit from insi
 Then run tools/collect_verify.py (+ tools/sync_progress.lua runs by itself via the launchd agent).
 Coordinates: launcher Play button = window origin + (155, 696); Enter World = client centre-bottom.
 """
-import subprocess, sys, time
+import subprocess, sys, time, functools
+print = functools.partial(print, flush=True)   # log is readable live when redirected to a file
 from pathlib import Path
 import Quartz
 
