@@ -76,6 +76,7 @@ function TG.Build()
         end
     end
     TG.BuildRoads()
+    TG.Index()
     TG.built = true
     NS:Debug(("TravelGraph: %d nodes (%d road), %d transit entries unresolved"):format(#TG.nodes, TG.roadCount or 0, missing))
 end
@@ -380,7 +381,39 @@ end
 
 -- FindPath(sx,sy,sinst, gx,gy,ginst, opts) -> path { cost=seconds, legs = {{mode,from,to,cost,title,data}} } or nil
 -- opts: { hearth = bool(default cfg), taxi = bool, transit = bool, speed = yd/s }
+-- Per-instance node lists (relaxWalk only looks at nodes on the same continent) and instance
+-- connectivity: which continents can reach which through explicit edges (transit/taxi). A goal on a
+-- continent no edge leads to is unreachable - answer that without exploring the whole graph.
+function TG.Index()
+    local byInst, comp = {}, {}
+    local function find(i) while comp[i] and comp[i] ~= i do i = comp[i] end return i end
+    local function union(a, b) a, b = find(a), find(b) if a ~= b then comp[a] = b end end
+    for _, n in ipairs(TG.nodes) do
+        if n.inst then
+            comp[n.inst] = comp[n.inst] or n.inst
+            if not n.road then
+                local l = byInst[n.inst] if not l then l = {} byInst[n.inst] = l end
+                l[#l + 1] = n
+            end
+        end
+    end
+    for _, n in ipairs(TG.nodes) do
+        for _, e in ipairs(n.edges) do if n.inst and e.to.inst and n.inst ~= e.to.inst then union(n.inst, e.to.inst) end end
+    end
+    TG.byInst, TG.instComp = byInst, comp
+    TG.instFind = function(i) return find(i) end
+end
+function TG.InstReachable(a, b)
+    if a == b then return true end
+    if not TG.instFind then return true end
+    local fa, fb = TG.instFind(a), TG.instFind(b)
+    if not TG.instComp[a] or not TG.instComp[b] then return false end   -- no node at all on that continent
+    return fa == fb
+end
+
+TG.stats = { calls = 0, pops = 0, relax = 0, capped = 0, skipped = 0 }   -- profiling counters (cheap; read by tools/route_sweep.lua)
 function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
+    TG.stats.calls = TG.stats.calls + 1
     if not TG.built then TG.Build() end
     if not (sx and gx and sinst and ginst) then return nil end
     opts = opts or {}
@@ -417,6 +450,12 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             if akind then hnode(acd, "spell", NS.ASTRAL_RECALL, "Astral Recall") end
         end
     end
+    -- unreachable continent (neither from here nor from the hearth) -> no graph search at all
+    if not TG.InstReachable(sinst, ginst) then
+        local viaHearth = false
+        for _, hn in ipairs(hearthNodes) do if TG.InstReachable(hn.inst, ginst) then viaHearth = true end end
+        if not viaHearth then TG.stats.skipped = TG.stats.skipped + 1 return best end
+    end
     -- Dijkstra over: start, goal, hearth nodes, all graph nodes
     local nodes = TG.nodes
     local INF = math.huge
@@ -436,9 +475,11 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
         if near then
             for i = 1, #near do local v = near[i] if v ~= u and not closed[v] then relaxTo(u, du, v) end end
         end
-        -- walk to every non-road node in same instance (lazy complete graph)
-        for i = 1, #nodes do
-            local v = nodes[i]
+        -- walk to every non-road node in same instance (lazy complete graph; per-instance index)
+        local same = (TG.byInst and TG.byInst[u.inst]) or nodes
+        TG.stats.relax = TG.stats.relax + #same
+        for i = 1, #same do
+            local v = same[i]
             if v.inst == u.inst and v ~= u and not v.road and not closed[v] then
                 local usable = (v.kind ~= "taxi") or (useTaxi and TG.TaxiUsable(v))
                 if v.kind == "transit" and not useTransit then usable = false end
@@ -463,7 +504,8 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             closed[u] = true
             if u == goal then break end
             iterations = iterations + 1
-            if iterations > 20000 then break end
+            TG.stats.pops = TG.stats.pops + 1
+            if iterations > 20000 then TG.stats.capped = TG.stats.capped + 1 break end
             -- explicit edges
             for _, e in ipairs(u.edges) do
                 local v = e.to
