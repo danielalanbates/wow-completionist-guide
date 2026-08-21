@@ -160,9 +160,11 @@ def main():
                     print(f"recorded features {fl} {fv['flavor']}: {p}/{len(fv['checks'])} passed")
             sw = parse_routesweep(text)
             if sw and sw.get("finishedAt"):
-                try: con.execute("ALTER TABLE ingame_sweeps ADD COLUMN no_route_instance INTEGER DEFAULT 0")   # 'no route' INTO an instance map: expected, not a gap
-            except sqlite3.OperationalError: pass
-            cur = con.execute(
+                try:   # 'no route' INTO an instance map: expected, not a gap
+                    con.execute("ALTER TABLE ingame_sweeps ADD COLUMN no_route_instance INTEGER DEFAULT 0")
+                except sqlite3.OperationalError:
+                    pass
+                cur = con.execute(
                     "INSERT OR IGNORE INTO ingame_sweeps(flavor, client_dir, started, finished, location, total, steps, located,"
                     " precedence, slower, no_route, ui_empty, load_fail, no_route_instance) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (sw["flavor"], fl, sw["startedAt"], sw["finishedAt"], sw["where"], *(int(sw[k] or 0) for k in
