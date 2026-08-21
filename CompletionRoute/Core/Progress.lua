@@ -371,10 +371,11 @@ function Access.LockedChainTo(step)
     if inst == ti then return nil end   -- already on that continent: nothing to unlock
     local ok, path = pcall(TG.FindPath, wx, wy, inst, tx, ty, ti, {})
     if not ok or not path then return nil end
-    for _, leg in ipairs(path.legs or {}) do
-        if leg.mode == "access" and leg.data and leg.data.locked then return leg.data.access end
+    local chains = {}
+    for _, leg in ipairs(path.legs or {}) do   -- chains stack (Midnight intro -> Silvermoon -> Eversong -> Harandar): keep route order
+        if leg.mode == "access" and leg.data and leg.data.locked then chains[#chains + 1] = leg.data.access end
     end
-    return nil
+    return chains[1], chains
 end
 function Access.ParseSteps(a, guideId)
     local out, n = {}, 0
@@ -393,7 +394,10 @@ function Access.PrefixFor(steps, guideId)
     if not steps or #steps == 0 or not NS.AccessData then return nil end
     local first
     for _, s in ipairs(steps) do if NS.Router.StepWorld(s) then first = s break end end
-    local a = first and Access.LockedChainTo(first)
-    if not a then return nil end
-    return Access.ParseSteps(a, guideId)
+    local _, chains = Access.LockedChainTo(first)
+    if not chains or #chains == 0 then return nil end
+    local out = {}
+    for _, a in ipairs(chains) do for _, st in ipairs(Access.ParseSteps(a, guideId)) do out[#out + 1] = st end end
+    for i, st in ipairs(out) do st.index = i - #out - 1 end   -- renumber the whole prefix -k .. -1
+    return out
 end

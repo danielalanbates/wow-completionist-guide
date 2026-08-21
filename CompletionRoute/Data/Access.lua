@@ -173,4 +173,45 @@ A Into the Night|QID|48440|N|Prophet Velen.|
 C Depart for Argus|QID|48440|QO|1|N|"I am ready."|
 T Into the Night|QID|48440|M|40.30,23.70|Z|Krokuun|N|Prophet Velen on Argus.|
 ]] },
+    -- ---------------- Midnight (12.0): each Quel'Thalas zone is its own instance ----------------
+    -- Quel'Danas (2858) -> Silvermoon City (2443, inst 2907) -> Eversong Woods (2594, inst 3074) -> Harandar (2413) ;
+    -- Silvermoon -> Voidstorm (2405). The first trip is the campaign quest; afterwards the same portals stay open.
+    { key = "midnight_silvermoon", flavors = { retail = true }, unlock = { 86733 }, cost = 240,
+      from = { "2432", 52.53, 88.19, name = "Isle of Quel'Danas" }, to = { "2443", 45.44, 70.34, name = "Silvermoon City" },
+      after = { from = { "2432", 52.53, 88.19, name = "Isle of Quel'Danas" }, cost = 60, title = "Travel from Quel'Danas to the Sanctum of Light (Silvermoon City)" },
+      title = "Midnight: Silvermoon Negotiations - Lor'themar on Quel'Danas -> the Sanctum of Light",
+      steps = [[
+A Silvermoon Negotiations|QID|86733|M|52.53,88.19|Z|2432; Isle of Quel'Danas|N|Lor'themar Theron. Requires the Midnight intro up to "Light's Last Stand" (86852).|
+C Arrive at the Sanctum of Light|QID|86733|QO|1|M|45.44,70.34|Z|2443; Silvermoon City|
+]] },
+    { key = "midnight_eversong", flavors = { retail = true }, unlock = { 86737 }, cost = 300,
+      from = { "2443", 45.44, 70.34, name = "Silvermoon City" }, to = { "2594", 44.70, 44.98, name = "Eversong Woods" },
+      after = { from = { "2443", 45.44, 70.34, name = "Silvermoon City" }, cost = 90, title = "Leave the Sanctum of Light for Eversong Woods (Fairbreeze Village)" },
+      title = "Midnight: Fair Breeze, Light Bloom - Lor'themar in the Sanctum of Light -> Eversong Woods",
+      steps = [[
+A Fair Breeze, Light Bloom|QID|86737|M|45.44,70.34|Z|2443; Silvermoon City|N|Lor'themar Theron.|
+C Obtain the Arcane Projector from Rommath|QID|86737|QO|1|M|45.31,70.51|Z|2443; Silvermoon City|
+F Fairbreeze Village|M|44.70,44.98|Z|2594; Eversong Woods|N|Vael'thas Dawnsoar, flight master.|
+]] },
+    { key = "midnight_harandar", flavors = { retail = true }, unlock = { 86899 }, cost = 300,
+      from = { "2594", 45.40, 45.52, name = "Eversong Woods" }, to = { "Harandar", 75.64, 53.58 },
+      after = { from = { "2594", 45.14, 46.93, name = "Eversong Woods" }, cost = 20, title = "Take the Mysterious Rootway (Eversong Woods) to Harandar" },
+      title = "Midnight: The Root Cause - Orweyna in Eversong Woods -> the Mysterious Rootway to Harandar",
+      steps = [[
+A The Root Cause|QID|86899|M|45.40,45.52|Z|2594; Eversong Woods|N|Orweyna (turn in "Harandar" 89402 first if you carry it).|
+C Talk to Orweyna|QID|86899|QO|1|M|45.40,45.52|Z|2594; Eversong Woods|N|"I'm ready. Let's go!"|
+C Take the portal to Harandar|QID|86899|QO|2|M|45.14,46.93|Z|2594; Eversong Woods|N|Click the Mysterious Rootway.|
+T The Root Cause|QID|86899|M|75.64,53.58|Z|Harandar|N|Orweyna.|
+]] },
+    { key = "midnight_voidstorm", flavors = { retail = true }, unlock = { 86549 }, cost = 600,
+      from = { "2443", 45.31, 70.17, name = "Silvermoon City" }, to = { "Voidstorm", 34.25, 60.45 },
+      after = { from = { "2443", 35.28, 66.18, name = "Silvermoon City" }, cost = 20, title = "Take the Portal to Voidstorm (Silvermoon City)" },
+      title = "Midnight: Magisters' Terrace: Homecoming - Umbric in the Sanctum of Light -> the Portal to Voidstorm",
+      steps = [[
+A Magisters' Terrace: Homecoming|QID|86543|M|45.31,70.17|Z|2443; Silvermoon City|N|Magister Umbric. Level 86, or the Midnight achievement.|
+N Follow the Voidstorm opening chapter to "No Fear of the Dark" (86549)|M|45.31,70.17|Z|2443; Silvermoon City|
+C Connect the three Shadow Foci|QID|86549|QO|1|M|35.01,65.45|Z|2443; Silvermoon City|
+C Enter the Portal to Voidstorm|QID|86549|QO|3|M|35.28,66.18|Z|2443; Silvermoon City|
+T No Fear of the Dark|QID|86549|M|34.25,60.45|Z|Voidstorm|N|Magister Umbric.|
+]] },
 }

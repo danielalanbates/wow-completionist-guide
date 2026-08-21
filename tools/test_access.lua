@@ -50,6 +50,11 @@ G.Register({ id = "test:siren", name = "Siren test", type = "Test", text = "C Ki
 local steps = G.Steps("test:siren")
 local prefix = NS.Access.PrefixFor(steps, "test:siren")
 check(prefix and #prefix == 6 and prefix[1].index == -6 and prefix[6].index == -1, "Siren Isle guide gets the 6-step unlock chain with indices -6..-1")
+G.Register({ id = "test:harandar", name = "Harandar test", type = "Test", text = "C Pet|QID|99998|M|57.22,51.08|Z|Harandar|" })
+local hp = NS.Access.PrefixFor(G.Steps("test:harandar"), "test:harandar")
+local keys = {} for _, st in ipairs(hp or {}) do keys[st.access] = true end
+check(hp and #hp == 7 + 2 + 3 + 4 and keys.midnight_h and keys.midnight_silvermoon and keys.midnight_eversong and keys.midnight_harandar and hp[1].index == -#hp,
+      "Harandar guide gets the stacked chains intro+Silvermoon+Eversong+Harandar (" .. tostring(hp and #hp) .. " steps)")
 -- unlocked: no prefix
 C_QuestLog.IsQuestFlaggedCompleted = function(q) return q == 84720 end
 TG.built = false TG.Build()
