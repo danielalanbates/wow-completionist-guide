@@ -299,7 +299,9 @@ NS:On("PLAYER_READY", function()
     if CompletionRouteDB and tonumber(CompletionRouteDB.autoQuitAfter) then
         local secs = tonumber(CompletionRouteDB.autoQuitAfter)
         CompletionRouteDB.autoQuitAfter = nil
-        NS:After(secs, function() NS:Print("auto-quit (verification run)") if ForceQuit then ForceQuit() elseif Quit then Quit() end end)
+        -- Quit()/ForceQuit()/Logout() are protected in the world (taint popup), so only mark the run as
+        -- finished; the driver (tools/verify_ingame.py) quits the client from outside.
+        NS:After(secs, function() CompletionRouteDB.verifyRunDone = date("%Y-%m-%d %H:%M:%S") NS:Print("verification run complete - safe to quit") end)
     end
     NS:After(35, function()
         if CompletionRouteDB and CompletionRouteDB.autoVerifyAll and NS.RunVerifyAll then
