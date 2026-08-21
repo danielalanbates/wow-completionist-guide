@@ -62,3 +62,38 @@ Author order breaks ties. Toggle with the `Route` button or `/or options`.
   with `cond` (not yet supported → add `cond=function() end` evaluation in `TG.Build`).
 * Taxi speed is a constant; some TBC routes are faster. Fine for ranking.
 * Multi-coordinate steps use the nearest coordinate; the optimizer uses the first.
+
+## Retail cross-continent transit (2026-08-21)
+The first full in-game retail sweep (9,456 guides from Orgrimmar) had 2,706 guides with no route to step 1.
+Cause: `Data/Transit.lua` only knew Classic/TBC boats, zeppelins and the Dark Portal - nothing led off the two
+old continents. Added (all approximate +-2%, see the file header; flights inside each continent come from
+`Data/Taxi_retail.lua`):
+* Stormwind / Orgrimmar **Portal Rooms** (8.1.5+): Boralus | Dazar'alor, Stormshield | Warspear (Ashran),
+  Dalaran (Broken Isles, given as uiMapID "627" because retail has two Dalarans), Jade Forest, Caverns of Time,
+  Silithus, Azsuna, Oribos, Valdrakken, Dornogal, plus Ironforge/Exodar | Thunder Bluff/Silvermoon.
+* Eastern / Western **Earthshrine** (Cataclysm): Mount Hyjal, Vashj'ir, Deepholm, Uldum, Twilight Highlands, Tol Barad.
+* Northrend: Stormwind Harbor -> Valiance Keep, Menethil -> Valgarde, Orgrimmar zeppelin -> Warsong Hold,
+  Undercity zeppelin -> Vengeance Landing; Orgrimmar <-> Thunder Bluff zeppelin; Pandaria shrines -> capitals.
+A zone may be given as a uiMapID string with `name = "..."` for display when the English name is ambiguous.
+
+Verify offline from a capital: `luajit tools/route_sweep.lua retail --from 85 --faction Horde --out
+docs/route_sweep_from_retail_85_Horde.tsv` then `python3 tools/collect_route_sweep.py` (table `route_sweep_from`).
+Result: 59 -> 24 no-route of 837 baked guides; the 24 are Outland dungeon *instance maps* (Slave Pens, Botanica...)
+- there is no transit edge into an instance, the guide's own steps walk you in. Remaining gaps to author when
+seen in game: Oribos ring portals to the four Shadowlands zones, Dragon Isles / Khaz Algar internal portals,
+Midnight (Quel'Thalas instance 2858) access.
+
+## Zone names that exist many times (retail)
+Retail has 7 maps called "Arathi Highlands" (zone, warfront, scenarios), 6 "Isle of Quel'Danas", 3 "Durotar".
+`U.MapIDByName` used to take whichever came first from `HBD:GetAllMapIDs()` (arbitrary order, so a guide could
+route to a phased warfront copy one session and the real zone the next). Now: prefer zone-type maps (mapType 3),
+then the LOWEST uiMapID - the canonical zone always has the oldest id. (`Core/Util.lua buildNameIndex`)
+
+## Router cost
+`TG.FindPath` is Dijkstra over a lazy complete walking graph: every popped node relaxes every other node on the
+same continent. With retail's ~1,450 nodes that is ~1.3M distance evaluations per call and a guide sweep makes
+thousands of calls. Two cheap fixes (`Routing/TravelGraph.lua`): a per-instance node index (`TG.byInst`) so the
+inner loop only sees nodes on the player's continent, and `TG.InstReachable` - union-find over the instances that
+explicit edges connect - so a goal on a continent nothing leads to (or that only the hearth reaches) is answered
+without a search. 37x fewer relaxations, identical routes (same TSV). `TG.stats` counts calls/pops/relaxations;
+`tools/route_sweep.lua` prints them.
