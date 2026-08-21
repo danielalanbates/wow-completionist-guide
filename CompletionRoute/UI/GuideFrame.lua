@@ -29,8 +29,8 @@ local titleText = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 titleText:SetPoint("TOPLEFT", 10, -8); titleText:SetPoint("RIGHT", -70, 0); titleText:SetJustifyH("LEFT")
 titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r")
 
-local function smallButton(text, w, tip, onClick)
-    local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+local function smallButton(text, w, tip, onClick, parent)
+    local b = CreateFrame("Button", nil, parent or f, "UIPanelButtonTemplate")
     b:SetSize(w, 18); b:SetText(text)
     b:SetScript("OnClick", onClick)
     b:SetScript("OnEnter", function(self) GameTooltip:SetOwner(self, "ANCHOR_TOP") GameTooltip:SetText(tip) GameTooltip:Show() end)
@@ -104,7 +104,7 @@ card:SetScript("OnEnter", function(self)
     if not self.step then return end
     local s = self.step
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText((G.ACTION_LABEL[s.action] or s.action) .. ": " .. s.title, 1, 0.82, 0, true)
+    GameTooltip:SetText((G.ACTION_LABEL[s.action] or s.action) .. ": " .. s.title, 1, 0.82, 0, 1, true)
     if s.note then GameTooltip:AddLine(s.note, 1, 1, 1, true) end
     if s.qid then GameTooltip:AddLine("Quest ID: " .. table.concat(s.qid, ", "), 0.6, 0.6, 0.6) end
     if s.zone then GameTooltip:AddLine("Zone: " .. U.MapName(s.zone) .. (s.coords and (" " .. string.format("%.1f, %.1f", s.coords[1].x * 100, s.coords[1].y * 100)) or ""), 0.6, 0.6, 0.6) end
@@ -209,14 +209,23 @@ f:SetScript("OnUpdate", function(_, el)
     acc = acc + el
     if acc < 1 then return end
     acc = 0
-    pcall(GF.Update)
+    GF.SafeUpdate()
 end)
-NS:On("PROGRESS_REFRESHED", function() pcall(GF.Update) end)
+function GF.SafeUpdate()
+    local ok, err = pcall(GF.Update)
+    if not ok and not GF.errShown then
+        GF.errShown = true
+        NS:Print("|cffff4040Guide window error:|r " .. tostring(err))
+        NS.db.char.luaErrors = NS.db.char.luaErrors or {}
+        tinsert(NS.db.char.luaErrors, "GuideFrame.Update: " .. tostring(err))
+    end
+end
+NS:On("PROGRESS_REFRESHED", function() GF.SafeUpdate() end)
 NS:On("GUIDE_LOADED", function()
     -- Selecting a guide in the browser used to close the browser and, if this window happened to
     -- be hidden, show nothing at all - it read as "the guide was deleted".
     if not f:IsShown() then f:Show() end
-    pcall(GF.Update)
+    GF.SafeUpdate()
 end)
 
 -- ---------------------------------------------------------------------------
@@ -246,17 +255,17 @@ dBody:SetJustifyH("LEFT"); dBody:SetWordWrap(true)
 
 local dDone = smallButton("Complete", 76, "Mark this step done", function()
     if detail.step then P.MarkDone(detail.step, true) detail:Hide() end
-end)
+end, detail)
 dDone:SetPoint("BOTTOMLEFT", 12, 10)
 local dSkip = smallButton("Skip", 50, "Skip this step", function()
     if detail.step then P.Skip(detail.step) detail:Hide() end
-end)
+end, detail)
 dSkip:SetPoint("LEFT", dDone, "RIGHT", 4, 0)
 local dTrack = smallButton("Show on map", 96, "Open the world map at this step", function()
     local s2 = detail.step
     if s2 and s2.zone and OpenWorldMap then pcall(OpenWorldMap, s2.zone)
     elseif s2 and s2.zone and WorldMapFrame then pcall(function() WorldMapFrame:SetMapID(s2.zone) ShowUIPanel(WorldMapFrame) end) end
-end)
+end, detail)
 dTrack:SetPoint("LEFT", dSkip, "RIGHT", 4, 0)
 
 function GF.ShowDetail(step)
@@ -307,6 +316,7 @@ function GF.ApplySettings()
     local p = NS.db.profile.frame
     f:ClearAllPoints(); f:SetPoint(p.point or "CENTER", UIParent, p.point or "CENTER", p.x or 0, p.y or 0)
     f:SetScale(p.scale or 1); f:SetAlpha(p.alpha or 1)
+    f:SetSize(400, 170)   -- one-step window: fixed height (old profiles carry the multi-row height)
 end
 function GF.Toggle() if f:IsShown() then f:Hide() else f:Show() GF.Update() end end
 NS:On("PLAYER_READY", GF.ApplySettings)

@@ -43,6 +43,20 @@ def parse_verifyall(text):
         "finished": field("finishedAt"), "errors": errors,
     }
 
+def parse_routesweep(text):
+    """CompletionRouteDB.routeSweep -> dict of counters + errors, or None."""
+    blob = brace_slice(text, "routeSweep")
+    if not blob:
+        return None
+    def field(name):
+        fm = re.search(r'\["%s"\]\s*=\s*"?((?:[^"\\\n]|\\.)*?)"?,' % name, blob)
+        return fm.group(1) if fm else None
+    eblob = brace_slice(blob, "errors") or ""
+    errors = re.findall(r'"((?:[^"\\]|\\.)*)"', eblob)
+    out = {k: field(k) for k in ("flavor", "total", "done", "loadFail", "precedence", "slower", "noRoute", "steps", "located", "uiEmpty", "startedAt", "finishedAt", "where")}
+    out["errors"] = errors
+    return out
+
 def brace_slice(text, key):
     """Return the {...} blob assigned to ["key"] at any depth, or None."""
     m = re.search(r'\["%s"\]\s*=\s*{' % key, text)
@@ -108,6 +122,12 @@ def main():
         CREATE TABLE IF NOT EXISTS feature_checks(
             run_id INTEGER REFERENCES feature_runs(id), feature TEXT, name TEXT,
             pass INTEGER, detail TEXT);
+        CREATE TABLE IF NOT EXISTS ingame_sweeps(
+            id INTEGER PRIMARY KEY, flavor TEXT, client_dir TEXT, started TEXT, finished TEXT, location TEXT,
+            total INTEGER, steps INTEGER, located INTEGER, precedence INTEGER, slower INTEGER, no_route INTEGER,
+            ui_empty INTEGER, load_fail INTEGER, UNIQUE(flavor, started));
+        CREATE TABLE IF NOT EXISTS ingame_sweep_errors(
+            run_id INTEGER REFERENCES ingame_sweeps(id), guide_id TEXT, error TEXT);
         CREATE VIEW IF NOT EXISTS feature_matrix AS
             SELECT r.flavor, c.feature, c.name,
                    MAX(c.pass) AS pass, MAX(r.at) AS last_run
@@ -131,6 +151,20 @@ def main():
                                     " VALUES(?,?,?,?,?)",
                                     (rid, c["feature"], c["name"], 1 if c["pass"] else 0, c["detail"]))
                     print(f"recorded features {fl} {fv['flavor']}: {p}/{len(fv['checks'])} passed")
+            sw = parse_routesweep(text)
+            if sw and sw.get("finishedAt"):
+                cur = con.execute(
+                    "INSERT OR IGNORE INTO ingame_sweeps(flavor, client_dir, started, finished, location, total, steps, located,"
+                    " precedence, slower, no_route, ui_empty, load_fail) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (sw["flavor"], fl, sw["startedAt"], sw["finishedAt"], sw["where"], *(int(sw[k] or 0) for k in
+                     ("total", "steps", "located", "precedence", "slower", "noRoute", "uiEmpty", "loadFail"))))
+                if cur.rowcount:
+                    rid = cur.lastrowid
+                    for e in sw["errors"]:
+                        gid, _, err = e.partition(" :: ")
+                        con.execute("INSERT INTO ingame_sweep_errors(run_id, guide_id, error) VALUES(?,?,?)", (rid, gid, err))
+                    print(f"recorded in-game sweep {fl}: {sw['total']} guides, located {sw['located']}/{sw['steps']}, "
+                          f"order {sw['precedence']} slower {sw['slower']} no-route {sw['noRoute']} empty-window {sw['uiEmpty']} load-fail {sw['loadFail']}")
             r = parse_verifyall(text)
             if not r or not r["finished"]:
                 continue
