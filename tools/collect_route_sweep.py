@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS route_sweep_from(
   order_ok INTEGER, opt_cost REAL, author_cost REAL, route_ok TEXT, route TEXT, error TEXT, PRIMARY KEY(flavor, origin_map, faction, guide));
 """)
 import re
-for f in sorted(glob.glob(str(ROOT / "docs" / "route_sweep_from_*.tsv"))):
+for f in sorted(f for f in glob.glob(str(ROOT / "docs" / "route_sweep_from_*.tsv")) if not f.endswith("_unknown.tsv")):
     m = re.search(r"route_sweep_from_(\w+)_(\d+)_(\w+)\.tsv$", f)
     if not m: continue
     fl, origin, fac = m.group(1), int(m.group(2)), m.group(3)
