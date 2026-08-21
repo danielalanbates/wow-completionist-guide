@@ -39,3 +39,8 @@ NS.Guide.Register({ id="OR_Human_01_06_Northshire", name="Human Starter (1-6)", 
   author="you", source="CompletionRoute", text=[[ ...lines... ]] })
 ```
 Add the file to `CompletionRoute/Guides/Guides.xml`. Files are CC BY-SA 4.0 — put the header comment in.
+
+## Access chains
+A guide may start somewhere that needs an unlock (Siren Isle, Argus, Zereth Mortis...). Do not write the unlock
+into every guide: `Data/Access.lua` holds it once per place, in this same step format, and the addon prepends it
+to any guide whose first step is behind the lock (see docs/ROUTING.md "Access chains").

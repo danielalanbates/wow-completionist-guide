@@ -39,6 +39,16 @@ TG.zoneToWorld = zoneToWorld
 -- ---------------------------------------------------------------------------
 -- Build static part of the graph (taxi + transit)
 -- ---------------------------------------------------------------------------
+function TG.AccessUnlocked(a)
+    if not a.unlock then return false end
+    for _, q in ipairs(a.unlock) do
+        if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(q) then return true end
+    end
+    return false
+end
+-- the graph depends on which chains are unlocked: rebuild lazily after a turn-in
+if NS.RegisterEvent then NS:RegisterEvent("QUEST_TURNED_IN", function() TG.built = false end) end
+
 function TG.Build()
     TG.nodes, TG.taxiByID, TG.unresolved = {}, {}, {}
     local flavor = NS.flavor
@@ -73,6 +83,27 @@ function TG.Build()
                 addEdge(a, b, t.cost, t.mode, t.title, t)
                 if t.twoway ~= false then addEdge(b, a, t.cost, t.mode, t.title, t) end
             else missing = missing + 1 TG.unresolved = TG.unresolved or {} TG.unresolved[#TG.unresolved + 1] = (t.title or "?") .. " [" .. tostring(ax and "" or t.from[1]) .. (bx and "" or (" " .. tostring(t.to[1]))) .. "]" end
+        end
+    end
+    -- access chains (Data/Access.lua): a one-way edge into a place an intro quest line unlocks. Locked -> the
+    -- edge starts where the chain starts and costs the whole chain; unlocked -> the cheap `after` edge (portal,
+    -- airship...). Progress injects the chain's steps in front of a guide whose step 1 is behind a locked one.
+    TG.accessEdges = {}
+    for _, a in ipairs(NS.AccessData or {}) do
+        local okFlavor = (not a.flavors) or a.flavors[flavor]
+        local okFac = (not a.fac) or a.fac == fac
+        if okFlavor and okFac then
+            local unlocked = TG.AccessUnlocked(a)
+            local src = (unlocked and a.after and a.after.from) or a.from
+            local ax, ay, ai = zoneToWorld(src[1], src[2], src[3])
+            local bx, by, bi = zoneToWorld(a.to[1], a.to[2], a.to[3])
+            if ax and bx then
+                local n1 = newNode("transit", ai, ax, ay, src.name or src[1]); n1.mode = "access"
+                local n2 = newNode("transit", bi, bx, by, a.to.name or a.to[1]); n2.mode = "access"
+                local title = unlocked and a.after and a.after.title or a.title
+                addEdge(n1, n2, (unlocked and a.after and a.after.cost) or a.cost or 600, "access", title, { access = a, locked = not unlocked })
+                TG.accessEdges[#TG.accessEdges + 1] = n1
+            else missing = missing + 1 TG.unresolved[#TG.unresolved + 1] = "access " .. tostring(a.key) end
         end
     end
     TG.BuildRoads()
