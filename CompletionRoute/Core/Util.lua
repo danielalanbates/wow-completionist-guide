@@ -14,10 +14,16 @@ local function buildNameIndex()
     for _, id in ipairs(HBD:GetAllMapIDs()) do
         local info = C_Map.GetMapInfo(id)
         if info and info.name then
-            -- prefer zone-level maps (mapType 3) and continents (2), first-come otherwise
+            -- Same name, several maps (retail: 7 "Arathi Highlands" - zone, warfront, scenarios; 6 "Isle of
+            -- Quel'Danas"). Prefer zone-level maps (mapType 3), then the LOWEST uiMapID: the canonical zone always
+            -- has the oldest/lowest id, the copies are phased instances no transit leads to. Iteration order of
+            -- GetAllMapIDs is arbitrary, so without this the answer changed between sessions.
             local prev = nameToMap[info.name]
-            if not prev or (info.mapType == 3 and C_Map.GetMapInfo(prev).mapType ~= 3) then
-                nameToMap[info.name] = id
+            if not prev then nameToMap[info.name] = id
+            else
+                local pt = (C_Map.GetMapInfo(prev) or {}).mapType
+                local better = (info.mapType == 3 and pt ~= 3) or ((info.mapType == 3) == (pt == 3) and id < prev)
+                if better then nameToMap[info.name] = id end
             end
         end
     end

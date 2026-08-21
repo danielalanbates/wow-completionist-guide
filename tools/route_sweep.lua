@@ -142,10 +142,15 @@ for _, id in ipairs(G.list) do
             for k = 1, math.min(window, #order) do head[k] = order[k] ahead[k] = author[k] end
             local ok2, a, b = pcall(function() return chainCost(head), chainCost(ahead) end)
             if ok2 then optCost, authorCost = a, b else err = "cost: " .. tostring(a) end
-            if placed and order[1] and R.StepWorld(order[1]) then
-                local path = R.CurrentPath(true)
+            local tx, ty, ti
+            if order[1] then tx, ty, ti = R.StepWorld(order[1]) end   -- (`a and f()` would truncate to one value)
+            if placed and tx then
+                -- route from the placed player straight to step 1 (Progress.current can be a location-less step,
+                -- and a FindPath error must show up as an error, not as "no route")
+                local okP, path = pcall(NS.TravelGraph.FindPath, PLAYER.wx, PLAYER.wy, PLAYER.inst, tx, ty, ti, {})
+                if not okP then err = (err and err .. "; " or "") .. "FindPath: " .. tostring(path) path = nil end
                 routeOK = path and "yes" or "no"
-                routeTxt = path and NS.TravelGraph.Describe(path) or ""
+                routeTxt = path and NS.TravelGraph.Describe(path) or ("step1 inst=" .. tostring(ti) .. " player inst=" .. tostring(PLAYER.inst))
             else routeOK = placed and "n/a" or "unplaced" end
         end
         if err then fails = fails + 1 end
