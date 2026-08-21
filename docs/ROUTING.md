@@ -97,3 +97,18 @@ inner loop only sees nodes on the player's continent, and `TG.InstReachable` - u
 explicit edges connect - so a goal on a continent nothing leads to (or that only the hearth reaches) is answered
 without a search. 37x fewer relaxations, identical routes (same TSV). `TG.stats` counts calls/pops/relaxations;
 `tools/route_sweep.lua` prints them.
+
+## Access chains - places you have to unlock first (2026-08-21)
+`Data/Access.lua`. Some zones cannot be travelled to at all until an intro quest line is done: the Siren Isle
+(airship after "To the Siren Isle!"), K'aresh (Spatial Rift after the Locus-Walker's invitation), Zereth Mortis
+(Call of the Primus), the Isle of Thunder (Thunder Calls), Argus (The Hand of Fate -> the Vindicaar), Nazjatar
+(Send the Fleet), Undermine (the Rocket Drill), Midnight's Quel'Thalas (Light's Summon). Each entry is
+* a **transit edge** for the router: locked -> from where the chain starts, cost = the whole chain; unlocked
+  (`unlock` quest complete) -> the cheap `after` edge (portal / airship / beacon);
+* the **steps** to do it, in guide format (quest ids, NPC, coordinates) - `Progress.Load` injects them in front
+  of any guide whose first located step lies behind a locked chain (indices -k..-1, so the guide's own progress
+  keys are untouched; chat: "Access: N steps to unlock ... first"). Zygor's zone guides open the same way.
+The graph is rebuilt after a quest turn-in so a freshly unlocked chain switches to its `after` edge.
+Offline check: `luajit tools/test_access.lua` (resolves, routes through, parses, injects, un-injects when done).
+Entries marked `approx = true` were written from memory where the local Zygor install had no guide (Horde
+Nazjatar) - verify in game. Not yet chained: Dalaran-Crater / scenario starts, pet-battle maps inside instances.

@@ -25,6 +25,7 @@ Data\Taxi_tbc.lua
 Data\Taxi_mop.lua
 Data\Taxi_retail.lua
 Data\Transit.lua
+Data\Access.lua
 Data\Inns.lua
 Data\ZoneAliases.lua
 Data\Roads_ek.lua

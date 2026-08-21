@@ -154,8 +154,12 @@ function GF.Update()
     local done, total = 0, #P.steps
     for _ in pairs(NS.db.char.done[P.guide.id] or {}) do done = done + 1 end
     local s = P.current
-    local pos = s and s.index or total
-    titleText:SetText(("|cff3ec6ff%s|r  |cff888888step %d of %d|r"):format(P.guide.name or P.guide.id, math.min(pos, total), total))
+    local pos = total
+    if s then   -- position in the loaded list (access-chain steps carry negative indices and sit in front)
+        for i, st in ipairs(P.steps) do if st == s then pos = i break end end
+    end
+    local label = (s and s.access) and "unlock step" or "step"
+    titleText:SetText(("|cff3ec6ff%s|r  |cff888888%s %d of %d|r"):format(P.guide.name or P.guide.id, label, math.min(pos, total), total))
     bBack:SetEnabled(done > 0 or next(NS.db.char.skipped[P.guide.id] or {}) ~= nil)
     bFwd:SetEnabled(s ~= nil)
     if not s then

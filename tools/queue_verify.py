@@ -17,7 +17,7 @@ from pathlib import Path
 WOW = Path("/Volumes/x10/Video Games/Mac/World of Warcraft")
 
 
-def arm(sv: Path, also_quit: bool, demo: bool = False, account_wide: bool = False, sweep: bool = False, quit_after: int = 0, resume: bool = False) -> bool:
+def arm(sv: Path, also_quit: bool, demo: bool = False, account_wide: bool = False, sweep: bool = False, quit_after: int = 0, resume: bool = False, sweep_only: bool = False) -> bool:
     text = sv.read_text(errors="replace")
     if not text.lstrip().startswith("CompletionRouteDB"):
         return False
@@ -27,7 +27,7 @@ def arm(sv: Path, also_quit: bool, demo: bool = False, account_wide: bool = Fals
     # insert right after the opening brace of the root table
     i = text.index("{")
     val = '"resume"' if resume else 'true'   # "resume" continues an unfinished sweep/verifyall of the same flavor
-    add = '\n["autoVerifyAll"] = %s,' % val
+    add = '' if sweep_only else '\n["autoVerifyAll"] = %s,' % val
     if sweep:
         add += '\n["autoSweep"] = %s,' % val
     if quit_after:
@@ -46,6 +46,7 @@ def main(argv):
     account_wide = "--account-wide" in argv
     sweep = "--sweep" in argv
     resume = "--resume" in argv
+    sweep_only = "--sweep-only" in argv   # route sweep without the (long) verifyall
     quit_after = 0
     for a in argv:
         if a.startswith("--quit-after="): quit_after = int(a.split("=", 1)[1])
@@ -53,7 +54,7 @@ def main(argv):
     n = 0
     for fl in flavors:
         for sv in (WOW / fl).glob("WTF/Account/*/SavedVariables/CompletionRoute.lua"):
-            if arm(sv, also_quit, demo, account_wide, sweep, quit_after, resume):
+            if arm(sv, also_quit, demo, account_wide, sweep, quit_after, resume, sweep_only):
                 print("armed", sv)
                 n += 1
             else:

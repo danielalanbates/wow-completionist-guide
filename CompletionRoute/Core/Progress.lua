@@ -30,6 +30,16 @@ function P.Load(id)
     if not g then NS:Error("Unknown guide: " .. tostring(id)) return false end
     P.guide = g
     P.steps = G.Steps(id)
+    -- Behind a locked access chain (Siren Isle, Argus, Zereth Mortis...)? Put the unlock steps first, the way
+    -- Zygor's zone guides open with the zone intro. Negative indices keep the guide's own progress keys intact.
+    local prefix = NS.Access and NS.Access.PrefixFor(P.steps, id)
+    if prefix and #prefix > 0 then
+        local merged = {}
+        for _, s in ipairs(prefix) do merged[#merged + 1] = s end
+        for _, s in ipairs(P.steps) do merged[#merged + 1] = s end
+        P.steps = merged
+        NS:Print(("Access: %d steps to unlock %s first"):format(#prefix, prefix[1].accessTitle or "the area"))
+    end
     NS.db.char.guide = id
     dirty = true
     NS:Print("Guide: " .. (g.name or g.id) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")")
@@ -343,3 +353,47 @@ NS:On("PLAYER_READY", function()
         end
     end)
 end)
+
+
+-- ---------------------------------------------------------------------------
+-- Access chains (Data/Access.lua): steps that unlock a place, injected before a guide that starts there
+-- ---------------------------------------------------------------------------
+NS.Access = {}
+local Access = NS.Access
+-- Which locked chain (if any) does the route from the player to `step` go through?
+function Access.LockedChainTo(step)
+    local R, TG = NS.Router, NS.TravelGraph
+    if not (R and TG and step) then return nil end
+    local tx, ty, ti = R.StepWorld(step)
+    if not tx then return nil end
+    local _, _, _, inst, wx, wy = NS.Util.PlayerPos()
+    if not wx then return nil end
+    if inst == ti then return nil end   -- already on that continent: nothing to unlock
+    local ok, path = pcall(TG.FindPath, wx, wy, inst, tx, ty, ti, {})
+    if not ok or not path then return nil end
+    for _, leg in ipairs(path.legs or {}) do
+        if leg.mode == "access" and leg.data and leg.data.locked then return leg.data.access end
+    end
+    return nil
+end
+function Access.ParseSteps(a, guideId)
+    local out, n = {}, 0
+    for line in ((a.steps or "") .. "\n"):gmatch("([^\r\n]*)\r?\n") do
+        n = n + 1
+        local s = NS.Guide.ParseLine(line, n, nil)
+        if s then out[#out + 1] = s end
+    end
+    for i, s in ipairs(out) do
+        s.index = i - #out - 1          -- -k .. -1
+        s.guide, s.access, s.accessTitle = guideId, a.key, a.title
+    end
+    return out
+end
+function Access.PrefixFor(steps, guideId)
+    if not steps or #steps == 0 or not NS.AccessData then return nil end
+    local first
+    for _, s in ipairs(steps) do if NS.Router.StepWorld(s) then first = s break end end
+    local a = first and Access.LockedChainTo(first)
+    if not a then return nil end
+    return Access.ParseSteps(a, guideId)
+end

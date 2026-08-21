@@ -66,6 +66,7 @@ def main(argv):
     arm = ["python3", str(HERE / "queue_verify.py"), flavor]
     if "--no-sweep" not in argv: arm.append("--sweep")
     arm.append("--resume")   # continue an unfinished sweep of this flavor (fresh start if none / finished)
+    if "--sweep-only" in argv: arm.append("--sweep-only")
     arm.append(f"--quit-after={minutes * 60 - 30}")
     if not attach: subprocess.run(arm, check=False)
     if not attach:
@@ -110,7 +111,7 @@ def main(argv):
                 print(f"logged out after {el}s and both sweeps are finished"); break
             sessions += 1
             print(f"logged out after {el}s (sweep finished={sweep_done}, verifyall finished={vall_done}) -> session {sessions}, resuming")
-            subprocess.run(["python3", str(HERE / "queue_verify.py"), flavor, "--sweep", "--resume"], check=False)
+            subprocess.run(["python3", str(HERE / "queue_verify.py"), flavor, "--sweep", "--resume"] + (["--sweep-only"] if "--sweep-only" in argv else []), check=False)
             sv_m = max((p.stat().st_mtime for p in svs), default=0)   # arming rewrote the file - not a logout
             time.sleep(20)
             if not front_is("Wow"):

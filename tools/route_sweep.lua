@@ -38,7 +38,7 @@ local function load(path)
     f:close()
     local fn = assert(loadfile("CompletionRoute/" .. path)) fn(ADDON, NS)
 end
-for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], "Data/Transit.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
+for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
     "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua",
     "Core/Account.lua", "Core/Progress.lua", "Adapters/Zygor.lua", "Adapters/WoWPro.lua",
     "Guides/Imported_Zygor.lua", "Guides/Imported_WoWPro.lua",
