@@ -126,6 +126,13 @@ def main():
             id INTEGER PRIMARY KEY, flavor TEXT, client_dir TEXT, started TEXT, finished TEXT, location TEXT,
             total INTEGER, steps INTEGER, located INTEGER, precedence INTEGER, slower INTEGER, no_route INTEGER,
             ui_empty INTEGER, load_fail INTEGER, UNIQUE(flavor, started));
+        CREATE TABLE IF NOT EXISTS ingame_sweep_partials(
+            id INTEGER PRIMARY KEY, flavor TEXT, client_dir TEXT, started TEXT, collected TEXT, location TEXT,
+            total INTEGER, done INTEGER, steps INTEGER, located INTEGER, precedence INTEGER, slower INTEGER,
+            no_route INTEGER, ui_empty INTEGER, load_fail INTEGER, UNIQUE(flavor, started));
+        CREATE TABLE IF NOT EXISTS run_partials(
+            id INTEGER PRIMARY KEY, flavor TEXT, client_dir TEXT, started TEXT, collected TEXT,
+            total INTEGER, done INTEGER, failed INTEGER, UNIQUE(flavor, started));
         CREATE TABLE IF NOT EXISTS ingame_sweep_errors(
             run_id INTEGER REFERENCES ingame_sweeps(id), guide_id TEXT, error TEXT);
         CREATE VIEW IF NOT EXISTS feature_matrix AS
@@ -165,7 +172,20 @@ def main():
                         con.execute("INSERT INTO ingame_sweep_errors(run_id, guide_id, error) VALUES(?,?,?)", (rid, gid, err))
                     print(f"recorded in-game sweep {fl}: {sw['total']} guides, located {sw['located']}/{sw['steps']}, "
                           f"order {sw['precedence']} slower {sw['slower']} no-route {sw['noRoute']} empty-window {sw['uiEmpty']} load-fail {sw['loadFail']}")
+            elif sw and sw.get("startedAt"):
+                # honest record of a sweep the client session ended before finishing (counters are for `done` guides)
+                con.execute("INSERT OR REPLACE INTO ingame_sweep_partials(flavor, client_dir, started, collected, location, total, done,"
+                            " steps, located, precedence, slower, no_route, ui_empty, load_fail) VALUES(?,?,?,datetime('now','localtime'),?,?,?,?,?,?,?,?,?,?)",
+                            (sw["flavor"], fl, sw["startedAt"], sw["where"], *(int(sw[k] or 0) for k in
+                             ("total", "done", "steps", "located", "precedence", "slower", "noRoute", "uiEmpty", "loadFail"))))
+                print(f"recorded PARTIAL in-game sweep {fl}: {sw['done']}/{sw['total']} guides, order {sw['precedence']} empty-window {sw['uiEmpty']} load-fail {sw['loadFail']}")
             r = parse_verifyall(text)
+            if r and r.get("started") and not r["finished"]:
+                m = re.search(r'\["done"\]\s*=\s*(\d+)', brace_slice(text, "verifyAll") or "")
+                con.execute("INSERT OR REPLACE INTO run_partials(flavor, client_dir, started, collected, total, done, failed)"
+                            " VALUES(?,?,?,datetime('now','localtime'),?,?,?)",
+                            (r["flavor"], fl, r["started"], r["total"], int(m.group(1)) if m else 0, r["failed"]))
+                print(f"recorded PARTIAL verifyall {fl}: {m.group(1) if m else '?'}/{r['total']} guides, {r['failed']} failed")
             if not r or not r["finished"]:
                 continue
             cur = con.execute(
