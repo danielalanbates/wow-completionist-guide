@@ -127,9 +127,9 @@ local function arrow(dir, tip, fn)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return b
 end
-local bBack = arrow("L", "Back one step (un-complete the last step)", function() P.Undo() end)
+local bBack = arrow("L", "Back one step (reopens the previous step and keeps it open)", function() P.Undo() end)
 bBack:SetPoint("LEFT", f, "LEFT", 4, -6)
-local bFwd = arrow("R", "Forward one step (mark this one done)", function() if P.current then P.MarkDone(P.current, true) end end)
+local bFwd = arrow("R", "Forward one step (mark this one done)", function() P.Forward() end)
 bFwd:SetPoint("RIGHT", f, "RIGHT", -4, -6)
 GF.card, GF.back, GF.forward = card, bBack, bFwd
 

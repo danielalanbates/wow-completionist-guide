@@ -79,8 +79,18 @@ function C.StepApplies(step)
     if step.prof and not C.ProfMatch(step.prof) then return false end
     if step.minlevel and U.PlayerLevel() < step.minlevel and step.action ~= "L" then return false end
     -- PRE: prerequisite quest(s) must be complete (or on quest) — WoWPro semantic: hide until pre done
-    if step.pre then
-        for _, q in ipairs(step.pre) do if not (U.IsQuestComplete(q) or U.IsOnQuest(q)) then return false end end
+    -- PRE: prerequisite quest(s).  A list built from Questie's preQuestSingle is an OR set (any one of them
+    -- opens the quest); a "&" list (preQuestGroup) needs all of them.  Requiring all of an OR set hid steps
+    -- the player could actually take.
+    if step.pre and #step.pre > 0 then
+        local function pre_ok(q) return U.IsQuestComplete(q) or U.IsOnQuest(q) end
+        if step.pre.andor == "and" then
+            for _, q in ipairs(step.pre) do if not pre_ok(q) then return false end end
+        else
+            local any = false
+            for _, q in ipairs(step.pre) do if pre_ok(q) then any = true break end end
+            if not any then return false end
+        end
     end
     -- ACTIVE: only while on quest
     if step.active then

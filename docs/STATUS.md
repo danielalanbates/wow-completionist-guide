@@ -243,3 +243,35 @@ The note below is kept for history.
 2. Quest→step reverse index so the account-wide union is per-quest everywhere, not just on T steps.
 3. Cached step counts so every guide row can show a completion badge without parsing.
 4. Road/wall data for walking accuracy (docs/ROUTING.md).
+
+## 2026-08-21 — manual step navigation and prerequisite gating
+Both reported from a live Terokkar Forest run on the Anniversary client.
+
+* **Back arrow did nothing.** Two causes, both fixed in `Core/Progress.lua`:
+  1. `P.Undo()` un-ticked the *highest* done index, but the auto-completer scans 40 steps ahead, so
+     that index was usually a step in the future — the visible step never moved. Undo now reopens the
+     newest done/skipped step strictly *before* the current one (falling back to the global newest).
+  2. Whatever it un-ticked was immediately re-ticked by the next `P.Refresh()`, because the quest is
+     genuinely complete in the game. Reopened steps are now pinned in
+     `NS.db.char.reopened[guideId][index]`: `P.IsDone` returns false for them and the auto-completer
+     skips them until the player ticks forward again (`P.Forward()`, the > arrow, `/cr next`).
+     `P.Reset()` clears the pins. `/cr back` and `/cr prev` are aliases of `/cr undo`.
+* **A quest whose prerequisite is not met (or that is already done) still being pointed at.**
+  `PRE|a;b` is an *any one of* list (Questie's `preQuestSingle`), but `Core/Conditions.lua` required
+  *all* of them; `PRE|a&b` (`preQuestGroup`) is the all-of form. Conditions now honours the
+  `andor` flag the parser already sets. `tools/gen_quest_guides.lua` used to emit only the first id
+  of `preQuestSingle` and ignored `preQuestGroup` entirely — it now emits the full list with the
+  right separator (regenerate the `Imported_Quests_*.lua` files from a Questie checkout to pick this
+  up; the shipped ones still carry the single-id form, which is a subset and stays correct).
+* **Diagnostics for the remaining case.** `/cr why` now prints, per quest, `client=` (what
+  `IsQuestFlaggedCompleted` says) vs `harvested=` (what the login sync recorded) plus the prereq
+  state of the current step; new `/cr quest <id>` prints the same for any quest and lists every step
+  in the loaded guide that references it with its done/applies flags. If a step is still shown for a
+  quest the character finished, that output says whether the client or the harvest is the liar.
+* Offline regression tests added for both (`manual step navigation OK`, `prereq gating OK`);
+  full `tools/test_offline.lua` suite green, installed to all four flavors.
+
+### Not verified in-client yet
+The two fixes above are covered by offline tests only — the Anniversary client was not driven for
+this change (no screen takeover was taken). Confirming in game means: load a zone guide, click <
+twice and check the step text walks backwards and *stays* there through a `/reload`.
