@@ -23,6 +23,10 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "undo" or cmd == "back" or cmd == "prev" then P.Undo()
     elseif cmd == "reset" then P.Reset() NS:Print("Guide progress reset.")
     elseif cmd == "arrow" then NS.db.profile.arrow.enabled = not NS.db.profile.arrow.enabled NS.Arrow.ApplySettings() NS:Print("Arrow " .. (NS.db.profile.arrow.enabled and "on" or "off"))
+    elseif cmd == "pointer" then
+        local a = NS.db.profile.arrow
+        a.style = (a.style == "hand") and "arrow" or "hand"
+        NS:Print("Pointer: " .. (a.style == "hand" and "pointing hand in your class colour" or "chevron arrow (green/yellow/red by distance)"))
     elseif cmd == "options" or cmd == "opt" or cmd == "config" then NS.Options.Open()
     elseif cmd == "route" then
         local path = NS.Router.CurrentPath(true)
@@ -196,7 +200,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | beacon | icon | demo | why | quest <id> | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 

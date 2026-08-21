@@ -147,9 +147,66 @@ end
 function R.Invalidate() cache.step = nil cache.path = nil end
 NS:On("STEP_CHANGED", R.Invalidate)
 
+-- ---------------------------------------------------------------------------
+-- Death: nothing in the guide is doable as a corpse.  The Hearthstone, quest items and vendors are
+-- all unusable while dead, so the pointer stops advertising them and points at the body instead.
+-- ---------------------------------------------------------------------------
+function R.IsDead() return UnitIsDeadOrGhost and UnitIsDeadOrGhost("player") or false end
+
+-- Where is the corpse, in world coordinates?  C_DeathInfo answers per-map and only for the map the
+-- corpse is actually on, so ask the current map first and then its parent (the continent).
+function R.CorpseWorld()
+    if not (C_DeathInfo and C_DeathInfo.GetCorpseMapPosition) then return nil end
+    local map = U.PlayerPos()
+    if not map then return nil end
+    local tries = { map }
+    local info = C_Map.GetMapInfo(map)
+    if info and info.parentMapID and info.parentMapID > 0 then tries[#tries + 1] = info.parentMapID end
+    for _, m in ipairs(tries) do
+        local ok, pos = pcall(C_DeathInfo.GetCorpseMapPosition, m)
+        if ok and pos then
+            local cx, cy
+            if pos.GetXY then cx, cy = pos:GetXY() else cx, cy = pos.x, pos.y end
+            if cx and cy and (cx ~= 0 or cy ~= 0) then
+                local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(cx, cy, m)
+                if wx then return wx, wy, inst, m, cx, cy end
+            end
+        end
+    end
+    return nil
+end
+
+function R.CorpseRecommendation()
+    local rec = { mode = "corpse", dead = true }
+    if UnitIsGhost and not UnitIsGhost("player") then
+        rec.mode = "release"
+        rec.text = "You are dead - release your spirit"
+        rec.why = "the Hearthstone, quest items and turn-ins cannot be used while dead"
+        return rec
+    end
+    rec.text = "Run to your corpse"
+    local cwx, cwy, cinst = R.CorpseWorld()
+    if not cwx then
+        rec.why = "the client will not say where your corpse is - follow the minimap corpse marker"
+        return rec
+    end
+    rec.wx, rec.wy, rec.inst = cwx, cwy, cinst
+    local _, _, _, inst, wx, wy = U.PlayerPos()
+    if wx and inst == cinst then
+        rec.dist = math.sqrt((wx - cwx) ^ 2 + (wy - cwy) ^ 2)
+        -- ghosts move faster than the living; do not promise a walking ETA off the live speed
+        rec.eta = rec.dist / ((NS.db.profile.routing.runSpeed or 7) * 1.5)
+    end
+    local delay = GetCorpseRecoveryDelay and GetCorpseRecoveryDelay() or 0
+    if delay and delay > 0 then rec.why = ("resurrection sickness timer: %ds"):format(delay) end
+    return rec
+end
+
 -- What should the arrow show?
 -- returns rec = { mode, wx, wy, inst, text, item, spell, eta, dist, step }
 function R.Recommendation()
+    -- dead first: this overrides the guide entirely, and works even with no guide loaded
+    if R.IsDead() then return R.CorpseRecommendation() end
     local step = NS.Progress.current
     if not step then return nil end
     local rec = { step = step, mode = "none", text = step.title }
