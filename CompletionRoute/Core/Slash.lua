@@ -87,7 +87,9 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "accountwide" then
         NS.db.profile.accountWide = not NS.db.profile.accountWide
         NS:Print("Account-wide progress " .. (NS.db.profile.accountWide and "ON - steps any character finished count as done" or "OFF - per-character progress"))
-        NS.Progress.Refresh() NS.GuideMenu.Refresh()
+        if NS.Account then NS.Account.ClearCompletionCaches() end
+        NS.Progress.Refresh()
+        NS.GuideMenu.UpdateScopeLabel() NS.GuideMenu.RescanCompletion() NS.GuideMenu.Refresh()
     elseif cmd == "forget" then
         if NS.Account.Forget(rest) then NS:Print("Forgot " .. rest) else NS:Print("No such character (or it is you): " .. rest) end
     elseif cmd == "beacon" then

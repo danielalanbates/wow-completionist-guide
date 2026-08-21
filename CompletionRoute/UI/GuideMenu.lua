@@ -23,14 +23,47 @@ local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 title:SetPoint("TOP", 0, -10); title:SetText("CompletionRoute Guides")
 local close = CreateFrame("Button", nil, f, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -2, -2)
 
+-- Scope switch: the one setting that changes what every number below it means, so it is a big
+-- check box at the top rather than a slash command.  Checked = all characters, unchecked = only
+-- this one; the label says which, so there is nothing to infer from a tick.
+local scope = CreateFrame("CheckButton", "CompletionRouteGuideMenuScope", f, "UICheckButtonTemplate")
+scope:SetSize(30, 30); scope:SetPoint("TOPLEFT", 14, -32)
+local scopeLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+scopeLabel:SetPoint("LEFT", scope, "RIGHT", 4, 0)
+local scopeHint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+scopeHint:SetPoint("LEFT", scopeLabel, "RIGHT", 8, -1); scopeHint:SetTextColor(0.6, 0.6, 0.6)
+function M.UpdateScopeLabel()
+    local all = NS.db and NS.db.profile.accountWide
+    scope:SetChecked(all and true or false)
+    scopeLabel:SetText(all and "|cff3ec6ffAll characters|r" or "|cffffd200This character|r")
+    scopeHint:SetText(all and "counts and skipping cover every character on this account"
+                           or "counts and skipping cover only the character you are on")
+end
+scope:SetScript("OnClick", function(self)
+    NS.db.profile.accountWide = self:GetChecked() and true or false
+    if NS.Account then NS.Account.ClearCompletionCaches() end
+    M.UpdateScopeLabel()
+    M.RescanCompletion()
+    if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end
+    M.Refresh()
+end)
+scope:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Whose progress counts?")
+    GameTooltip:AddLine("All characters: a guide another character finished counts as finished here, and the counts on the right are account-wide.", 1, 1, 1, true)
+    GameTooltip:AddLine("This character: only what this character has done.", 1, 1, 1, true)
+    GameTooltip:Show()
+end)
+scope:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
 local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-search:SetSize(220, 20); search:SetPoint("TOPLEFT", 16, -36); search:SetAutoFocus(false)
+search:SetSize(220, 20); search:SetPoint("TOPLEFT", 16, -72); search:SetAutoFocus(false)
 search:SetScript("OnTextChanged", function() M.Refresh() end)
 local searchLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 searchLabel:SetPoint("LEFT", search, "RIGHT", 6, 0); searchLabel:SetText("search")
 
 local scroll = CreateFrame("ScrollFrame", "CompletionRouteGuideMenuScroll", f, "UIPanelScrollFrameTemplate")
-scroll:SetPoint("TOPLEFT", 12, -62); scroll:SetPoint("BOTTOMRIGHT", -30, 12)
+scroll:SetPoint("TOPLEFT", 12, -98); scroll:SetPoint("BOTTOMRIGHT", -30, 12)
 local content = CreateFrame("Frame", nil, scroll)
 content:SetSize(400, 10)
 scroll:SetScrollChild(content)
@@ -211,6 +244,74 @@ local function buildTree()
     return root
 end
 
+-- ---------------------------------------------------------------------------
+-- Completion counts on the right of every row.
+-- Deciding whether a guide is finished means parsing its steps and comparing the quests it turns in
+-- against what has been done — far too slow to do for thousands of guides inside a Refresh (the list
+-- rebuilds on every keystroke). So it runs as a background scan, a slice per frame, while the menu
+-- is open; rows show "..." until their guide has been scanned, and the answers are cached.
+-- ---------------------------------------------------------------------------
+local scanned = {}          -- [guideid] = true|false (complete for the CURRENT scope)
+local scanQueue, scanPos = nil, 1
+local scanFrame = CreateFrame("Frame")
+local PER_FRAME = 40        -- guides per frame; ~4s for a full retail catalogue, once
+local scanDirty = false
+
+local function scopeKey() return (NS.db and NS.db.profile.accountWide) and "account" or "char" end
+
+function M.RescanCompletion()
+    scanned = {}
+    scanQueue, scanPos = nil, 1
+    scanFrame:Show()
+end
+
+local function scanSlice()
+    if not (NS.Account and NS.Account.me) then return true end
+    if not scanQueue then scanQueue, scanPos = G.Available(), 1 end
+    local sk = scopeKey()
+    local active = P.guide and P.guide.id
+    for _ = 1, PER_FRAME do
+        local g = scanQueue[scanPos]
+        if not g then scanQueue = nil return true end
+        scanPos = scanPos + 1
+        if scanned[g.id] == nil then
+            local hadSteps = g.steps ~= nil
+            local ok, res = pcall(NS.Account.GuideIsComplete, g, sk)
+            scanned[g.id] = ok and res or false
+            -- do not hold on to step tables we only parsed to answer this question
+            if not hadSteps and g.id ~= active and g.steps then g.steps = nil end
+            scanDirty = true
+        end
+    end
+    return false
+end
+
+scanFrame:SetScript("OnUpdate", function(self)
+    if not f:IsShown() then self:Hide() return end
+    local finished = scanSlice()
+    if scanDirty then
+        scanDirty = false
+        NS:Throttle("guidemenu-scan", 0.25, function() if f:IsShown() then M.Refresh() end end)
+    end
+    if finished then self:Hide() end
+end)
+scanFrame:Hide()
+
+-- how many guides under this node are finished, and how many are still unscanned
+local function nodeCompletion(node)
+    local done, total, pending = 0, 0, 0
+    local function walk(n)
+        for _, g in ipairs(n.guides) do
+            total = total + 1
+            local v = scanned[g.id]
+            if v == nil then pending = pending + 1 elseif v then done = done + 1 end
+        end
+        for _, k in ipairs(n.kids) do walk(k) end
+    end
+    walk(node)
+    return done, total, pending
+end
+
 -- completion badge, but only for guides whose steps are already parsed (never force a parse here:
 -- the quest DB has thousands of guides and the list refreshes on every keystroke)
 local function pctBadge(g)
@@ -273,6 +374,9 @@ function M.Refresh()
             b:SetHeight(20); b:SetPoint("LEFT", 0, 0); b:SetPoint("RIGHT", 0, 0)
             b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             b.text:SetPoint("LEFT", 4, 0); b.text:SetJustifyH("LEFT")
+            -- right-hand completion column: "12 completed" on a category, a tick or % on a guide
+            b.right = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            b.right:SetPoint("RIGHT", -6, 0); b.right:SetJustifyH("RIGHT")
             b.hl = b:CreateTexture(nil, "HIGHLIGHT"); b.hl:SetAllPoints(); b.hl:SetColorTexture(1, 1, 1, 0.1)
             b:SetScript("OnClick", function(self)
                 if self.nodePath then
@@ -309,7 +413,10 @@ function M.Refresh()
             buttons[n] = b
         end
         local indent = 4 + row.depth * 14
+        -- re-anchor from scratch: SetPoint stacks, and the label has to end where the count begins
+        b.text:ClearAllPoints()
         b.text:SetPoint("LEFT", indent, 0)
+        b.text:SetPoint("RIGHT", b.right, "LEFT", -8, 0)
         if row.kind == "node" then
             b.nodePath, b.gid = row.node.path, nil
             local mark = expanded[row.node.path] and "|cffaaaaaa[-]|r " or "|cffaaaaaa[+]|r "
@@ -319,12 +426,32 @@ function M.Refresh()
             else
                 b.text:SetText(("%s%s |cffffffff%s|r  |cff666666(%d)|r"):format(mark, tex(FOLDER_ICON, 14), row.node.name, row.node.count))
             end
+            local cdone, ctotal, cpending = nodeCompletion(row.node)
+            if cpending > 0 and cdone == 0 then
+                b.right:SetText("|cff666666...|r")
+            elseif cdone == 0 then
+                b.right:SetText("|cff6666660 completed|r")
+            else
+                b.right:SetText(("|cff%s%d completed|r%s"):format(cdone >= ctotal and "00ff00" or "ffd200",
+                    cdone, cpending > 0 and " |cff666666+|r" or ""))
+            end
         else
             local g = row.guide
             b.nodePath, b.gid = nil, g.id
             -- in flat search results the tree context is gone, so show the category icon per guide
             local prefix = filter ~= "" and (tex(catStyle(normCat(g.type)).icon, 14) .. " ") or ""
             b.text:SetText(prefix .. guideLabel(g, row.inNext) .. (P.guide and P.guide.id == g.id and "  |cff00ff00(active)|r" or ""))
+            local v = scanned[g.id]
+            if v == nil then b.right:SetText("|cff666666...|r")
+            elseif v then b.right:SetText("|cff00ff00completed|r")
+            else
+                local total = g.steps and #g.steps or nil
+                local pct = 0
+                if total and total > 0 and NS.Account and NS.Account.me then
+                    _, pct = NS.Account.GuideProgress(g.id, total, scopeKey())
+                end
+                b.right:SetText(pct > 0 and ("|cffffd200%d%%|r"):format(pct) or "")
+            end
         end
         b:ClearAllPoints(); b:SetPoint("TOPLEFT", 0, -y); b:SetPoint("RIGHT", 0, 0)
         b:Show()
@@ -335,7 +462,14 @@ function M.Refresh()
     local total = #G.Available()
     title:SetText(total == 0 and "CompletionRoute Guides (none registered)" or ("CompletionRoute Guides (%d)"):format(total))
 end
-function M.Toggle() if f:IsShown() then f:Hide() else M.Refresh() f:Show() end end
-function M.Show() M.Refresh() f:Show() end
+local function openMenu()
+    M.UpdateScopeLabel()
+    M.Refresh()
+    f:Show()
+    scanFrame:Show()   -- fills in the completion column in the background
+end
+function M.Toggle() if f:IsShown() then f:Hide() else openMenu() end end
+function M.Show() openMenu() end
 -- exposed for tools/test_offline.lua (headless tree checks); not used in-game
-M._test = { buildTree = buildTree, guidePath = guidePath, visibleRows = visibleRows, searchRows = searchRows, expanded = expanded }
+M._test = { buildTree = buildTree, guidePath = guidePath, visibleRows = visibleRows, searchRows = searchRows, expanded = expanded,
+            nodeCompletion = nodeCompletion, scanSlice = scanSlice, scanned = function() return scanned end }
