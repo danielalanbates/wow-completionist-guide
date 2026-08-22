@@ -23,38 +23,70 @@ local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 title:SetPoint("TOP", 0, -10); title:SetText("CompletionRoute Guides")
 local close = CreateFrame("Button", nil, f, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -2, -2)
 
--- Scope switch: the one setting that changes what every number below it means, so it is a big
--- check box at the top rather than a slash command.  Checked = all characters, unchecked = only
--- this one; the label says which, so there is nothing to infer from a tick.
-local scope = CreateFrame("CheckButton", "CompletionRouteGuideMenuScope", f, "UICheckButtonTemplate")
-scope:SetSize(30, 30); scope:SetPoint("TOPLEFT", 14, -32)
+-- Scope selector: whose progress the numbers below are about.  Four settings, narrow to wide
+-- (this character -> this server -> this game type -> all characters), stepped with an up/down
+-- pair rather than a tick box, because it is no longer a yes/no.
+local scope = CreateFrame("Frame", "CompletionRouteGuideMenuScope", f)
+scope:SetSize(300, 34); scope:SetPoint("TOPLEFT", 14, -30)
+scope:EnableMouse(true)
 local scopeLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-scopeLabel:SetPoint("LEFT", scope, "RIGHT", 4, 0)
+scopeLabel:SetPoint("LEFT", scope, "LEFT", 34, 5)
 local scopeHint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-scopeHint:SetPoint("LEFT", scopeLabel, "RIGHT", 8, -1); scopeHint:SetTextColor(0.6, 0.6, 0.6)
-function M.UpdateScopeLabel()
-    local all = NS.db and NS.db.profile.accountWide
-    scope:SetChecked(all and true or false)
-    scopeLabel:SetText(all and "|cff3ec6ffAll characters|r" or "|cffffd200This character|r")
-    scopeHint:SetText(all and "counts and skipping cover every character on this account"
-                           or "counts and skipping cover only the character you are on")
+scopeHint:SetPoint("TOPLEFT", scopeLabel, "BOTTOMLEFT", 0, -1); scopeHint:SetTextColor(0.6, 0.6, 0.6)
+
+local function scopeIndex()
+    local cur = NS.Account and NS.Account.Scope() or "char"
+    for i, sc in ipairs(NS.Account.SCOPES) do if sc == cur then return i end end
+    return 1
 end
-scope:SetScript("OnClick", function(self)
-    NS.db.profile.accountWide = self:GetChecked() and true or false
-    if NS.Account then NS.Account.ClearCompletionCaches() end
+local function stepScope(delta)
+    local list = NS.Account.SCOPES
+    local i = math.min(#list, math.max(1, scopeIndex() + delta))
+    NS.Account.SetScope(list[i])
     M.UpdateScopeLabel()
     M.RescanCompletion()
     if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end
     M.Refresh()
-end)
+end
+
+local function spinner(dir, y)
+    local b = CreateFrame("Button", nil, scope)
+    b:SetSize(18, 16); b:SetPoint("TOPLEFT", scope, "TOPLEFT", 2, y)
+    local up = dir > 0
+    b:SetNormalTexture(up and "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up" or "Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up")
+    b:SetPushedTexture(up and "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Down" or "Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Down")
+    b:SetDisabledTexture(up and "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Disabled" or "Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Disabled")
+    b:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+    b:SetScript("OnClick", function() stepScope(dir) end)
+    return b
+end
+-- up = wider (more characters count), down = narrower
+local scopeUp = spinner(1, -1)
+local scopeDown = spinner(-1, -17)
+
+function M.UpdateScopeLabel()
+    if not (NS.Account and NS.Account.SCOPES) then return end
+    local sc = NS.Account.Scope()
+    local colors = { char = "ffd200", realm = "7ddf8f", flavor = "ff9e3d", account = "3ec6ff" }
+    scopeLabel:SetText(("|cff%s%s|r"):format(colors[sc] or "ffffff", NS.Account.ScopeLabel(sc)))
+    scopeHint:SetText(NS.Account.ScopeDetail(sc))
+    local i = scopeIndex()
+    scopeUp:SetEnabled(i < #NS.Account.SCOPES)
+    scopeDown:SetEnabled(i > 1)
+end
 scope:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText("Whose progress counts?")
-    GameTooltip:AddLine("All characters: a guide another character finished counts as finished here, and the counts on the right are account-wide.", 1, 1, 1, true)
-    GameTooltip:AddLine("This character: only what this character has done.", 1, 1, 1, true)
+    for _, sc in ipairs(NS.Account.SCOPES) do
+        local cur = sc == NS.Account.Scope()
+        GameTooltip:AddLine(("%s%s|r - %s"):format(cur and "|cff00ff00" or "|cffaaaaaa", NS.Account.ScopeLabel(sc), NS.Account.ScopeDetail(sc)), 1, 1, 1, true)
+    end
+    GameTooltip:AddLine("Widens or narrows both the counts on the right and which steps are skipped as already done.", 0.6, 0.6, 0.6, true)
     GameTooltip:Show()
 end)
 scope:SetScript("OnLeave", function() GameTooltip:Hide() end)
+scope:SetScript("OnMouseWheel", function(_, delta) stepScope(delta) end)
+scope:EnableMouseWheel(true)
 
 local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
 search:SetSize(220, 20); search:SetPoint("TOPLEFT", 16, -72); search:SetAutoFocus(false)
@@ -151,8 +183,7 @@ function M.NextStepGuides(force)
             local total = g.steps and #g.steps or nil
             local pct = 0
             if total and total > 0 and NS.Account and NS.Account.me then
-                local scope = NS.db.profile.accountWide and "account" or "char"
-                _, pct = NS.Account.GuideProgress(g.id, total, scope)
+                _, pct = NS.Account.GuideProgress(g.id, total, NS.Account.Scope())
             end
             if pct < 100 then out[#out + 1] = { g = g, pct = pct } end
         end
@@ -257,7 +288,7 @@ local scanFrame = CreateFrame("Frame")
 local PER_FRAME = 40        -- guides per frame; ~4s for a full retail catalogue, once
 local scanDirty = false
 
-local function scopeKey() return (NS.db and NS.db.profile.accountWide) and "account" or "char" end
+local function scopeKey() return (NS.Account and NS.Account.Scope()) or "char" end
 
 function M.RescanCompletion()
     scanned = {}
@@ -319,8 +350,7 @@ local function pctBadge(g)
     local _, who = NS.Account.GuideCompletedBy(g)
     if who then return ("  |cff00ff00(%s)|r"):format(who) end
     if not g.steps then return "" end
-    local scope = NS.db.profile.accountWide and "account" or "char"
-    local _, pct = NS.Account.GuideProgress(g.id, #g.steps, scope)
+    local _, pct = NS.Account.GuideProgress(g.id, #g.steps, NS.Account.Scope())
     if not pct or pct <= 0 then return "" end
     local color = pct >= 100 and "00ff00" or "ffd200"
     return ("  |cff%s%d%%|r"):format(color, pct)
@@ -402,9 +432,7 @@ function M.Refresh()
                         local an, ap = NS.Account.GuideProgress(gg.id, total, "account")
                         GameTooltip:AddLine(("This character: %d/%d (%d%%)"):format(cn, total, cp), 1, 0.82, 0)
                         GameTooltip:AddLine(("Whole account: %d/%d (%d%%)"):format(an, total, ap), 0.25, 0.78, 1)
-                        if not NS.db.profile.accountWide then
-                            GameTooltip:AddLine("Account-wide skipping is OFF (/or accountwide)", 0.6, 0.6, 0.6)
-                        end
+                        GameTooltip:AddLine("Counting: " .. NS.Account.ScopeLabel() .. " (" .. NS.Account.ScopeDetail() .. ")", 0.6, 0.6, 0.6, true)
                     end
                 end
                 GameTooltip:Show()

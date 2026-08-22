@@ -84,10 +84,20 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
                 tostring(c.faction), tostring(c.class), tostring(c.level), tostring(c.flavor),
                 c.steps or 0, c.guides or 0, tostring(c.updated)))
         end
-    elseif cmd == "accountwide" then
-        NS.db.profile.accountWide = not NS.db.profile.accountWide
-        NS:Print("Account-wide progress " .. (NS.db.profile.accountWide and "ON - steps any character finished count as done" or "OFF - per-character progress"))
-        if NS.Account then NS.Account.ClearCompletionCaches() end
+    elseif cmd == "accountwide" or cmd == "scope" then
+        local A2 = NS.Account
+        local want = rest and rest:lower():gsub("%s+", "")
+        local alias = { char = "char", character = "char", me = "char", this = "char",
+                        realm = "realm", server = "realm", flavor = "flavor", game = "flavor",
+                        gametype = "flavor", version = "flavor", account = "account", all = "account" }
+        if alias[want] then A2.SetScope(alias[want])
+        elseif cmd == "accountwide" then A2.SetScope(A2.Scope() == "char" and "account" or "char")   -- old on/off toggle
+        else
+            NS:Print("Scope: " .. A2.ScopeLabel() .. " (" .. A2.ScopeDetail() .. ")")
+            NS:Print("Use /cr scope char | server | gametype | all")
+            return
+        end
+        NS:Print("Counting progress for: " .. A2.ScopeLabel() .. " - " .. A2.ScopeDetail())
         NS.Progress.Refresh()
         NS.GuideMenu.UpdateScopeLabel() NS.GuideMenu.RescanCompletion() NS.GuideMenu.Refresh()
     elseif cmd == "forget" then
@@ -202,7 +212,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 

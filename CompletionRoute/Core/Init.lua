@@ -31,7 +31,8 @@ NS.defaults = {
                     taxiPolicy = "faction",   -- "faction": any flight master your faction can use; "known": learned only
                     roads = true, roadFactor = 1.0, recordRoads = true },
         beacon = { enabled = true, scale = 1.0, pins = true, targetButton = true, bounce = true, icon = "action" },
-        accountWide = false,     -- opt-in: treat any character's completion as this character's
+        accountWide = false,     -- legacy mirror of scope ~= "char"; kept so old saved variables still read
+        scope = "char",          -- "char" | "realm" | "flavor" | "account" (see Core/Account.lua)
         accountQuests = true,    -- when accountWide is on, also union by quest ID across guides
         autoAccept = false, autoTurnin = false, autoAdvance = true, minimapButton = true, debug = false,
     },

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Generate CompletionRoute/Textures/*.tga (uncompressed 32-bit TGA, power-of-two)."""
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 import os
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "CompletionRoute", "Textures")
 os.makedirs(OUT, exist_ok=True)
@@ -23,52 +23,113 @@ arrow("arrow_green", (80, 230, 90, 255), (0, 50, 0, 255))
 arrow("arrow_red", (240, 70, 60, 255), (60, 0, 0, 255))
 arrow("arrow_blue", (62, 198, 255, 255), (0, 40, 70, 255))
 
+def _catmull(points, closed=True, steps=18):
+    """smooth curve through the given points (Catmull-Rom -> polyline)"""
+    pts = list(points)
+    n = len(pts)
+    out = []
+    rng = range(n) if closed else range(n - 1)
+    for i in rng:
+        p0 = pts[(i - 1) % n] if closed else pts[max(0, i - 1)]
+        p1 = pts[i]
+        p2 = pts[(i + 1) % n]
+        p3 = pts[(i + 2) % n] if closed else pts[min(n - 1, i + 2)]
+        for j in range(steps):
+            t = j / steps
+            t2, t3 = t * t, t * t * t
+            x = 0.5 * ((2*p1[0]) + (-p0[0] + p2[0]) * t +
+                       (2*p0[0] - 5*p1[0] + 4*p2[0] - p3[0]) * t2 +
+                       (-p0[0] + 3*p1[0] - 3*p2[0] + p3[0]) * t3)
+            y = 0.5 * ((2*p1[1]) + (-p0[1] + p2[1]) * t +
+                       (2*p0[1] - 5*p1[1] + 4*p2[1] - p3[1]) * t2 +
+                       (-p0[1] + 3*p1[1] - 3*p2[1] + p3[1]) * t3)
+            out.append((x, y))
+    return out
+
+# One continuous outline of a right hand seen palm-on, index finger up, thumb out to the left and
+# the middle/ring/little fingers curled into the palm - the shape of the classic pointing cursor,
+# traced as a closed curve rather than assembled from primitives (which read as stacked pills).
+HAND_OUTLINE = [
+    (0.385, 0.095),                                          # fingertip
+    (0.443, 0.132), (0.457, 0.248), (0.468, 0.358), (0.482, 0.452),   # right side of the index
+    (0.530, 0.482),                                          # web between index and middle
+    (0.615, 0.430), (0.723, 0.444), (0.772, 0.514),          # curled middle finger
+    (0.752, 0.552),
+    (0.822, 0.564), (0.856, 0.630), (0.822, 0.676),          # curled ring finger
+    (0.856, 0.708), (0.858, 0.772), (0.804, 0.812),          # curled little finger
+    (0.780, 0.884), (0.672, 0.948), (0.516, 0.960),          # heel of the palm
+    (0.382, 0.940), (0.302, 0.882),                          # wrist
+    (0.258, 0.812), (0.212, 0.776),                          # into the thumb
+    (0.166, 0.732), (0.152, 0.672), (0.196, 0.640),          # thumb tip
+    (0.250, 0.638), (0.272, 0.600),                          # thumb back to the palm edge
+    (0.268, 0.520), (0.283, 0.462), (0.312, 0.436),          # left palm edge into the index web
+    (0.327, 0.332), (0.331, 0.228), (0.340, 0.130),          # left side of the index
+]
+
+# interior creases: where one part of the hand passes in front of another
+HAND_CREASES = [
+    [(0.530, 0.482), (0.610, 0.508), (0.700, 0.548), (0.752, 0.592)],   # middle finger against the palm
+    [(0.712, 0.524), (0.786, 0.586), (0.822, 0.648)],                   # middle / ring
+    [(0.780, 0.618), (0.840, 0.684), (0.850, 0.746)],                   # ring / little
+    [(0.316, 0.440), (0.398, 0.462), (0.492, 0.452)],                   # index base knuckle
+    [(0.272, 0.626), (0.344, 0.656), (0.440, 0.694), (0.552, 0.708)],   # thumb across the palm
+]
+
 def hand(name, size=128):
-    """A pointing hand (index finger up), drawn WHITE so the addon can tint it to the player's class
-    colour with SetVertexColor. Shapes are unioned into one silhouette first, then the outline is
-    taken from the union so the fingers/thumb read as one hand instead of separate pills. The outline
-    is dark grey: vertex colour multiplies, so it stays a darker shade of the class colour."""
+    """Pointing hand, drawn WHITE with baked greyscale shading: the addon tints it to the player's
+    class colour with SetVertexColor, which multiplies, so the shading and the dark outline survive
+    as darker shades of that colour."""
     S = 4
     w = size * S
-    def blank():
-        return Image.new("L", (w, w), 0)
-    def rr(dr, x0, y0, x1, y1, r):
-        dr.rounded_rectangle((w*x0, w*y0, w*x1, w*y1), radius=int(w*r), fill=255)
-    def knuckle(dr, x, y):
-        dr.ellipse((w*x, w*y, w*(x+0.095), w*(y+0.15)), fill=255)
+    def L(v): return v * w
+    def pxs(pts): return [(L(x), L(y)) for x, y in pts]
 
-    parts = []
-    for draw_part in (
-        lambda dr: rr(dr, 0.26, 0.53, 0.82, 0.94, 0.14),   # fist
-        lambda dr: rr(dr, 0.385, 0.05, 0.585, 0.63, 0.10),  # index finger, pointing up
-        lambda dr: rr(dr, 0.19, 0.575, 0.42, 0.72, 0.072),  # thumb folded across the fist
-        lambda dr: knuckle(dr, 0.585, 0.510),
-        lambda dr: knuckle(dr, 0.670, 0.522),
-        lambda dr: knuckle(dr, 0.752, 0.540),
-    ):
-        m = blank(); draw_part(ImageDraw.Draw(m)); parts.append(m)
+    silhouette = Image.new("L", (w, w), 0)
+    ImageDraw.Draw(silhouette).polygon(pxs(_catmull(HAND_OUTLINE)), fill=255)
 
-    union = blank()
-    for m in parts:
-        union = Image.composite(m, union, m)
-
-    # outline = a dilated copy of the union minus the union itself
-    LW = max(3, int(w * 0.022))
     def odd(n): return n if n % 2 == 1 else n + 1
-    grown = union.filter(ImageFilter.MaxFilter(odd(LW * 2)))
-    edge = Image.composite(Image.new("L", (w, w), 0), grown, union)
+    LW = max(3, int(w * 0.024))
+    grown = silhouette.filter(ImageFilter.MaxFilter(odd(LW * 2)))
+    edge = Image.composite(Image.new("L", (w, w), 0), grown, silhouette)
 
-    # interior separators: each part's own edge, clipped to the union so finger creases show
-    creases = blank()
-    for m in parts:
-        e = Image.composite(Image.new("L", (w, w), 0), m.filter(ImageFilter.MaxFilter(odd(LW))), m)
-        creases = Image.composite(e, creases, e)
-    creases = Image.composite(creases, blank(), union)
+    creases = Image.new("L", (w, w), 0)
+    cd = ImageDraw.Draw(creases)
+    for line in HAND_CREASES:
+        cd.line(pxs(_catmull(line, closed=False)), fill=255, width=int(w * 0.016), joint="curve")
+    creases = Image.composite(creases, Image.new("L", (w, w), 0), silhouette)
+    creases = creases.filter(ImageFilter.GaussianBlur(w * 0.004))
+
+    # form: lit from the upper left, so the finger and the left of the palm are bright and the
+    # curled fingers on the right fall away
+    inner = silhouette.filter(ImageFilter.GaussianBlur(w * 0.05))
+    shade = Image.new("L", (w, w), 0)
+    sd = ImageDraw.Draw(shade)
+    sd.ellipse((L(0.62), L(0.42), L(1.00), L(0.88)), fill=80)     # curled fingers
+    sd.ellipse((L(0.32), L(0.78), L(0.80), L(1.02)), fill=70)     # under the palm
+    sd.ellipse((L(0.438), L(0.10), L(0.510), L(0.46)), fill=55)   # right edge of the finger
+    shade = shade.filter(ImageFilter.GaussianBlur(w * 0.04))
+    light = Image.new("L", (w, w), 0)
+    ld = ImageDraw.Draw(light)
+    ld.ellipse((L(0.330), L(0.115), L(0.410), L(0.44)), fill=95)  # along the finger
+    ld.ellipse((L(0.300), L(0.52), L(0.480), L(0.80)), fill=75)   # palm
+    ld.ellipse((L(0.175), L(0.648), L(0.262), L(0.742)), fill=45) # thumb
+    light = light.filter(ImageFilter.GaussianBlur(w * 0.03))
+
+    base = Image.new("L", (w, w), 200)
+    base = ImageChops.add(base, Image.eval(inner, lambda v: int(v * 0.16)))
+    base = ImageChops.subtract(base, shade)
+    base = ImageChops.add(base, light)
+    base = ImageChops.subtract(base, Image.eval(creases, lambda v: int(v * 0.85)))
 
     im = Image.new("RGBA", (w, w), (0, 0, 0, 0))
-    im.paste((255, 255, 255, 255), (0, 0), union)
-    im.paste((70, 70, 70, 255), (0, 0), Image.eval(creases, lambda v: int(v * 0.75)))
-    im.paste((40, 40, 40, 255), (0, 0), edge)
+    im.paste(Image.merge("RGB", (base, base, base)), (0, 0), silhouette)
+    # fingernail: a slightly lighter oval near the tip
+    nail = Image.new("L", (w, w), 0)
+    ImageDraw.Draw(nail).ellipse((L(0.352), L(0.140), L(0.432), L(0.232)), fill=255)
+    nail = Image.composite(nail, Image.new("L", (w, w), 0), silhouette)
+    im.paste((238, 238, 238, 255), (0, 0), Image.eval(nail.filter(ImageFilter.GaussianBlur(w * 0.004)), lambda v: int(v * 0.5)))
+    im.paste((32, 30, 28, 255), (0, 0), edge)
+
     im = im.resize((size, size), Image.LANCZOS)
     im.save(os.path.join(OUT, name + ".tga"))
     print("wrote", name)
