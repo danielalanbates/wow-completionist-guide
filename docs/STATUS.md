@@ -333,3 +333,54 @@ pixel-checked as a rendered PNG at in-game size in three class colours, not in g
 * Offline test `guide menu OK` covers the check box, the per-guide scan verdicts and the category
   roll-up. Whole suite plus load/TOC tests green; installed to all four flavors. Not seen in a live
   client yet — the numbers and layout are verified headlessly only.
+
+## 2026-08-21 (night) — four-way scope selector, reworked hand, Zygor source check
+
+### Is there an official Zygor GitHub repo?
+No. Zygor Guides is closed-source and subscription-only; there is no official source repository.
+`github.com/Zygor-Guides` exists but is a marketing shell — one `.github` repo holding a promotional
+README (last touched March 2025), zero stars/forks/members, no addon code. What *is* on GitHub is
+community ports of the leaked/shipped 3.3.5a Lua: `danaton/ZygorGuidesWoTLK-ClassicPlus`,
+`ErebusAres/ZygorGuidesRemaster-3.3.5a_WOTLK`, `SimonGaufreteau/ZygorGuidesViewer` (Project Epoch),
+plus `tieonlinux/ZygorDownloader`. Useful as behaviour references only — they are someone else's
+proprietary code, so nothing from them goes into this addon.
+
+### Scope selector replaces the check box
+The scope is no longer a yes/no, so it is no longer a tick box. The guide menu header is now a
+label plus a small up/down pair (mouse wheel works too) stepping through four settings, narrow to
+wide, each with a one-line explanation underneath:
+
+| scope | means |
+|---|---|
+| `char` | This character |
+| `realm` | This server — every character on this realm |
+| `flavor` | This game type — Anniversary / Classic Era / Modern / … and Hardcore counted separately |
+| `account` | All characters |
+
+* `Account.Scope()` / `SetScope()` / `SCOPES` / `ScopeLabel()` / `ScopeDetail()` / `CharInScope()`.
+* `profile.scope` is the new setting; `profile.accountWide` is kept as a mirror and **anything that
+  still writes the boolean wins** — `Scope()` notices the disagreement and adopts it — so the options
+  check box, old saved variables and the verifier's temporary override all keep working.
+* Game type = client flavor + hardcore, because Hardcore progress is not interchangeable with normal
+  progress on the same expansion. Hardcore is read from `C_GameRules.IsHardcoreActive` and stored per
+  character as `gametype`.
+* `OtherDid`, `OtherDidQuest`, `GuideProgress` and `GuideIsComplete` all filter by scope now.
+* `/cr scope char|server|gametype|all` prints or sets it; `/cr accountwide` still toggles char/account.
+
+### Hand pointer, second pass
+The first hand was primitives unioned together and read as stacked pills. It is now traced as **one
+continuous closed outline** (`HAND_OUTLINE`, a Catmull-Rom curve through 34 control points) with
+named interior creases, so the anatomy is in the silhouette: index finger up and left of centre,
+middle/ring/little curled into the palm at descending sizes, thumb out and across, palm heel
+narrowing to the wrist. Over that: a baked greyscale shade/highlight pass (lit upper-left), a
+fingernail, and a dark outline taken from the silhouette itself.
+
+Honest limit: this is a clean stylised hand, not photoreal, and it should not try to be. The texture
+is displayed at ~56 px and multiplied by a flat class colour, which destroys skin tone, freckles and
+any fine texture — anything photoreal would turn to mush. If you want a photographic hand, the way to
+do it is an authored PNG/TGA asset (or a Blizzard cursor rip) shipped un-tinted, and we would lose
+the class-colour idea. Say which you prefer and I will build that instead.
+
+Preview renders live in the scratchpad (`hand6.png`), verified at in-game size in three class
+colours over a mid-tone background. Whole offline suite, load tests and TOC validation green;
+installed to all four flavors. Nothing in this batch has been seen in a live client.
