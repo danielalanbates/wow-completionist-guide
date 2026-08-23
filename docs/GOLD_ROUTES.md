@@ -74,6 +74,23 @@ laps / seconds / value in `CompletionRouteDB.farmStats`. The window title shows 
 plus the running gold/hour, and `/cr farm stats` lists every circuit you have walked. These are measured
 numbers, never an estimate someone typed into a guide.
 
+## Verifying it in the client without walking
+
+`/cr farm selftest` (or arm `CompletionRouteDB.autoFarmTest = true` before launching, like the existing
+`autoSweep` / `autoVerifyAll` flags) builds a throwaway 6-waypoint ring **on the player**, loads it, and lets
+the engine drive itself: waypoints must tick with nothing clicked, the lap counter must roll over twice
+instead of the guide "finishing", a waypoint must always be current, and the lap value must be recorded.
+Results go to `CompletionRouteDB.farmSelfTest`; the previous guide is restored afterwards.
+
+That degenerate ring found a real bug: with every waypoint inside its own radius the auto-completer cascaded
+through the whole lap and left the player with no current step. Auto-completion now ticks **at most one
+waypoint per refresh**, so a circuit can never swallow itself.
+
+`RunFeatureVerify` (`/cr verifyfeatures`, and automatic 30 s after login) also gained a `farm` and a
+`dungeon` group: seed rings registered, a circuit's waypoints all locate, a route exists to waypoint 1,
+sampled gold guides fold into circuits (and are folded back), lap engine present, recorder wired, import path,
+pricing source, instance entrances known, and whether a dungeon step resolves to a door.
+
 ## Commands
 
 ```

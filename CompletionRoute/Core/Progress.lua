@@ -239,15 +239,19 @@ end
 function P.Refresh(force)
     if not P.guide then return end
     -- 1) auto-complete anything already satisfied (scan a window ahead so obsolete steps vanish)
-    local changed, passes = false, 0
+    local changed, passes, wp = false, 0, 0
     repeat
         local any = false
         local reopened = charReopened()
         for i, s in ipairs(P.Pending(40)) do
-            -- Farm waypoints only tick when they are the step you are actually walking to; a circuit
-            -- loops back on itself, so a look-ahead node can sit inside the radius and would eat the lap.
-            local lookahead = (s.action == "G" and i > 1)
-            if not reopened[s.index] and not lookahead and P.CheckStep(s) then charDone()[s.index] = true any = true end
+            -- Farm waypoints only tick when they are the step you are actually walking to, and only ONE
+            -- per refresh: a circuit loops back on itself, so waypoints inside the radius would otherwise
+            -- cascade and swallow the whole lap (leaving the player with no current step at all).
+            local skip = (s.action == "G") and (i > 1 or wp > 0)
+            if not reopened[s.index] and not skip and P.CheckStep(s) then
+                charDone()[s.index] = true any = true
+                if s.action == "G" then wp = wp + 1 end
+            end
         end
         changed = changed or any
         passes = passes + 1
@@ -436,6 +440,13 @@ NS:On("PLAYER_READY", function()
         if not ok then CompletionRouteDB.probe = { error = tostring(err) } end
     end)
     -- same file-driven pathway for the route sweep and for a clean self-quit (flushes SavedVariables)
+    -- file-driven circuit self test (arm CompletionRouteDB.autoFarmTest = true before launching)
+    NS:After(50, function()
+        if CompletionRouteDB and CompletionRouteDB.autoFarmTest and NS.Farm and NS.Farm.SelfTest then
+            CompletionRouteDB.autoFarmTest = nil
+            pcall(NS.Farm.SelfTest)
+        end
+    end)
     NS:After(45, function()
         if CompletionRouteDB and CompletionRouteDB.autoSweep and NS.RunRouteSweep then
             local resume = CompletionRouteDB.autoSweep == "resume"
