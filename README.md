@@ -23,9 +23,11 @@ smart arrow — while the guide content is community-driven and open.
 | Only uses flight paths you have learned | ✅ learned when you open any flight map (`TAXIMAP_OPENED`), stored per character |
 | Optimal quest routing for the chosen guide | ✅ `Routing/StepOrder.lua` — precedence-constrained reordering of the next N steps (accept → complete → turn-in kept, anchors like *run to zone* respected) |
 | Guide library | ✅ native guides in `Guides/` (WoW-Pro line syntax, CC BY-SA) + **runtime adapters** that read your installed **WoW-Pro** guides and **Zygor** guides (interop only, nothing copied) |
+| Gold guides | ✅ **circuits, not click-throughs**: `G` waypoints that complete by proximity, endless laps, shortest-loop solver (`Routing/Loop.lua`), node recorder + GatherMate2/Routes import, measured gold/hour. 178/204 imported gold guides come out as walkable rings — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
+| Dungeon guides | ✅ steps inside an instance route to the **entrance** (learned door + retail encounter journal), `Core/Instances.lua` |
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
 
-Not yet: gold/profession/dungeon guide types beyond what adapters import, talent advisor, gear finder, model viewer, guide editor UI, retail-specific hearth toys, indoor/dungeon-aware walking, per-zone "wall" data.
+Not yet: profession guide engine (craft/vendor steps have no location by nature), talent advisor, gear finder, model viewer, guide editor UI, retail-specific hearth toys, indoor/dungeon-aware walking, per-zone "wall" data.
 
 ## Install
 
@@ -39,6 +41,7 @@ Or copy the `CompletionRoute/` folder into `Interface/AddOns/`.
 
 * `/or` — toggle guide window · `/or guides` — pick a guide · `/or route` — explain the current route
 * `/or order` — show the optimizer's order for the upcoming steps · `/or taxi` — flight paths learned · `/or hearth`
+* `/cr farm` — farm circuits: status, `build`, `record`, `import`, `export`, `stats`, `radius`
 * `/or test` — routing self-test from your position to major cities · `/or import` — re-scan WoW-Pro/Zygor
 * Checkbox / Shift-click a step = complete · right-click = skip · `<` undo · `>` skip · `Route` toggles reordering
 
@@ -48,7 +51,7 @@ Hearth once (or bind at an inn) so the router learns exactly where your inn is (
 ## Guide format
 
 See [docs/GUIDE_FORMAT.md](docs/GUIDE_FORMAT.md). It is the WoW-Pro community syntax
-(`A Quest|QID|123|M|48.1,42.9|Z|1429; Elwynn Forest|N|note|`) plus CompletionRoute-only tags `|ROUTE|`, `|FIXED|`.
+(`A Quest|QID|123|M|48.1,42.9|Z|1429; Elwynn Forest|N|note|`) plus CompletionRoute-only tags `|ROUTE|`, `|FIXED|`, `|RAD|` and the `G` farm-waypoint action.
 Guides are plain Lua files registered in `CompletionRoute/Guides/Guides.xml`.
 
 ## Repository layout

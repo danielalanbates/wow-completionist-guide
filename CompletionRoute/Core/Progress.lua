@@ -37,6 +37,13 @@ function P.Load(id)
     local g = G.registry[id]
     if not g then NS:Error("Unknown guide: " .. tostring(id)) return false end
     P.guide = g
+    -- Gold guides are routes, not checklists: fold one into a circuit before its steps are read
+    -- (Core/Farm.lua Circuitize). Turn it off with /cr farm circuit, or per guide with /cr farm uncircuit.
+    if g.type == "Gold" and not g.loop and not g.noCircuit and NS.db.profile.farm and NS.db.profile.farm.circuitizeGold then
+        local ok, res, n = pcall(NS.Farm.Circuitize, g)
+        if ok and res then NS:Print(("Gold guide folded into a %d-stop circuit - just follow it, nothing to click."):format(n))
+        else g.noCircuit = true NS:Debug("circuitize " .. id .. ": " .. tostring(res or n)) end
+    end
     P.steps = G.Steps(id)
     -- Behind a locked access chain (Siren Isle, Argus, Zereth Mortis...)? Put the unlock steps first, the way
     -- Zygor's zone guides open with the zone intro. Negative indices keep the guide's own progress keys intact.
@@ -52,6 +59,10 @@ function P.Load(id)
     dirty = true
     NS:Print("Guide: " .. (g.name or g.id) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")")
     P.Refresh()
+    if g.loop then
+        if NS.Farm and NS.Farm.OnLoad then pcall(NS.Farm.OnLoad, g) end
+        P.StartAtNearest()
+    end
     NS:Fire("GUIDE_LOADED", g)
     return true
 end
@@ -181,6 +192,10 @@ function P.CheckStep(step)
             for _, l in ipairs(step.loot) do if U.ItemCount(l.id) < l.qty then ok = false end end
             if ok then return true end
         end
+    elseif a == "G" then
+        -- farm waypoint: nothing to click, you complete it by standing there
+        if step.coords then if nearCoords(step, step.radius or (NS.db.profile.farm and NS.db.profile.farm.radius) or 40) then return true end
+        elseif inZone(step) then return true end
     elseif a == "R" then
         if step.coords then if nearCoords(step, 30) then return true end
         elseif inZone(step) then return true end
@@ -228,8 +243,11 @@ function P.Refresh(force)
     repeat
         local any = false
         local reopened = charReopened()
-        for _, s in ipairs(P.Pending(40)) do
-            if not reopened[s.index] and P.CheckStep(s) then charDone()[s.index] = true any = true end
+        for i, s in ipairs(P.Pending(40)) do
+            -- Farm waypoints only tick when they are the step you are actually walking to; a circuit
+            -- loops back on itself, so a look-ahead node can sit inside the radius and would eat the lap.
+            local lookahead = (s.action == "G" and i > 1)
+            if not reopened[s.index] and not lookahead and P.CheckStep(s) then charDone()[s.index] = true any = true end
         end
         changed = changed or any
         passes = passes + 1
@@ -248,6 +266,16 @@ function P.Refresh(force)
         NS:Fire("STEP_CHANGED", newcur)
     end
     NS:Fire("PROGRESS_REFRESHED")
+    if not newcur and P.guide and P.guide.loop then
+        -- Farm circuits never "finish": wipe the lap and start the loop again from the nearest waypoint.
+        if not P.inLap then
+            P.inLap = true
+            local ok, err = pcall(P.NewLap)
+            P.inLap = nil
+            if not ok then NS:Error("lap restart failed: " .. tostring(err)) end
+        end
+        return
+    end
     if not newcur and P.guide then
         -- pick what to run next: the authored chain if it still fits our level,
         -- else the most optimal leveling guide for our level + position
@@ -262,6 +290,56 @@ function P.Refresh(force)
         end
     end
 end
+
+-- ---------------------------------------------------------------------------
+-- Farm circuits (guide.loop): the route repeats forever, no clicking, no completion screen
+-- ---------------------------------------------------------------------------
+-- Clear the lap and hand the lap to Farm for its stats, then start again at the nearest waypoint.
+function P.NewLap()
+    if not P.guide then return end
+    local id = P.guide.id
+    NS.db.char.laps = NS.db.char.laps or {}
+    NS.db.char.laps[id] = (NS.db.char.laps[id] or 0) + 1
+    if NS.Farm and NS.Farm.OnLapComplete then pcall(NS.Farm.OnLapComplete, P.guide) end
+    if NS.Account and NS.Account.me then
+        NS.Account.me.done[id] = {}
+        NS.Account.me.skipped[id] = {}
+    end
+    NS.db.char.done[id] = {}
+    NS.db.char.skipped[id] = {}
+    if NS.db.char.reopened then NS.db.char.reopened[id] = {} end
+    dirty = true
+    NS:Fire("LAP_COMPLETE", P.guide, NS.db.char.laps[id])
+    P.Refresh()
+    P.StartAtNearest()
+end
+
+-- A circuit is a closed loop, so any waypoint is a legal start: tick off the ones behind us so the
+-- player walks the shortest way onto the ring instead of back to the author's first node.
+function P.StartAtNearest()
+    if not (P.guide and P.guide.loop and P.steps and #P.steps > 0 and NS.Router) then return end
+    local _, _, _, pinst, pwx, pwy = U.PlayerPos()
+    if not pwx then return end
+    local best, bestd
+    for i, s in ipairs(P.steps) do
+        local tx, ty, ti = NS.Router.StepWorld(s)
+        if tx and ti == pinst then
+            local d = math.sqrt((tx - pwx) ^ 2 + (ty - pwy) ^ 2)
+            if not bestd or d < bestd then best, bestd = i, d end
+        end
+    end
+    if not best then return end
+    -- Standing on the nearest waypoint (which is what happens the instant a lap closes) would tick it,
+    -- then the next, and the ring would eat itself: aim at the one AFTER it instead.
+    local radius = (P.steps[best].radius) or (NS.db.profile.farm and NS.db.profile.farm.radius) or 40
+    if bestd <= radius then best = best % #P.steps + 1 end
+    local done = charDone()
+    for i = 1, #P.steps do done[P.steps[i].index] = (i < best) or nil end
+    dirty = true
+    P.Refresh()
+end
+
+function P.Lap(id) return (NS.db.char.laps or {})[id or (P.guide and P.guide.id)] or 0 end
 
 function P.Upcoming(n) local out = {} for i = 1, math.min(n or 6, P.order and #P.order or 0) do out[i] = P.order[i] end return out end
 
@@ -297,7 +375,7 @@ NS.eventFrame:SetScript("OnUpdate", function(_, el)
     acc = 0
     if not P.current then return end
     local a = P.current.action
-    if a == "R" or a == "F" or a == "b" or a == "J" or a == "H" or a == "D" then if P.CheckStep(P.current) then P.MarkDone(P.current) end end
+    if a == "G" or a == "R" or a == "F" or a == "b" or a == "J" or a == "H" or a == "D" then if P.CheckStep(P.current) then P.MarkDone(P.current) end end
     NS:Fire("TICK")
 end)
 

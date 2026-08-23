@@ -20,12 +20,15 @@ Core\Conditions.lua
 Core\Guide.lua
 Core\Account.lua
 Core\Progress.lua
+Core\Farm.lua
+Core\Instances.lua
 Data\Taxi_era.lua
 Data\Taxi_tbc.lua
 Data\Taxi_mop.lua
 Data\Taxi_retail.lua
 Data\Transit.lua
 Data\Inns.lua
+Data\Farm_routes.lua
 Data\ZoneAliases.lua
 Data\Roads_ek.lua
 Data\Roads_kalimdor.lua
@@ -33,6 +36,7 @@ Routing\TravelGraph.lua
 Routing\Roads.lua
 Routing\StepOrder.lua
 Routing\Router.lua
+Routing\Loop.lua
 UI\Arrow.lua
 UI\GuideFrame.lua
 UI\Beacon.lua

@@ -159,7 +159,15 @@ function GF.Update()
         for i, st in ipairs(P.steps) do if st == s then pos = i break end end
     end
     local label = (s and s.access) and "unlock step" or "step"
+    if P.guide.loop then
+        -- a circuit has no end: show which lap you are on and what it has been worth
+        local st = NS.Farm and NS.Farm.Stats(P.guide.id)
+        local worth = st and (" |cffffd200%s/hr|r"):format(U.FmtMoney(st.perHour)) or ""
+        titleText:SetText(("|cff3ec6ff%s|r  |cff888888lap %d - waypoint %d of %d|r%s"):format(
+            P.guide.name or P.guide.id, (P.Lap and P.Lap(P.guide.id) or 0) + 1, math.min(pos, total), total, worth))
+    else
     titleText:SetText(("|cff3ec6ff%s|r  |cff888888%s %d of %d|r"):format(P.guide.name or P.guide.id, label, math.min(pos, total), total))
+    end
     bBack:SetEnabled(done > 0 or next(NS.db.char.skipped[P.guide.id] or {}) ~= nil)
     bFwd:SetEnabled(s ~= nil)
     if not s then

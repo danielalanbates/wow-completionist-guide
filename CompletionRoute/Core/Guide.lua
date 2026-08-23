@@ -13,14 +13,14 @@ NS.Guide = G
 G.registry = {}      -- id -> guide record
 G.list = {}          -- ordered ids
 
-local ACTIONS = { A=1, a=1, C=1, T=1, t=1, K=1, R=1, H=1, h=1, F=1, f=1, N=1, B=1, b=1, U=1, L=1, l=1, r=1, D=1, J=1, M=1, ["!"]=1, ["$"]=1, ["="]=1,
+local ACTIONS = { A=1, a=1, C=1, T=1, t=1, K=1, R=1, H=1, h=1, F=1, f=1, N=1, B=1, b=1, U=1, L=1, l=1, r=1, D=1, J=1, M=1, ["!"]=1, ["$"]=1, ["="]=1, G=1,
     P=1, ["*"]=1, d=1, s=1 } -- WoW-Pro extras: P portal/teleport, * destroy-item, d death-step, s speak-with
 -- non-native actions normalize to a note step (waypoint still honored via M/Z tags)
 local ACTION_ALIAS = { P = "N", ["*"] = "N", d = "N", s = "N" }
 G.ACTIONS = ACTIONS
 G.ACTION_LABEL = { A="Accept", a="Accept", C="Complete", T="Turn in", t="Turn in", K="Kill", R="Run to", H="Hearth to", h="Set hearth",
     F="Fly to", f="Get flight path", N="Note", B="Buy", b="Boat/Zeppelin", U="Use", L="Level", l="Loot", r="Repair/Sell", D="Dungeon",
-    J="Portal/Jump", M="Misc", ["!"]="Daily", ["$"]="Treasure", ["="]="Misc" }
+    J="Portal/Jump", M="Misc", ["!"]="Daily", ["$"]="Treasure", ["="]="Misc", G="Farm" }
 G.ACTION_ICON = { A="Interface\\GossipFrame\\AvailableQuestIcon", a="Interface\\GossipFrame\\AvailableQuestIcon",
     C="Interface\\Icons\\Ability_DualWield", T="Interface\\GossipFrame\\ActiveQuestIcon", t="Interface\\GossipFrame\\ActiveQuestIcon",
     K="Interface\\Icons\\Ability_Creature_Cursed_02", R="Interface\\Icons\\Ability_Tracking", H="Interface\\Icons\\INV_Misc_Rune_01",
@@ -29,7 +29,7 @@ G.ACTION_ICON = { A="Interface\\GossipFrame\\AvailableQuestIcon", a="Interface\\
     U="Interface\\Icons\\INV_Misc_Bag_08", L="Interface\\Icons\\Spell_ChargePositive", l="Interface\\Icons\\INV_Misc_Bag_08",
     r="Interface\\Icons\\Ability_Repair", D="Interface\\TAXIFRAME\\UI-Taxi-Icon-Green", J="Interface\\Icons\\spell_arcane_teleportironforge",
     M="Interface\\Icons\\INV_Misc_QuestionMark", ["!"]="Interface\\GossipFrame\\DailyQuestIcon", ["$"]="Interface\\Icons\\INV_Misc_Bag_10",
-    ["="]="Interface\\Icons\\INV_Misc_QuestionMark" }
+    ["="]="Interface\\Icons\\INV_Misc_QuestionMark", G="Interface\\Icons\\INV_Misc_Herb_07" }
 -- Steps whose position is location-driven and may be reordered by the optimizer
 local ROUTABLE = { A=true, C=true, T=true, K=true, r=true, B=true, ["$"]=true, l=true, ["!"]=true }
 
@@ -104,6 +104,8 @@ function G.ParseLine(text, lineno, defaultZone)
         elseif tag == "NA" or tag == "NOAUTO" then step.noauto = true consumed = 1
         elseif tag == "CC" or tag == "CS" or tag == "CN" then step.waypcomplete = tag consumed = 1
         elseif tag == "RANK" then step.rank = tonumber(val)
+        elseif tag == "RAD" then step.radius = tonumber(val)
+        elseif tag == "KIND" then step.kind = val
         elseif tag == "ROUTE" then step.route = true consumed = 1
         elseif tag == "FIXED" then step.route = false consumed = 1
         elseif tag == "RUNE" or tag == "ELITE" or tag == "RARE" or tag == "DUNGEON" or tag == "CHAT" or tag == "H" or tag == "I" or tag == "V" or tag == "FAIL" or tag == "AP" or tag == "CT" or tag == "MS" or tag == "TOF" or tag == "EAB" or tag == "NOCACHE" then step[tag:lower()] = true consumed = 1
@@ -122,6 +124,18 @@ function G.ParseLine(text, lineno, defaultZone)
     return step
 end
 
+-- Imported sources spell their categories differently (Zygor "GOLD", WoW-Pro "Professions",
+-- our own "Profession"): fold them so the guide menu has one row per category, not three.
+local TYPE_CANON = { gold = "Gold", leveling = "Leveling", quests = "Quests", dungeon = "Dungeons", dungeons = "Dungeons",
+    profession = "Professions", professions = "Professions", daily = "Dailies", dailies = "Dailies",
+    reputation = "Reputation", reputations = "Reputation", title = "Titles", titles = "Titles",
+    event = "Events", events = "Events", achievement = "Achievements", achievements = "Achievements",
+    pet = "Pets", pets = "Pets", mount = "Mounts", mounts = "Mounts", raid = "Raids", raids = "Raids" }
+function G.NormalizeType(t)
+    if not t or t == "" then return "Leveling" end
+    return TYPE_CANON[tostring(t):lower()] or t
+end
+
 -- Register a guide.  def = { id, name, type ('Leveling'), zone, faction, minlevel, maxlevel, next, author, source, text (string) or fn () -> string }
 function G.Register(def)
     if not def or not def.id then return end
@@ -132,7 +146,7 @@ function G.Register(def)
         NS:Debug("skip empty guide " .. def.id)
         return
     end
-    def.type = def.type or "Leveling"
+    def.type = G.NormalizeType(def.type)
     def.source = def.source or "CompletionRoute"
     G.registry[def.id] = def
     tinsert(G.list, def.id)

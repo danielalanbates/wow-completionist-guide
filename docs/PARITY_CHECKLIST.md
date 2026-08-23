@@ -42,7 +42,12 @@ Round 3:
 Still needs a real play session: turn-in/objective completion during actual questing, flight-master visit
 to confirm learned-taxi persistence, reorder quality over hours. Everything mechanical is verified.
 
-Known feature gaps vs Zygor (by design, documented): gold/profession/dungeon guide engines, gear/talent
+- [x] **gold guides are circuits, not click-throughs** (`docs/GOLD_ROUTES.md`): `G` waypoints, proximity
+  advance, endless laps, measured gold/hr, node recorder + GatherMate2/Routes import, Zygor `path` rings kept
+  in the author's order; 178/204 imported gold guides are walkable circuits on every flavor
+- [x] dungeon steps route to the instance ENTRANCE (learned door + retail encounter-journal), not "no route"
+
+Known feature gaps vs Zygor (by design, documented): profession guide engine, gear/talent
 advisors, model viewer, guide editor UI, wall-aware walking (straight-line x terrain factor).
 
 Round 4 (2026-08-19):

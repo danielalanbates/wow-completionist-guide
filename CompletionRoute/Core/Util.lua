@@ -70,6 +70,15 @@ function U.World(mapID, x, y)
     return HBD:GetWorldCoordinatesFromZone(x, y, mapID)  -- wx, wy, instance
 end
 
+-- Zone coords (0..1) for a world point, as seen on `mapID`
+function U.ZoneFromWorld(wx, wy, instance, mapID)
+    if not (wx and mapID) then return end
+    if HBD.GetZoneCoordinatesFromWorldInstance and instance then
+        return HBD:GetZoneCoordinatesFromWorldInstance(wx, wy, instance, mapID, true)
+    end
+    return HBD:GetZoneCoordinatesFromWorld(wx, wy, mapID, true)
+end
+
 -- Distance in yards between two zone points; nil if different instances
 function U.ZoneDistance(m1, x1, y1, m2, x2, y2)
     return HBD:GetZoneDistance(m1, x1, y1, m2, x2, y2)

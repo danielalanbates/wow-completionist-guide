@@ -39,8 +39,8 @@ local function load(path)
     local fn = assert(loadfile("CompletionRoute/" .. path)) fn(ADDON, NS)
 end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
-    "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua",
-    "Core/Account.lua", "Core/Progress.lua", "Adapters/Zygor.lua", "Adapters/WoWPro.lua",
+    "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
+    "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua", "Adapters/Zygor.lua", "Adapters/WoWPro.lua",
     "Guides/Imported_Zygor.lua", "Guides/Imported_WoWPro.lua",
     "Guides/Imported_Quests_era.lua", "Guides/Imported_Quests_tbc.lua", "Guides/Imported_Quests_wotlk.lua", "Guides/Imported_Quests_cata.lua", "Guides/Imported_Quests_mop.lua" }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil

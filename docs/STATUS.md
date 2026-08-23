@@ -1,3 +1,45 @@
+# Status / handoff (2026-08-22)
+
+## Gold guides became routes (the ask: "no clicking through steps — a route they always follow")
+* New guide type: **circuits**. `G` waypoints (`Core/Guide.lua`), proximity completion + endless laps
+  (`Core/Progress.lua` `NewLap` / `StartAtNearest`), shortest closed tour solver (`Routing/Loop.lua`:
+  cluster → nearest-neighbour → 2-opt → Or-opt), farm engine (`Core/Farm.lua`), 31 coarse seed rings
+  (`Data/Farm_routes.lua`). Full write-up: **docs/GOLD_ROUTES.md**.
+* Imported gold guides are folded into circuits on load. Measured over the baked Zygor set:
+  **178 of 204 (87%) are walkable circuits on era / tbc / mop / retail** — 106 kept in the author's own
+  order (Zygor's farming guides already carry `map` + `path` rings; the adapter now parses them), 72 solved
+  here, avg 25.6 stops. The remaining 26 are auction-house / disenchant methods with no route at all and
+  stay as note guides. Rows: `docs/verification.sqlite` tables `gold_circuits`, `guide_type_audit`
+  (`luajit tools/audit_guides.lua <flavor>` → `python3 tools/collect_audit.py`).
+* Nodes are community-driven and local-first: every world-object loot is recorded account-wide (corpses are
+  not), GatherMate2 / Routes databases import if installed, `/cr farm export|import` moves plain text between
+  players. **No third-party node data ships in this repo.**
+* A lap prices itself: bag delta × Auctionator price (else vendor) + coin gained → `lap 3 — waypoint 12 of 48
+  · 214g/hr` in the window title, `/cr farm stats` per circuit.
+* Guide categories are folded (`Guide.NormalizeType`): Zygor's "GOLD" and "Professions"/"Profession" etc. no
+  longer split the guide menu into near-duplicate rows.
+
+## Other odd guides
+* **Dungeons (98 guides, 951 unlocated steps)**: `Core/Instances.lua` learns the door (last outdoor position
+  before the loading screen) and asks retail's `C_EncounterJournal.GetDungeonEntrancesForMap`;
+  `Router.StepWorld` routes to the entrance whenever the target is inside an instance you are not in.
+* Guide-type audit after the fixes (tbc, % of steps that resolve to a location): Leveling 99.2, Quests 99.1,
+  Dungeons 97.0, Reputation 98.2, Events 99.0, Dailies 99.5, Titles 98.8, Gold 82.4, Professions 79.4.
+  Professions is the next real gap: 943 steps are craft/vendor lines with no location by nature.
+
+## Verification state (honest)
+* Offline: `tools/test_farm.lua` (14 checks: waypoint parse, seed rings, enter-at-nearest, proximity advance,
+  lap wrap, TSP optimality on a known square, clustering, recorder object-vs-corpse, GatherMate2 decode,
+  export/import round trip, built circuit is a ring not a zig-zag, lap pricing, gold-guide fold, Zygor path
+  import, instance-entrance substitution) — all pass. `test_offline`, `test_access`, `test_load_all`
+  (4 flavors × 47-48 files), `validate_toc` all pass. Retail route sweep re-run with the new modules loaded:
+  600 guides, 0 load-fail / 0 precedence / 0 slower / 0 no-route.
+* **In game: NOT yet run for this change.** A FFXI verification sweep owned another session had the screen for
+  the whole slot (peer message 2026-08-22), and launching WoW would have stolen focus mid-run. Nothing here is
+  claimed as in-game verified. Next session: `python3 tools/run_flavor_verify.py _retail_ --minutes=65`
+  (and per flavor), then walk one circuit per flavor and check: lap counter increments, no step needs a click,
+  gold/hr appears, dungeon guide arrows point at the door.
+
 # Status / handoff (2026-08-21)
 
 ## In-game verification, morning round (retail + MoP rerun)

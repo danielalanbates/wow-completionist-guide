@@ -197,6 +197,54 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         for src, n in pairs(bySrc) do NS:Print(("guides from %s: %d"):format(src, n)) end
         NS:Print(("player: %s %s %s lvl %.1f; suggest = %s"):format(NS.player.faction, NS.player.race, NS.player.class, U.PlayerLevel(), tostring(G.Suggest() and G.Suggest().id)))
         for _, id in ipairs(G.list) do local g = G.registry[id] if g.source == "CompletionRoute" then NS:Print(("  native: %s [%s] %s-%s %s"):format(id, g.faction or "?", tostring(g.minlevel), tostring(g.maxlevel), Cond and NS.Cond.FactionMatch(g.faction) and "ok" or "faction-mismatch")) end end
+    elseif cmd == "farm" then
+        local Farm = NS.Farm
+        local sub, arg = rest:match("^(%S*)%s*(.-)$")
+        sub = (sub or ""):lower()
+        if sub == "" or sub == "status" then
+            local map = U.PlayerPos()
+            NS:Print(("Farm nodes: %d here, %d on this account. Recording is %s."):format(
+                Farm.NodeCount(map), Farm.NodeCount(), NS.db.profile.farm.record and "|cff00ff00on|r" or "|cffff4040off|r"))
+            for _, z in ipairs(Farm.Zones(nil, 8)) do NS:Print(("  %s: %d nodes"):format(U.MapName(z.map), z.count)) end
+            if P.guide and P.guide.loop then
+                local st = Farm.Stats(P.guide.id)
+                NS:Print(("Circuit %s: lap %d%s"):format(P.guide.name, P.Lap(P.guide.id) + 1,
+                    st and (", avg %s per lap, %s/hr"):format(U.FmtTime(st.avgSeconds), U.FmtMoney(st.perHour)) or ""))
+            end
+            NS:Print("  /cr farm build [kind] | record | import | export | stats | radius <yd>")
+        elseif sub == "build" then
+            local map = U.PlayerPos()
+            local g, n, len = Farm.BuildRoute(map, arg ~= "" and arg or nil)
+            if not g then NS:Error("farm build: " .. tostring(n))
+            else
+                NS:Print(("Built %s: %d waypoints, %s loop."):format(g.name, n, U.FmtDist(len)))
+                P.Load(g.id)
+            end
+        elseif sub == "record" then
+            NS.db.profile.farm.record = not NS.db.profile.farm.record
+            NS:Print("Node recording " .. (NS.db.profile.farm.record and "on" or "off"))
+        elseif sub == "import" then
+            local n, notes = Farm.ImportAll()
+            NS:Print(("Imported %d nodes. %s"):format(n, notes or ""))
+        elseif sub == "export" then
+            local map = U.PlayerPos()
+            local text = Farm.Export(arg == "all" and nil or map)
+            NS.db.global.farmExport = text
+            local lines = select(2, text:gsub("\n", "\n")) + 1
+            NS:Print(("Exported %d nodes to CompletionRouteDB.farmExport (SavedVariables) - copy it out and share it."):format(lines))
+        elseif sub == "stats" then
+            local any = false
+            for id, h in pairs(NS.db.global.farmStats or {}) do
+                local st = Farm.Stats(id)
+                if st then any = true NS:Print(("%s: %d laps, avg %s, %s/hr (%s)"):format(
+                    (G.registry[id] and G.registry[id].name) or id, st.laps, U.FmtTime(st.avgSeconds), U.FmtMoney(st.perHour), st.last and st.last.priceSrc or "?")) end
+            end
+            if not any then NS:Print("No completed laps yet.") end
+        elseif sub == "radius" then
+            local r = tonumber(arg)
+            if r then NS.db.profile.farm.radius = r NS:Print("Farm waypoint radius: " .. r .. " yd")
+            else NS:Print("Farm waypoint radius: " .. tostring(NS.db.profile.farm.radius) .. " yd") end
+        else NS:Print("/cr farm [status|build|record|import|export|stats|radius]") end
     elseif cmd == "debug" then NS.db.profile.debug = not NS.db.profile.debug NS:Print("Debug " .. tostring(NS.db.profile.debug))
     elseif cmd == "test" then
         -- self-test: route from player to a few known destinations
@@ -212,7 +260,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | hearth | import | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | hearth | import | farm | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 

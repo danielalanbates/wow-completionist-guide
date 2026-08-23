@@ -36,6 +36,21 @@ end
 
 -- world position of a step (first coordinate). returns wx, wy, inst
 -- step._locSource records how we got it, so the UI can be honest about a fuzzy answer.
+-- If `step` sits inside an instance map and the player is not in that instance, return the learned
+-- (or journal-supplied) entrance in the outdoor world.  nil = no substitution.
+function R.EntranceFor(step)
+    local I = NS.Instances
+    if not (I and step and step.zone and I.IsInstanceMap(step.zone)) then return nil end
+    -- Inside any instance, the real in-instance coordinates are the useful ones (HBD instance ids are
+    -- not a reliable "am I in this dungeon" test - several outdoor maps share instance 0 with them).
+    if IsInInstance and IsInInstance() then return nil end
+    local ex, ey, ei, rec = I.Entrance(step.zone)
+    if not ex then return nil end
+    step._entrance = rec
+    step._locSource = "entrance"
+    return ex, ey, ei
+end
+
 function R.StepWorld(step)
     if not step then return nil end
     if step.coords and step.zone then
@@ -43,6 +58,10 @@ function R.StepWorld(step)
         local c = step.coords[1]
         local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(c.x, c.y, step.zone)
         if wx then
+            -- Target inside a dungeon/raid we are not standing in? Route to the DOOR (Core/Instances.lua)
+            -- instead of reporting "no route": the player's job is to get there, the boss is inside.
+            local ex, ey, ei = R.EntranceFor(step)
+            if ex then return ex, ey, ei end
             step._wx, step._wy, step._winst, step._locSource = wx, wy, inst, "guide"
             return wx, wy, inst
         end
