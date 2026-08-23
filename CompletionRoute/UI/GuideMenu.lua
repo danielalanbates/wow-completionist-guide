@@ -178,7 +178,8 @@ function M.NextStepGuides(force)
         -- Exact level match only: the guide must declare a bracket and that bracket must contain
         -- us. Level-agnostic guides (professions, most dungeon/reputation entries) are things you
         -- "could do" at any level, which would drown the bucket - they stay in their own category.
-        local fits = (mn or mx) and (not mn or lvl >= mn) and (not mx or lvl <= mx + 0.99)
+        -- circuits never finish, so they would sit in "Next Step" forever: they live in Gold
+        local fits = not g.loop and (mn or mx) and (not mn or lvl >= mn) and (not mx or lvl <= mx + 0.99)
         if fits then
             local total = g.steps and #g.steps or nil
             local pct = 0
@@ -346,6 +347,13 @@ end
 -- completion badge, but only for guides whose steps are already parsed (never force a parse here:
 -- the quest DB has thousands of guides and the list refreshes on every keystroke)
 local function pctBadge(g)
+    -- a circuit is never "83% complete": show the laps you have walked and what they were worth
+    if g.loop then
+        local laps = (NS.Progress and NS.Progress.Lap and NS.Progress.Lap(g.id)) or 0
+        local st = NS.Farm and NS.Farm.Stats and NS.Farm.Stats(g.id)
+        if st then return ("  |cffffd200%d lap%s, %s/hr|r"):format(laps, laps == 1 and "" or "s", NS.Util.FmtMoney(st.perHour)) end
+        return laps > 0 and ("  |cffffd200%d lap%s|r"):format(laps, laps == 1 and "" or "s") or "  |cff6ac9ffcircuit|r"
+    end
     if not (NS.Account and NS.Account.me) then return "" end
     local _, who = NS.Account.GuideCompletedBy(g)
     if who then return ("  |cff00ff00(%s)|r"):format(who) end
@@ -470,7 +478,8 @@ function M.Refresh()
             local prefix = filter ~= "" and (tex(catStyle(normCat(g.type)).icon, 14) .. " ") or ""
             b.text:SetText(prefix .. guideLabel(g, row.inNext) .. (P.guide and P.guide.id == g.id and "  |cff00ff00(active)|r" or ""))
             local v = scanned[g.id]
-            if v == nil then b.right:SetText("|cff666666...|r")
+            if g.loop then b.right:SetText((g.farm and g.farm.nodes) and ("|cff6ac9ff%d stops|r"):format(g.farm.nodes) or "|cff6ac9ffloop|r")
+            elseif v == nil then b.right:SetText("|cff666666...|r")
             elseif v then b.right:SetText("|cff00ff00completed|r")
             else
                 local total = g.steps and #g.steps or nil
