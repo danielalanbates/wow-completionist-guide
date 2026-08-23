@@ -211,7 +211,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
                 NS:Print(("Circuit %s: lap %d%s"):format(P.guide.name, P.Lap(P.guide.id) + 1,
                     st and (", avg %s per lap, %s/hr"):format(U.FmtTime(st.avgSeconds), U.FmtMoney(st.perHour)) or ""))
             end
-            NS:Print("  /cr farm build [kind] | record | import | export | stats | radius <yd>")
+            NS:Print("  /cr farm build [kind] | record | import | export | stats | radius <yd> | selftest")
         elseif sub == "build" then
             local map = U.PlayerPos()
             local g, n, len = Farm.BuildRoute(map, arg ~= "" and arg or nil)
@@ -232,6 +232,8 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             NS.db.global.farmExport = text
             local lines = select(2, text:gsub("\n", "\n")) + 1
             NS:Print(("Exported %d nodes to CompletionRouteDB.farmExport (SavedVariables) - copy it out and share it."):format(lines))
+        elseif sub == "selftest" then
+            Farm.SelfTest()
         elseif sub == "stats" then
             local any = false
             for id, h in pairs(NS.db.global.farmStats or {}) do
@@ -244,7 +246,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             local r = tonumber(arg)
             if r then NS.db.profile.farm.radius = r NS:Print("Farm waypoint radius: " .. r .. " yd")
             else NS:Print("Farm waypoint radius: " .. tostring(NS.db.profile.farm.radius) .. " yd") end
-        else NS:Print("/cr farm [status|build|record|import|export|stats|radius]") end
+        else NS:Print("/cr farm [status|build|record|import|export|stats|radius|selftest]") end
     elseif cmd == "debug" then NS.db.profile.debug = not NS.db.profile.debug NS:Print("Debug " .. tostring(NS.db.profile.debug))
     elseif cmd == "test" then
         -- self-test: route from player to a few known destinations
@@ -444,6 +446,93 @@ function NS.RunFeatureVerify(quiet)
         local q = 0 for _ in pairs(A.me.quests or {}) do q = q + 1 end
         return true, ("%d quests recorded, accountQuests=%s"):format(q, tostring(NS.db.profile.accountQuests))
     end)
+    -- ---- farm circuits (gold guides): everything provable without walking a lap ----
+    local F = NS.Farm
+    chk("farm", "module loaded", function() return F ~= nil and NS.Loop ~= nil end)
+    chk("farm", "seed circuits registered", function()
+        local n = 0
+        for _, id in ipairs(NS.Guide.list) do
+            local g = NS.Guide.registry[id]
+            if g.loop and (g.farm or {}).coarse then n = n + 1 end
+        end
+        return n > 0, n .. " coarse rings for this client's zones"
+    end)
+    chk("farm", "a circuit parses into G waypoints that locate", function()
+        local g
+        for _, id in ipairs(NS.Guide.list) do local c = NS.Guide.registry[id] if c.loop then g = c break end end
+        if not g then return false, "no circuit registered" end
+        local steps = NS.Guide.Steps(g.id)
+        local located, nonG = 0, 0
+        for _, st in ipairs(steps) do
+            if st.action ~= "G" then nonG = nonG + 1 end
+            if NS.Router.StepWorld(st) then located = located + 1 end
+        end
+        return #steps > 0 and nonG == 0 and located == #steps,
+            ("%s: %d waypoints, %d located, %d non-waypoint steps"):format(g.name, #steps, located, nonG)
+    end)
+    chk("farm", "route exists to a circuit's first waypoint", function()
+        for _, id in ipairs(NS.Guide.list) do
+            local g = NS.Guide.registry[id]
+            if g.loop then
+                local st = NS.Guide.Steps(g.id)[1]
+                local secs = st and NS.Router.TravelSecondsFromPlayer(st)
+                return secs ~= nil, ("%s: %s away"):format(g.name, U.FmtTime(secs or 0))
+            end
+        end
+        return false, "no circuit registered"
+    end)
+    chk("farm", "imported gold guides fold into circuits", function()
+        local tried, folded, touched = 0, 0, {}
+        for _, id in ipairs(NS.Guide.list) do
+            local g = NS.Guide.registry[id]
+            if g.type == "Gold" and not g.loop and tried < 25 then
+                tried = tried + 1
+                local ok, res = pcall(F.Circuitize, g)
+                if ok and res then folded = folded + 1 touched[#touched + 1] = g end
+            end
+        end
+        for _, g in ipairs(touched) do pcall(F.Uncircuitize, g) end   -- leave the library as we found it
+        return tried == 0 or folded > 0, ("%d of %d sampled gold guides became circuits"):format(folded, tried)
+    end)
+    chk("farm", "lap engine present", function()
+        return type(P.NewLap) == "function" and type(P.StartAtNearest) == "function" and type(P.Lap) == "function",
+            ("laps recorded: %d guide(s)"):format(U.tcount(NS.db.char.laps or {}))
+    end)
+    chk("farm", "node recorder wired", function()
+        local handlers = NS.wowHandlers and NS.wowHandlers.LOOT_OPENED
+        return handlers ~= nil and #handlers > 0,
+            ("recording=%s, %d nodes on this account"):format(tostring(NS.db.profile.farm.record), F.NodeCount())
+    end)
+    chk("farm", "gather-node import path", function()
+        local n, notes = F.ImportAll()
+        return true, ("%d imported now (%s)"):format(n, notes ~= "" and notes or "no GatherMate2/Routes installed")
+    end)
+    chk("farm", "lap pricing source", function()
+        local ah = _G.Auctionator and Auctionator.API and Auctionator.API.v1 ~= nil
+        return true, ah and "Auctionator prices" or "vendor prices (Auctionator not loaded)"
+    end)
+    chk("dungeon", "instance entrances known", function()
+        local I = NS.Instances
+        if not I then return false, "module missing" end
+        local journal = (C_EncounterJournal and C_EncounterJournal.GetDungeonEntrancesForMap) ~= nil
+        return true, ("%d learned/known, encounter-journal API %s"):format(I.Count(), journal and "available" or "absent (classic)")
+    end)
+    chk("dungeon", "instance step routes to a door when one is known", function()
+        local I = NS.Instances
+        for _, id in ipairs(NS.Guide.list) do
+            local g = NS.Guide.registry[id]
+            if g.type == "Dungeons" and g.steps then
+                for _, st in ipairs(g.steps) do
+                    if st.zone and I.IsInstanceMap(st.zone) then
+                        NS.Router.StepWorld(st)
+                        return true, ("%s -> %s"):format(U.MapName(st.zone), st._locSource == "entrance" and "entrance" or ("no door learned yet (" .. tostring(st._locSource) .. ")"))
+                    end
+                end
+            end
+        end
+        return true, "no parsed dungeon guide with an instance step yet"
+    end)
+
     chk("core", "guides registered", function() return #NS.Guide.list > 0, #NS.Guide.list end)
     chk("core", "guide loaded + routed", function()
         return P.current ~= nil, P.guide and (P.guide.id .. " -> " .. P.current.action .. " " .. P.current.title) or "none"

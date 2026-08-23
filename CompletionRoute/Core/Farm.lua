@@ -488,6 +488,69 @@ function F.ImportText(text)
 end
 
 -- ---------------------------------------------------------------------------
+-- In-client self test: prove the circuit engine on a live client without walking anywhere
+-- ---------------------------------------------------------------------------
+-- Builds a throwaway ring of waypoints ON the player (so every one is inside its own radius),
+-- loads it, and watches the engine drive itself: waypoints must tick with nothing clicked, the lap
+-- counter must roll over instead of the guide "finishing", and a waypoint must always be current.
+-- Results land in CompletionRouteDB.farmSelfTest for the offline collector. The previous guide is
+-- restored at the end.
+function F.SelfTest(done)
+    local map, x, y = U.PlayerPos()
+    if not (map and x) then if done then done() end return nil, "no player position" end
+    local id = "CR_Farm_SelfTest"
+    local lines = {}
+    for i = 1, 6 do
+        lines[#lines + 1] = ("G Self test %d|M|%.2f,%.2f|Z|%d; %s|RAD|200|N|Engine self test - no walking required.|")
+            :format(i, x * 100, y * 100, map, U.MapName(map))
+    end
+    local prev = NS.Progress.guide and NS.Progress.guide.id
+    if G.registry[id] then G.registry[id].text, G.registry[id].steps = table.concat(lines, "\n"), nil
+    else G.Register({ id = id, name = "Circuit self test", type = "Gold", loop = true, zone = U.MapName(map),
+                      source = "CompletionRoute", text = table.concat(lines, "\n"), farm = { map = map, nodes = 6 } }) end
+    NS.db.char.laps = NS.db.char.laps or {}
+    NS.db.char.laps[id] = 0
+    NS.Progress.Reset()
+    local res = { at = date("%Y-%m-%d %H:%M:%S"), flavor = NS.flavor, zone = U.MapName(map), checks = {} }
+    local function chk(name, pass, detail)
+        res.checks[#res.checks + 1] = { name = name, pass = pass and true or false, detail = tostring(detail or "") }
+        NS:Print(("%s [circuit self test] %s%s"):format(pass and "|cff00ff00PASS|r" or "|cffff4040FAIL|r", name,
+            detail and ("  - " .. tostring(detail)) or ""))
+    end
+    NS.Progress.Load(id)
+    chk("circuit loads with a current waypoint", NS.Progress.current ~= nil,
+        NS.Progress.current and NS.Progress.current.title)
+    chk("all steps are waypoints", (function()
+        for _, st in ipairs(NS.Progress.steps or {}) do if st.action ~= "G" then return false end end
+        return true
+    end)(), (#(NS.Progress.steps or {})) .. " waypoints")
+    local ticks, startLap = 0, NS.Progress.Lap(id)
+    local function tick()
+        ticks = ticks + 1
+        NS.Progress.Refresh()
+        local laps = NS.Progress.Lap(id)
+        if laps >= startLap + 2 or ticks > 40 then
+            chk("laps roll over instead of finishing", laps >= startLap + 2, ("%d laps in %d refreshes"):format(laps - startLap, ticks))
+            chk("a waypoint is always current", NS.Progress.current ~= nil,
+                NS.Progress.current and NS.Progress.current.title or "none - the ring emptied itself")
+            local st = F.Stats(id)
+            chk("lap value recorded", st ~= nil, st and ("%d laps, %s per lap"):format(st.laps, U.FmtMoney(st.avgValue)) or "no stats")
+            local pass, fail = 0, 0
+            for _, c in ipairs(res.checks) do if c.pass then pass = pass + 1 else fail = fail + 1 end end
+            res.passed, res.failed = pass, fail
+            CompletionRouteDB.farmSelfTest = res
+            NS:Print(("circuit self test: %d passed, %d failed - saved to CompletionRouteDB.farmSelfTest"):format(pass, fail))
+            if prev and G.registry[prev] then NS.Progress.Load(prev) end
+            if done then done() end
+            return
+        end
+        NS:After(0.4, tick)
+    end
+    NS:After(0.5, tick)
+    return res
+end
+
+-- ---------------------------------------------------------------------------
 -- Wiring
 -- ---------------------------------------------------------------------------
 NS:RegisterEvent("LOOT_OPENED", function() pcall(F.OnLoot) end)
