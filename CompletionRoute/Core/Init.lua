@@ -34,6 +34,12 @@ NS.defaults = {
         accountWide = false,     -- legacy mirror of scope ~= "char"; kept so old saved variables still read
         scope = "char",          -- "char" | "realm" | "flavor" | "account" (see Core/Account.lua)
         accountQuests = true,    -- when accountWide is on, also union by quest ID across guides
+        farm = { record = true,          -- remember every world-object node you loot (account-wide)
+                 recordUnknown = false,  -- also remember loots whose source the client will not name
+                 autoImport = true,      -- pull GatherMate2 / Routes data at login if those addons are present
+                 radius = 40,            -- yards: how close counts as "reached this waypoint"
+                 seeds = true,           -- register the shipped coarse circuits (Data/Farm_routes.lua)
+                 circuitizeGold = true }, -- fold imported gold guides into a loop instead of a click-through list
         autoAccept = false, autoTurnin = false, autoAdvance = true, minimapButton = true, debug = false,
     },
     char = {
@@ -43,6 +49,7 @@ NS.defaults = {
         skipped = {},         -- [guideid] = { [stepindex] = true }
         knownTaxi = {},       -- [taxiNodeID] = true (learned flight masters)
         bind = nil,           -- { map=, x=, y=, name= } learned hearth location
+        laps = {},            -- [guideid] = laps walked on this character
     },
 }
 
