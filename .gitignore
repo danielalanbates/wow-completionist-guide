@@ -15,3 +15,6 @@ CREDENTIALS*
 CompletionRoute/Guides/Imported_*.lua
 tools/__pycache__/
 __pycache__/
+
+# generated Blizzard quest POI dumps (regenerate: tools/gen_quest_guides_retail.py)
+tools/db2/retail/QuestPOI*.csv

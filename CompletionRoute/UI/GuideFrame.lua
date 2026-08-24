@@ -104,7 +104,7 @@ card:SetScript("OnEnter", function(self)
     if not self.step then return end
     local s = self.step
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-    GameTooltip:SetText((G.ACTION_LABEL[s.action] or s.action) .. ": " .. s.title, 1, 0.82, 0, 1, true)
+    GameTooltip:SetText((G.ACTION_LABEL[s.action] or s.action) .. ": " .. G.StepTitle(s), 1, 0.82, 0, 1, true)
     if s.note then GameTooltip:AddLine(s.note, 1, 1, 1, true) end
     if s.qid then GameTooltip:AddLine("Quest ID: " .. table.concat(s.qid, ", "), 0.6, 0.6, 0.6) end
     if s.zone then GameTooltip:AddLine("Zone: " .. U.MapName(s.zone) .. (s.coords and (" " .. string.format("%.1f, %.1f", s.coords[1].x * 100, s.coords[1].y * 100)) or ""), 0.6, 0.6, 0.6) end
@@ -194,7 +194,7 @@ function GF.Update()
         local fu, req = U.QuestObjective(s.qid[1], tonumber(s.qo) or 1)
         if req and req > 0 then extra = (" |cffaaaaaa(%d/%d)|r"):format(fu, req) end
     end
-    card.title:SetText(("|cffffd200%s|r  %s%s"):format(label, s.title, extra))
+    card.title:SetText(("|cffffd200%s|r  %s%s"):format(label, G.StepTitle(s), extra))
     card.title:SetTextColor(stepColor(s))
     local note = s.note or ""
     if s.optional then note = "|cff888888(optional)|r " .. note end
@@ -283,7 +283,7 @@ dTrack:SetPoint("LEFT", dSkip, "RIGHT", 4, 0)
 function GF.ShowDetail(step)
     if not step then return end
     detail.step = step
-    dTitle:SetText(("|cffffd200%s|r: %s"):format(G.ACTION_LABEL[step.action] or step.action, step.title))
+    dTitle:SetText(("|cffffd200%s|r: %s"):format(G.ACTION_LABEL[step.action] or step.action, G.StepTitle(step)))
     local lines = {}
     if step.note and step.note ~= "" then lines[#lines + 1] = step.note end
     if step.target then lines[#lines + 1] = "|cff7ddf8fWho / what:|r " .. tostring(step.target) end
