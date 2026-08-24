@@ -25,7 +25,7 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
     "Data/Farm_routes.lua", "Core/Instances.lua", "Adapters/Zygor.lua", "Adapters/WoWPro.lua",
     "Guides/Imported_Zygor.lua", "Guides/Imported_WoWPro.lua",
     "Guides/Imported_Quests_era.lua", "Guides/Imported_Quests_tbc.lua", "Guides/Imported_Quests_wotlk.lua",
-    "Guides/Imported_Quests_cata.lua", "Guides/Imported_Quests_mop.lua" }) do load(f) end
+    "Guides/Imported_Quests_cata.lua", "Guides/Imported_Quests_mop.lua", "Guides/Imported_Quests_retail.lua" }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
 pcall(NS.Adapters.Zygor.ImportStatic)

@@ -124,6 +124,24 @@ function G.ParseLine(text, lineno, defaultZone)
     return step
 end
 
+-- Generated quest guides (tools/gen_quest_guides_retail.py) cannot know quest names: Blizzard keeps
+-- quest text on the server, so the client data only gives ids and coordinates.  The title is written
+-- as "Quest 12345" and swapped for the real one the moment the client can answer for that id.
+function G.StepTitle(step)
+    if not step then return "" end
+    local t = step.title or ""
+    local qid = t:match("^Quest (%d+)")
+    if qid and step.qid then
+        local live = U.QuestTitle(tonumber(qid))
+        if live then
+            local suffix = t:match("^Quest %d+(.*)$") or ""
+            step.title = live .. suffix          -- cache it: the client answers the same way next time
+            return step.title
+        end
+    end
+    return t
+end
+
 -- Imported sources spell their categories differently (Zygor "GOLD", WoW-Pro "Professions",
 -- our own "Profession"): fold them so the guide menu has one row per category, not three.
 local TYPE_CANON = { gold = "Gold", leveling = "Leveling", quests = "Quests", dungeon = "Dungeons", dungeons = "Dungeons",
