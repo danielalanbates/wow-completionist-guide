@@ -49,9 +49,18 @@ def shards(pattern):
 for flavor, files in sorted(shards("vplayer_*.tsv").items()):
     guide_files = [f for f in files if not f.endswith("_stalls.tsv")]
     stall_files = [f for f in files if f.endswith("_stalls.tsv")]
-    rows = []
+    rows, truncated = [], 0
     for f in guide_files:
-        rows += list(csv.DictReader(open(f, encoding="utf-8"), delimiter="\t"))
+        for r in csv.DictReader(open(f, encoding="utf-8"), delimiter="\t"):
+            # a shard read while it is still running ends in a half-written line; drop it rather
+            # than lose the whole file
+            if any(r.get(k) is None for k in ("steps", "simulated", "auto", "manual", "stalls",
+                                              "forced", "laps", "yards", "seconds", "no_route", "finished")):
+                truncated += 1
+                continue
+            rows.append(r)
+    if truncated:
+        print(f"{flavor}: skipped {truncated} incomplete row(s) (shard still running?)")
     if not rows:
         continue
     con.execute("DELETE FROM vplayer_guides WHERE flavor=?", (flavor,))

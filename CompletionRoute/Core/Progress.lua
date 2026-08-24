@@ -250,6 +250,13 @@ end
 
 function P.Refresh(force)
     if not P.guide then return end
+    -- Pending's cursor assumes a step never un-completes without one of the paths below clearing it.
+    -- Changing the completion scope (Options: character/realm/flavor/account) can un-complete steps
+    -- anywhere in the guide, so notice that here rather than trust every caller to remember.
+    local scope, acc = NS.db.profile.scope, NS.db.profile.accountWide
+    if P.scopeSeen ~= scope or P.accSeen ~= acc then
+        P.scopeSeen, P.accSeen, P.cursor = scope, acc, nil
+    end
     -- 1) auto-complete anything already satisfied (scan a window ahead so obsolete steps vanish)
     local changed, passes, wp = false, 0, 0
     repeat
