@@ -23,11 +23,37 @@ smart arrow — while the guide content is community-driven and open.
 | Only uses flight paths you have learned | ✅ learned when you open any flight map (`TAXIMAP_OPENED`), stored per character |
 | Optimal quest routing for the chosen guide | ✅ `Routing/StepOrder.lua` — precedence-constrained reordering of the next N steps (accept → complete → turn-in kept, anchors like *run to zone* respected) |
 | Guide library | ✅ native guides in `Guides/` (WoW-Pro line syntax, CC BY-SA) + **runtime adapters** that read your installed **WoW-Pro** guides and **Zygor** guides (interop only, nothing copied) |
+| Every quest in the game, covered | ✅ generated zone guides: Classic flavors from a local **Questie** checkout, **retail from Blizzard's own quest POI client data** (`tools/gen_quest_guides_retail.py` — 379 zone guides, 17,161 quests, 56,843 steps). No Zygor required.
 | Gold guides | ✅ **circuits, not click-throughs**: `G` waypoints that complete by proximity, endless laps, shortest-loop solver (`Routing/Loop.lua`), node recorder + GatherMate2/Routes import, measured gold/hour. 178/204 imported gold guides come out as walkable rings — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
 | Dungeon guides | ✅ steps inside an instance route to the **entrance** (learned door + retail encounter journal), `Core/Instances.lua` |
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
 
 Not yet: profession guide engine (craft/vendor steps have no location by nature), talent advisor, gear finder, model viewer, guide editor UI, retail-specific hearth toys, indoor/dungeon-aware walking, per-zone "wall" data.
+
+## Where the guides come from
+
+The routing engine is the product; the guide content is deliberately **community-driven and
+regenerable**, so nothing here depends on a subscription staying alive:
+
+| Source | Flavors | How |
+|---|---|---|
+| Blizzard quest POI client data (wago.tools `QuestPOIBlob`/`QuestPOIPoint`) | retail | `tools/gen_quest_guides_retail.py` — every quest that has a map pin, grouped per zone |
+| **Questie** database (local checkout) | era, tbc, wotlk, cata, mop | `tools/gen_quest_guides.lua` |
+| **WoW-Pro** guides installed on your machine | all | `Adapters/WoWPro.lua` (runtime interop) |
+| **Zygor** guides installed on your machine | all | `Adapters/Zygor.lua` (runtime interop, **optional** — nothing is copied or redistributed) |
+| Hand-authored native guides | all | `Guides/` |
+
+Generated guide files are gitignored: the *generators* ship, the third-party-derived data does not.
+
+## Verification — no characters required
+
+`tools/vplayer.lua` runs the real addon against a mutable fake world and **plays every guide to
+completion**: it walks to each step through the real router, performs the step's action against the
+world, and lets `Progress.Refresh()` auto-advance exactly as it does in the client. Every guide,
+every flavor, in minutes, with no subscription and no server — see [docs/VPLAYER.md](docs/VPLAYER.md).
+Why a private server is *not* the answer: [docs/LOCAL_SERVER.md](docs/LOCAL_SERVER.md).
+In-game runs (the real API, the real frames) are driven by `tools/run_flavor_verify.py` and charted in
+`docs/verification.sqlite`.
 
 ## Install
 
@@ -74,8 +100,20 @@ archive/              dead ends kept for reference
 
 ```
 luajit tools/test_offline.lua        # parser + Dijkstra + optimizer smoke test with a stubbed WoW API
+luajit tools/test_load_all.lua       # every TOC's file list loads clean on all four flavors
+luajit tools/vplayer.lua retail --shard 1/4    # play every guide; python3 tools/collect_vplayer.py
+luajit tools/route_sweep.lua era     # route every guide from its own zone
+python3 tools/gen_quest_guides_retail.py       # regenerate the retail quest guides from client data
 python3 tools/gen_taxi.py tbc 2.5.6.69110 era 1.15.9.69109 mop 5.5.4.69155 retail 12.1.0.69382
 ```
 
 ## License
-Code MIT · Guides CC BY-SA 4.0 · see [LICENSE](LICENSE). Not affiliated with Blizzard, Zygor or WoW-Pro.
+
+Copyright (c) 2026 Daniel Bates / Bates LLC. **All rights reserved.**
+
+Licensed under the **PolyForm Noncommercial License 1.0.0** with a commercial-use rider: noncommercial
+use is free; any commercial use requires a separate licence from Bates LLC, standard terms being a
+royalty of **10% of gross revenue** attributable to the product incorporating this software. See
+[LICENSE](LICENSE). Ask for a commercial licence at **help@batesai.org** · <https://batesai.org>.
+
+Not affiliated with Blizzard, Zygor or WoW-Pro. Third-party guide data is never redistributed here.
