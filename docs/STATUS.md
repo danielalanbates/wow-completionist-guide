@@ -1,3 +1,80 @@
+# Status / handoff (2026-08-24)
+
+## The question that reframed the session
+Daniel asked whether we could "download a personal copy of World of Warcraft" and test against it,
+rather than run characters through every route. Answer, written up in **docs/LOCAL_SERVER.md**: the
+open-source cores (AzerothCore / TrinityCore / CMaNGOS) only speak legacy builds and the four clients
+here are modern ones, so a private server needs either an unlicensed legacy client or a patched-out
+connection check. Neither happens in this repo. What *does* solve the efficiency problem is a virtual
+player, and what still needs a real client stays possible for free on retail (Starter Edition, level
+20) after the subscription lapses. **Era / TBC Anniversary / MoP Classic go dark with the sub — their
+last in-game pass is the only hard deadline this project has.**
+
+## Retail finally has community quest guides (it had none)
+Offline — that is, with Zygor uninstalled, which is what happens when the sub ends — retail carried
+**910 guides: 797 baked from Zygor (proprietary) and 113 WoW-Pro. Zero community quest guides.**
+Questie's database stops at MoP, so "every quest, community-driven" was true on the classic flavors
+and false on the one flavor that has to outlive the subscription.
+
+Blizzard's own client data carries the quest map pins. `tools/gen_quest_guides_retail.py` folds
+wago.tools **QuestPOIBlob** (quest → uiMap + objective index) and **QuestPOIPoint** (world coordinates)
+into one "&lt;Zone&gt; Quests" guide per zone:
+
+* **379 zone guides, 17,161 quests, 56,843 steps** — retail goes 910 → 1,289 guides.
+* `tools/questie_quest_index.lua` merges Questie's community data on top: **5,965 quests get their real
+  name plus `|FACTION|` / `|C|` / `|LVL|` gating**, and **4,995 accept steps get the real quest giver**.
+* The rest keep a "Quest &lt;id&gt;" title that `Core/Guide.lua StepTitle` swaps for the live name the
+  moment `C_QuestLog` can answer, and an accept pin taken from the turn-in — whose note says so.
+
+**A claim I had to correct mid-session:** the generator first assumed the quest giver and the turn-in
+are the same NPC. Measured against WoW-Pro, which authors both by hand: over 4,851 quests carrying
+both coordinates, the giver is within 50 yd of the ender only **58.6%** of the time (p75 633 yd, p90
+1,628 yd). For ~40% of quests that assumption pointed the arrow at the wrong end of the zone — the
+exact failure this addon exists to avoid. Hence the Questie giver spawns.
+
+Known limitation, stated plainly: Legion and later have no community database, so those zones still
+list both factions' quests and you skip what you cannot take.
+
+## The virtual player (docs/VPLAYER.md)
+`tools/vplayer.lua` runs the **real** addon against a mutable fake world and plays every guide to
+completion — walk to the step through the real router, perform its action against the world, let
+`Progress.Refresh()` auto-advance exactly as in the client. No character, no server, no subscription.
+
+Three things it found on its first outings:
+
+1. **~50 false bugs from my own classifier.** A `C Kill Kresh` with neither `|QID|` nor `|L|`, an `R`
+   with no coords, an accept with no `|QID|` can *never* auto-complete — in game you press the forward
+   arrow, exactly as in Zygor. `autoable()` now asks what data a step carries, so **manual** and
+   **stall** mean different things and a stall is a real defect.
+2. **`Progress.Pending` was quadratic.** It re-walked the whole completed prefix, and `Refresh` calls
+   it up to 25 times per pass; on an 1,800-step retail zone guide that is a client-side hitch, not
+   just a harness cost. A cursor now skips the leading run of *done* steps (inapplicable-now steps
+   must stay in front of it) and every path that un-completes a step clears it — including a
+   completion-scope change, which is the one that does not go through Undo/Reset/NewLap.
+   Suramar's 1,206-step guide: over the old 20 s cap → **13 s, 992 steps, 100% auto, 0 stalls**.
+3. **Level-gated steps were being skipped silently** — a guide looked "finished" while its `|LVL|`
+   steps had never been applicable. `levelGateBump()` raises the level to the lowest gate still
+   holding a step back.
+
+## In-game verification: NOT run this session, and why
+A live FFXI client (`horizon-loader.exe` on play.horizonxi.com, character Murn) plus a local
+LandSandBoat server owned the display for the whole slot — load average peaked at 46-52 on 8 cores.
+Launching WoW would have taken the screen out from under a live session. Nothing in this entry is
+claimed as in-game verified; the circuits work from 2026-08-22 is **still** unverified in game.
+
+To make that a single hands-free command when the screen is free:
+`python3 tools/run_all_flavors.py --minutes=30 --collect` — it sets the launcher's GAME VERSION itself
+(`--version-click`), runs Era → TBC Anniversary → MoP → retail (deadline order), and refuses to start
+or continue while a wine/FFXI window or game process is alive.
+
+## Working-copy traps worth remembering
+* **iCloud eviction makes git unusable in this checkout.** `docs/screenshots` holds 655 dataless
+  placeholder PNGs, so any `git status`/`git log` stat-walk hangs for minutes pulling them down. Do git
+  work in a separate local clone and copy changed files in. Same for the harnesses: running them from
+  iCloud cost ~4x in wall time (25% CPU, the rest waiting on writes).
+* Licence: this branch predated the 2026-08-22 sweep and still carried MIT. LICENSE and all four TOC
+  headers now match master — PolyForm Noncommercial 1.0.0 + 10% commercial rider, help@batesai.org.
+
 # Status / handoff (2026-08-22)
 
 ## Gold guides became routes (the ask: "no clicking through steps — a route they always follow")
