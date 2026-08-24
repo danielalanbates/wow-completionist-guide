@@ -2,6 +2,7 @@
 """Generate CompletionRoute/Guides/Imported_Quests_retail.lua — every retail quest that has a map POI,
 grouped into one "<Zone> Quests" guide per zone, with real coordinates.
 
+    luajit  tools/questie_quest_index.lua "<questie_dir>"   # optional but recommended: names + faction
     python3 tools/gen_quest_guides_retail.py [build]        # default: newest wow build on wago.tools
 
 Why this exists
@@ -19,10 +20,13 @@ What the data does and does not give
   accept step points at the ender — flagged in the step note, and better than no location at all.
 * ObjectiveIndex 0..31 = one objective area each; the centroid of its points becomes a C step.
 * ObjectiveIndex 32   = the client's "next waypoint" hint, not an objective; skipped.
-* Quest NAMES are not in client data (the server sends them).  Steps are written as "Quest <id>" and
-  Core/Guide.lua swaps in the live title from C_QuestLog.GetTitleForQuestID once the client knows it.
-* Faction / level gating is not in this data either, so a zone guide lists both factions' quests; the
-  ones you cannot take stay in the list until the client says they are complete.
+* Quest NAMES are not in client data (the server sends them).  Where tools/db2/questie_index.tsv
+  exists (Questie's community database, see tools/questie_quest_index.lua) the real name, faction,
+  class and level requirement are merged in; everything newer than MoP keeps a "Quest <id>" title that
+  Core/Guide.lua swaps for the live one from C_QuestLog.GetTitleForQuestID.
+* Faction/class/level gating therefore covers the old world (Questie) but not the modern expansions:
+  in a Legion+ zone a guide still lists both factions' quests, and the ones you cannot take sit in the
+  list until you skip them.  That is the main known limitation of these guides.
 
 Output is gitignored (Blizzard game data, same as the other Imported_*.lua), the generator is not.
 """
@@ -32,6 +36,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "tools" / "db2" / "retail"
 OUT = ROOT / "CompletionRoute" / "Guides" / "Imported_Quests_retail.lua"
+QUESTIE_INDEX = ROOT / "tools" / "db2" / "questie_index.tsv"
 UA = "CompletionRoute-tools/1.0"
 
 
@@ -67,9 +72,22 @@ def load_maps():
     return maps
 
 
+def load_questie_index():
+    """qid -> (name, faction, classes, minlevel) from tools/questie_quest_index.lua; optional"""
+    if not QUESTIE_INDEX.exists():
+        print("no tools/db2/questie_index.tsv - guides will use placeholder names and no gating")
+        return {}
+    out = {}
+    for r in csv.DictReader(QUESTIE_INDEX.open(encoding="utf-8"), delimiter="\t"):
+        out[int(r["qid"])] = (r["name"], r["faction"], r["classes"], int(r["minlevel"] or 0))
+    print(f"questie index: {len(out)} quests")
+    return out
+
+
 def main():
     build = sys.argv[1] if len(sys.argv) > 1 else newest_build()
     print(f"build {build}")
+    qidx = load_questie_index()
     maps = load_maps()
     blobs = fetch("QuestPOIBlob", build)
     points = fetch("QuestPOIPoint", build)
@@ -134,6 +152,22 @@ def main():
         "local R = NS.Guide.Register",
     ]
     nguides = nsteps = 0
+    named = 0
+
+    def tags(qid):
+        """|FACTION| / |C| / |LVL| for a quest Questie knows about"""
+        e = qidx.get(qid)
+        if not e:
+            return "", f"Quest {qid}"
+        name, faction, classes, minlevel = e
+        t = ""
+        if faction in ("Alliance", "Horde"):
+            t += f"FACTION|{faction}|"
+        if classes:
+            t += f"C|{classes}|"
+        if minlevel > 1:
+            t += f"LVL|{minlevel}|"
+        return t, (name or f"Quest {qid}")
     for uimap in sorted(zones, key=lambda z: maps[z]["name"]):
         m = maps[uimap]
         qids = sorted(zones[uimap])
@@ -141,21 +175,24 @@ def main():
         for qid in qids:
             rec = quests[qid]
             anchor = rec["anchor"]
+            gate, title = tags(qid)
+            if qid in qidx:
+                named += 1
             if anchor:
                 amap, (ax, ay) = anchor
-                body.append(f"A Quest {qid}|QID|{qid}|M|{ax*100:.1f},{ay*100:.1f}{zline(amap)}"
+                body.append(f"A {title}|QID|{qid}|M|{ax*100:.1f},{ay*100:.1f}{zline(amap)}{gate}"
                             f"N|Pin from the quest's turn-in POI; the giver is usually the same NPC.|")
             else:
-                body.append(f"A Quest {qid}|QID|{qid}|N|No turn-in pin in client data.|")
+                body.append(f"A {title}|QID|{qid}|{gate}N|No turn-in pin in client data.|")
             for oi in sorted(rec["objectives"]):
                 omap, (ox, oy) = rec["objectives"][oi]
-                body.append(f"C Quest {qid} objective {oi+1}|QID|{qid}|QO|{oi+1}|"
-                            f"M|{ox*100:.1f},{oy*100:.1f}{zline(omap)}")
+                body.append(f"C {title}|QID|{qid}|QO|{oi+1}|"
+                            f"M|{ox*100:.1f},{oy*100:.1f}{zline(omap)}{gate}")
             if anchor:
                 amap, (ax, ay) = anchor
-                body.append(f"T Quest {qid}|QID|{qid}|M|{ax*100:.1f},{ay*100:.1f}{zline(amap)}")
+                body.append(f"T {title}|QID|{qid}|M|{ax*100:.1f},{ay*100:.1f}{zline(amap)}{gate}")
             else:
-                body.append(f"T Quest {qid}|QID|{qid}|")
+                body.append(f"T {title}|QID|{qid}|{gate}")
         if not body:
             continue
         nguides += 1
@@ -168,7 +205,8 @@ def main():
     lines.append("")
     OUT.write_text("\n".join(lines), encoding="utf-8")
     print(f"wrote {OUT.relative_to(ROOT)}: {nguides} zone guides, {nsteps} steps, "
-          f"{len(quests)} quests ({homeless} without a usable map, {off_map} pins off their map)")
+          f"{len(quests)} quests ({homeless} without a usable map, {off_map} pins off their map); "
+          f"{named} quests named + gated from Questie, {len(quests)-named} named live by the client")
 
 
 if __name__ == "__main__":
