@@ -55,6 +55,21 @@ Gold guides fold into farm circuits, which by design never end.  The virtual pla
 laps** and calls that a pass — enough to exercise `NewLap`, the lap wipe and `StartAtNearest` (the
 re-entry bug that made a closing lap eat itself is pinned by `tools/test_farm.lua` #5).
 
+## Per-guide time cap, and the recap pass
+
+Each guide gets `--guidecap` seconds (default 90) before the run gives up on it and writes
+`guide time cap` in the row's error column. That keeps one pathological guide from stalling a shard;
+it does **not** mean the guide is broken. The handful that hit it are simply the largest zone guides
+(Dalaran, Isle of Dorn), so finish the run and then replay just those with a bigger budget:
+
+```
+for g in $(sqlite3 docs/verification.sqlite "select guide from vplayer_guides where error='guide time cap'"); do
+  luajit tools/vplayer.lua retail --guide "$g" --guidecap 900 --out /tmp/recap_$RANDOM.tsv
+done
+```
+
+Progress is flushed every 25 guides, so a long shard is watchable in `tail -f`.
+
 ## What it does not cover
 
 It does not prove Blizzard's API still answers the way the addon assumes, and it does not draw a

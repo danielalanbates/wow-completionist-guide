@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """One deliberate verification launch of ONE WoW flavor, end to end, with no typing in the client.
 
-    python3 tools/run_flavor_verify.py _classic_era_ [--no-sweep] [--minutes 7]
+    python3 tools/run_flavor_verify.py _classic_era_ [--no-sweep] [--minutes 7] [--version-click]
 
 Refuses if any WoW client or a wine (FFXI) window is already up. Arms the SavedVariables
-(autoVerifyAll + autoSweep), presses Play in the Battle.net launcher (the launcher must already show
-the right GAME VERSION - it remembers the last one; change it by hand or with --version-click), waits
+(autoVerifyAll + autoSweep), presses Play in the Battle.net launcher (--version-click sets the
+GAME VERSION from the dropdown; without it the launcher keeps whatever was chosen last), waits
 for the client window, clicks Enter World on the selected character, screenshots the window every
 30 s into docs/screenshots/run_<flavor>_<secs>.png, dismisses the Blizzard "blocked action" popup
 if it appears, and after --minutes quits the client from outside (quit from inside is protected).
@@ -74,6 +74,17 @@ def main(argv):
       n, b = find("Battle.net", 800)
       if not n: print("no launcher window"); return 1
       if not front_is("Battle.net"): print("launcher not frontmost - not clicking"); return 1
+      if "--version-click" in argv:
+          # The launcher remembers the last GAME VERSION, so a run of all four flavors has to set it.
+          # Offsets are from the launcher window origin, measured on the 1440x788 window (see docs).
+          row = {"_classic_era_": 473, "_anniversary_": 505, "_classic_": 537, "_retail_": 584}.get(flavor)
+          if row is None:
+              print(f"--version-click: no dropdown row known for {flavor}"); return 1
+          click(b["X"] + 175, b["Y"] + 628); time.sleep(1.5)      # open GAME VERSION dropdown
+          shot(n, SHOTS / f"launcher_{flavor.strip('_')}_dropdown.png")
+          click(b["X"] + 140, b["Y"] + row); time.sleep(2.5)      # pick this flavor
+          shot(n, SHOTS / f"launcher_{flavor.strip('_')}_picked.png")
+          print(f"set GAME VERSION for {flavor} (row +{row})")
       click(b["X"] + 155, b["Y"] + 696); print("pressed Play")
       t0 = time.time(); win = None
       while time.time() - t0 < 480:
