@@ -4,6 +4,10 @@
 -- coordinates for.
 --
 --   luajit tools/questie_quest_index.lua "<questie_dir>" [out.tsv]
+-- Also emits the quest GIVER's zone + coordinates from Questie's NPC/object spawns.  That matters:
+-- measured over 4,851 WoW-Pro quests that carry both, the giver is within 50 yd of the turn-in only
+-- 58.6% of the time (p75 633 yd, p90 1,628 yd), so anchoring an accept step on the turn-in pin - all
+-- Blizzard's client data gives us - is materially wrong for ~40% of quests.
 --   questie_dir = the folder containing Database/ (an installed Questie addon is fine)
 --   default out: tools/db2/questie_index.tsv
 --
@@ -68,6 +72,30 @@ local function classTag(mask)
 end
 local function clean(s) return (tostring(s or ""):gsub("[|\r\n\t]", " "):gsub("%s+", " "):gsub("^%s+", ""):gsub("%s+$", "")) end
 
+-- areaId -> uiMapId + English zone name (from the table's trailing comments)
+local areaName = {}
+do
+    local zt = slurp(QUESTIE .. "/Database/Zones/data/areaIdToUiMapId.lua") or ""
+    for body in zt:gmatch("%[%[return {(.-)}%]%]") do
+        for aid, _uid, name in body:gmatch("%[(%d+)%]%s*=%s*(%d+),%s*%-%-%s*([^\r\n]+)") do
+            areaName[tonumber(aid)] = areaName[tonumber(aid)] or (name:gsub("%s+$", ""))
+        end
+    end
+end
+
+-- first mappable spawn of an NPC/object: Questie spawns are [areaId] = { {x, y}, ... }
+local function firstSpawn(spawns)
+    if type(spawns) ~= "table" then return nil end
+    for zid, list in pairs(spawns) do
+        local zname = areaName[zid]
+        if zname and type(list) == "table" then
+            for _, c in ipairs(list) do
+                if type(c) == "table" and (c[1] or 0) > 0 and (c[2] or 0) > 0 then return zname, c[1], c[2] end
+            end
+        end
+    end
+end
+
 local index, sources = {}, {}
 for _, spec in ipairs({ { "Classic", "classic" }, { "TBC", "tbc" }, { "Wotlk", "wotlk" }, { "Cata", "cata" }, { "MoP", "mop" } }) do
     local path = ("%s/Database/%s/%sQuestDB.lua"):format(QUESTIE, spec[1], spec[2])
@@ -80,14 +108,46 @@ for _, spec in ipairs({ { "Classic", "classic" }, { "TBC", "tbc" }, { "Wotlk", "
         local data = mod.questData
         if data then
             local quests = loadbig(data)
-            local n = 0
+            -- NPC / object spawns for this same flavor, so a quest giver can be located
+            local npcs, objects = {}, {}
+            for kind, tbl in pairs({ Npc = "npcData", Object = "objectData" }) do
+                local t = slurp(("%s/Database/%s/%s%sDB.lua"):format(QUESTIE, spec[1], spec[2], kind))
+                if t then
+                    local m2 = { private = {} }
+                    modules.QuestieDB = m2
+                    QuestieDB = m2
+                    loadchunk(t)
+                    if m2[tbl] then
+                        local loaded = loadbig(m2[tbl])
+                        if kind == "Npc" then npcs = loaded else objects = loaded end
+                    end
+                end
+            end
+            local n, located = 0, 0
             for qid, q in pairs(quests) do
+                -- Questie npc row: [7] = spawns; object row: [4] = spawns
+                local zname, sx, sy
+                local started = q[2]
+                if type(started) == "table" then
+                    for _, id in ipairs(started[1] or {}) do
+                        local npc = npcs[id]
+                        if npc then zname, sx, sy = firstSpawn(npc[7]) if zname then break end end
+                    end
+                    if not zname then
+                        for _, id in ipairs(started[2] or {}) do
+                            local o = objects[id]
+                            if o then zname, sx, sy = firstSpawn(o[4]) if zname then break end end
+                        end
+                    end
+                end
+                if zname then located = located + 1 end
                 -- later expansions win: they carry the current name for a re-used id
                 index[qid] = { name = clean(q[1]), faction = factionOf(q[6]), classes = classTag(q[7]),
-                               minlevel = tonumber(q[4]) or 0 }
+                               minlevel = tonumber(q[4]) or 0,
+                               zone = zname or "", x = sx or 0, y = sy or 0 }
                 n = n + 1
             end
-            sources[#sources + 1] = ("%s=%d"):format(spec[2], n)
+            sources[#sources + 1] = ("%s=%d(%d located)"):format(spec[2], n, located)
         end
     end
 end
@@ -97,10 +157,11 @@ local ids = {}
 for qid in pairs(index) do ids[#ids + 1] = qid end
 table.sort(ids)
 local f = assert(io.open(OUT, "w"))
-f:write("qid\tname\tfaction\tclasses\tminlevel\n")
+f:write("qid\tname\tfaction\tclasses\tminlevel\tgiver_zone\tgiver_x\tgiver_y\n")
 for _, qid in ipairs(ids) do
     local e = index[qid]
-    f:write(("%d\t%s\t%s\t%s\t%d\n"):format(qid, e.name, e.faction, e.classes, e.minlevel))
+    f:write(("%d\t%s\t%s\t%s\t%d\t%s\t%.2f\t%.2f\n"):format(qid, e.name, e.faction, e.classes, e.minlevel,
+        e.zone or "", e.x or 0, e.y or 0))
 end
 f:close()
 io.stderr:write(("wrote %s: %d quests (%s)\n"):format(OUT, #ids, table.concat(sources, " ")))

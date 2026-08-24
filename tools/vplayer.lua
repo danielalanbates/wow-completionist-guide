@@ -352,7 +352,7 @@ for gi, id in ipairs(G.list) do
                 out:write(table.concat({ NS.flavor, id, (g.name or ""):gsub("\t", " "), G.NormalizeType(g.type), g.faction or "Both",
                     tostring(g.zone or ""), zname, row.steps, row.sim, row.auto, row.manual, row.stalls, row.forced, row.laps,
                     ("%.0f"):format(row.yards), ("%.0f"):format(row.seconds), row.noroute, row.finished, topReason, row.err }, "\t") .. "\n")
-                if verbose or n % 100 == 0 then
+                if verbose or n % 25 == 0 then
                     io.stderr:write(("%d guides %.0fs  finished=%d stalled=%d err=%d  last=%s\n"):format(n, os.clock() - t0, finished, stalled, errored, id))
                     out:flush() stallOut:flush()
                 end

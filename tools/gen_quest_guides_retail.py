@@ -15,9 +15,11 @@ locations, which is what the router actually needs.
 
 What the data does and does not give
 ------------------------------------
-* ObjectiveIndex -1  = the single "turn in here" pin.  Used for BOTH the accept and the turn-in step:
-  for the large majority of quests the giver and the ender are the same NPC.  Where they are not, the
-  accept step points at the ender — flagged in the step note, and better than no location at all.
+* ObjectiveIndex -1  = the single "turn in here" pin.  It is the TURN-IN, and it is only a good guess
+  for the quest giver: measured over 4,851 WoW-Pro quests carrying both, the giver sits within 50 yd
+  of the ender just 58.6% of the time (p75 633 yd, p90 1,628 yd).  So the accept step prefers the real
+  giver spawn from tools/db2/questie_index.tsv where Questie knows it, and only falls back to the
+  turn-in pin otherwise — the step note says which of the two it is.
 * ObjectiveIndex 0..31 = one objective area each; the centroid of its points becomes a C step.
 * ObjectiveIndex 32   = the client's "next waypoint" hint, not an objective; skipped.
 * Quest NAMES are not in client data (the server sends them).  Where tools/db2/questie_index.tsv
@@ -79,7 +81,9 @@ def load_questie_index():
         return {}
     out = {}
     for r in csv.DictReader(QUESTIE_INDEX.open(encoding="utf-8"), delimiter="\t"):
-        out[int(r["qid"])] = (r["name"], r["faction"], r["classes"], int(r["minlevel"] or 0))
+        out[int(r["qid"])] = dict(name=r["name"], faction=r["faction"], classes=r["classes"],
+                                  minlevel=int(r["minlevel"] or 0), zone=r.get("giver_zone", ""),
+                                  x=float(r.get("giver_x") or 0), y=float(r.get("giver_y") or 0))
     print(f"questie index: {len(out)} quests")
     return out
 
@@ -152,22 +156,39 @@ def main():
         "local R = NS.Guide.Register",
     ]
     nguides = nsteps = 0
-    named = 0
+    named = givers = 0
+
+    # zone name -> the canonical retail uiMapID (lowest id among zone-type maps, as the addon does)
+    byname = {}
+    for mid, m in sorted(maps.items()):
+        key = m["name"]
+        prev = byname.get(key)
+        if prev is None or (m["type"] == 3 and maps[prev]["type"] != 3):
+            byname[key] = mid
 
     def tags(qid):
         """|FACTION| / |C| / |LVL| for a quest Questie knows about"""
         e = qidx.get(qid)
         if not e:
             return "", f"Quest {qid}"
-        name, faction, classes, minlevel = e
         t = ""
-        if faction in ("Alliance", "Horde"):
-            t += f"FACTION|{faction}|"
-        if classes:
-            t += f"C|{classes}|"
-        if minlevel > 1:
-            t += f"LVL|{minlevel}|"
-        return t, (name or f"Quest {qid}")
+        if e["faction"] in ("Alliance", "Horde"):
+            t += f"FACTION|{e['faction']}|"
+        if e["classes"]:
+            t += f"C|{e['classes']}|"
+        if e["minlevel"] > 1:
+            t += f"LVL|{e['minlevel']}|"
+        return t, (e["name"] or f"Quest {qid}")
+
+    def giver(qid):
+        """(uiMapID, x01, y01) of the real quest giver, when Questie has a spawn for it"""
+        e = qidx.get(qid)
+        if not e or not e["zone"] or e["x"] <= 0:
+            return None
+        mid = byname.get(e["zone"])
+        if mid is None:
+            return None
+        return mid, e["x"] / 100.0, e["y"] / 100.0
     for uimap in sorted(zones, key=lambda z: maps[z]["name"]):
         m = maps[uimap]
         qids = sorted(zones[uimap])
@@ -178,10 +199,16 @@ def main():
             gate, title = tags(qid)
             if qid in qidx:
                 named += 1
-            if anchor:
+            g = giver(qid)
+            if g:
+                gmap, gx, gy = g
+                givers += 1
+                body.append(f"A {title}|QID|{qid}|M|{gx*100:.1f},{gy*100:.1f}{zline(gmap)}{gate}"
+                            f"N|Quest giver location (Questie).|")
+            elif anchor:
                 amap, (ax, ay) = anchor
                 body.append(f"A {title}|QID|{qid}|M|{ax*100:.1f},{ay*100:.1f}{zline(amap)}{gate}"
-                            f"N|Pin from the quest's turn-in POI; the giver is usually the same NPC.|")
+                            f"N|Approximate: this is the turn-in pin, the giver may be elsewhere.|")
             else:
                 body.append(f"A {title}|QID|{qid}|{gate}N|No turn-in pin in client data.|")
             for oi in sorted(rec["objectives"]):
@@ -206,7 +233,8 @@ def main():
     OUT.write_text("\n".join(lines), encoding="utf-8")
     print(f"wrote {OUT.relative_to(ROOT)}: {nguides} zone guides, {nsteps} steps, "
           f"{len(quests)} quests ({homeless} without a usable map, {off_map} pins off their map); "
-          f"{named} quests named + gated from Questie, {len(quests)-named} named live by the client")
+          f"{named} quests named + gated from Questie, {len(quests)-named} named live by the client; "
+          f"{givers} accept steps on the real quest giver, {len(quests)-givers} on the turn-in pin")
 
 
 if __name__ == "__main__":
