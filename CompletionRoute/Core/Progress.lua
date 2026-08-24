@@ -57,6 +57,7 @@ function P.Load(id)
     end
     NS.db.char.guide = id
     dirty = true
+    P.cursor = nil
     NS:Print("Guide: " .. (g.name or g.id) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")")
     P.Refresh()
     if g.loop then
@@ -107,6 +108,7 @@ function P.Undo()
     end
     if not best then return end
     charReopened()[best] = true
+    P.cursor = nil
     d[best] = nil s[best] = nil
     if NS.Account and NS.Account.me and P.guide then
         local ad, as = NS.Account.Done(P.guide.id), NS.Account.Skipped(P.guide.id)
@@ -128,6 +130,7 @@ function P.Reset()
     NS.db.char.skipped[P.guide.id] = {}
     if NS.db.char.reopened then NS.db.char.reopened[P.guide.id] = {} end
     dirty = true
+    P.cursor = nil
     P.Refresh()
 end
 
@@ -224,10 +227,19 @@ end
 -- Ordering / current step
 -- ---------------------------------------------------------------------------
 -- pending = applicable, not done steps in guide order
+-- The leading run of finished steps is skipped with a cursor.  Refresh calls this up to 25 times per
+-- pass, and a retail zone guide is ~1,800 steps: without the cursor every call re-walks the whole
+-- completed prefix, which is quadratic in the guide and hitches the client late in a long guide.
+-- Only DONE steps advance the cursor - a step can be inapplicable now (level gate, PRE quest) and
+-- applicable later, so those must stay in front of it.  Anything that un-completes a step resets it.
 function P.Pending(limit)
     local out = {}
     if not P.steps then return out end
-    for _, s in ipairs(P.steps) do
+    local i = P.cursor or 1
+    while i <= #P.steps and P.IsDone(P.steps[i]) do i = i + 1 end
+    P.cursor = i
+    for k = i, #P.steps do
+        local s = P.steps[k]
         if not P.IsDone(s) and Cond.StepApplies(s) then
             out[#out + 1] = s
             if limit and #out >= limit then break end
@@ -313,6 +325,7 @@ function P.NewLap()
     NS.db.char.skipped[id] = {}
     if NS.db.char.reopened then NS.db.char.reopened[id] = {} end
     dirty = true
+    P.cursor = nil
     NS:Fire("LAP_COMPLETE", P.guide, NS.db.char.laps[id])
     P.Refresh()
     P.StartAtNearest()
@@ -340,6 +353,7 @@ function P.StartAtNearest()
     local done = charDone()
     for i = 1, #P.steps do done[P.steps[i].index] = (i < best) or nil end
     dirty = true
+    P.cursor = nil
     P.Refresh()
 end
 
