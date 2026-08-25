@@ -136,3 +136,40 @@ function NS.RunRouteSweep(zoneFilter, resume)
         end
     end)
 end
+
+-- ---------------------------------------------------------------------------
+-- Verification quit button
+-- ---------------------------------------------------------------------------
+-- SavedVariables are only written when the client exits or logs out, and there is no way to make
+-- that happen from outside: Quit()/Logout() are protected, WoW ignores synthetic KEY events
+-- (Cmd+Q never arrives), and `tell application ... to quit` answers "User canceled (-128)" while
+-- you are in the world.  A whole 22-minute TBC run recorded nothing because of this.
+--
+-- WoW does accept synthetic MOUSE clicks, and a SecureActionButtonTemplate running "/quit" is
+-- legal from a hardware click.  So an armed run gets a button pinned to the very top-left corner of
+-- the screen, big enough that a click at (10, 10) inside the client window lands on it at any UI
+-- scale.  It only exists while a verification run armed autoQuitAfter, so it never shows up in
+-- normal play.
+local function makeQuitButton()
+    if _G.CompletionRouteVerifyQuit then return end
+    local b = CreateFrame("Button", "CompletionRouteVerifyQuit", UIParent, "SecureActionButtonTemplate")
+    b:SetSize(120, 40)
+    b:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
+    b:SetFrameStrata("TOOLTIP")
+    b:SetFrameLevel(999)
+    b:SetAttribute("type", "macro")
+    b:SetAttribute("macrotext", "/quit")
+    b:RegisterForClicks("AnyUp", "AnyDown")
+    local tex = b:CreateTexture(nil, "BACKGROUND")
+    tex:SetAllPoints()
+    tex:SetColorTexture(0.6, 0, 0, 0.85)
+    local fs = b:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    fs:SetAllPoints()
+    fs:SetText("CR verify: QUIT")
+    NS:Print("verification quit button armed (top-left corner)")
+end
+NS:On("PLAYER_READY", function()
+    if CompletionRouteDB and tonumber(CompletionRouteDB.autoQuitAfter) then
+        NS:After(3, function() pcall(makeQuitButton) end)
+    end
+end)

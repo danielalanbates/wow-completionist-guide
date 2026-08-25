@@ -37,9 +37,18 @@ def front_is(sub):
     return sub in info
 
 def click(x, y):
-    for t in (Quartz.kCGEventMouseMoved, Quartz.kCGEventLeftMouseDown, Quartz.kCGEventLeftMouseUp):
-        Quartz.CGEventPost(Quartz.kCGHIDEventTap, Quartz.CGEventCreateMouseEvent(None, t, (x, y), Quartz.kCGMouseButtonLeft))
-        time.sleep(0.1)
+    # WoW ignores a click that arrives too soon after the pointer moves, and a 0.1 s press is often
+    # too short for it: Enter World silently did nothing until the move was given time to settle and
+    # the button held down longer. The launcher tolerates either, so both use the slow form.
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, Quartz.CGEventCreateMouseEvent(
+        None, Quartz.kCGEventMouseMoved, (x, y), Quartz.kCGMouseButtonLeft))
+    time.sleep(0.4)
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, Quartz.CGEventCreateMouseEvent(
+        None, Quartz.kCGEventLeftMouseDown, (x, y), Quartz.kCGMouseButtonLeft))
+    time.sleep(0.25)
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, Quartz.CGEventCreateMouseEvent(
+        None, Quartz.kCGEventLeftMouseUp, (x, y), Quartz.kCGMouseButtonLeft))
+    time.sleep(0.2)
 
 def shot(win, path):
     SHOTS.mkdir(parents=True, exist_ok=True)
@@ -51,7 +60,7 @@ def main(argv):
     for a in argv:
         if a.startswith("--minutes="): minutes = int(a.split("=")[1])
     attach = "--attach" in argv   # resume driving a client that is already in the world (driver restart)
-    if not attach and subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip():
+    if not attach and subprocess.run(["pgrep", "-f", "World of Warcraft Classic.app/Contents/MacOS"], capture_output=True).stdout.strip():
         print("a WoW client is already running - not launching another (one app per variety)"); return 2
     import Quartz as _Q
     if (_Q.CGSessionCopyCurrentDictionary() or {}).get("CGSSessionScreenIsLocked"):
@@ -71,7 +80,7 @@ def main(argv):
     arm.append(f"--quit-after={minutes * 60 - 30}")
     if not attach: subprocess.run(arm, check=False)
     if not attach:
-      subprocess.run(["open", "/Applications/Battle.net.app"]); time.sleep(6)
+      subprocess.run(["open", "-b", "net.battle.app"]); time.sleep(8)
       n, b = find("Battle.net", 800)
       if not n: print("no launcher window"); return 1
       if not front_is("Battle.net"): print("launcher not frontmost - not clicking"); return 1
@@ -106,7 +115,7 @@ def main(argv):
       time.sleep(45)   # character select
       shot(win, SHOTS / f"run_{flavor.strip('_')}_charselect.png")
       if not front_is("Wow"):   # another app (Notes...) may have taken focus while loading - raise the client once
-          subprocess.run(["osascript", "-e", 'tell application "World of Warcraft" to activate'], check=False); time.sleep(3)
+          subprocess.run(["open", "-b", "com.blizzard.worldofwarcraft"], check=False); time.sleep(3)
       if not front_is("Wow"): print("client not frontmost - not clicking Enter World"); return 1
       sx, sy = wb["Width"], wb["Height"]
       click(wb["X"] + sx * 0.498, wb["Y"] + sy * 0.918)   # Enter World
@@ -136,7 +145,7 @@ def main(argv):
             sv_m = max((p.stat().st_mtime for p in svs), default=0)   # arming rewrote the file - not a logout
             time.sleep(20)
             if not front_is("Wow"):
-                subprocess.run(["osascript", "-e", 'tell application "World of Warcraft" to activate'], check=False); time.sleep(3)
+                subprocess.run(["open", "-b", "com.blizzard.worldofwarcraft"], check=False); time.sleep(3)
             if front_is("Wow"):
                 shot(win, SHOTS / f"run_{flavor.strip('_')}_charselect_s{sessions}.png")
                 click(wb["X"] + wb["Width"] * 0.5, wb["Y"] + wb["Height"] * 0.897); print("clicked Enter World again")
@@ -147,27 +156,28 @@ def main(argv):
     if win and front_is("Wow"):
         click(wb["X"] + wb["Width"] * 0.5156, wb["Y"] + wb["Height"] * 0.24)
     time.sleep(1)
-    # SavedVariables are only written on a CLEAN exit. `tell application ... to quit` answers
-    # "User canceled (-128)" on the Classic clients and the process goes away WITHOUT flushing, so a
-    # whole 25-minute run records nothing (that happened to the TBC run on 2026-08-24). Raise the
-    # client and send a real Cmd+Q instead, then wait out WoW's logout timer.
+    # SavedVariables are only written when the client exits, and nothing outside the client can make
+    # that happen: Quit()/Logout() are protected, WoW ignores synthetic KEY events entirely (Cmd+Q
+    # never arrives) and `tell application ... to quit` answers "User canceled (-128)" in the world.
+    # WoW does accept synthetic MOUSE clicks, so Core/Sweep.lua pins a secure "/quit" macro button to
+    # the top-left corner for the duration of an armed run - click that.
     svs_before = max((p.stat().st_mtime for p in svs), default=0)
-    subprocess.run(["osascript", "-e", 'tell application "World of Warcraft Classic" to activate'], check=False)
-    subprocess.run(["osascript", "-e", 'tell application "World of Warcraft" to activate'], check=False)
-    time.sleep(2)
-    import Quartz as Q
-    ev_down = Q.CGEventCreateKeyboardEvent(None, 12, True)    # 12 = 'q'
-    Q.CGEventSetFlags(ev_down, Q.kCGEventFlagMaskCommand)
-    ev_up = Q.CGEventCreateKeyboardEvent(None, 12, False)
-    Q.CGEventSetFlags(ev_up, Q.kCGEventFlagMaskCommand)
-    Q.CGEventPost(Q.kCGHIDEventTap, ev_down); time.sleep(0.1); Q.CGEventPost(Q.kCGHIDEventTap, ev_up)
+    win, wb = find("Wow")
+    if win:
+        subprocess.run(["open", "-b", "com.blizzard.worldofwarcraft"], check=False)
+        time.sleep(3)
+        if front_is("Wow"):
+            click(wb["X"] + 10, wb["Y"] + 10)      # CompletionRouteVerifyQuit
+            print("clicked the verification quit button")
+        else:
+            print("client not frontmost - cannot click the quit button")
     t1 = time.time()
-    while time.time() - t1 < 180 and subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip():
+    while time.time() - t1 < 150 and subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip():
         time.sleep(3)
     still = subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip()
     svs_after = max((p.stat().st_mtime for p in svs), default=0)
     if still:
-        print("WARNING: client still running after Cmd+Q")
+        print("WARNING: client still running")
     if svs_after <= svs_before:
         print("WARNING: SavedVariables were NOT rewritten - this run recorded nothing")
     else:
