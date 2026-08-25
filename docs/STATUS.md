@@ -1,3 +1,77 @@
+# Status / handoff (2026-08-25)
+
+The addon is now called **Completionist's Guide** in the client's addon list (`## Title` in every
+TOC). The folder, namespace and SavedVariables stay `CompletionRoute`, so nothing a character has
+recorded is invalidated by the rename.
+
+## Every guide on every flavor was played, and none of them dead-ends
+
+`tools/vplayer.lua` (the virtual player) ran the whole catalogue, six shards per flavor:
+
+| flavor | guides | steps | steps played | auto-ticked | stalls | errors |
+|---|---|---|---|---|---|---|
+| era | 1,111 | 56,461 | 46,701 | 35,764 (76.6%) | **0** | 0 |
+| tbc | 1,061 | 82,994 | 72,553 | 59,773 (82.4%) | **0** | 0 |
+| mop | 3,775 | 212,043 | 186,422 | 137,122 (73.6%) | **0** | 1 |
+| retail | 9,918 | 420,239 | 360,533 | 234,354 (65.0%) | **0** | 0 |
+| **total** | **15,865** | **771,737** | **666,209** | **467,013** | **0** | **1** |
+
+Folded into `docs/verification.sqlite` by `tools/collect_vplayer.py` — tables `vplayer_runs`,
+`vplayer_guides`, `vplayer_stalls`. The single error is a step cap on `qdb:mop:OTHER`, the catch-all
+guide holding every MoP quest with no zone: it is a harness bound, not an addon fault.
+
+Three real defects came out of this run, all fixed:
+
+### 1. Guides were baked onto clients that cannot run them
+Zygor keys a guide's era by the folder it lives in, not by the client it is installed under: MoP
+Classic's install carries `Guides-Retail` **and** `Guides-MOP`, and TBC Anniversary's carries a
+`Guides-MOP`. Tagging by install directory put 222 Shadowlands guides (≈7,000 retail guides in all)
+on MoP Classic and 3,281 MoP guides on TBC Anniversary. The map-name gate did not catch them. Taking
+the flavor from the `Guides-<ERA>` folder suffix — what Zygor's own `files-<ERA>.xml` loads — is
+authoritative:
+
+| flavor | leaked bake | correct bake |
+|---|---|---|
+| era | 1,111 | 969 zygor + wowpro/quests = 1,111 played |
+| tbc | 4,078 | 857 zygor (1,061 played) |
+| mop | 10,275 | 3,265 zygor (3,775 played) |
+| retail | 9,980 | 9,201 zygor (9,918 played) |
+
+The catalogue got smaller and correct. A guide count is not a feature.
+
+### 2. A note-only Zygor step became a travel step that could never complete
+The adapter fell back to `R` ("go to X") for any step it could not turn into an action. `R`
+completes by standing at X — a step whose only content was a `|tip` block or a "wait for the race to
+start" line had no X, so it could never tick and the guide dead-ended there. Six Dragonflight guides
+stalled on exactly that, and they were the only stalls left in the whole 15,865-guide sweep. With no
+destination the adapter now emits `N`, the forward-arrow note Zygor itself shows for that line.
+
+### 3. The router burned ~0.5 s of Lua per step on modern maps
+The step-order optimizer re-asks for the same step pairs on every step advance: a window of 10 is up
+to 110 `FindPath` calls, and one `FindPath` is ~6 ms over a modern continent's ~160 graph nodes. In
+game that is a visible hitch on every step; in the sweep it was why guides hit the per-guide time
+cap. `TravelGraph` now caches hearth-free searches on an exact key (hearth cost rides a ticking
+cooldown, so those stay live) and drops the cache whenever the graph is rebuilt. One 193-step zone
+guide went **175 s → 6.5 s of CPU with a byte-identical result row**; the full four-flavor sweep went
+from hours to about 50 minutes.
+
+## What is still open
+
+* **The in-game pass is blocked on the Battle.net password.** The launcher logged itself out on
+  2026-08-24 with `BLZBNTBGS80000011 (3025)` and asks for the account password on every start. It was
+  not guessed — repeated failures risk locking the account. Everything below the client is verified;
+  what is not is the live UI/API surface on TBC, MoP and retail (Era passed in game on 2026-08-24,
+  27/27 features, build 11509). Run `python3 tools/run_all_flavors.py --minutes=30 --collect
+  --take-screen` once logged in. Era, TBC Anniversary and MoP Classic go dark when the subscription
+  lapses — that pass is the only hard deadline this project has.
+* **6,122 steps (0.9%) have a destination the router could not path to**, concentrated in Legion
+  order halls, dungeon interiors and holiday-event instances — places reached by a portal or a queue
+  rather than by travel. `Data/Access.lua` and `Data/Transit.lua` are where those links belong; the
+  virtual player already reports them per guide, so the list is `select guide, no_route from
+  vplayer_guides where no_route > 0 order by no_route desc`.
+* **The optimizer window is 10.** With the path cache in place a wider window is now affordable and
+  would produce better routes; it has not been measured yet.
+
 # Status / handoff (2026-08-24, evening)
 
 ## All expansions are in
