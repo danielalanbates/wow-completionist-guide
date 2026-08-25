@@ -433,6 +433,24 @@ function TG.Index()
     end
     TG.byInst, TG.instComp = byInst, comp
     TG.instFind = function(i) return find(i) end
+    TG.PathCacheWipe()
+end
+
+-- Hearth-free path cache.  The step-order optimizer asks for the SAME step pairs on every step
+-- advance (a window of 10 costs up to 110 FindPath calls, ~6 ms each on a modern continent's ~160
+-- nodes) — that was ~0.5 s of Lua per step on MoP/retail, a visible hitch in game and the reason the
+-- virtual player hit its per-guide time cap.  Only hearth-free queries are cached: a hearth's cost
+-- depends on a cooldown that ticks, so those stay live.  The key is exact (no coordinate rounding),
+-- so a hit returns precisely what a fresh search would.  Dropped whenever the graph is rebuilt.
+TG.pathCache, TG.pathCacheN = {}, 0
+local PATH_CACHE_MAX = 20000        -- a full guide's window pairs fit easily; wipe rather than grow
+function TG.PathCacheWipe() TG.pathCache, TG.pathCacheN = {}, 0 end
+function TG.PathCacheStore(key, path)
+    if not key then return path end
+    if TG.pathCacheN >= PATH_CACHE_MAX then TG.PathCacheWipe() end
+    TG.pathCache[key] = path or false      -- false = "searched, no path": still worth not repeating
+    TG.pathCacheN = TG.pathCacheN + 1
+    return path
 end
 function TG.InstReachable(a, b)
     if a == b then return true end
@@ -453,6 +471,13 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     local useHearth = (opts.hearth == nil) and (c.hearth ~= false) or opts.hearth
     local useTaxi = (opts.taxi == nil) and (c.taxi ~= false) or opts.taxi
     local useTransit = (opts.transit == nil) and (c.transit ~= false) or opts.transit
+    local ckey
+    if not useHearth then
+        ckey = ("%s|%s|%s|%s|%s|%s|%s|%s|%s"):format(sinst, sx, sy, ginst, gx, gy, speed,
+                                                     useTaxi and 1 or 0, useTransit and 1 or 0)
+        local hit = TG.pathCache[ckey]
+        if hit ~= nil then TG.stats.cached = (TG.stats.cached or 0) + 1 return hit or nil end
+    end
 
     local start = { id = "start", kind = "start", inst = sinst, wx = sx, wy = sy, name = "You", edges = {} }
     local goal = { id = "goal", kind = "goal", inst = ginst, wx = gx, wy = gy, name = "Destination", edges = {} }
@@ -461,7 +486,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     if sinst == ginst then
         local wc, d = walkCost(sx, sy, gx, gy, speed)
         best = { cost = wc, legs = { { mode = "walk", from = start, to = goal, cost = wc, dist = d } } }
-        if d < 300 then return best end   -- nothing beats walking 300 yards
+        if d < 300 then return TG.PathCacheStore(ckey, best) end   -- nothing beats walking 300 yards
     end
     -- hearth virtual node
     local hearthNodes = {}
@@ -485,7 +510,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     if not TG.InstReachable(sinst, ginst) then
         local viaHearth = false
         for _, hn in ipairs(hearthNodes) do if TG.InstReachable(hn.inst, ginst) then viaHearth = true end end
-        if not viaHearth then TG.stats.skipped = TG.stats.skipped + 1 return best end
+        if not viaHearth then TG.stats.skipped = TG.stats.skipped + 1 return TG.PathCacheStore(ckey, best) end
     end
     -- Dijkstra over: start, goal, hearth nodes, all graph nodes
     local nodes = TG.nodes
@@ -554,8 +579,8 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             relaxWalk(u, du)
         end
     end
-    if not d[goal] then return best end
-    if best and best.cost <= d[goal] + 1 then return best end
+    if not d[goal] then return TG.PathCacheStore(ckey, best) end
+    if best and best.cost <= d[goal] + 1 then return TG.PathCacheStore(ckey, best) end
     -- rebuild path
     local legs = {}
     local v = goal
@@ -578,7 +603,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             last.road = last.road or l.road
         else merged[#merged + 1] = l end
     end
-    return { cost = d[goal], legs = merged }
+    return TG.PathCacheStore(ckey, { cost = d[goal], legs = merged })
 end
 
 -- Human readable description of a path
