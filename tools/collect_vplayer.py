@@ -40,7 +40,7 @@ def shards(pattern):
     """group docs/vplayer_<flavor>[_<n>].tsv by flavor"""
     out = {}
     for f in sorted(glob.glob(str(ROOT / "docs" / pattern))):
-        m = re.search(r"vplayer_([a-z]+)(?:_\d+)?(_stalls)?\.tsv$", f)
+        m = re.search(r"vplayer_([a-z]+?)_?\d*(_stalls)?\.tsv$", f)
         if m:
             out.setdefault(m.group(1), []).append(f)
     return out

@@ -210,7 +210,27 @@ function P.CheckStep(step)
     elseif a == "U" then
         if step.item and step.hadItem and U.ItemCount(step.item) == 0 then return true end
         if step.item and U.ItemCount(step.item) > 0 then step.hadItem = true end
-        if step.qid and anyQuestDone(step.qid, U.IsQuestComplete) then return true end
+        if step.qid then
+            if anyQuestDone(step.qid, U.IsQuestComplete) then return true end
+            -- Zygor's "use" lines complete on quest objective progress (their |q qid/obj goal),
+            -- not on turn-in: mirror the C branch
+            for _, q in ipairs(step.qid) do
+                if U.IsOnQuest(q) then
+                    local _, complete = U.QuestLogState(q)
+                    if complete then return true end
+                    local oi = tonumber(step.qo)
+                    if oi then
+                        local f, r, fin = U.QuestObjective(q, oi)
+                        if fin or (r and r > 0 and f >= r) then return true end
+                    elseif U.AllObjectivesDone(q) then return true end
+                end
+            end
+        end
+        if step.loot then
+            local ok = true
+            for _, l in ipairs(step.loot) do if U.ItemCount(l.id) < l.qty then ok = false end end
+            if ok then return true end
+        end
     elseif a == "B" then
         if step.loot then local ok = true for _, l in ipairs(step.loot) do if U.ItemCount(l.id) < l.qty then ok = false end end if ok then return true end end
     elseif a == "h" then

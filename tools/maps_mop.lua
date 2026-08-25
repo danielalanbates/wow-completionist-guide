@@ -530,4 +530,10 @@ return {
   [1467] = { "Outland", 530, 5821.36, 12996.04, 17464.08, 11642.72, 946, 2 },
   [2104] = { "Wintergrasp", 2118, 5716.67, 4329.17, 2975.00, 1983.34, 947, 3 },
   [2473] = { "Pandaria", 870, 7461.00, 6770.00, 11892.00, 11892.00, 0, 2 },
+  [946] = { "Cosmic", -1, false, false, false, false, 0, 0 },
+  [948] = { "The Maelstrom", -1, false, false, false, false, 947, 2 },
+  [1375] = { "Halls of Stone", -1, false, false, false, false, 120, 4 },
+  [1554] = { "Serpentshrine Cavern", -1, false, false, false, false, 102, 4 },
+  [1555] = { "Tempest Keep", -1, false, false, false, false, 109, 4 },
+  [2340] = { "Tol Barad", -1, false, false, false, false, 947, 3 },
 }

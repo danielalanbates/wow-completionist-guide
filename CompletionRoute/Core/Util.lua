@@ -9,11 +9,17 @@ NS.Util = U
 
 -- Zone name -> uiMapID (built lazily from HBD's map list; localized names)
 local nameToMap
+local normToMap   -- normalized (lowercase, alphanumeric only) -> canonical uiMapID
+local normToAll   -- normalized -> every uiMapID sharing the name (across punctuation variants)
+local function normName(s) return (s:lower():gsub("[^%w]", "")) end
 local function buildNameIndex()
-    nameToMap = {}
+    nameToMap = {} normToMap = {} normToAll = {}
     for _, id in ipairs(HBD:GetAllMapIDs()) do
         local info = C_Map.GetMapInfo(id)
         if info and info.name then
+            local k = normName(info.name)
+            normToAll[k] = normToAll[k] or {}
+            normToAll[k][#normToAll[k] + 1] = id
             -- Same name, several maps (retail: 7 "Arathi Highlands" - zone, warfront, scenarios; 6 "Isle of
             -- Quel'Danas"). Prefer zone-level maps (mapType 3), then the LOWEST uiMapID: the canonical zone always
             -- has the oldest/lowest id, the copies are phased instances no transit leads to. Iteration order of
@@ -27,16 +33,74 @@ local function buildNameIndex()
             end
         end
     end
+    for n, id in pairs(nameToMap) do
+        local k = normName(n)
+        local prev = normToMap[k]
+        if not prev then normToMap[k] = id
+        else
+            local pt = (C_Map.GetMapInfo(prev) or {}).mapType
+            local it = (C_Map.GetMapInfo(id) or {}).mapType
+            if (it == 3 and pt ~= 3) or ((it == 3) == (pt == 3) and id < prev) then normToMap[k] = id end
+        end
+    end
+end
+-- Zygor disambiguates same-named maps with a trailing token: D = the Draenor copy, L = the
+-- Legion/Broken Isles copy, M/New = the newest remake, a digit = a floor of the same place.
+local VARIANT_CONTINENT = { D = 572, L = 619 }
+local function resolveVariant(name)
+    local base, tag = name:match("^(.-)%s+(%u)$")
+    if not base then base, tag = name:match("^(.-)%s+(%d+)$") end
+    if not base then base = name:match("^(.-)%s+New$") if base then tag = "New" end end
+    if not base or base == "" then return nil end
+    local ids = normToAll[normName(base)]
+    if not ids then return nil end
+    local cont = VARIANT_CONTINENT[tag]
+    if cont then
+        for _, id in ipairs(ids) do
+            local p = id
+            for _ = 1, 8 do
+                local i2 = C_Map.GetMapInfo(p)
+                p = i2 and i2.parentMapID
+                if not p or p == 0 then break end
+                if p == cont then return id end
+            end
+        end
+    end
+    if tag == "M" or tag == "New" then
+        local best for _, id in ipairs(ids) do if not best or id > best then best = id end end
+        return best
+    end
+    return nameToMap[base] or normToMap[normName(base)] or ids[1]
 end
 function U.MapIDByName(name)
     if not name then return nil end
-    if tonumber(name) then return U.MapIDByIDOrName(tonumber(name), nil) or tonumber(name) end
+    -- a number the client does not know is NOT a usable map: poisoning step.zone with it makes the
+    -- step permanently untickable (the "map 1130" bug)
+    if tonumber(name) then return U.MapIDByIDOrName(tonumber(name), nil) end
     if not nameToMap then buildNameIndex() end
-    local hit = nameToMap[name] or nameToMap[strtrim(name)]
+    local t = strtrim(name)
+    local hit = nameToMap[name] or nameToMap[t]
     if hit then return hit end
     -- old guide text: a zone this client renamed or split (The Barrens -> Northern Barrens)
-    local alts = NS.ZoneNameAliases and NS.ZoneNameAliases[strtrim(name)]
+    local alts = NS.ZoneNameAliases and NS.ZoneNameAliases[t]
     if alts then for _, alt in ipairs(alts) do if nameToMap[alt] then return nameToMap[alt] end end end
+    -- punctuation / spacing variants: "Zul Aman" for Zul'Aman, WoW-Pro's CamelCase "TheWanderingIsle"
+    local hit2 = normToMap[normName(t)]
+    if hit2 then return hit2 end
+    -- Zygor's trailing disambiguators ("Shadowmoon Valley D", "Dalaran L", "Uldum New", "UBRS 2")
+    local v = resolveVariant(t)
+    if v then return v end
+    -- last resort, a unique prefix ("Antorus" -> "Antorus, the Burning Throne")
+    local k, found, many = normName(t), nil, false
+    if #k >= 5 then
+        for nk, id in pairs(normToMap) do
+            if nk:sub(1, #k) == k then
+                if found and found ~= id then many = true break end
+                found = id
+            end
+        end
+    end
+    if found and not many then return found end
     return nil
 end
 -- Resolve a zone given as a number that may be a Classic-era uiMapID on a differently numbered client.

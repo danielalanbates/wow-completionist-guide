@@ -81,7 +81,7 @@ function G.ParseLine(text, lineno, defaultZone)
             -- "1423; Eastern Plaguelands" or bare "1454": the number is a Classic-era uiMapID. MoP Classic and
             -- retail number their maps differently (23 / 85), so resolve by name (Data/ZoneAliases.lua) whenever
             -- the id is unknown on this client or the names disagree.
-            if mid then mid = U.MapIDByIDOrName(mid, name) or mid end
+            if mid then mid = U.MapIDByIDOrName(mid, name) end
             step.zone = mid or U.MapIDByName(val)
             step.zoneName = (name ~= "" and name) or val
         elseif tag == "N" then step.note = (val or ""):gsub("\\n", "\n"):gsub("%[color=(%x%x%x%x%x%x)%]", "|cff%1"):gsub("%[/color%]", "|r")

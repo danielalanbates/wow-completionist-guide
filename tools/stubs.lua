@@ -60,11 +60,11 @@ MAPS = STUB_MAPS or { [1429]={ "Elwynn Forest", 0, -9500, 300, 4000, 3000 }, [14
   [1457]={ "Darnassus", 1, 9900, 2100, 1000, 1000 }, [1440]={ "Ashenvale", 1, 3500, 800, 6000, 4000 }, [1411]={ "Durotar", 1, 500, -4400, 5000, 5000 }, [1454]={ "Orgrimmar", 1, 1600, -4500, 1500, 1500 }, [1413]={ "The Barrens", 1, -1400, -2600, 10000, 6000 },
   [1434]={ "Stranglethorn Vale", 0, -12500, -400, 6000, 4000 }, [1435]={ "Swamp of Sorrows", 0, -10400, -3000, 4000, 3000 }, [1445]={ "Dustwallow Marsh", 1, -3800, -3200, 5000, 4000 }, [1441]={ "Thousand Needles", 1, -5500, -2500, 5000, 3000 } }
 -- world coords of zone (x01,y01): wx = top - y01*h ; wy = left - x01*w  (roughly WoW: x north, y west)
-function z2w(x, y, m) local d = MAPS[m] if not d then return nil end return d[3] - y * d[6], d[4] - x * d[5], d[2] end
+function z2w(x, y, m) local d = MAPS[m] if not d or not d[3] then return nil end return d[3] - y * d[6], d[4] - x * d[5], d[2] end
 C_Map = { GetMapInfo = function(id) local d = MAPS[id] return d and { name = d[1], mapType = d[8] or 3, mapID = id, parentMapID = d[7] or 0 } end }
 HBD_STUB = { GetAllMapIDs = function() local t = {} for id in pairs(MAPS) do t[#t + 1] = id end return t end,
   GetWorldCoordinatesFromZone = function(_, x, y, m) return z2w(x, y, m) end,
-  GetZoneDistance = function(_, m1, x1, y1, m2, x2, y2) local ax, ay, ai = z2w(x1, y1, m1) local bx, by, bi = z2w(x2, y2, m2) if ai ~= bi then return nil end return math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2) end,
+  GetZoneDistance = function(_, m1, x1, y1, m2, x2, y2) local ax, ay, ai = z2w(x1, y1, m1) local bx, by, bi = z2w(x2, y2, m2) if not ax or not bx or ai ~= bi then return nil end return math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2) end,
   GetPlayerWorldPosition = function() return PLAYER.wx, PLAYER.wy, PLAYER.inst end,
   GetPlayerZonePosition = function() return PLAYER.x, PLAYER.y, PLAYER.map end }
 LibStub = function(name) if name == "HereBeDragons-2.0" then return HBD_STUB end return { Fire = function() end, RemoveAllMinimapIcons = function() end, RemoveAllWorldMapIcons = function() end, AddMinimapIconMap = function() end, AddWorldMapIconMap = function() end } end

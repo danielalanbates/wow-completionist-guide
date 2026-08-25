@@ -144,13 +144,25 @@ local function autoable(step)
     elseif a == "T" or a == "t" then
         if step.qid then return true end return false, "turn-in without QID"
     elseif a == "U" then
-        if step.item or step.qid then return true end return false, "use without item or QID"
+        if step.item then return true end
+        if step.qid then
+            -- WoW-Pro stamps profession "Learn Recipe" steps with synthetic qids (skill*10^6+level);
+            -- no client API ever completes those, so in game they are a manual click
+            for _, q in ipairs(step.qid) do if q < 1000000 then return true end end
+            return false, "synthetic profession QID"
+        end
+        return false, "use without item or QID"
     elseif a == "B" then
         if step.loot then return true end return false, "buy without loot list"
     elseif a == "L" then
         if step.minlevel then return true end return false, "level step without a level"
     elseif a == "R" or a == "G" or a == "F" or a == "b" or a == "J" or a == "H" or a == "D" then
-        if step.coords or step.zone then return true end return false, "travel step without coords or zone"
+        -- CheckStep needs BOTH a resolved zone and (for the distance check) a real transform:
+        -- a step whose zone did not resolve can never tick, in game or here - that is a manual
+        -- click, not a stall (the guide-data bug stays visible in manual_reason)
+        if not step.zone then return false, "travel step with unresolvable zone" end
+        if step.coords and not (MAPS[step.zone] and MAPS[step.zone][3]) then return false, "no offline map transform" end
+        return true
     elseif a == "h" or a == "f" then
         return true
     end
@@ -174,11 +186,11 @@ local function walkTo(step)
         yards = math.sqrt((tx - PLAYER.wx) ^ 2 + (ty - PLAYER.wy) ^ 2)
     end
     -- teleport onto the step so the position-driven checks (R/G/F/b/J/H/D) can see us there
-    if step.zone and MAPS[step.zone] then
+    if step.zone and MAPS[step.zone] and MAPS[step.zone][3] then
         local c = step.coords and step.coords[1]
         place(step.zone, c and c.x or 0.5, c and c.y or 0.5)
     end
-    return yards, secs, (secs ~= nil)
+    return yards, secs, (secs ~= nil), (tx ~= nil)
 end
 
 local function act(step)
@@ -280,10 +292,12 @@ local function playGuide(g)
                 step = P.current
             end
 
-            local y, s, routed = walkTo(step)
+            local y, s, routed, hasDest = walkTo(step)
             row.yards = row.yards + (y or 0)
             row.seconds = row.seconds + (s or 0)
-            if not routed then row.noroute = row.noroute + 1 end
+            -- only a step that HAS a destination the router failed to path to is a routing gap;
+            -- a locationless note/achievement step is just something the player does where they are
+            if not routed and hasDest then row.noroute = row.noroute + 1 end
 
             act(step)
             P.Refresh()

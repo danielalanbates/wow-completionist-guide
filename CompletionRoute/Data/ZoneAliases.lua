@@ -78,6 +78,9 @@ NS.ZoneIDNames = {
 -- name -> list of candidate names tried in order when the exact name is not a map on this client
 NS.ZoneNameAliases = {
     ["The Barrens"] = { "Northern Barrens", "Southern Barrens" },
+    ["Northern Barrens"] = { "The Barrens" },
+    ["Uldum New"] = { "Uldum" },
+    ["Vale of Eternal Blossoms New"] = { "Vale of Eternal Blossoms" },
     ["Stranglethorn Vale"] = { "Northern Stranglethorn", "The Cape of Stranglethorn" },
     ["Ashenvale Forest"] = { "Ashenvale" },
     ["Tirisfal"] = { "Tirisfal Glades" },
