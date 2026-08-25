@@ -182,4 +182,8 @@ return {
   [1955] = { "Shattrath City", 530, -1473.95, 6135.26, 1306.25, 870.83, 1945, 3 },
   [1956] = { "Eye of the Storm", 566, 2918.75, 2660.42, 2270.83, 1514.58, 1953, 3 },
   [1957] = { "Isle of Quel'Danas", 530, 13568.75, -5302.08, 3327.08, 2218.75, 1415, 3 },
+  [337] = { "Zul'Gurub", -1, false, false, false, false, 1434, 6 },
+  [946] = { "Cosmic", -1, false, false, false, false, 0, 0 },
+  [1554] = { "Serpentshrine Cavern", -1, false, false, false, false, 1946, 4 },
+  [1555] = { "Tempest Keep", -1, false, false, false, false, 1953, 4 },
 }

@@ -43,10 +43,21 @@ def main(argv):
             name = (u.get("Name_lang") or "").replace("\\", "\\\\").replace('"', '\\"')
             out.append('  [%s] = { "%s", %d, %.2f, %.2f, %.2f, %.2f, %s, %s },' % (mid, name, inst, topX, leftY, w, h, u.get("ParentUiMapID") or 0, u.get("Type") or 0))
             n += 1
+        # maps with no usable UiMapAssignment (dungeon floors, scenarios...) still exist in the
+        # client's C_Map, so ship them name-only: zone-name resolution must match in-game even
+        # though there is no world transform to route or measure with (false = "no transform").
+        n2 = 0
+        for mid in sorted(ui, key=int):
+            if mid in best: continue
+            u = ui[mid]
+            name = (u.get("Name_lang") or "").replace("\\", "\\\\").replace('"', '\\"')
+            if not name: continue
+            out.append('  [%s] = { "%s", -1, false, false, false, false, %s, %s },' % (mid, name, u.get("ParentUiMapID") or 0, u.get("Type") or 0))
+            n2 += 1
         out.append("}")
         path = f"tools/maps_{flavor}.lua"
         open(path, "w").write("\n".join(out) + "\n")
-        print(f"{flavor} {build}: {n} maps -> {path}")
+        print(f"{flavor} {build}: {n} maps + {n2} name-only -> {path}")
 
 if __name__ == "__main__":
     main(sys.argv[1:])
