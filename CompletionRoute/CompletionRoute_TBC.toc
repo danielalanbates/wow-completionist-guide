@@ -1,5 +1,5 @@
 ## Interface: 20506
-## Title: |cff7ddf8fCompletion|r|cffffd200Route|r
+## Title: |cff7ddf8fCompletionist's|r |cffffd200Guide|r
 ## Notes: The completionist's guide: community-driven guides for every quest, with Zygor-style optimal routing (flight paths, boats, portals, hearthstone) and a smart arrow that becomes the quest item / hearthstone when you should click it.
 ## Author: Daniel Bates (BatesAI) + contributors
 ## Version: 0.1.0
