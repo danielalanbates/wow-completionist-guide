@@ -48,8 +48,8 @@ UI\ItemScore.lua
 Adapters\WoWPro.lua
 Adapters\DynamicQuests.lua
 Adapters\Commercial.lua
-Guides\Imported_Commercial.lua
-Guides\Imported_WoWPro.lua
+Guides\Imported_Commercial_tbc.lua
+Guides\Imported_WoWPro_tbc.lua
 Guides\Imported_Quests_era.lua
 Guides\Imported_Quests_tbc.lua
 Guides\Imported_Quests_wotlk.lua

@@ -14,7 +14,9 @@ NS.Adapters.WoWPro = A
 function A.ImportStatic()
     local n = 0
     for _, g in ipairs(NS.ImportedWoWPro or {}) do
-        if g.gid and g.text and not G.registry["wowpro:" .. g.gid] then
+        -- per-flavor bake: only this client's era (untagged = any, from an older export)
+        local flavorOK = (not g.flavor or g.flavor == "" or g.flavor == NS.flavor)
+        if flavorOK and g.gid and g.text and not G.registry["wowpro:" .. g.gid] then
             if G.Register({
                 id = "wowpro:" .. g.gid,
                 name = g.name or g.zone or g.gid,

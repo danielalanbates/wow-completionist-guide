@@ -57,8 +57,9 @@ def main(argv):
     if (_Q.CGSessionCopyCurrentDictionary() or {}).get("CGSSessionScreenIsLocked"):
         print("screen is locked - clicks and captures cannot reach the client; unlock (or caffeinate -dimsu) first"); return 2
     subprocess.Popen(["caffeinate", "-dimsu", "-t", str(minutes * 60 + 600)])   # keep display awake for the run
-    if any(o == "wine" for o, _, _ in windows()):
-        print("FFXI (wine) window on screen - refusing to take over the display"); return 2
+    if any(o == "wine" for o, _, _ in windows()) and "--take-screen" not in argv:
+        print("FFXI (wine) window on screen - refusing to take over the display "
+              "(pass --take-screen only when Daniel has said the screen is free)"); return 2
     if attach:
         win, wb = find("Wow")
         if not win: print("--attach: no client window"); return 1
@@ -76,15 +77,24 @@ def main(argv):
       if not front_is("Battle.net"): print("launcher not frontmost - not clicking"); return 1
       if "--version-click" in argv:
           # The launcher remembers the last GAME VERSION, so a run of all four flavors has to set it.
-          # Offsets are from the launcher window origin, measured on the 1440x788 window (see docs).
-          row = {"_classic_era_": 473, "_anniversary_": 505, "_classic_": 537, "_retail_": 584}.get(flavor)
+          # Offsets are window-relative points, re-measured 2026-08-24 on the 1440x806 window. The
+          # dropdown is ONE list for every WoW product, with the PTR builds above a separator - so the
+          # row positions move whenever Blizzard adds or drops a PTR. Always eyeball the cropped
+          # GAME VERSION label this writes afterwards rather than trusting the offsets.
+          row = {"_anniversary_": 491, "_classic_era_": 523, "_classic_": 555, "_retail_": 602}.get(flavor)
           if row is None:
               print(f"--version-click: no dropdown row known for {flavor}"); return 1
-          click(b["X"] + 175, b["Y"] + 628); time.sleep(1.5)      # open GAME VERSION dropdown
+          # the dropdown only exists on a WoW product page; from HOME, click the WoW Classic favourite
+          click(b["X"] + 163, b["Y"] + 115); time.sleep(3)
+          click(b["X"] + 175, b["Y"] + 646); time.sleep(1.5)      # open GAME VERSION dropdown
           shot(n, SHOTS / f"launcher_{flavor.strip('_')}_dropdown.png")
-          click(b["X"] + 140, b["Y"] + row); time.sleep(2.5)      # pick this flavor
-          shot(n, SHOTS / f"launcher_{flavor.strip('_')}_picked.png")
-          print(f"set GAME VERSION for {flavor} (row +{row})")
+          click(b["X"] + 176, b["Y"] + row); time.sleep(2.5)      # pick this flavor
+          # crop just the GAME VERSION combobox: small, cheap to eyeball, unambiguous
+          subprocess.run(["screencapture", "-x",
+                          f"-R{int(b['X'])+30},{int(b['Y'])+625},320,45",
+                          str(SHOTS / f"launcher_{flavor.strip('_')}_version.png")], check=False)
+          print(f"set GAME VERSION for {flavor} (row +{row}); check "
+                f"docs/screenshots/launcher_{flavor.strip('_')}_version.png")
       click(b["X"] + 155, b["Y"] + 696); print("pressed Play")
       t0 = time.time(); win = None
       while time.time() - t0 < 480:
