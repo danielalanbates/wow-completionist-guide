@@ -147,10 +147,31 @@ def main(argv):
     if win and front_is("Wow"):
         click(wb["X"] + wb["Width"] * 0.5156, wb["Y"] + wb["Height"] * 0.24)
     time.sleep(1)
-    subprocess.run(["osascript", "-e", 'tell application "World of Warcraft" to quit'], check=False)
+    # SavedVariables are only written on a CLEAN exit. `tell application ... to quit` answers
+    # "User canceled (-128)" on the Classic clients and the process goes away WITHOUT flushing, so a
+    # whole 25-minute run records nothing (that happened to the TBC run on 2026-08-24). Raise the
+    # client and send a real Cmd+Q instead, then wait out WoW's logout timer.
+    svs_before = max((p.stat().st_mtime for p in svs), default=0)
+    subprocess.run(["osascript", "-e", 'tell application "World of Warcraft Classic" to activate'], check=False)
+    subprocess.run(["osascript", "-e", 'tell application "World of Warcraft" to activate'], check=False)
+    time.sleep(2)
+    import Quartz as Q
+    ev_down = Q.CGEventCreateKeyboardEvent(None, 12, True)    # 12 = 'q'
+    Q.CGEventSetFlags(ev_down, Q.kCGEventFlagMaskCommand)
+    ev_up = Q.CGEventCreateKeyboardEvent(None, 12, False)
+    Q.CGEventSetFlags(ev_up, Q.kCGEventFlagMaskCommand)
+    Q.CGEventPost(Q.kCGHIDEventTap, ev_down); time.sleep(0.1); Q.CGEventPost(Q.kCGHIDEventTap, ev_up)
     t1 = time.time()
-    while time.time() - t1 < 120 and subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip():
+    while time.time() - t1 < 180 and subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip():
         time.sleep(3)
+    still = subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip()
+    svs_after = max((p.stat().st_mtime for p in svs), default=0)
+    if still:
+        print("WARNING: client still running after Cmd+Q")
+    if svs_after <= svs_before:
+        print("WARNING: SavedVariables were NOT rewritten - this run recorded nothing")
+    else:
+        print("SavedVariables flushed")
     print("client quit; run: python3 tools/collect_verify.py")
     return 0
 
