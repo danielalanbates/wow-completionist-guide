@@ -76,25 +76,25 @@ def main(argv):
       if not n: print("no launcher window"); return 1
       if not front_is("Battle.net"): print("launcher not frontmost - not clicking"); return 1
       if "--version-click" in argv:
-          # The launcher remembers the last GAME VERSION, so a run of all four flavors has to set it.
-          # Offsets are window-relative points, re-measured 2026-08-24 on the 1440x806 window. The
-          # dropdown is ONE list for every WoW product, with the PTR builds above a separator - so the
-          # row positions move whenever Blizzard adds or drops a PTR. Always eyeball the cropped
-          # GAME VERSION label this writes afterwards rather than trusting the offsets.
-          row = {"_anniversary_": 491, "_classic_era_": 523, "_classic_": 555, "_retail_": 602}.get(flavor)
-          if row is None:
-              print(f"--version-click: no dropdown row known for {flavor}"); return 1
-          # the dropdown only exists on a WoW product page; from HOME, click the WoW Classic favourite
-          click(b["X"] + 163, b["Y"] + 115); time.sleep(3)
-          click(b["X"] + 175, b["Y"] + 646); time.sleep(1.5)      # open GAME VERSION dropdown
-          shot(n, SHOTS / f"launcher_{flavor.strip('_')}_dropdown.png")
-          click(b["X"] + 176, b["Y"] + row); time.sleep(2.5)      # pick this flavor
+          # Do NOT use the product page's GAME VERSION dropdown: its list is repositioned so the
+          # CURRENT selection sits at a fixed spot, so a hard-coded row picks a different version
+          # depending on what was selected last (this silently re-launched Classic Era when asked for
+          # Burning Crusade Anniversary). The GAMES tab's "N Installed" menu is stable - it always
+          # lists the three installed classic versions in the same order.
+          # Offsets are window-relative points on the 1440x806 launcher, measured 2026-08-24.
+          click(b["X"] + 319, b["Y"] + 55); time.sleep(4)          # GAMES tab
+          if flavor == "_retail_":
+              click(b["X"] + 228, b["Y"] + 115); time.sleep(4)     # gold WoW favourite = retail
+          else:
+              row = {"_classic_": 562, "_anniversary_": 594, "_classic_era_": 626}[flavor]
+              click(b["X"] + 337, b["Y"] + 527); time.sleep(2.5)   # "3 Installed" chevron
+              click(b["X"] + 360, b["Y"] + row); time.sleep(5)
           # crop just the GAME VERSION combobox: small, cheap to eyeball, unambiguous
           subprocess.run(["screencapture", "-x",
                           f"-R{int(b['X'])+30},{int(b['Y'])+625},320,45",
                           str(SHOTS / f"launcher_{flavor.strip('_')}_version.png")], check=False)
-          print(f"set GAME VERSION for {flavor} (row +{row}); check "
-                f"docs/screenshots/launcher_{flavor.strip('_')}_version.png")
+          print(f"selected {flavor}; VERIFY docs/screenshots/launcher_{flavor.strip('_')}_version.png "
+                f"before trusting this run")
       click(b["X"] + 155, b["Y"] + 696); print("pressed Play")
       t0 = time.time(); win = None
       while time.time() - t0 < 480:
