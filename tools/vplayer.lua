@@ -108,7 +108,7 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
     "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
     "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
     "Adapters/Zygor.lua", "Adapters/WoWPro.lua",
-    "Guides/Imported_Zygor.lua", "Guides/Imported_WoWPro.lua",
+    ("Guides/Imported_Zygor_" .. flavor .. ".lua"), ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
     "Guides/Imported_Quests_era.lua", "Guides/Imported_Quests_tbc.lua", "Guides/Imported_Quests_wotlk.lua",
     "Guides/Imported_Quests_cata.lua", "Guides/Imported_Quests_mop.lua", "Guides/Imported_Quests_retail.lua" }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil

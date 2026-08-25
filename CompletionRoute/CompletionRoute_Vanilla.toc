@@ -48,8 +48,8 @@ UI\ItemScore.lua
 Adapters\WoWPro.lua
 Adapters\DynamicQuests.lua
 Adapters\Zygor.lua
-Guides\Imported_Zygor.lua
-Guides\Imported_WoWPro.lua
+Guides\Imported_Zygor_era.lua
+Guides\Imported_WoWPro_era.lua
 Guides\Imported_Quests_era.lua
 Guides\Imported_Quests_tbc.lua
 Guides\Imported_Quests_wotlk.lua

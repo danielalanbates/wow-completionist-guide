@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Verify ALL FOUR flavors in game, one deliberate launch each, in one hands-free command.
 
-    python3 tools/run_all_flavors.py [--minutes 30] [--only _retail_ ...] [--collect]
+    python3 tools/run_all_flavors.py [--minutes 30] [_retail_ ...] [--collect] [--take-screen]
 
 Order is deliberate: Era, TBC Anniversary and MoP Classic go dark when the subscription lapses, so
 they run first; retail stays playable for free (Starter Edition, level 20) and runs last.
@@ -26,8 +26,14 @@ def windows():
                                                        Quartz.kCGNullWindowID)]
 
 
-def screen_busy():
+def screen_busy(take_screen=False):
     """another game owns the display / the machine - do not take it"""
+    if take_screen:
+        # explicit go-ahead from Daniel ("you can take over the screen now"). A game left running is
+        # not closed - WoW simply comes to the front over it.
+        if (Quartz.CGSessionCopyCurrentDictionary() or {}).get("CGSSessionScreenIsLocked"):
+            return "screen is locked"
+        return None
     for owner, b in windows():
         if owner in ("wine", "FFXI on Mac") and b.get("Width", 0) > 400:
             return f"{owner} window on screen"
@@ -45,18 +51,20 @@ def main(argv):
         if a.startswith("--minutes"):
             minutes = int(a.split("=")[1]) if "=" in a else int(argv[argv.index(a) + 1])
     only = [a for a in argv if a.startswith("_")]
+    take = "--take-screen" in argv
     flavors = only or ORDER
 
     done, skipped = [], []
     for flavor in flavors:
-        busy = screen_busy()
+        busy = screen_busy(take)
         if busy:
             print(f"SKIP {flavor}: {busy}")
             skipped.append((flavor, busy))
             continue
         print(f"=== {flavor} ({minutes} min) ===")
-        rc = subprocess.run(["python3", str(HERE / "run_flavor_verify.py"), flavor,
-                             f"--minutes={minutes}", "--version-click"]).returncode
+        cmd = ["python3", str(HERE / "run_flavor_verify.py"), flavor,
+               f"--minutes={minutes}", "--version-click"] + (["--take-screen"] if take else [])
+        rc = subprocess.run(cmd).returncode
         (done if rc == 0 else skipped).append((flavor, f"exit {rc}"))
         time.sleep(20)   # let the client and launcher settle before the next one
 
