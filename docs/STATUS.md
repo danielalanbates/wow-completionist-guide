@@ -1,3 +1,51 @@
+# Status / handoff (2026-08-24, evening)
+
+## All expansions are in
+`tools/export_guides.lua` only ever read ONE Zygor install (Anniversary/TBC) and only WoW-Pro's
+Classic TOCs, so retail's Zygor — Legion through Midnight — was never imported. It now walks every
+flavor directory, loads every `ZygorGuidesViewer*` under each, and picks the matching WoW-Pro TOC and
+guide folder per era. Each guide is tagged with the flavor it came from and the adapters register only
+`NS.flavor` matches.
+
+| flavor | before | after |
+|---|---|---|
+| era | 1,058 | **1,111** |
+| tbc | 1,114 | **4,078** |
+| mop | 1,309 | **10,275** |
+| retail | 910 | **9,980** |
+
+Two fixes were needed: 40 guide files (incl. Horde BfA/Cata/MoP/WoD levelling) failed to parse because
+LuaJIT rejects escape sequences WoW's own Lua 5.1 keeps — repaired by matching backslash-plus-next-char
+so a genuine `\\` pair is consumed whole. And one merged bake is ~100 MB, so it is now one file per
+flavor and `install.sh` ships each client only its own (retail 58M, mop 60M, tbc 37M, era 23M).
+
+## In game: Era verified, TBC lost, then Battle.net logged itself out
+* **Era: PASS.** 1,436 guides swept, 71,541 steps, 68,576 located, **0 precedence violations, 0 empty
+  windows, 0 load failures**, 3 no-route, 2 optimizer-slower; features **27/27** (build 11509). This is
+  the first in-game confirmation of the farm/circuit work from 2026-08-22. Evidence:
+  `docs/screenshots/run_classic_era_0061.png` — "Tanaris Quests · step 2 of 323", one-step card, and
+  the route line "Follow the road 1.6k yd to Camp Mojache, Feralas; Fly Camp Mojache…".
+* **TBC: ran for 25 minutes and recorded nothing.** `tell application ... to quit` answers
+  "User canceled (-128)" on the Classic clients and the process exits WITHOUT flushing
+  SavedVariables, so the whole run was lost. The driver now raises the client and sends a real Cmd+Q,
+  then warns explicitly if the SavedVariables mtime did not move.
+* **Then the launcher logged out** with `BLZBNTBGS80000011 (3025)` and now asks for the account
+  password. battle.net resolves, `us.actual.battle.net:1119` is reachable and the rest of the internet
+  is fine, so this is session/account-side, not connectivity. **Blocked: needs Daniel's Battle.net
+  password.** Not guessed — repeated failures risk locking the account.
+
+## Launcher automation, corrected
+Do NOT pick the version from the product page's GAME VERSION dropdown: the list is repositioned so the
+*current* selection sits at a fixed spot, so a hard-coded row picks whatever was chosen last (it
+silently re-selected Classic Era when asked for Burning Crusade Anniversary), and once Era is selected
+that dropdown only offers Era / Hardcore / Season of Discovery. Use **GAMES → "3 Installed"**, which is
+stable, then verify the cropped GAME VERSION label. `battlenet://<product>` URIs do not switch it.
+
+## Next session
+1. Log Battle.net back in, then `python3 tools/run_all_flavors.py --minutes=30 --collect --take-screen`
+   for TBC, MoP and retail (Era is done).
+2. The offline sweep over the full 25,000-guide set is running; `python3 tools/collect_vplayer.py`.
+
 # Status / handoff (2026-08-24)
 
 ## The question that reframed the session
