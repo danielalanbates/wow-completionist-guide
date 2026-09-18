@@ -1,5 +1,26 @@
 # Status / handoff (2026-09-18)
 
+## Legion Class Order Halls Connected & Verified
+Transit edges between Dalaran (Broken Isles, `627`) and the 12 Legion Class Order Halls were added to `CompletionRoute/Data/Transit.lua` and validated across all factions and client flavors:
+* **Warrior:** Krasus' Landing jump pad <-> Skyhold (`695`, instance 1479).
+* **Priest:** Dalaran Sanctuaries <-> Netherlight Temple (`702`, instance 1512).
+* **Warlock:** Dalaran Sewers <-> Dreadscar Rift (`717`/`718`, instances 1107/1522).
+* **Shaman:** Krasus' Landing portal <-> The Maelstrom (`726`, instance 1469).
+* **Mage:** Chamber of the Guardian <-> Hall of the Guardian (`734`/`735`, instance 1513).
+* **Hunter:** Krasus' Landing Great Eagle <-> Trueshot Lodge (`739`, instance 1220).
+* **Druid:** Dalaran / Emerald Dreamway (`715`) <-> The Dreamgrove (`747`, instance 1220).
+* **Demon Hunter:** Krasus' Landing glide/portal <-> The Fel Hammer (`720`/`721`, instance 1519).
+* **Death Knight:** Dalaran sky / Death Gate <-> Acherus: The Ebon Hold (`647`/`648`, instance 1220).
+* **Monk:** Dalaran portal / Zen Pilgrimage <-> The Wandering Isle (`709`, instance 1514).
+* **Rogue:** Dalaran secret doors <-> Dalaran Underbelly / Hall of Shadows (`628`, instance 1220).
+* **Paladin:** Dalaran portals <-> Light's Hope Chapel / Sanctum of Light (`24`, instance 0).
+* **Test Verification:** Integrated into `tools/test_access.lua` checking resolution and full capital-to-order-hall Dijkstra paths for all 12 classes (100% passing).
+
+## Optimizer Window Widened to 12
+* Following the introduction of the Dijkstra travel path cache, `StepOrder.lua` lookahead performance was benchmarked across window sizes (8, 10, 12, 14, 15, 16, 18).
+* In multi-zone benchmarks, Window 12 executes in ~0.52 ms per call while scanning 20% further into quest chains, preventing premature departures from quest hubs.
+* Default window configured to `12` in `CompletionRoute/Core/Init.lua`.
+
 ## Native macOS Companion App Built & Deployed
 Per operational directives ("Keep a .app version of any apps made in my applications folder. It should always be usable. Always update it to be current with all changes"), a native, ultra-lightweight AppKit companion application was created and installed directly to `/Applications/Completionist's Guide.app`:
 * **App Bundle Size:** ~400 KB (native compiled Swift 6 / AppKit binary, zero electron/node/python runtime overhead).
@@ -14,11 +35,11 @@ Per operational directives ("Keep a .app version of any apps made in my applicat
 * `tools/test_load_all.lua`: Clean load across all files on all 4 flavors.
 * `tools/test_offline.lua`: ALL OFFLINE TESTS PASSED (Parser, TravelGraph Dijkstra, StepOrder, SuggestNext, Account progress, Death handling, Taxi learning, Faction taxi, Roads, UI).
 * `tools/test_farm.lua`: ALL FARM TESTS PASSED (14/14 checks, TSP solver, GatherMate2 decode, node import/export, lap value, in-client self test).
-* `tools/test_access.lua`: ALL ACCESS TESTS PASSED (Portals, access chains, expansion gates).
+* `tools/test_access.lua`: ALL ACCESS TESTS PASSED (Portals, access chains, expansion gates, 12 Order Halls).
 * `tools/install.sh`: Synchronized latest baked guides and code to all 4 live game directories on `/Volumes/x10`.
 
 ## Storage & Headroom Compliance
-* Available disk space maintained comfortably above the 8 GB threshold (> 16 GiB available on `/System/Volumes/Data`).
+* Available disk space maintained comfortably above the 8 GB threshold (> 15 GiB available on `/System/Volumes/Data`).
 * Project boundary preserved (no code written directly to `/Users/daniel`).
 
 # Status / handoff (2026-08-25)

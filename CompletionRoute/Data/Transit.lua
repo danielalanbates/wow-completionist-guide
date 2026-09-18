@@ -105,4 +105,23 @@ NS.TransitData = {
     { from = { "Boralus", 69.0, 22.0 }, to = { "Zuldazar", 43.5, 38.5 }, mode = "boat", fac = "A", cost = 60, flavors = { retail = true }, title = "Take the Boralus harbor boat to Xibala (Zuldazar)" },
     { from = { "Boralus", 69.0, 22.0 }, to = { "Nazmir", 45.5, 82.0 }, mode = "boat", fac = "A", cost = 60, flavors = { retail = true }, title = "Take the Boralus harbor boat to Redfield's Watch (Nazmir)" },
     { from = { "Boralus", 69.0, 22.0 }, to = { "Vol'dun", 56.5, 81.0 }, mode = "boat", fac = "A", cost = 60, flavors = { retail = true }, title = "Take the Boralus harbor boat to Port of Zem'lan (Vol'dun)" },
+    -- ===================== LEGION CLASS ORDER HALLS (Retail) =====================
+    -- Bidirectional connections between Dalaran (Broken Isles, 627) and the 12 class order halls
+    { from = { "627", 70.0, 49.4, name = "Dalaran" }, to = { "695", 55.0, 40.0, name = "Skyhold" }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Leap between Dalaran and Skyhold" },
+    { from = { "627", 48.0, 42.0, name = "Dalaran" }, to = { "702", 50.0, 50.0, name = "Netherlight Temple" }, mode = "portal", cost = 6, flavors = { retail = true }, title = "Enter the portal between Dalaran and Netherlight Temple" },
+    { from = { "627", 41.5, 37.0, name = "Dalaran" }, to = { "717", 78.0, 52.0, name = "Dreadscar Rift" }, mode = "portal", cost = 6, flavors = { retail = true }, title = "Enter the portal between Dalaran and Dreadscar Rift" },
+    { from = { "717", 50.0, 50.0, name = "Dreadscar Rift" }, to = { "718", 50.0, 50.0, name = "Dreadscar Rift" }, mode = "walk", cost = 5, flavors = { retail = true }, title = "Move between Dreadscar Rift levels" },
+    { from = { "627", 73.0, 43.0, name = "Dalaran" }, to = { "726", 30.0, 30.0, name = "The Maelstrom" }, mode = "portal", cost = 6, flavors = { retail = true }, title = "Enter the portal between Dalaran and The Maelstrom" },
+    { from = { "627", 56.0, 46.0, name = "Dalaran" }, to = { "734", 50.0, 50.0, name = "Hall of the Guardian" }, mode = "portal", cost = 6, flavors = { retail = true }, title = "Teleport between Dalaran and Hall of the Guardian" },
+    { from = { "734", 50.0, 50.0, name = "Hall of the Guardian" }, to = { "735", 50.0, 50.0, name = "Hall of the Guardian" }, mode = "walk", cost = 5, flavors = { retail = true }, title = "Move between Hall of the Guardian floors" },
+    { from = { "627", 71.5, 43.5, name = "Dalaran" }, to = { "739", 50.0, 50.0, name = "Trueshot Lodge" }, mode = "flight", cost = 25, flavors = { retail = true }, title = "Fly the Great Eagle between Dalaran and Trueshot Lodge" },
+    { from = { "627", 50.0, 50.0, name = "Dalaran" }, to = { "747", 45.0, 45.0, name = "The Dreamgrove" }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Dreamwalk between Dalaran and The Dreamgrove" },
+    { from = { "747", 45.0, 45.0, name = "The Dreamgrove" }, to = { "715", 50.0, 50.0, name = "Emerald Dreamway" }, mode = "portal", cost = 5, flavors = { retail = true }, title = "Pass between Emerald Dreamway and The Dreamgrove" },
+    { from = { "627", 71.0, 44.0, name = "Dalaran" }, to = { "720", 60.0, 50.0, name = "The Fel Hammer" }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Glide/Portal between Dalaran and The Fel Hammer" },
+    { from = { "720", 50.0, 50.0, name = "The Fel Hammer" }, to = { "721", 50.0, 50.0, name = "The Fel Hammer" }, mode = "walk", cost = 5, flavors = { retail = true }, title = "Move between The Fel Hammer decks" },
+    { from = { "627", 70.0, 45.0, name = "Dalaran" }, to = { "647", 30.0, 30.0, name = "Acherus: The Ebon Hold" }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Death Gate / Fly between Dalaran and Acherus" },
+    { from = { "647", 50.0, 50.0, name = "Acherus: The Ebon Hold" }, to = { "648", 50.0, 50.0, name = "Acherus: The Ebon Hold" }, mode = "walk", cost = 5, flavors = { retail = true }, title = "Move between Acherus levels" },
+    { from = { "627", 60.0, 50.0, name = "Dalaran" }, to = { "709", 50.0, 50.0, name = "The Wandering Isle" }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Zen Pilgrimage / Portal between Dalaran and The Wandering Isle" },
+    { from = { "627", 50.0, 35.0, name = "Dalaran" }, to = { "628", 45.0, 45.0, name = "Dalaran Underbelly" }, mode = "walk", cost = 8, flavors = { retail = true }, title = "Enter the Underbelly secret entrance <-> Dalaran" },
+    { from = { "627", 48.0, 42.0, name = "Dalaran" }, to = { "24", 50.0, 50.0, name = "Light's Hope Chapel" }, mode = "portal", cost = 6, flavors = { retail = true }, title = "Enter the portal between Dalaran and Light's Hope Chapel" },
 }
