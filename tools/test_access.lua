@@ -62,5 +62,28 @@ check(NS.Access.PrefixFor(steps, "test:siren") == nil, "once 84720 is complete n
 local bx, by, bi = TG.zoneToWorld("Siren Isle", 69.3, 48.0)
 local p = TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, bx, by, bi, {})
 check(p and TG.Describe(p):find("Skaggit") ~= nil, "unlocked route goes via the airship: " .. (p and TG.Describe(p):sub(1, 120) or "-"))
+
+-- Legion Class Order Halls: verify all 12 class order halls resolve and are routable
+local order_halls = {
+    { map = "695", name = "Skyhold (Warrior)" },
+    { map = "702", name = "Netherlight Temple (Priest)" },
+    { map = "717", name = "Dreadscar Rift (Warlock)" },
+    { map = "726", name = "The Maelstrom (Shaman)" },
+    { map = "734", name = "Hall of the Guardian (Mage)" },
+    { map = "739", name = "Trueshot Lodge (Hunter)" },
+    { map = "747", name = "The Dreamgrove (Druid)" },
+    { map = "720", name = "The Fel Hammer (Demon Hunter)" },
+    { map = "647", name = "Acherus: The Ebon Hold (Death Knight)" },
+    { map = "709", name = "The Wandering Isle (Monk)" },
+    { map = "628", name = "Dalaran Underbelly (Rogue)" },
+    { map = "24",  name = "Light's Hope Chapel (Paladin)" },
+}
+for _, oh in ipairs(order_halls) do
+    local ox, oy, oi = TG.zoneToWorld(oh.map, 50, 50)
+    check(ox ~= nil, oh.name .. " map " .. oh.map .. " resolves")
+    local rp = ox and TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, ox, oy, oi, {})
+    check(rp ~= nil, oh.name .. " routable from capital (cost " .. tostring(rp and math.floor(rp.cost)) .. "s)")
+end
+
 print(fails == 0 and "ALL ACCESS TESTS PASSED" or (fails .. " ACCESS TESTS FAILED"))
 os.exit(fails == 0 and 0 or 1)
