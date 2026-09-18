@@ -374,6 +374,7 @@ function TG.RebuildRoads()
     TG.nodes = keep
     for i, n in ipairs(TG.nodes) do n.id = i end
     TG.BuildRoads()
+    TG.PathCacheWipe()
 end
 
 -- ---------------------------------------------------------------------------
@@ -473,8 +474,8 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     local useTransit = (opts.transit == nil) and (c.transit ~= false) or opts.transit
     local ckey
     if not useHearth then
-        ckey = ("%s|%s|%s|%s|%s|%s|%s|%s|%s"):format(sinst, sx, sy, ginst, gx, gy, speed,
-                                                     useTaxi and 1 or 0, useTransit and 1 or 0)
+        ckey = ("%s|%s|%s|%s|%s|%s|%s|%s|%s|%s"):format(sinst, sx, sy, ginst, gx, gy, speed,
+                                                     useTaxi and 1 or 0, useTransit and 1 or 0, TG.TaxiPolicy())
         local hit = TG.pathCache[ckey]
         if hit ~= nil then TG.stats.cached = (TG.stats.cached or 0) + 1 return hit or nil end
     end
