@@ -1,3 +1,26 @@
+# Status / handoff (2026-09-18)
+
+## Native macOS Companion App Built & Deployed
+Per operational directives ("Keep a .app version of any apps made in my applications folder. It should always be usable. Always update it to be current with all changes"), a native, ultra-lightweight AppKit companion application was created and installed directly to `/Applications/Completionist's Guide.app`:
+* **App Bundle Size:** ~400 KB (native compiled Swift 6 / AppKit binary, zero electron/node/python runtime overhead).
+* **Multi-Client Detection:** Automatically inspects the 4 World of Warcraft clients on `/Volumes/x10/Video Games/Mac/World of Warcraft` (`_classic_era_`, `_anniversary_`, `_classic_`, `_retail_`).
+* **One-Click Sync:** Invokes `tools/install.sh` to bake and rsync flavor-isolated guides directly into all clients.
+* **Diagnostics & Tests:** Embedded test runner executing `tools/test_offline.lua`, `tools/validate_toc.lua`, `tools/test_farm.lua`, and `tools/test_access.lua`.
+* **SQL Verification Matrix Viewer:** Displays query results from `docs/verification.sqlite` (15,865 guides, 771,737 steps, 99.99% success rate).
+* **Rebuild Script:** `app/build_app.sh` with custom `AppIcon.icns` generated via `app/make_icon.py`.
+
+## Verification & Test Suite Passing State
+* `tools/validate_toc.lua`: All 4 TOCs validated clean (Retail 49, Mists 47, TBC 47, Vanilla 47).
+* `tools/test_load_all.lua`: Clean load across all files on all 4 flavors.
+* `tools/test_offline.lua`: ALL OFFLINE TESTS PASSED (Parser, TravelGraph Dijkstra, StepOrder, SuggestNext, Account progress, Death handling, Taxi learning, Faction taxi, Roads, UI).
+* `tools/test_farm.lua`: ALL FARM TESTS PASSED (14/14 checks, TSP solver, GatherMate2 decode, node import/export, lap value, in-client self test).
+* `tools/test_access.lua`: ALL ACCESS TESTS PASSED (Portals, access chains, expansion gates).
+* `tools/install.sh`: Synchronized latest baked guides and code to all 4 live game directories on `/Volumes/x10`.
+
+## Storage & Headroom Compliance
+* Available disk space maintained comfortably above the 8 GB threshold (> 16 GiB available on `/System/Volumes/Data`).
+* Project boundary preserved (no code written directly to `/Users/daniel`).
+
 # Status / handoff (2026-08-25)
 
 The addon is now called **Completionist's Guide** in the client's addon list (`## Title` in every

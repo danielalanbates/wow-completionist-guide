@@ -57,11 +57,22 @@ In-game runs (the real API, the real frames) are driven by `tools/run_flavor_ver
 
 ## Install
 
-```
+```bash
 tools/install.sh                     # copies CompletionRoute/ into _anniversary_/Interface/AddOns
 tools/install.sh _classic_era_ _retail_
 ```
 Or copy the `CompletionRoute/` folder into `Interface/AddOns/`.
+
+### macOS Companion App (`/Applications/Completionist's Guide.app`)
+A native, lightweight macOS AppKit companion application (400 KB, zero external dependencies) is maintained in `/Applications/Completionist's Guide.app`:
+- Displays live status of all 4 installed WoW clients (`_classic_era_`, `_anniversary_`, `_classic_`, `_retail_`).
+- One-click guide baking and multi-client addon synchronization.
+- Interactive offline test suite runner and diagnostic console.
+- Embedded SQL verification report query interface from `docs/verification.sqlite`.
+To rebuild and deploy:
+```bash
+./app/build_app.sh
+```
 
 ## Use
 

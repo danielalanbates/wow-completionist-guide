@@ -19,3 +19,5 @@ __pycache__/
 # generated Blizzard quest POI dumps (regenerate: tools/gen_quest_guides_retail.py)
 tools/db2/retail/QuestPOI*.csv
 tools/db2/questie_index.tsv
+*.app
+app/*.app/
