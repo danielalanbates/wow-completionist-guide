@@ -16,6 +16,7 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
 # 2. Compile Swift binary
 echo "Compiling Swift executable..."
+export DEVELOPER_DIR="${DEVELOPER_DIR:-/Library/Developer/CommandLineTools}"
 swiftc -O -target arm64-apple-macos14.0 -framework Cocoa -framework AppKit "$DIR/main.swift" -o "$MACOS_DIR/$APP_NAME"
 
 # 3. Generate icon if not present
