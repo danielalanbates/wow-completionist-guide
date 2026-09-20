@@ -85,5 +85,25 @@ for _, oh in ipairs(order_halls) do
     check(rp ~= nil, oh.name .. " routable from capital (cost " .. tostring(rp and math.floor(rp.cost)) .. "s)")
 end
 
+-- Extended Transit Destinations (Shadowlands, Dragonflight, BfA, Darkmoon)
+local extended_destinations = {
+    { map = "1543", name = "The Maw (Shadowlands)" },
+    { map = "1911", name = "Torghast (Shadowlands)" },
+    { map = "1961", name = "Korthia (Shadowlands)" },
+    { map = "1970", name = "Zereth Mortis (Shadowlands)" },
+    { map = "2133", name = "Zaralek Cavern (Dragonflight)" },
+    { map = "2200", name = "Emerald Dream (Dragonflight)" },
+    { map = "Nazjatar", name = "Nazjatar (BfA)" },
+    { map = "1462", name = "Mechagon (BfA)" },
+    { map = "407",  name = "Darkmoon Island (World Events)" },
+}
+for _, ed in ipairs(extended_destinations) do
+    local ex, ey, ei = TG.zoneToWorld(ed.map, 50, 50)
+    check(ex ~= nil, ed.name .. " map " .. ed.map .. " resolves")
+    local ep = ex and TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, ex, ey, ei, {})
+    check(ep ~= nil, ed.name .. " routable from capital (cost " .. tostring(ep and math.floor(ep.cost)) .. "s)")
+end
+
 print(fails == 0 and "ALL ACCESS TESTS PASSED" or (fails .. " ACCESS TESTS FAILED"))
 os.exit(fails == 0 and 0 or 1)
+
