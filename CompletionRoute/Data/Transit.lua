@@ -124,4 +124,26 @@ NS.TransitData = {
     { from = { "627", 60.0, 50.0, name = "Dalaran" }, to = { "709", 50.0, 50.0, name = "The Wandering Isle" }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Zen Pilgrimage / Portal between Dalaran and The Wandering Isle" },
     { from = { "627", 50.0, 35.0, name = "Dalaran" }, to = { "628", 45.0, 45.0, name = "Dalaran Underbelly" }, mode = "walk", cost = 8, flavors = { retail = true }, title = "Enter the Underbelly secret entrance <-> Dalaran" },
     { from = { "627", 48.0, 42.0, name = "Dalaran" }, to = { "24", 50.0, 50.0, name = "Light's Hope Chapel" }, mode = "portal", cost = 6, flavors = { retail = true }, title = "Enter the portal between Dalaran and Light's Hope Chapel" },
+    -- ===================== SHADOWLANDS EXTENDED (Retail) =====================
+    { from = { "Oribos", 50.0, 50.0 }, to = { "1543", 45.0, 41.0, name = "The Maw" }, mode = "portal", cost = 12, flavors = { retail = true }, title = "Jump into the Maw / Waystone to Oribos" },
+    { from = { "1543", 25.0, 35.0, name = "The Maw" }, to = { "1911", 50.0, 50.0, name = "Torghast" }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Enter Torghast, Tower of the Damned" },
+    { from = { "1543", 62.0, 68.0, name = "The Maw" }, to = { "1961", 38.0, 78.0, name = "Korthia" }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Travel between The Maw and Korthia" },
+    { from = { "1970", 34.8, 65.0, name = "Zereth Mortis" }, to = { "Oribos", 38.9, 70.0 }, mode = "portal", cost = 8, twoway = false, flavors = { retail = true }, title = "Take the Zereth Mortis portal back to Oribos" },
+    -- ===================== DRAGONFLIGHT EXTENDED (Retail) =====================
+    { from = { "Valdrakken", 53.0, 55.0 }, to = { "2133", 56.0, 56.0, name = "Zaralek Cavern" }, mode = "portal", cost = 10, flavors = { retail = true }, title = "Fly/Portal between Valdrakken and Zaralek Cavern (Loamm)" },
+    { from = { "Valdrakken", 62.5, 57.5 }, to = { "2200", 50.0, 60.0, name = "Emerald Dream" }, mode = "portal", cost = 8, flavors = { retail = true }, title = "Enter the portal between Valdrakken and Emerald Dream" },
+    -- ===================== BATTLE FOR AZEROTH EXTENDED (Retail) =====================
+    { from = { "Nazjatar", 38.0, 55.0 }, to = { "Boralus", 70.0, 15.5 }, mode = "portal", fac = "A", cost = 8, twoway = false, flavors = { retail = true }, title = "Take the Mezzamere portal to Boralus" },
+    { from = { "Nazjatar", 50.0, 52.0 }, to = { "Zuldazar", 58.5, 59.5 }, mode = "portal", fac = "H", cost = 8, twoway = false, flavors = { retail = true }, title = "Take the Newhome portal to Dazar'alor" },
+    { from = { "Boralus", 67.4, 15.3 }, to = { "1462", 73.0, 37.0, name = "Mechagon" }, mode = "flight", fac = "A", cost = 45, flavors = { retail = true }, title = "Fly between Boralus and Rustbolt (Mechagon)" },
+    { from = { "Zuldazar", 58.0, 62.5 }, to = { "1462", 73.0, 37.0, name = "Mechagon" }, mode = "flight", fac = "H", cost = 45, flavors = { retail = true }, title = "Fly between Port of Zandalar and Rustbolt (Mechagon)" },
+    -- ===================== PANDARIA EXTENDED (Mists+) =====================
+    { from = { "Isle of Thunder", 64.0, 73.0 }, to = { "Townlong Steppes", 50.0, 70.0 }, mode = "portal", fac = "H", cost = 8, twoway = false, flavors = { mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }, title = "Take the Sunreaver portal to Townlong Steppes" },
+    { from = { "Isle of Thunder", 64.0, 73.0 }, to = { "Townlong Steppes", 50.0, 70.0 }, mode = "portal", fac = "A", cost = 8, twoway = false, flavors = { mop = true, wod = true, legion = true, bfa = true, sl = true, df = true, retail = true }, title = "Take the Kirin Tor portal to Townlong Steppes" },
+    -- ===================== WORLD EVENTS: DARKMOON FAIRE =====================
+    { from = { "Elwynn Forest", 41.8, 69.5 }, to = { "407", 52.0, 89.0, name = "Darkmoon Island" }, mode = "portal", fac = "A", cost = 8, title = "Enter the Darkmoon Faire portal (Elwynn Forest <-> Darkmoon Island)" },
+    { from = { "Mulgore", 36.5, 36.0 }, to = { "407", 52.0, 89.0, name = "Darkmoon Island" }, mode = "portal", fac = "H", cost = 8, title = "Enter the Darkmoon Faire portal (Mulgore <-> Darkmoon Island)" },
+    -- ===================== THE WAR WITHIN EXTENDED (Retail) =====================
+    { from = { "Siren Isle", 69.3, 48.0 }, to = { "Isle of Dorn", 55.40, 33.86 }, mode = "boat", cost = 60, twoway = false, flavors = { retail = true }, title = "Sail Skaggit's airship from Siren Isle to Isle of Dorn" },
+    { from = { "Undermine", 24.10, 51.17 }, to = { "The Ringing Deeps", 72.95, 73.20 }, mode = "portal", cost = 60, twoway = false, flavors = { retail = true }, title = "Take the Rocket Drill from Undermine to The Ringing Deeps" },
 }

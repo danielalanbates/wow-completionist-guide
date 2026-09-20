@@ -1,3 +1,38 @@
+# Status / handoff (2026-09-19)
+
+## Expansion Transit Hubs & Island Links Connected
+Expanded `CompletionRoute/Data/Transit.lua` to bridge key routing gaps across Shadowlands, Dragonflight, Battle for Azeroth, Pandaria, World Events, and The War Within:
+* **Shadowlands:**
+  * Oribos <-> The Maw (`1543`): jump into Maw / Waystone return to Oribos.
+  * The Maw (`1543`) <-> Torghast (`1911`): entrance to Torghast, Tower of the Damned.
+  * The Maw (`1543`) <-> Korthia (`1961`): flight/flayer path between Maw and Korthia.
+  * Zereth Mortis (`1970`) -> Oribos (`1670`): return portal from Zereth Mortis.
+* **Dragonflight:**
+  * Valdrakken (`2112`) <-> Zaralek Cavern (`2133`): Loamm portal / tunnel traversal.
+  * Valdrakken (`2112`) <-> Emerald Dream (`2200`): Central Encampment portal.
+* **Battle for Azeroth:**
+  * Nazjatar -> Boralus (Alliance, Mezzamere portal) & Dazar'alor (Horde, Newhome portal).
+  * Mechagon (`1462`) <-> Boralus (Alliance flight) & Dazar'alor (Horde flight).
+* **Pandaria:**
+  * Isle of Thunder (`504`) -> Townlong Steppes: Sunreaver & Kirin Tor return portals.
+* **World Events:**
+  * Darkmoon Island (`407`) <-> Elwynn Forest (Alliance) & Mulgore (Horde).
+* **The War Within:**
+  * Siren Isle (`2369`) -> Isle of Dorn (`2248`): Skaggit's airship return.
+  * Undermine (`2346`) -> The Ringing Deeps (`2214`): Rocket Drill return.
+
+## Verification & Test Suite Passing State
+* `tools/test_access.lua`: 100% PASS across all 12 Legion Class Order Halls, all Access Chains, and all newly connected transit hubs (Maw, Torghast, Korthia, Zereth Mortis, Zaralek Cavern, Emerald Dream, Nazjatar, Mechagon, Darkmoon Island).
+* `tools/validate_toc.lua`: All 4 TOCs validated clean.
+* `tools/test_load_all.lua`: Clean load across all files on all 4 flavors.
+* `tools/test_offline.lua`: ALL OFFLINE TESTS PASSED.
+* `tools/test_farm.lua`: ALL FARM TESTS PASSED (14/14 checks).
+* `tools/install.sh`: Synchronized latest baked guides and code to all 4 live game directories on `/Volumes/x10`.
+
+## Companion App & Build Environment
+* Updated `app/build_app.sh` to configure `DEVELOPER_DIR="${DEVELOPER_DIR:-/Library/Developer/CommandLineTools}"`, preventing interactive Xcode license prompts during autonomous builds.
+* Recompiled and deployed native Swift 6 / AppKit companion app to `/Applications/Completionist's Guide.app`.
+
 # Status / handoff (2026-09-18)
 
 ## Legion Class Order Halls Connected & Verified
