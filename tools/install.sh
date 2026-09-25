@@ -8,6 +8,12 @@ WOW="${WOW_DIR:-/Volumes/x10/Video Games/Mac/World of Warcraft}"
 command -v luajit >/dev/null && luajit "$(dirname "$0")/export_guides.lua" || true
 # Guides/ now holds a baked set per flavor (Zygor's retail install alone is ~30 MB); ship each client
 # only its own, or every game folder carries ~90 MB of other eras' guides it will never load.
+# Guard: Imported_Quests_*.lua are the community (Questie/Blizzard-POI) guides — generated, gitignored,
+# and the whole point of the addon once the Zygor sub ends. A fresh clone lacks them, and rsync --delete
+# below would then strip them from every client (happened 2026-09-18/19). Refuse instead.
+for tier in era tbc wotlk cata mop retail; do
+  [ -s "$SRC/Guides/Imported_Quests_$tier.lua" ] || { echo "install.sh: missing Guides/Imported_Quests_$tier.lua — regenerate (tools/gen_quest_guides.lua / gen_quest_guides_retail.py) or copy it in; refusing to wipe the community guides from the clients" >&2; exit 1; }
+done
 flavor_of() { case "$1" in _retail_) echo retail;; _classic_) echo mop;; _classic_era_) echo era;; _anniversary_) echo tbc;; *) echo retail;; esac; }
 for fl in "${@:-_anniversary_}"; do
   DST="$WOW/$fl/Interface/AddOns/CompletionRoute"

@@ -1,3 +1,17 @@
+# Status / handoff (2026-09-25)
+
+## Regression fixed: community quest guides had been wiped from all four clients
+* The 2026-09-18/19 `tools/install.sh` runs came from a fresh clone with no `Guides/Imported_Quests_*.lua`
+  (generated, gitignored). `rsync --delete` then removed them from every client, so the live addon carried
+  only Zygor + WoW-Pro guides and none of the community (Questie / Blizzard QuestPOI) guides.
+* Restored the six files from the iCloud working copy (generated 2026-08-25) and reinstalled to
+  era/tbc/mop/retail. `install.sh` now **refuses to run** if any `Imported_Quests_<tier>.lua` is missing.
+* Checked: test_load_all, validate_toc, test_offline and test_access all pass. vplayer retail
+  `--type Quests --limit 40`: 40/40 finished, 0 stalls.
+* Still open: the in-game pass on TBC/MoP/retail (needs GUI + Battle.net login, so Daniel has to be present),
+  and re-measuring `no_route` after the Sep transit edges (full sweep ~50 min; not run because the Mac had
+  7 GB free and load ~40).
+
 # Status / handoff (2026-09-19)
 
 ## Expansion Transit Hubs & Island Links Connected
