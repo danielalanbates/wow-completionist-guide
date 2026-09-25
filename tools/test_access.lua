@@ -104,6 +104,39 @@ for _, ed in ipairs(extended_destinations) do
     check(ep ~= nil, ed.name .. " routable from capital (cost " .. tostring(ep and math.floor(ep.cost)) .. "s)")
 end
 
+-- Seeded dungeon doors (tools/gen_entrances.py -> Data/Imported_Entrances.lua, gitignored): a step inside
+-- The Deadmines routes to its door from Stormwind, and a player standing inside routes back out.
+local fe = io.open("CompletionRoute/Data/Imported_Entrances.lua", "r")
+if fe then
+    fe:close()
+    load("Core/Instances.lua") load("Data/Imported_Entrances.lua")
+    FACTION = "Alliance" NS.player = { faction = "Alliance" } place(84, 0.5, 0.5) TG.built = false TG.Build()
+    local dm = U.MapIDByName("The Deadmines")
+    check(dm and NS.EntranceSeed["The Deadmines"] ~= nil, "Deadmines interior map " .. tostring(dm) .. " has a seeded entrance")
+    local st = { action = "C", zone = dm, coords = { { x = 0.5, y = 0.5 } } }
+    local secs = NS.Router.TravelSecondsFromPlayer(st)
+    check(secs ~= nil and st._locSource == "entrance", "Deadmines step routes to the door from Stormwind (" .. tostring(secs and math.floor(secs)) .. "s)")
+    place(dm, 0.5, 0.5)
+    local out = NS.Router.TravelSecondsFromPlayer({ action = "T", zone = 84, coords = { { x = 0.5, y = 0.5 } } })
+    check(out ~= nil, "from inside the Deadmines a Stormwind step routes via the door (" .. tostring(out and math.floor(out)) .. "s)")
+    place(84, 0.5, 0.5)
+else
+    print("  skip Data/Imported_Entrances.lua not generated (tools/gen_entrances.py)")
+end
+
+-- Achievement steps (tools/gen_completion_guides.py): |ACH|id;crit| parses and ticks from the client API
+local sa = G.ParseLine("C Explore Elwynn|ACH|776;1234|N|x|", 1)
+check(sa and sa.ach == 776 and sa.achCrit == 1234, "ACH tag parses achievement + criteria-tree id")
+local earned = {}
+GetAchievementInfo = function(id) return id, "a", 10, earned[id] or false end
+GetAchievementCriteriaInfoByID = function(id, c) return "c", 0, earned[c] or false end
+check(not NS.Progress.CheckStep(sa), "ACH step open while criterion unearned")
+earned[1234] = true
+check(NS.Progress.CheckStep(sa), "ACH step ticks once the criterion is earned")
+local sm = G.ParseLine("N Gronnlings Abound|MISSION|2|N|x|", 1)
+check(sm and sm.mission == 2, "MISSION tag parses")
+GetAchievementInfo, GetAchievementCriteriaInfoByID = nil, nil
+
 print(fails == 0 and "ALL ACCESS TESTS PASSED" or (fails .. " ACCESS TESTS FAILED"))
 os.exit(fails == 0 and 0 or 1)
 

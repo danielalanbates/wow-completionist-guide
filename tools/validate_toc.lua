@@ -21,7 +21,7 @@ for _, toc in ipairs(tocs) do
                 seen[rel] = true
                 local f = io.open("CompletionRoute/" .. rel, "r")
                 if f then f:close()
-                elseif rel:match("^Guides/Imported_") then
+                elseif rel:match("^Guides/Imported_") or rel:match("^Data/Imported_") then
                     print("skip " .. toc .. ": " .. rel .. " (baked locally, gitignored)")
                 else print("FAIL " .. toc .. ": missing file " .. rel); fail = fail + 1 end
             end

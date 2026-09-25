@@ -111,11 +111,22 @@ function R.TravelSeconds(a, b)
     local p = TG.FindPath(ax, ay, ai, bx, by, bi, { hearth = false, speed = speed })
     return p and p.cost or nil
 end
+local EXIT_INSTANCE_SECONDS = 30
 function R.TravelSecondsFromPlayer(b)
     local map, x, y, inst, wx, wy = U.PlayerPos()
     local bx, by, bi = R.StepWorld(b)
     if not wx or not bx then return nil end
     local speed = U.TravelSpeed()
+    -- Standing inside a dungeon and the next step is outside it: the graph has no edges out of an
+    -- instance, so start from its door (learned / journal / seeded entrance) plus the walk out.
+    local I = NS.Instances
+    if inst ~= bi and I and I.IsInstanceMap(map) then
+        local ex, ey, ei = I.Entrance(map)
+        if ex then
+            local p = TG.FindPath(ex, ey, ei, bx, by, bi, { speed = speed })
+            return p and (p.cost + EXIT_INSTANCE_SECONDS) or nil
+        end
+    end
     if inst == bi then
         local d = math.sqrt((wx - bx) ^ 2 + (wy - by) ^ 2)
         if d < WALK_ONLY_BELOW then return d * (NS.db.profile.routing.terrainFactor or 1.25) / speed end
