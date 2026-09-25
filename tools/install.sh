@@ -16,6 +16,11 @@ for tier in era tbc wotlk cata mop retail; do
 done
 flavor_of() { case "$1" in _retail_) echo retail;; _classic_) echo mop;; _classic_era_) echo era;; _anniversary_) echo tbc;; *) echo retail;; esac; }
 for fl in "${@:-_anniversary_}"; do
+  LEGACY="$WOW/$fl/Interface/AddOns/OpenRoute"
+  if [ -d "$LEGACY" ]; then
+    echo "install.sh: obsolete OpenRoute is still installed at $LEGACY; archive it before installing CompletionRoute to prevent both guide engines from running" >&2
+    exit 1
+  fi
   DST="$WOW/$fl/Interface/AddOns/CompletionRoute"
   MINE="$(flavor_of "$fl")"
   EXCL=()
