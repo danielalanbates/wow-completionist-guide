@@ -143,6 +143,27 @@ def main():
             continue
         zones[home].append(qid)
 
+    # Quests the client knows (QuestV2) that have NO map pin but whose giver Questie has a spawn for:
+    # without this pass they were in no guide at all.  They join the giver's zone guide with an accept
+    # on the real giver and a location-less turn-in (the client names/places it once accepted).
+    qv2 = CACHE / "QuestV2.csv"
+    client_ids = {int(r["ID"]) for r in csv.DictReader(qv2.open(encoding="utf-8"))} if qv2.exists() else set()
+    byname0 = {}
+    for mid, m in sorted(maps.items()):
+        if m["name"] not in byname0 or (m["type"] == 3 and maps[byname0[m["name"]]]["type"] != 3):
+            byname0[m["name"]] = mid
+    unpinned = 0
+    for qid, e in qidx.items():
+        if qid in quests or qid not in client_ids or not e["zone"] or e["x"] <= 0:
+            continue
+        mid = byname0.get(e["zone"])
+        if mid is None:
+            continue
+        quests[qid]["unpinned"] = True
+        zones[mid].append(qid)
+        unpinned += 1
+    print(f"{unpinned} pin-less client quests added at their Questie giver")
+
     def zline(uimap):
         m = maps[uimap]
         return f"|Z|{uimap}; {m['name']}|"
@@ -211,6 +232,9 @@ def main():
                             f"N|Approximate: this is the turn-in pin, the giver may be elsewhere.|")
             else:
                 body.append(f"A {title}|QID|{qid}|{gate}N|No turn-in pin in client data.|")
+            if rec.get("unpinned"):
+                body[-1] = body[-1].replace("N|Quest giver location (Questie).|",
+                                            "N|Quest giver location (Questie); no map pin in client data.|")
             for oi in sorted(rec["objectives"]):
                 omap, (ox, oy) = rec["objectives"][oi]
                 body.append(f"C {title}|QID|{qid}|QO|{oi+1}|"

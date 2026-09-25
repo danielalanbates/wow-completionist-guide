@@ -28,6 +28,7 @@ Data\Taxi_tbc.lua
 Data\Taxi_mop.lua
 Data\Taxi_retail.lua
 Data\Transit.lua
+Data\Imported_Entrances.lua
 Data\Access.lua
 Data\Inns.lua
 Data\Farm_routes.lua
@@ -57,6 +58,9 @@ Guides\Imported_Quests_wotlk.lua
 Guides\Imported_Quests_cata.lua
 Guides\Imported_Quests_mop.lua
 Guides\Imported_Quests_retail.lua
+Guides\Imported_Achievements_retail.lua
+Guides\Imported_Storylines_retail.lua
+Guides\Imported_Missions_retail.lua
 Guides\Guides.xml
 Core\Sweep.lua
 Core\Slash.lua
