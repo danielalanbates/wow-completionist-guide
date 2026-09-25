@@ -1,3 +1,17 @@
+# Status / handoff (2026-09-25, duplicate addon fixed)
+
+## Retail guide switching / error spam
+Retail had both the current `CompletionRoute` and obsolete `OpenRoute` installed. The old copy (Sep 18)
+was missing its generated community quest files; retail `FrameXML.log` showed five failed TOC loads. It
+was capable of running a second guide engine alongside the current addon. Archived the old folders from
+all four active clients to `World of Warcraft/AddOns-archive/OpenRoute-legacy_20260925/<flavor>/OpenRoute`
+(the files are preserved for rollback). `CompletionRoute` remains installed in all clients.
+
+`tools/install.sh` now refuses an install when the obsolete `OpenRoute` folder is still active, preventing
+the duplicate-engine condition from returning. Retail is already running; the archived code stays in memory
+until the player reloads the UI. Type `/reload` in WoW to load only `CompletionRoute`. The game UI still
+needs a player check after reload to confirm the repeated guide switching and Lua error bar have stopped.
+
 # Status / handoff (2026-09-25, routing sweep complete)
 
 ## Post-transit routing sweep
