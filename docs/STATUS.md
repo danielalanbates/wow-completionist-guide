@@ -1,3 +1,26 @@
+# Status / handoff (2026-09-25, routing sweep complete)
+
+## Post-transit routing sweep
+Re-ran the full virtual routing sweep on branch `beacon-and-account-progress` at `5a56843`, using the
+locally installed guide datasets (which remain gitignored) and the checked-in route engine/data. Results
+are saved in `docs/route_sweep_{era,tbc,mop,retail}.tsv` and imported into `docs/verification.sqlite`
+(`route_sweep` table); `docs/verification.sql` is refreshed from the full database.
+
+| Flavor | Guides | Steps | Located | Precedence violations | Slower than author | Unreachable first step | Load errors | Faster than author |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| era | 1,111 | 56,461 | 96.3% | 0 | 0 | 0 | 0 | 158 |
+| tbc | 1,061 | 82,994 | 98.6% | 0 | 0 | 0 | 0 | 193 |
+| mop | 3,775 | 212,043 | 97.1% | 0 | 0 | 0 | 0 | 340 |
+| retail | 9,918 | 420,239 | 95.5% | 0 | 10 | 0 | 0 | 738 |
+
+Across all four flavors: **15,865 guides / 771,737 steps**, zero load errors, zero quest precedence violations,
+and zero unreachable first steps from each guide’s modeled starting zone to its first located step. The retail optimizer's measured first window cost was higher than author
+order in 10 guides (9,908/9,918 were equal or faster); this is a small heuristic quality exception, not a
+route failure. Per-guide costs and paths are recorded in the SQL table and TSVs for follow-up.
+
+The sweep is offline. It does not replace the pending manual in-game pass on TBC, MoP, and retail, which
+requires the game UI and Battle.net login.
+
 # Status / handoff (2026-09-25)
 
 ## Regression fixed: community quest guides had been wiped from all four clients
