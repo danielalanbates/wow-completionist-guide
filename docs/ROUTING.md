@@ -112,3 +112,21 @@ The graph is rebuilt after a quest turn-in so a freshly unlocked chain switches 
 Offline check: `luajit tools/test_access.lua` (resolves, routes through, parses, injects, un-injects when done).
 Entries marked `approx = true` were written from memory where the local Zygor install had no guide (Horde
 Nazjatar) - verify in game. Not yet chained: Dalaran-Crater / scenario starts, pet-battle maps inside instances.
+
+
+## Full guide sweep after transit additions (2026-09-25)
+
+The offline sweep processed all 15,865 current guide records (771,737 steps) across Era, TBC, MoP, and retail.
+It found no load failures, quest precedence violations, or unreachable first steps from each guide’s modeled starting zone. Retail had 10 guide windows
+where the measured first-window route cost exceeded author order; all individual guide rows are in
+`verification.sqlite` / `verification.sql` and `route_sweep_retail.tsv`. Treat the optimizer as a bounded heuristic,
+not a proof of a global optimum. The 10 cases need review if a zero-regression guarantee is required.
+
+```sql
+SELECT flavor, COUNT(*) AS guides, SUM(steps) AS steps,
+       ROUND(100.0 * SUM(located) / NULLIF(SUM(steps), 0), 1) AS located_pct,
+       SUM(CASE WHEN route_ok = 'no' THEN 1 ELSE 0 END) AS unreachable,
+       SUM(CASE WHEN order_ok = 0 THEN 1 ELSE 0 END) AS precedence_violations,
+       SUM(CASE WHEN opt_cost > author_cost + 1 THEN 1 ELSE 0 END) AS slower_windows
+FROM route_sweep GROUP BY flavor ORDER BY flavor;
+```
