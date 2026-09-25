@@ -238,6 +238,9 @@ function P.CheckStep(step)
     elseif a == "f" then
         if step.taxiDone then return true end
     end
+    -- achievement steps (tools/gen_completion_guides.py): done when the client says the achievement,
+    -- or the named criteria-tree node, is earned.  Clients without achievements answer nil -> manual.
+    if step.ach and U.AchievementDone(step.ach, step.achCrit) then return true end
     -- generic: quest already complete => step obsolete
     if step.qid and (a ~= "A" and a ~= "a") and anyQuestDone(step.qid, U.IsQuestComplete) then return true end
     return false

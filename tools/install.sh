@@ -14,6 +14,12 @@ command -v luajit >/dev/null && luajit "$(dirname "$0")/export_guides.lua" || tr
 for tier in era tbc wotlk cata mop retail; do
   [ -s "$SRC/Guides/Imported_Quests_$tier.lua" ] || { echo "install.sh: missing Guides/Imported_Quests_$tier.lua — regenerate (tools/gen_quest_guides.lua / gen_quest_guides_retail.py) or copy it in; refusing to wipe the community guides from the clients" >&2; exit 1; }
 done
+# Completionist sets (tools/gen_completion_guides.py): achievements (mop, retail), storylines + mission
+# tables (retail).  Same rule as above - generated, gitignored - but only a warning: a client without
+# them still has every quest guide.
+for f in Imported_Achievements_mop Imported_Achievements_retail Imported_Storylines_retail Imported_Missions_retail; do
+  [ -s "$SRC/Guides/$f.lua" ] || echo "install.sh: note: Guides/$f.lua missing - run tools/gen_completion_guides.py to add it" >&2
+done
 flavor_of() { case "$1" in _retail_) echo retail;; _classic_) echo mop;; _classic_era_) echo era;; _anniversary_) echo tbc;; *) echo retail;; esac; }
 for fl in "${@:-_anniversary_}"; do
   LEGACY="$WOW/$fl/Interface/AddOns/OpenRoute"
@@ -26,7 +32,9 @@ for fl in "${@:-_anniversary_}"; do
   EXCL=()
   for other in era tbc mop retail; do
     [ "$other" = "$MINE" ] && continue
-    EXCL+=(--exclude "Guides/Imported_Zygor_$other.lua" --exclude "Guides/Imported_WoWPro_$other.lua")
+    EXCL+=(--exclude "Guides/Imported_Zygor_$other.lua" --exclude "Guides/Imported_WoWPro_$other.lua"
+           --exclude "Guides/Imported_Achievements_$other.lua" --exclude "Guides/Imported_Storylines_$other.lua"
+           --exclude "Guides/Imported_Missions_$other.lua")
   done
   mkdir -p "$DST"
   rsync -a --delete --exclude ".DS_Store" "${EXCL[@]}" "$SRC/" "$DST/"

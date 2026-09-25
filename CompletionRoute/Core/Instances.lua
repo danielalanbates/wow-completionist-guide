@@ -98,6 +98,12 @@ function I.Entrance(mapID)
             if d then d["map:" .. mapID] = j end
         end
     end
+    if not rec then
+        -- last fallback: the seeded door (Data/Imported_Entrances.lua, tools/gen_entrances.py), keyed by
+        -- the interior map's name so every floor of a multi-level dungeon finds it
+        local seed = NS.EntranceSeed and NS.EntranceSeed[U.MapName(mapID) or ""]
+        if seed then rec = { map = seed[1], x = seed[2], y = seed[3], name = U.MapName(mapID), src = "seed" } end
+    end
     if not rec then return nil end
     local wx, wy, inst = U.World(rec.map, rec.x, rec.y)
     if not wx then return nil end

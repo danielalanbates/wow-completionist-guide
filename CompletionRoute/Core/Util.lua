@@ -184,6 +184,18 @@ function U.IsQuestComplete(qid)
     if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted then return C_QuestLog.IsQuestFlaggedCompleted(qid) or false end
     return IsQuestFlaggedCompleted and IsQuestFlaggedCompleted(qid) or false
 end
+-- Achievement (or one of its criteria, by criteria-tree id) earned by this character/account?
+-- GetAchievementInfo's 4th return is "completed"; GetAchievementCriteriaInfoByID's 3rd is "completed".
+-- Era/TBC clients have no achievement API: returns false and the step stays a manual click.
+function U.AchievementDone(ach, crit)
+    if not ach or not GetAchievementInfo then return false end
+    if crit and GetAchievementCriteriaInfoByID then
+        local ok, _, _, done = pcall(GetAchievementCriteriaInfoByID, ach, crit)
+        if ok and done then return true end
+    end
+    local ok, _, _, _, completed = pcall(GetAchievementInfo, ach)
+    return ok and completed and true or false
+end
 function U.IsOnQuest(qid)
     if not qid then return false end
     if C_QuestLog and C_QuestLog.IsOnQuest then return C_QuestLog.IsOnQuest(qid) end

@@ -104,6 +104,11 @@ function G.ParseLine(text, lineno, defaultZone)
         elseif tag == "NA" or tag == "NOAUTO" then step.noauto = true consumed = 1
         elseif tag == "CC" or tag == "CS" or tag == "CN" then step.waypcomplete = tag consumed = 1
         elseif tag == "RANK" then step.rank = tonumber(val)
+        elseif tag == "ACH" then
+            -- achievement (and optionally one criteria-tree node): "ACH|6|" or "ACH|6;2050|"
+            local a, c = (val or ""):match("^%s*(%d+)%s*;?%s*(%d*)")
+            step.ach = tonumber(a) step.achCrit = tonumber(c)
+        elseif tag == "MISSION" then step.mission = tonumber(val and val:match("%d+"))
         elseif tag == "RAD" then step.radius = tonumber(val)
         elseif tag == "KIND" then step.kind = val
         elseif tag == "ROUTE" then step.route = true consumed = 1
@@ -148,7 +153,7 @@ local TYPE_CANON = { gold = "Gold", leveling = "Leveling", quests = "Quests", du
     profession = "Professions", professions = "Professions", daily = "Dailies", dailies = "Dailies",
     reputation = "Reputation", reputations = "Reputation", title = "Titles", titles = "Titles",
     event = "Events", events = "Events", achievement = "Achievements", achievements = "Achievements",
-    pet = "Pets", pets = "Pets", mount = "Mounts", mounts = "Mounts", raid = "Raids", raids = "Raids" }
+    pet = "Pets", pets = "Pets", storyline = "Storylines", storylines = "Storylines", mission = "Missions", missions = "Missions", mount = "Mounts", mounts = "Mounts", raid = "Raids", raids = "Raids" }
 function G.NormalizeType(t)
     if not t or t == "" then return "Leveling" end
     return TYPE_CANON[tostring(t):lower()] or t

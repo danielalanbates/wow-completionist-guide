@@ -1,3 +1,83 @@
+# Status / handoff (2026-09-25, completionist coverage charted in SQL)
+
+## What changed
+* **`tools/coverage.py`**: measures every flavor against the client's own lists (wago.tools DB2: QuestV2,
+  Achievement, CriteriaTree, QuestLine/QuestLineXQuest, GarrMission; item-started quests from Questie).
+  Writes `coverage` (flavor, category, label, total, covered, missing, located) and `coverage_missing` (IDs)
+  into `docs/verification.sqlite`. **covered** means the ID is in a guide the client loads. **located** means at least one of its steps has map coordinates, so the router can take you there.
+* **`tools/gen_completion_guides.py`** (output gitignored, shipped by `install.sh` like Imported_Quests):
+  `Imported_Achievements_{retail,mop}.lua`: one guide per achievement category, one step per criterion (cap 60) plus a FIXED
+  "earn it" step. Quest criteria carry that quest's map pin, so the router orders them by travel time.
+  `Imported_Storylines_retail.lua` (1,648 QuestLines in client order, `PRE`-chained so routing cannot break the story),
+  `Imported_Missions_retail.lua` (1,757 missions on WoD/Legion/BfA/SL tables).
+* New step tags: `|ACH|id;criteriaTreeId|` ticks from `GetAchievementInfo` / `GetAchievementCriteriaInfoByID`.
+  On Era/TBC it stays a manual step because those clients have no achievement API. `|MISSION|id|` is manual because the client keeps no persistent flag for a completed mission.
+* `gen_quest_guides_retail.py`: adds 4,014 client quests that have no map pin at their Questie quest giver.
+  `gen_quest_guides.lua`: finds where an item that starts a quest drops or is sold (Questie itemDB). It now runs with `lua` 5.5,
+  because the current Questie questDB exceeds LuaJIT's 65,536-constant limit.
+* **Routing into and out of dungeons:** `tools/gen_entrances.py` writes `Data/Imported_Entrances.lua` (gitignored, from Questie
+  dungeons.lua, ~90-100 doors per flavor). `Core/Instances.lua` uses it as the last fallback after learned and journal
+  entrances. `Router.TravelSecondsFromPlayer` now routes from inside an instance via its door (+30 s).
+* `vplayer.lua`: `--guides-file`, ACH support, and a `*_noroute.tsv` per run (from/to map of every unroutable step).
+  `tools/collect_noroute.py` folds these into `noroute_rerun` / `noroute_steps`.
+* Taxi CSVs are untracked (derived Blizzard data). `tools/gen_taxi.py` fetches them again.
+
+## Coverage, measured (before → after)
+| Flavor | Category | Total | Covered before | Covered after | Located after |
+|---|---|---:|---:|---:|---:|
+| era | quest | 4,807 | 3,852 | 3,852 | 3,745 |
+| era | item-quest | 204 | 204 | 204 | 182 |
+| tbc | quest | 6,160 | 5,748 | 5,748 | 5,417 |
+| tbc | item-quest | 280 | 280 | 280 | 253 |
+| mop | quest | 17,139 | 16,415 | 16,415 | 13,903 |
+| mop | achievement | 3,106 | 930 | **3,106** | 694 |
+| mop | item-quest | 475 | 475 | 475 | 379 |
+| retail | quest | 66,420 | 31,616 | **35,493** | 32,506 |
+| retail | achievement | 11,972 | 2,987 | **11,972** | 2,035 |
+| retail | storyline | 1,648 | 1,548 | **1,648** | 1,536 |
+| retail | mission | 1,757 | 0 | **1,757** | 0 |
+| retail | item-quest | 372 | 183 | 239 | 183 |
+
+Honest reading:
+* Retail's QuestV2 holds 66k IDs, and most of the 30,927 still missing are hidden tracking and flag quests. The client data has no name or location for them, so they are not playable quests.
+* The 955 era / 412 tbc / 724 mop quests still missing are client IDs that Questie does not know about either.
+* Era and TBC ship 33 and 43 internal achievement rows but have no achievement UI, so no guides were generated for them.
+* Most achievement criteria (kills, exploration, statistics) have no coordinates in client data. They are checklist steps that tick from the API, not routed steps.
+
+## no_route (vplayer re-run of the guides that had no_route > 0)
+Tables `noroute_rerun` / `noroute_steps` (label `rerun-2026-09-25`), code now includes the seeded dungeon doors and routing out of an instance:
+
+| Flavor | Guides re-run | no_route before (Aug sweep) | after |
+|---|---:|---:|---:|
+| era | 5 (all) | 5 | 0 |
+| tbc | 75 (all) | 137 | 39 |
+| mop | 935 (all) | 1,337 | 513 |
+| retail | 240 worst of 2,424 | 2,001 | 1,248 |
+
+On the guides that were re-run, no_route fell from 3,480 steps to 1,800 (-48%). Retail's other 2,184 guides (2,642 no_route steps) were not re-run because they would take about 2.5 h. The remaining steps are mostly retail dungeons newer than MoP and Legion+ scenario maps. 0 stalls. 3 retail guides hit the 40 s CPU cap that this sample used.
+
+## Tests
+validate_toc, test_load_all (4 flavors), test_offline, test_access (now also covers the seeded door into and out of
+the Deadmines and the ACH/MISSION tags), and test_farm all **pass**. vplayer sample on the new sets (label `new-guides-sample-2026-09-25`):
+retail Storylines 60/60 finished, Achievements 30/30 (7,167 auto-ticked steps), Missions 6/6 (2,584 manual steps, as designed); MoP Achievements
+30/30. 0 stalls across all of them.
+
+## Install
+`tools/install.sh _classic_era_ _anniversary_ _classic_` installed to Era (22 MB), TBC (25 MB) and MoP (38 MB).
+**Retail was skipped because the retail client was running.** Install it with `tools/install.sh _retail_` after quitting WoW (it needs an install, not a /reload).
+
+## Still open
+* The in-game manual pass on TBC, MoP and retail still needs Daniel's permission to use the GUI and his Battle.net login.
+* ACH criteria-tree IDs passed to `GetAchievementCriteriaInfoByID` have not been checked in game. The whole-achievement check and the quest-criterion QID check do not depend on them.
+* Retail item-quests: 133 have no Questie giver or drop data. Dungeon-only item starters (for example VanCleef's letter) stay unlocated.
+* Mission steps stay manual. Retail dungeons newer than MoP rely on the journal in game; offline they still have no route.
+
+## Next pathways
+1. Locate kill-type and exploration criteria: join Criteria.Asset with Questie npc spawns (MoP) and with WorldMapOverlay/AreaTable for exploration.
+2. Give the 11,196 retail quests that have only pins a name and a faction gate from a newer community database.
+3. Run a full vplayer sweep with the achievement, storyline and mission sets (~2-3 h at 3 workers on this Mac), then fold the results with collect_vplayer.py.
+4. Seed retail entrances for Legion+ dungeons from the journal-instance DB2 (JournalInstance + AreaPOI).
+
 # Status / handoff (2026-09-25, duplicate addon fixed)
 
 ## Retail guide switching / error spam

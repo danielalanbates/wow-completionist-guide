@@ -14,7 +14,7 @@
 -- Why: it replaces "level a character through 9,519 guides" with a few minutes of CPU, and it keeps
 -- working after the subscription lapses.  It does NOT replace in-game checks of the UI/API surface.
 --
--- Usage:  luajit tools/vplayer.lua <era|tbc|mop|retail> [--limit N] [--shard i/n] [--type Leveling]
+-- Usage:  luajit tools/vplayer.lua <era|tbc|mop|retail> [--limit N] [--shard i/n] [--type Leveling] [--guides-file F]
 --                                  [--guide ID] [--faction Horde] [--guidecap 20] [--out PATH]
 -- Then:   python3 tools/collect_vplayer.py   (folds the TSVs into docs/verification.sqlite)
 package.path = "./?.lua;" .. package.path
@@ -22,12 +22,16 @@ package.path = "./?.lua;" .. package.path
 local flavor = arg[1] or "era"
 local limit, shardI, shardN, onlyType, onlyGuide, forceFaction, guideCap, outPath = math.huge, 1, 1, nil, nil, nil, 90, nil
 local verbose = false
+local guideSet = nil
 for i = 2, #arg do
     local a = arg[i]
     if a == "--limit" then limit = tonumber(arg[i + 1])
     elseif a == "--shard" then shardI, shardN = arg[i + 1]:match("(%d+)/(%d+)") shardI, shardN = tonumber(shardI), tonumber(shardN)
     elseif a == "--type" then onlyType = arg[i + 1]
     elseif a == "--guide" then onlyGuide = arg[i + 1]
+    elseif a == "--guides-file" then   -- one guide id per line (e.g. every guide that had no_route > 0)
+        guideSet = {}
+        for l in io.lines(arg[i + 1]) do if l ~= "" then guideSet[l] = true end end
     elseif a == "--faction" then forceFaction = arg[i + 1]
     elseif a == "--guidecap" then guideCap = tonumber(arg[i + 1])
     elseif a == "--out" then outPath = arg[i + 1]
@@ -42,9 +46,9 @@ local TAXI = { era = "Data/Taxi_era.lua", tbc = "Data/Taxi_tbc.lua", mop = "Data
 -- ---------------------------------------------------------------------------
 -- The fake world (mutable — this is what makes it a player and not a sweep)
 -- ---------------------------------------------------------------------------
-local W = { quests = {}, objectives = {}, bags = {}, level = 1, xp = 0, xpmax = 100, bind = "Northshire Abbey", taxi = {} }
+local W = { quests = {}, objectives = {}, bags = {}, level = 1, xp = 0, xpmax = 100, bind = "Northshire Abbey", taxi = {}, ach = {}, crit = {} }
 local function wipeWorld(level)
-    W.quests, W.objectives, W.bags, W.taxi = {}, {}, {}, {}
+    W.quests, W.objectives, W.bags, W.taxi, W.ach, W.crit = {}, {}, {}, {}, {}, {}
     W.level, W.xp = level or 1, 0
 end
 
@@ -80,6 +84,11 @@ C_Item = {
     GetItemIconByID = function() return "" end,
 }
 function GetItemCount(id) return W.bags[id] or 0 end
+-- achievements (MoP Classic + retail have the API; Era/TBC do not, so their ACH steps stay manual)
+if flavor == "mop" or flavor == "retail" then
+    function GetAchievementInfo(id) return id, "ach" .. id, 10, W.ach[id] or false end
+    function GetAchievementCriteriaInfoByID(id, crit) return "crit", 0, W.crit[crit] or W.ach[id] or false end
+end
 
 -- ---------------------------------------------------------------------------
 -- Position
@@ -103,14 +112,16 @@ local function load(path)
     f:close()
     assert(loadfile("CompletionRoute/" .. path))(ADDON, NS)
 end
-for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], "Data/Transit.lua", "Data/Access.lua",
+for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], "Data/Transit.lua", "Data/Imported_Entrances.lua", "Data/Access.lua",
     "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
     "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
     "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
     "Adapters/Zygor.lua", "Adapters/WoWPro.lua",
     ("Guides/Imported_Zygor_" .. flavor .. ".lua"), ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
     "Guides/Imported_Quests_era.lua", "Guides/Imported_Quests_tbc.lua", "Guides/Imported_Quests_wotlk.lua",
-    "Guides/Imported_Quests_cata.lua", "Guides/Imported_Quests_mop.lua", "Guides/Imported_Quests_retail.lua" }) do load(f) end
+    "Guides/Imported_Quests_cata.lua", "Guides/Imported_Quests_mop.lua", "Guides/Imported_Quests_retail.lua",
+    ("Guides/Imported_Achievements_" .. flavor .. ".lua"), ("Guides/Imported_Storylines_" .. flavor .. ".lua"),
+    ("Guides/Imported_Missions_" .. flavor .. ".lua") }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
 NS.db.profile.debug = false
@@ -137,6 +148,7 @@ G.Suggest = function() return nil end
 -- Returns true (auto) or false plus the reason it can only ever be manual.
 local function autoable(step)
     local a = step.action
+    if step.ach and GetAchievementInfo then return true end
     if a == "A" or a == "a" or a == "!" then
         if step.qid then return true end return false, "accept without QID"
     elseif a == "C" or a == "K" or a == "l" then
@@ -223,6 +235,9 @@ local function act(step)
     elseif a == "f" then
         step.taxiDone = true
     end
+    if step.ach then
+        if step.achCrit then W.crit[step.achCrit] = true else W.ach[step.ach] = true end
+    end
     -- generic: an objective-bearing step that named loot also fills the bag
     if step.loot and a ~= "B" and a ~= "C" and a ~= "K" and a ~= "l" then
         for _, l in ipairs(step.loot) do W.bags[l.id] = math.max(W.bags[l.id] or 0, l.qty or 1) end
@@ -251,7 +266,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Play one guide
 -- ---------------------------------------------------------------------------
-local stallOut
+local stallOut, noRouteOut
 local function playGuide(g)
     local id = g.id
     local steps = G.Steps(id)
@@ -292,12 +307,19 @@ local function playGuide(g)
                 step = P.current
             end
 
+            local fromMap = PLAYER.map
             local y, s, routed, hasDest = walkTo(step)
             row.yards = row.yards + (y or 0)
             row.seconds = row.seconds + (s or 0)
             -- only a step that HAS a destination the router failed to path to is a routing gap;
             -- a locationless note/achievement step is just something the player does where they are
-            if not routed and hasDest then row.noroute = row.noroute + 1 end
+            if not routed and hasDest then
+                row.noroute = row.noroute + 1
+                if noRouteOut then
+                    noRouteOut:write(table.concat({ NS.flavor, id, step.index, step.action, tostring(fromMap or ""),
+                        tostring(step.zone or ""), (tostring(step.zoneName or ""):gsub("\t", " ")) }, "\t") .. "\n")
+                end
+            end
 
             act(step)
             P.Refresh()
@@ -342,6 +364,8 @@ local out = assert(io.open(outPath, "w"))
 out:write("flavor\tguide\tname\ttype\tfaction\tzone\tzone_name\tsteps\tsimulated\tauto\tmanual\tstalls\tforced\tlaps\tyards\tseconds\tno_route\tfinished\tmanual_reason\terror\n")
 stallOut = assert(io.open(stallPath, "w"))
 stallOut:write("flavor\tguide\tstep\taction\ttitle\tqid\tzone\tcoords\n")
+noRouteOut = assert(io.open((outPath:gsub("%.tsv$", "")) .. "_noroute.tsv", "w"))
+noRouteOut:write("flavor\tguide\tstep\taction\tfrom_map\tto_map\tto_name\n")
 
 io.stderr:write(("vplayer %s: %d guides registered, shard %d/%d\n"):format(NS.flavor, #G.list, shardI, shardN))
 local n, finished, stalled, errored = 0, 0, 0, 0
@@ -351,7 +375,7 @@ for gi, id in ipairs(G.list) do
     if (gi % shardN) == (shardI % shardN) then
         local g = G.registry[id]
         local typeOK = (not onlyType) or (G.NormalizeType(g.type) == onlyType)
-        local guideOK = (not onlyGuide) or id == onlyGuide
+        local guideOK = ((not onlyGuide) or id == onlyGuide) and ((not guideSet) or guideSet[id])
         local facOK = (not forceFaction) or not g.faction or g.faction == forceFaction
         if typeOK and guideOK and facOK then
             local row = playGuide(g)
@@ -374,6 +398,6 @@ for gi, id in ipairs(G.list) do
         end
     end
 end
-out:close() stallOut:close()
+out:close() stallOut:close() noRouteOut:close()
 io.stderr:write(("DONE %s shard %d/%d: %d guides in %.0fs -> %s | finished=%d stalled-guides=%d errors=%d\n")
     :format(flavor, shardI, shardN, n, os.clock() - t0, outPath, finished, stalled, errored))
