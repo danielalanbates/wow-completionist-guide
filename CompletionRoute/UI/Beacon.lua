@@ -405,6 +405,143 @@ function B.ApplySettings()
 end
 NS:On("PLAYER_READY", function() NS:After(3, B.ApplySettings) end)
 
+-- ---------------------------------------------------------------------------
+-- Flight Map Destination Highlight: marks where to fly when talking to a flight master
+-- ---------------------------------------------------------------------------
+local taxiMarker
+local function getTaxiMarker()
+    if taxiMarker then return taxiMarker end
+    local m = CreateFrame("Frame", "CompletionRouteTaxiMarker", UIParent)
+    m:SetSize(40, 40)
+    m:SetFrameStrata("TOOLTIP")
+
+    local arrow = m:CreateTexture(nil, "OVERLAY")
+    arrow:SetSize(32, 32)
+    arrow:SetPoint("BOTTOM", m, "CENTER", 0, 10)
+    arrow:SetTexture(TEX .. "arrow_green")
+    arrow:SetRotation(math.pi) -- pointing downward towards the flight node
+    m.arrow = arrow
+
+    local ring = m:CreateTexture(nil, "ARTWORK")
+    ring:SetSize(46, 46)
+    ring:SetPoint("CENTER", m, "CENTER", 0, 0)
+    ring:SetTexture(TEX .. "ring")
+    ring:SetBlendMode("ADD")
+    ring:SetVertexColor(0.2, 1.0, 0.4, 0.85)
+    m.ring = ring
+
+    local label = m:CreateFontString(nil, "OVERLAY", "GameFontHighlightMedium")
+    label:SetPoint("BOTTOM", arrow, "TOP", 0, 4)
+    if label.SetShadowOffset then label:SetShadowOffset(1, -1) end
+    if label.SetTextColor then label:SetTextColor(1, 0.95, 0.2, 1) end
+    m.label = label
+
+    if m.CreateAnimationGroup then
+        local ag = m:CreateAnimationGroup()
+        if ag.SetLooping then ag:SetLooping("REPEAT") end
+        local t1 = ag:CreateAnimation("Translation")
+        if t1 then
+            t1:SetOffset(0, 10); t1:SetDuration(0.35); t1:SetSmoothing("OUT")
+            if t1.SetOrder then t1:SetOrder(1) end
+        end
+        local t2 = ag:CreateAnimation("Translation")
+        if t2 then
+            t2:SetOffset(0, -10); t2:SetDuration(0.35); t2:SetSmoothing("IN")
+            if t2.SetOrder then t2:SetOrder(2) end
+        end
+        m.anim = ag
+    end
+
+    taxiMarker = m
+    B.taxiMarker = m
+    return m
+end
+
+function B.HideTaxiMarker()
+    if taxiMarker then
+        taxiMarker:Hide()
+        if taxiMarker.anim and taxiMarker.anim.Stop then taxiMarker.anim:Stop() end
+    end
+end
+
+function B.HighlightTaxiDestination(destNode)
+    if not destNode then B.HideTaxiMarker() return end
+    if NS.db and NS.db.profile.beacon and NS.db.profile.beacon.highlightTaxi == false then return end
+    local m = getTaxiMarker()
+    local destName = destNode.name or ""
+    local destID = destNode.taxiID
+
+    -- Retail: FlightMapFrame
+    if FlightMapFrame and FlightMapFrame:IsVisible() then
+        local function attachFlightMapPin()
+            if not (FlightMapFrame and FlightMapFrame:IsVisible()) then return end
+            local destPin
+            if FlightMapFrame.pinPools and FlightMapFrame.pinPools.FlightMap_FlightPointPinTemplate then
+                for pin in FlightMapFrame.pinPools.FlightMap_FlightPointPinTemplate:EnumerateActive() do
+                    local d = pin.taxiNodeData
+                    if d and (d.nodeID == destID or (destName ~= "" and d.name and (d.name:lower():find(destName:lower(), 1, true) or destName:lower():find(d.name:lower(), 1, true)))) then
+                        destPin = pin
+                        break
+                    end
+                end
+            end
+            if destPin then
+                m:SetParent(destPin)
+                m:ClearAllPoints()
+                m:SetPoint("CENTER", destPin, "CENTER", 0, 0)
+                m.label:SetText("Fly here: " .. (destPin.taxiNodeData and destPin.taxiNodeData.name or destName))
+                m:Show()
+                if m.anim and m.anim.Play and not m.anim:IsPlaying() then m.anim:Play() end
+            else
+                NS:After(0.15, function()
+                    if FlightMapFrame and FlightMapFrame:IsVisible() and not m:IsShown() then
+                        attachFlightMapPin()
+                    end
+                end)
+            end
+        end
+        attachFlightMapPin()
+        return
+    end
+
+    -- Classic: TaxiFrame
+    if TaxiFrame and TaxiFrame:IsVisible() and NumTaxiNodes then
+        for i = 1, NumTaxiNodes() do
+            local name = TaxiNodeName and TaxiNodeName(i)
+            if name and (name:lower():find(destName:lower(), 1, true) or destName:lower():find(name:lower(), 1, true)) then
+                local btn = _G["TaxiButton" .. i]
+                if btn then
+                    m:SetParent(btn)
+                    m:ClearAllPoints()
+                    m:SetPoint("CENTER", btn, "CENTER", 0, 0)
+                    m.label:SetText("Fly here: " .. name)
+                    m:Show()
+                    if m.anim and m.anim.Play and not m.anim:IsPlaying() then m.anim:Play() end
+                    return
+                end
+            end
+        end
+    end
+end
+
+local function onTaxiMapOpened()
+    if NS.TravelGraph and NS.TravelGraph.LearnTaxi then
+        pcall(NS.TravelGraph.LearnTaxi, true)
+    end
+    local path = NS.Router and NS.Router.CurrentPath and NS.Router.CurrentPath()
+    if path and path.legs then
+        for _, leg in ipairs(path.legs) do
+            if leg.mode == "taxi" and leg.to then
+                B.HighlightTaxiDestination(leg.to)
+                return
+            end
+        end
+    end
+end
+
+NS:RegisterEvent("TAXIMAP_OPENED", onTaxiMapOpened)
+NS:RegisterEvent("TAXIMAP_CLOSED", B.HideTaxiMarker)
+
 -- offline test hook
 B._test = { cleanName = cleanName, patterns = TITLE_PATTERNS, plateMarks = plateMarks }
 

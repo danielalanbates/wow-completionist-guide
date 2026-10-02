@@ -287,10 +287,67 @@ function U.PlayerLevel()
     return l
 end
 
--- Approx current travel speed (yd/s) — actual if moving, else best guess from level/mounts
+-- Can this character fly in the current area / context?
+function U.CanFly()
+    if IsFlying and IsFlying() then return true end
+    local cur = GetUnitSpeed and GetUnitSpeed("player") or 0
+    if cur > 15 then return true end
+    -- Classic Era has no flying anywhere
+    if NS.flavor == "era" then return false end
+    -- Check outdoors
+    if IsOutdoors and not IsOutdoors() then return false end
+    -- Check flyable area API
+    if IsFlyableArea and not IsFlyableArea() then return false end
+    -- Druid check: flight form in flyable areas
+    local class = NS.player and NS.player.class or select(2, UnitClass("player"))
+    local lvl = UnitLevel("player")
+    if class == "DRUID" then
+        if not NS.isClassic then
+            if lvl >= 10 then return true end
+        else
+            if IsSpellKnown and (IsSpellKnown(33943) or IsSpellKnown(40120) or IsSpellKnown(783)) then
+                if lvl >= (NS.flavor == "tbc" and 68 or 30) then return true end
+            end
+        end
+    end
+    -- General flying mounts:
+    if not NS.isClassic then
+        -- In Retail (Dragonflight, War Within): Skyriding is baseline for all characters level 10+
+        if lvl >= 10 then return true end
+    else
+        -- Classic clients: check riding spells
+        if IsSpellKnown then
+            if IsSpellKnown(90265) or IsSpellKnown(34091) or IsSpellKnown(34090) then return true end
+        end
+    end
+    return false
+end
+
+-- Estimated flying travel speed (yd/s)
+function U.FlySpeed()
+    local p = NS.db and NS.db.profile.routing or {}
+    if p.flySpeed then return p.flySpeed end
+    if not NS.isClassic then
+        -- Retail Skyriding is typically 705%-830% (~50-60 yd/s); steady flying is 310% (~30 yd/s).
+        -- 45 yd/s gives a realistic average point-to-point travel speed.
+        return 45
+    else
+        if IsSpellKnown and IsSpellKnown(90265) then return 29 end -- 310%
+        if IsSpellKnown and IsSpellKnown(34091) then return 27 end -- 280%
+        if IsSpellKnown and IsSpellKnown(34090) then return 18 end -- 150%
+        return 20
+    end
+end
+
+-- Approx current travel speed (yd/s) — actual if moving fast, else best capability guess.
+-- Consistent whether on the ground or airborne so the travel graph does not flip routes.
 function U.TravelSpeed()
     local p = NS.db and NS.db.profile.routing or {}
     local cur = GetUnitSpeed and GetUnitSpeed("player") or 0
+    if cur and cur > 15 then return cur end
+    if U.CanFly() then
+        return U.FlySpeed()
+    end
     if cur and cur > 8 then return cur end
     if IsMounted and IsMounted() and cur > 0 then return cur end
     if p.mountSpeed then return p.mountSpeed end
