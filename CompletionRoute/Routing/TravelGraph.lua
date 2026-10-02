@@ -49,6 +49,12 @@ end
 -- the graph depends on which chains are unlocked: rebuild lazily after a turn-in
 if NS.RegisterEvent then NS:RegisterEvent("QUEST_TURNED_IN", function() TG.built = false end) end
 
+-- Known internal DB2 nodes that are not open-world player flight masters
+local TAXI_BLACKLIST = {
+    [2084] = true, -- Norwington Estate carriage quest script
+    [3] = true,    -- Programmer Isle
+}
+
 function TG.Build()
     TG.nodes, TG.taxiByID, TG.unresolved = {}, {}, {}
     local flavor = NS.flavor
@@ -56,11 +62,13 @@ function TG.Build()
     local fac = faction()
     if taxi then
         for id, n in pairs(taxi.nodes) do
-            local name, cont, wx, wy, f = n[1], n[2], n[3], n[4], n[5]
-            if f == "N" or f == fac then
-                local node = newNode("taxi", cont, wx, wy, name)
-                node.taxiID = id
-                TG.taxiByID[id] = node
+            if not TAXI_BLACKLIST[id] then
+                local name, cont, wx, wy, f = n[1], n[2], n[3], n[4], n[5]
+                if f == "N" or f == fac then
+                    local node = newNode("taxi", cont, wx, wy, name)
+                    node.taxiID = id
+                    TG.taxiByID[id] = node
+                end
             end
         end
         for _, p in ipairs(taxi.paths) do
@@ -135,7 +143,11 @@ function TG.NodeByName(name)
 end
 
 function TG.IsTaxiKnown(node)
-    return NS.db.char.knownTaxi[node.taxiID] == true
+    if not node or not node.taxiID then return false end
+    local id = node.taxiID
+    if NS.db and NS.db.char and NS.db.char.knownTaxi and NS.db.char.knownTaxi[id] then return true end
+    if NS.db and NS.db.global and NS.db.global.knownTaxi and NS.db.global.knownTaxi[id] then return true end
+    return false
 end
 -- "faction" (default): every flight master your faction can use is routable, learned or not -
 -- the route walks you to the one you need. "known": only flight paths this character has learned.
@@ -159,8 +171,12 @@ local function harvestList(list)
     local unreachable = (Enum and Enum.FlightPathState and Enum.FlightPathState.Unreachable) or 2
     for _, n in ipairs(list or {}) do
         if n.nodeID and n.state ~= nil and n.state ~= unreachable then
-            if not NS.db.char.knownTaxi[n.nodeID] then learned = learned + 1 end
-            NS.db.char.knownTaxi[n.nodeID] = true
+            if not TG.IsTaxiKnown({ taxiID = n.nodeID }) then learned = learned + 1 end
+            if NS.db and NS.db.char and NS.db.char.knownTaxi then NS.db.char.knownTaxi[n.nodeID] = true end
+            if NS.db and NS.db.global then
+                NS.db.global.knownTaxi = NS.db.global.knownTaxi or {}
+                NS.db.global.knownTaxi[n.nodeID] = true
+            end
         end
     end
     return learned
@@ -173,6 +189,11 @@ local function nodesForMap(mapID)
     return nil
 end
 
+local KNOWN_CONTINENTS = {
+    12, 13, 101, 113, 424, 572, 619, 875, 876, 1550, 1978, 2274, -- Retail
+    1414, 1415, 1945, 113, 390 -- Classic
+}
+
 -- every continent we have taxi data for, so a login harvest covers the whole world
 local function continentMaps()
     local out, seen = {}, {}
@@ -182,6 +203,11 @@ local function continentMaps()
         info = C_Map.GetMapInfo(info.parentMapID)
     end
     if info and not seen[info.mapID] then out[#out + 1] = info.mapID seen[info.mapID] = true end
+    for _, mid in ipairs(KNOWN_CONTINENTS) do
+        if not seen[mid] and C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(mid) then
+            out[#out + 1] = mid seen[mid] = true
+        end
+    end
     for _, n in ipairs(TG.nodes or {}) do
         if n.map and not seen[n.map] then
             local mi = C_Map.GetMapInfo(n.map)
@@ -199,6 +225,21 @@ function TG.LearnTaxi(quiet)
     local map = U.PlayerPos()
     learned = learned + harvestList(nodesForMap(map))
     for _, m in ipairs(continentMaps()) do learned = learned + harvestList(nodesForMap(m)) end
+    -- retail FlightMapFrame pin harvest
+    if FlightMapFrame and FlightMapFrame.pinPools and FlightMapFrame.pinPools.FlightMap_FlightPointPinTemplate then
+        local unreachable = (Enum and Enum.FlightPathState and Enum.FlightPathState.Unreachable) or 2
+        for pin in FlightMapFrame.pinPools.FlightMap_FlightPointPinTemplate:EnumerateActive() do
+            local d = pin.taxiNodeData
+            if d and d.nodeID and d.state ~= nil and d.state ~= unreachable then
+                if not TG.IsTaxiKnown({ taxiID = d.nodeID }) then learned = learned + 1 end
+                if NS.db and NS.db.char and NS.db.char.knownTaxi then NS.db.char.knownTaxi[d.nodeID] = true end
+                if NS.db and NS.db.global then
+                    NS.db.global.knownTaxi = NS.db.global.knownTaxi or {}
+                    NS.db.global.knownTaxi[d.nodeID] = true
+                end
+            end
+        end
+    end
     -- classic clients: while a flight master's map is open the legacy API lists your nodes
     if NumTaxiNodes and TaxiNodeGetType then
         for i = 1, (NumTaxiNodes() or 0) do
@@ -207,8 +248,12 @@ function TG.LearnTaxi(quiet)
                 local nm = TaxiNodeName and TaxiNodeName(i)
                 if nm then
                     local node = TG.NodeByName and TG.NodeByName(nm)
-                    if node and node.taxiID and not NS.db.char.knownTaxi[node.taxiID] then
-                        NS.db.char.knownTaxi[node.taxiID] = true
+                    if node and node.taxiID and not TG.IsTaxiKnown(node) then
+                        if NS.db and NS.db.char and NS.db.char.knownTaxi then NS.db.char.knownTaxi[node.taxiID] = true end
+                        if NS.db and NS.db.global then
+                            NS.db.global.knownTaxi = NS.db.global.knownTaxi or {}
+                            NS.db.global.knownTaxi[node.taxiID] = true
+                        end
                         learned = learned + 1
                     end
                 end
@@ -382,7 +427,8 @@ end
 -- ---------------------------------------------------------------------------
 local function walkCost(ax, ay, bx, by, speed)
     local d = dist(ax, ay, bx, by)
-    return d * (cfg().terrainFactor or 1.25) / speed, d
+    local tf = (U.CanFly and U.CanFly()) and 1.05 or (cfg().terrainFactor or 1.25)
+    return d * tf / speed, d
 end
 
 -- Simple binary heap
@@ -572,6 +618,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
                 if ok and not closed[v] then
                     local ecost = e.cost
                     if e.mode == "road" then ecost = e.data.dist * (e.data.factor or roadFactor) / speed end
+                    if e.mode == "taxi" and c.preferTaxi then ecost = ecost * 0.6 end
                     local nd = du + ecost
                     if nd < (d[v] or INF) then d[v] = nd prev[v] = u prevEdge[v] = e heap:push(nd, v) end
                 end
