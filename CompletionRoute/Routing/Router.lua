@@ -306,9 +306,11 @@ function R.Recommendation()
         end
         local nxt = path.legs[2]
         if nxt then
-            if nxt.mode == "taxi" then rec.text = "Flight master: " .. (leg.to.name or "") .. " -> fly to " .. (nxt.to.name or "") .. (nxt.discover and " (new path)" or "")
-            else rec.text = nxt.title or ("Go to " .. (leg.to.name or "transport")) end
-        elseif not rec.borrowedFrom then rec.text = step.title end
+            if nxt.mode == "taxi" then rec.text = (U.CanFly() and "Fly to flight master: " or "Flight master: ") .. (leg.to.name or "") .. " -> fly to " .. (nxt.to.name or "") .. (nxt.discover and " (new path)" or "")
+            else rec.text = nxt.title or ((U.CanFly() and "Fly to " or "Go to ") .. (leg.to.name or "transport")) end
+        elseif not rec.borrowedFrom then
+            rec.text = (U.CanFly() and "Fly to " or "Go to ") .. step.title
+        end
         rec.dist = leg.dist
     elseif leg.mode == "taxi" then
         rec.mode = "taxi"; rec.text = "Fly to " .. (leg.to.name or "?") .. (leg.discover and " (new flight path)" or "")

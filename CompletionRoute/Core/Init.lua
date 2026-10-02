@@ -29,8 +29,10 @@ NS.defaults = {
         routing = { enabled = true, reorder = true, hearth = true, taxi = true, transit = true, window = 12,
                     runSpeed = 7, mountSpeed = nil, terrainFactor = 1.25, taxiSpeed = 32,
                     taxiPolicy = "faction",   -- "faction": any flight master your faction can use; "known": learned only
+                    preferTaxi = false,       -- comfort mode: favors flight paths when available
                     roads = true, roadFactor = 1.0, recordRoads = true },
-        beacon = { enabled = true, scale = 1.0, pins = true, targetButton = true, bounce = true, icon = "action" },
+        beacon = { enabled = true, scale = 1.0, pins = true, targetButton = true, bounce = true, icon = "action",
+                   highlightTaxi = true },   -- mark where to fly on the flight map / taxi frame
         accountWide = false,     -- legacy mirror of scope ~= "char"; kept so old saved variables still read
         scope = "char",          -- "char" | "realm" | "flavor" | "account" (see Core/Account.lua)
         accountQuests = true,    -- when accountWide is on, also union by quest ID across guides
@@ -109,7 +111,10 @@ NS:RegisterEvent("ADDON_LOADED", function(_, name)
     CompletionRouteDB = CompletionRouteDB or {}
     CompletionRouteCharDB = CompletionRouteCharDB or {}
     fill(CompletionRouteDB, { profile = deepcopy(NS.defaults.profile) })
-    fill(CompletionRouteCharDB, deepcopy(NS.defaults.char))
+    CompletionRouteDB.knownTaxi = CompletionRouteDB.knownTaxi or {}
+    CompletionRouteCharDB.knownTaxi = CompletionRouteCharDB.knownTaxi or {}
+    for id in pairs(CompletionRouteDB.knownTaxi) do CompletionRouteCharDB.knownTaxi[id] = true end
+    for id in pairs(CompletionRouteCharDB.knownTaxi) do CompletionRouteDB.knownTaxi[id] = true end
     NS.db = { profile = CompletionRouteDB.profile, char = CompletionRouteCharDB, global = CompletionRouteDB }
     NS.player = {
         faction = UnitFactionGroup("player"),
