@@ -202,6 +202,16 @@ function P.CheckStep(step)
     elseif a == "R" then
         if step.coords then if nearCoords(step, 30) then return true end
         elseif inZone(step) then return true end
+    elseif a == "P" then
+        -- Portal step: completed if the player has entered the destination zone, OR is within portal range
+        local map = U.PlayerPos()
+        if step.zone and map and map ~= step.zone then
+            local targetMap = step.title and U.MapIDByName(step.title)
+            if not targetMap or map == targetMap or inZone({ zone = targetMap }) then
+                return true
+            end
+        end
+        if step.coords and nearCoords(step, 30) then return true end
     elseif a == "F" or a == "b" or a == "J" or a == "H" or a == "D" then
         if step.coords then if nearCoords(step, 60) then return true end
         elseif step.zone and inZone(step) then return true end

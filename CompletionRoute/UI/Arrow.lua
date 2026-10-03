@@ -215,16 +215,30 @@ function A.Update()
     -- other way round the arrow was a compass rose (rotated/mirrored), not "up = you are facing the target".
     local bearing = math.atan2(dx, dy)
     local facing = GetPlayerFacing() or 0
+    local isTransit = rec.mode == "transit" or (rec.step and (rec.step.action == "P" or rec.step.action == "b" or rec.step.action == "F")) or (rec.text and (rec.text:lower():find("portal") or rec.text:lower():find("boat") or rec.text:lower():find("zeppelin")))
+    local arrivalRadius = rec.arrivalRadius or (rec.step and rec.step.radius) or (isTransit and 25 or 15)
     arrow:Show()
-    setPointer(dist)
-    arrow:SetRotation(bearing - facing)
-    local speed = U.TravelSpeed()
-    local tag = ""
-    if rec.locSource == "quest" then tag = "  |cff6ac9ff(quest objective)|r"
-    elseif rec.locSource == "zone" then tag = "  |cffff9900(zone only)|r"
-    elseif rec.locSource == "borrowed" then tag = "  |cffff9900(next known step)|r" end
-    sub:SetText(U.FmtDist(dist) .. tag)
-    if rec.eta then eta:SetText("ETA ~" .. U.FmtTime(rec.eta)) else eta:SetText("ETA ~" .. U.FmtTime(dist / speed)) end
+    if dist <= arrivalRadius then
+        arrow:SetTexture(TEX .. "ring")
+        arrow:SetVertexColor(0.2, 1.0, 0.4)
+        arrow:SetRotation(0)
+        if isTransit then
+            sub:SetText("|cff00ff00At target — Click to use (" .. U.FmtDist(dist) .. ")|r")
+        else
+            sub:SetText("|cff00ff00Arrived (" .. U.FmtDist(dist) .. ")|r" .. tag)
+        end
+        eta:SetText("|cff00ff00Here|r")
+    else
+        setPointer(dist)
+        arrow:SetRotation(bearing - facing)
+        local speed = U.TravelSpeed()
+        local tag = ""
+        if rec.locSource == "quest" then tag = "  |cff6ac9ff(quest objective)|r"
+        elseif rec.locSource == "zone" then tag = "  |cffff9900(zone only)|r"
+        elseif rec.locSource == "borrowed" then tag = "  |cffff9900(next known step)|r" end
+        sub:SetText(U.FmtDist(dist) .. tag)
+        if rec.eta then eta:SetText("ETA ~" .. U.FmtTime(rec.eta)) else eta:SetText("ETA ~" .. U.FmtTime(dist / speed)) end
+    end
     lastMode = rec.mode
 end
 
