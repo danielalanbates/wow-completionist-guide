@@ -1,7 +1,7 @@
 -- CompletionRoute :: UI/Arrow.lua
 -- The waypoint arrow.  Points at the router's recommended next target (walk / flight master / boat).
 -- When the recommendation is "use an item" or "hearth", the arrow is replaced by a clickable secure
--- item button (Zygor-style) — quest items when you're at the spot, Hearthstone when hearthing is faster.
+-- item button — quest items when you're at the spot, Hearthstone when hearthing is faster.
 local ADDON, NS = ...
 local U = NS.Util
 local A = {}

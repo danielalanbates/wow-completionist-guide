@@ -52,7 +52,7 @@ read_globals = {
     -- Misc
     "LibStub", "hooksecurefunc", "SetOverrideBindingClick", "ClearOverrideBindings", "GetBindingKey", "SetBinding",
     "TaxiFrame", "TaxiNodeName", "NumTaxiNodes", "TakeTaxiNode", "TaxiNodeGetType",
-    "WorldMapFrame", "TomTom", "ZygorGuidesViewer", "WoWPro", "SexyMap", "Minimap",
+    "WorldMapFrame", "TomTom", "WoWPro", "SexyMap", "Minimap",
     "SendChatMessage", "DoEmote", "RunMacroText",
     "DEFAULT_CHAT_FRAME", "SELECTED_CHAT_FRAME", "ChatFrame1", "ERR_LEARN_RECIPE_S",
     "GetAddOnMetadata", "IsAddOnLoaded", "LoadAddOn", "EnableAddOn", "DisableAddOn",

@@ -2,7 +2,7 @@
 -- Seed farm circuits.
 --
 -- HONESTY NOTE (read before "fixing" these): these are COARSE rings, not surveyed node routes.  No
--- third-party node database ships with CompletionRoute (Zygor's is proprietary; GatherMate packs are
+-- third-party node database ships with CompletionRoute (commercial ones are proprietary; GatherMate packs are
 -- unlicensed), so a fresh install would otherwise have zero gold guides.  Each seed is an ellipse of
 -- waypoints laid over the gatherable body of a zone: it gets you circling the right ground on day one,
 -- and every node you actually loot is recorded (Core/Farm.lua) so `/cr farm build` replaces the ring

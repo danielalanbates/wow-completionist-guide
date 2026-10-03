@@ -1,5 +1,5 @@
 -- CompletionRoute :: UI/ItemScore.lua
--- Gear advisor (Zygor ItemScore equivalent): scores any item by class stat weights, compares it to what
+-- Gear advisor: scores any item by class stat weights, compares it to what
 -- you have equipped in that slot, and annotates tooltips: "CompletionRoute: 124 (+18% upgrade over Worn Axe)".
 -- Weights are leveling-oriented defaults per class (TBC/Classic era); /or weights to inspect.
 local ADDON, NS = ...

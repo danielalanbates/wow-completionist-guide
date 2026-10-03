@@ -1,11 +1,11 @@
 ## Interface: 11508, 11509
 ## Title: |cff7ddf8fCompletionist's|r |cffffd200Guide|r
-## Notes: The completionist's guide: community-driven guides for every quest, with Zygor-style optimal routing (flight paths, boats, portals, hearthstone) and a smart arrow that becomes the quest item / hearthstone when you should click it.
+## Notes: The completionist's guide: community-driven guides for every quest, with optimal travel routing (flight paths, boats, portals, hearthstone) and a smart arrow that becomes the quest item / hearthstone when you should click it.
 ## Author: Daniel Bates (BatesAI) + contributors
-## Version: 0.1.0
+## Version: 1.0.0
 ## SavedVariables: CompletionRouteDB
 ## SavedVariablesPerCharacter: CompletionRouteCharDB
-## OptionalDeps: WoWPro, WoWPro_Leveling, ZygorGuidesViewer, ZygorGuidesViewerClassic, ZygorGuidesViewerClassicTBC, ZygorGuidesViewerClassicTBCAnniv, TomTom
+## OptionalDeps: WoWPro, WoWPro_Leveling, TomTom
 ## IconTexture: Interface\Icons\INV_Misc_Map_01
 ## X-License: PolyForm Noncommercial 1.0.0 + 10% commercial rider (see LICENSE) - (c) 2026 Bates LLC, all rights reserved
 ## X-Website: https://batesai.org
@@ -48,8 +48,8 @@ UI\Log.lua
 UI\ItemScore.lua
 Adapters\WoWPro.lua
 Adapters\DynamicQuests.lua
-Adapters\Zygor.lua
-Guides\Imported_Zygor_era.lua
+Adapters\LegacyGuides.lua
+Guides\Imported_Legacy_era.lua
 Guides\Imported_WoWPro_era.lua
 Guides\Imported_Quests_era.lua
 Guides\Imported_Quests_tbc.lua

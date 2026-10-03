@@ -67,7 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showAbout() {
         let alert = NSAlert()
         alert.messageText = "Completionist's Guide v0.1.0"
-        alert.informativeText = "World of Warcraft Optimal Quest Routing & AddOn Manager\n\nReplaces Zygor with 100% community-driven guides and Dijkstra travel routing across all versions of World of Warcraft.\n\nCopyright (c) 2026 Daniel Bates / Bates LLC. All rights reserved.\nPolyForm Noncommercial License 1.0.0 (10% commercial rider).\nWebsite: https://batesai.org\nContact: help@batesai.org"
+        alert.informativeText = "World of Warcraft Optimal Quest Routing & AddOn Manager\n\nReplaces subscription guides with 100% community-driven guides and Dijkstra travel routing across all versions of World of Warcraft.\n\nCopyright (c) 2026 Daniel Bates / Bates LLC. All rights reserved.\nPolyForm Noncommercial License 1.0.0 (10% commercial rider).\nWebsite: https://batesai.org\nContact: help@batesai.org"
         alert.alertStyle = .informational
         alert.runModal()
     }
@@ -135,7 +135,7 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
 
         // Tab 3: Parity & Architecture
         let tab3 = NSTabViewItem(identifier: "parity")
-        tab3.label = "Zygor Feature Parity"
+        tab3.label = "Feature Parity"
         tab3.view = createParityView()
         tabView.addTabViewItem(tab3)
 
@@ -192,7 +192,7 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
         view.addSubview(titleLabel)
 
         // Subtitle
-        let subtitle = NSTextField(labelWithString: "The community-driven quest guide & optimal Dijkstra travel routing replacement for Zygor")
+        let subtitle = NSTextField(labelWithString: "The community-driven quest guide & optimal Dijkstra travel routing addon")
         subtitle.translatesAutoresizingMaskIntoConstraints = false
         subtitle.font = NSFont.systemFont(ofSize: 12, weight: .regular)
         subtitle.textColor = NSColor.secondaryLabelColor
@@ -472,12 +472,12 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
         return container
     }
 
-    // MARK: - Tab 3: Zygor Feature Parity
+    // MARK: - Tab 3: Feature Parity
 
     private func createParityView() -> NSView {
         let container = NSView()
 
-        let title = NSTextField(labelWithString: "Zygor Guides vs Completionist's Guide Parity Audit")
+        let title = NSTextField(labelWithString: "Commercial Guide vs Completionist's Guide Parity Audit")
         title.translatesAutoresizingMaskIntoConstraints = false
         title.font = NSFont.systemFont(ofSize: 15, weight: .bold)
         container.addSubview(title)
@@ -490,32 +490,32 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
         let parityText = """
         Feature Comparison & Architectural Matrix:
 
-        1. OPTIMAL TRAVEL ROUTING (The core differentiator Zygor paywalls)
-           • Zygor: Proprietary closed-source flight / portal / hearth route graph.
+        1. OPTIMAL TRAVEL ROUTING (The core differentiator subscription guides paywall)
+           • Commercial Guides: Proprietary closed-source flight / portal / hearth route graph.
            • Completionist's Guide: Routing/TravelGraph.lua — Dijkstra algorithm over 260+ taxi nodes with real polyline lengths, Blizzard transit database (Data/Transit.lua), access chains (Data/Access.lua), and road network tracing (Routing/Roads.lua).
 
         2. STEP-ORDER OPTIMIZATION
-           • Zygor: Dynamic step reordering by Euclidean proximity.
+           • Commercial Guides: Dynamic step reordering by Euclidean proximity.
            • Completionist's Guide: Routing/StepOrder.lua — Precedence-constrained Greedy TSP / topological step sort. Correctly enforces Accept → Complete Objectives → Turn In ordering without skipping prerequisite anchors.
 
         3. 3D WAYPOINT ARROW
-           • Zygor: Proprietary 3D rotating arrow with distance and ETA.
+           • Commercial Guides: Proprietary rotating arrow with distance and ETA.
            • Completionist's Guide: UI/Arrow.lua — 360° rotating vector pointer using HereBeDragons-2.0 world coordinates, live speed estimation, dynamic distance coloring (green/yellow/red), and auto-swapping to Hearthstone or Quest Item action buttons.
 
         4. TARGET BEACON & WHERE-IS-IT MARKER
-           • Zygor: Built-in NPC nameplate indicator.
+           • Commercial Guides: Built-in NPC nameplate indicator.
            • Completionist's Guide: UI/Beacon.lua — Bobbing nameplate marker over target NPC/mob mined from |T| tags, secure /targetexact macro button, and minimap/world-map pins.
 
         5. CROSS-CHARACTER / ACCOUNT-WIDE PROGRESSION
-           • Zygor: Character-isolated progression only.
+           • Commercial Guides: Character-isolated progression only.
            • Completionist's Guide: Core/Account.lua & CompletionRouteDB.chars — Account-wide quest completion sync across alts so re-leveling skips quests already finished on other characters.
 
         6. FARMING CIRCUITS & GOLD ROUTES
-           • Zygor: Step-by-step click-through farming guides.
+           • Commercial Guides: Step-by-step click-through farming guides.
            • Completionist's Guide: Core/Farm.lua & Routing/Loop.lua — True closed-loop circuits with proximity auto-advance, endless laps, 2-opt tour solver, GatherMate2 import, and live gold/hr yield tracker.
 
         7. MULTI-VERSION SUPPORT
-           • Zygor: Separate proprietary add-on downloads per expansion.
+           • Commercial Guides: Separate proprietary add-on downloads per expansion.
            • Completionist's Guide: Single unified codebase with runtime flavor detection (CompletionRoute.toc, CompletionRoute_Vanilla.toc, CompletionRoute_TBC.toc, CompletionRoute_Mists.toc).
         """
 

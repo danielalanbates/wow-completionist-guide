@@ -1,7 +1,7 @@
 -- CompletionRoute :: tools/gen_quest_guides.lua
 -- Generate per-zone "Quests" guides covering EVERY quest in a game version, using a local
 -- Questie checkout (https://github.com/Questie/Questie) as the data reference.
--- Output is gitignored (Questie is GPL; we bake locally like Imported_Zygor.lua).
+-- Output is gitignored (Questie is GPL; baked locally into Guides/).
 --
 --   luajit tools/gen_quest_guides.lua <questie_dir> <flavor>
 --   flavor: era | tbc | wotlk | cata | mop      (writes CompletionRoute/Guides/Imported_Quests_<flavor>.lua)

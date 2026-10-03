@@ -1,27 +1,27 @@
-# Zygor-parity verification — RESULTS (2026-08-18, live on TBC Anniversary 2.5.6, char Meln/Dreamscythe)
+# Guide Feature Parity Verification — RESULTS (2026-08-18, live on TBC Anniversary 2.5.6, char Meln/Dreamscythe)
 
 Automated `/or verify` (auto-runs 25s after login, persisted to SavedVariables): **20/20 PASS**
-- guide loaded (zygor:Durotar 6-10, 186 steps parsed), suggest correct for level/faction
+- guide loaded (legacy:Durotar 6-10, 186 steps parsed), suggest correct for level/faction
 - travel graph 156 nodes, tbc taxi data, player world pos
 - route to current step: "Walk 421 yd → zeppelin Orgrimmar<->Undercity → walk 1.3k yd (~8m)" — cross-continent, live
 - arrow recommendation + frame + secure button type=item
 
 Live gameplay verification (screenshots in session log):
 - [x] arrow renders, rotates with facing in real time, distance/ETA update
-- [x] arrow direction agrees with Zygor's own arrow (both pointed at Brill zeppelin tower, ~205 yd)
+- [x] arrow direction agrees with commercial guide arrow (both pointed at Brill zeppelin tower, ~205 yd)
 - [x] walking the wrong way increased distance and the route re-planned live (421→454→"walk 443")
 - [x] arrow → Hearthstone secure button swap, gold ring + cooldown + tooltip ("CompletionRoute: Use your Hearthstone")
 - [x] clicking the button actually cast Hearthstone: character teleported UC → Gallows' End Tavern (Brill), end-to-end
-- [x] after hearth, router re-planned from Brill (Zygor agreed: same zeppelin, same direction)
+- [x] after hearth, router re-planned from Brill (agreed: same zeppelin, same direction)
 - [x] step auto-completion: injected R-step at player position auto-completed <1s and advanced to next step
 - [x] optimizer: /or order lists upcoming steps with per-step travel ETAs from player position
 - [x] guide viewer step list with action icons, checkboxes, skip/undo buttons
-- [x] guide sources: native 2 + Zygor 714 + WoW-Pro 39 imported at runtime
+- [x] guide sources: native 2 + legacy 714 + WoW-Pro 39 imported at runtime
 - [x] hearth location learned from tavern-name seed (Gallows' End Tavern)
 - [x] /or verify, route, order, stats, log, guides menu (mouse), Options panel loads without error
 
 Fixed during verification:
-1. Suggest type-case bug (Zygor titles are "LEVELING" uppercase) — case-insensitive filter
+1. Suggest type-case bug (imported titles are "LEVELING" uppercase) — case-insensitive filter
 2. Suggest scoring (was picking level-less "Group Quests" guide) — tight explicit ranges preferred
 3. Arrow.lua:46 — protected SecureActionButton cannot anchor to a texture region → anchor to frame
 4. Inn seed list missed tavern-style bind names (Gallows' End Tavern etc.) + resting-based hearth learning
@@ -43,11 +43,11 @@ Still needs a real play session: turn-in/objective completion during actual ques
 to confirm learned-taxi persistence, reorder quality over hours. Everything mechanical is verified.
 
 - [x] **gold guides are circuits, not click-throughs** (`docs/GOLD_ROUTES.md`): `G` waypoints, proximity
-  advance, endless laps, measured gold/hr, node recorder + GatherMate2/Routes import, Zygor `path` rings kept
+  advance, endless laps, measured gold/hr, node recorder + GatherMate2/Routes import, authored `path` rings kept
   in the author's order; 178/204 imported gold guides are walkable circuits on every flavor
 - [x] dungeon steps route to the instance ENTRANCE (learned door + retail encounter-journal), not "no route"
 
-Known feature gaps vs Zygor (by design, documented): profession guide engine, gear/talent
+Known feature gaps vs commercial suite (by design, documented): profession guide engine, gear/talent
 advisors, model viewer, guide editor UI, wall-aware walking (straight-line x terrain factor).
 
 Round 4 (2026-08-19):

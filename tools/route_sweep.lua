@@ -40,14 +40,14 @@ local function load(path)
 end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
     "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
-    "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua", "Adapters/Zygor.lua", "Adapters/WoWPro.lua",
-    ("Guides/Imported_Zygor_" .. flavor .. ".lua"), ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
+    "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua", "Adapters/LegacyGuides.lua", "Adapters/WoWPro.lua",
+    ("Guides/Imported_Legacy_" .. flavor .. ".lua"), ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
     "Guides/Imported_Quests_era.lua", "Guides/Imported_Quests_tbc.lua", "Guides/Imported_Quests_wotlk.lua", "Guides/Imported_Quests_cata.lua", "Guides/Imported_Quests_mop.lua", "Guides/Imported_Quests_retail.lua" }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
 NS.db.profile.debug = false
 NS.Print = function() end   -- silence chat
-pcall(NS.Adapters.Zygor.ImportStatic)   -- baked third-party guides register lazily at PLAYER_READY in the client
+if NS.Adapters.LegacyGuides then pcall(NS.Adapters.LegacyGuides.ImportStatic) end   -- baked third-party guides register lazily at PLAYER_READY in the client
 pcall(NS.Adapters.WoWPro.ImportStatic)
 NS.TravelGraph.Build()
 io.stderr:write(("flavor=%s maps=%d graph nodes=%d roads=%d guides=%d\n"):format(NS.flavor, (function() local n = 0 for _ in pairs(MAPS) do n = n + 1 end return n end)(), #NS.TravelGraph.nodes, NS.TravelGraph.roadCount or 0, #NS.Guide.list))

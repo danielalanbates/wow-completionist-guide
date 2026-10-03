@@ -79,7 +79,7 @@ empty:SetPoint("TOPLEFT", 36, -56); empty:SetPoint("RIGHT", -36, 0)
 empty:SetJustifyH("LEFT"); empty:SetWordWrap(true); empty:Hide()
 
 -- ---------------------------------------------------------------------------
--- ONE step at a time (Zygor-style). Nothing to tick: steps complete themselves from quest log,
+-- ONE step at a time. Nothing to tick: steps complete themselves from quest log,
 -- inventory, position and taxi/bind events (Progress.CheckStep). The arrows move by hand.
 -- ---------------------------------------------------------------------------
 local card = CreateFrame("Button", nil, f)

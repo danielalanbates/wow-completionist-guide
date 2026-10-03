@@ -44,7 +44,7 @@ local function buildNameIndex()
         end
     end
 end
--- Zygor disambiguates same-named maps with a trailing token: D = the Draenor copy, L = the
+-- Legacy guides disambiguate same-named maps with a trailing token: D = the Draenor copy, L = the
 -- Legion/Broken Isles copy, M/New = the newest remake, a digit = a floor of the same place.
 local VARIANT_CONTINENT = { D = 572, L = 619 }
 local function resolveVariant(name)
@@ -87,7 +87,7 @@ function U.MapIDByName(name)
     -- punctuation / spacing variants: "Zul Aman" for Zul'Aman, WoW-Pro's CamelCase "TheWanderingIsle"
     local hit2 = normToMap[normName(t)]
     if hit2 then return hit2 end
-    -- Zygor's trailing disambiguators ("Shadowmoon Valley D", "Dalaran L", "Uldum New", "UBRS 2")
+    -- Legacy guide trailing disambiguators ("Shadowmoon Valley D", "Dalaran L", "Uldum New", "UBRS 2")
     local v = resolveVariant(t)
     if v then return v end
     -- last resort, a unique prefix ("Antorus" -> "Antorus, the Burning Throne")

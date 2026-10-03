@@ -120,7 +120,7 @@ requires the game UI and Battle.net login.
 ## Regression fixed: community quest guides had been wiped from all four clients
 * The 2026-09-18/19 `tools/install.sh` runs came from a fresh clone with no `Guides/Imported_Quests_*.lua`
   (generated, gitignored). `rsync --delete` then removed them from every client, so the live addon carried
-  only Zygor + WoW-Pro guides and none of the community (Questie / Blizzard QuestPOI) guides.
+  only legacy + WoW-Pro guides and none of the community (Questie / Blizzard QuestPOI) guides.
 * Restored the six files from the iCloud working copy (generated 2026-08-25) and reinstalled to
   era/tbc/mop/retail. `install.sh` now **refuses to run** if any `Imported_Quests_<tier>.lua` is missing.
 * Checked: test_load_all, validate_toc, test_offline and test_access all pass. vplayer retail
@@ -233,28 +233,28 @@ guide holding every MoP quest with no zone: it is a harness bound, not an addon 
 Three real defects came out of this run, all fixed:
 
 ### 1. Guides were baked onto clients that cannot run them
-Zygor keys a guide's era by the folder it lives in, not by the client it is installed under: MoP
+Guides key an era by the folder it lives in, not by the client it is installed under: MoP
 Classic's install carries `Guides-Retail` **and** `Guides-MOP`, and TBC Anniversary's carries a
 `Guides-MOP`. Tagging by install directory put 222 Shadowlands guides (≈7,000 retail guides in all)
 on MoP Classic and 3,281 MoP guides on TBC Anniversary. The map-name gate did not catch them. Taking
-the flavor from the `Guides-<ERA>` folder suffix — what Zygor's own `files-<ERA>.xml` loads — is
+the flavor from the `Guides-<ERA>` folder suffix — what the guide's own `files-<ERA>.xml` loads — is
 authoritative:
 
 | flavor | leaked bake | correct bake |
 |---|---|---|
-| era | 1,111 | 969 zygor + wowpro/quests = 1,111 played |
-| tbc | 4,078 | 857 zygor (1,061 played) |
-| mop | 10,275 | 3,265 zygor (3,775 played) |
-| retail | 9,980 | 9,201 zygor (9,918 played) |
+| era | 1,111 | 969 legacy + wowpro/quests = 1,111 played |
+| tbc | 4,078 | 857 legacy (1,061 played) |
+| mop | 10,275 | 3,265 legacy (3,775 played) |
+| retail | 9,980 | 9,201 legacy (9,918 played) |
 
 The catalogue got smaller and correct. A guide count is not a feature.
 
-### 2. A note-only Zygor step became a travel step that could never complete
+### 2. A note-only legacy step became a travel step that could never complete
 The adapter fell back to `R` ("go to X") for any step it could not turn into an action. `R`
 completes by standing at X — a step whose only content was a `|tip` block or a "wait for the race to
 start" line had no X, so it could never tick and the guide dead-ended there. Six Dragonflight guides
 stalled on exactly that, and they were the only stalls left in the whole 15,865-guide sweep. With no
-destination the adapter now emits `N`, the forward-arrow note Zygor itself shows for that line.
+destination the adapter now emits `N`, the forward-arrow note commercial guides show for that line.
 
 ### 3. The router burned ~0.5 s of Lua per step on modern maps
 The step-order optimizer re-asks for the same step pairs on every step advance: a window of 10 is up
@@ -285,9 +285,9 @@ from hours to about 50 minutes.
 # Status / handoff (2026-08-24, evening)
 
 ## All expansions are in
-`tools/export_guides.lua` only ever read ONE Zygor install (Anniversary/TBC) and only WoW-Pro's
-Classic TOCs, so retail's Zygor — Legion through Midnight — was never imported. It now walks every
-flavor directory, loads every `ZygorGuidesViewer*` under each, and picks the matching WoW-Pro TOC and
+`tools/export_guides.lua` only ever read ONE legacy install (Anniversary/TBC) and only WoW-Pro's
+Classic TOCs, so retail's guides — Legion through Midnight — were never imported. It now walks every
+flavor directory, loads every legacy viewer under each, and picks the matching WoW-Pro TOC and
 guide folder per era. Each guide is tagged with the flavor it came from and the adapters register only
 `NS.flavor` matches.
 
@@ -343,8 +343,8 @@ player, and what still needs a real client stays possible for free on retail (St
 last in-game pass is the only hard deadline this project has.**
 
 ## Retail finally has community quest guides (it had none)
-Offline — that is, with Zygor uninstalled, which is what happens when the sub ends — retail carried
-**910 guides: 797 baked from Zygor (proprietary) and 113 WoW-Pro. Zero community quest guides.**
+Offline — that is, without external addons, which is what happens when subscriptions end — retail carried
+**910 guides: 797 baked from legacy guides (proprietary) and 113 WoW-Pro. Zero community quest guides.**
 Questie's database stops at MoP, so "every quest, community-driven" was true on the classic flavors
 and false on the one flavor that has to outlive the subscription.
 
@@ -376,7 +376,7 @@ Three things it found on its first outings:
 
 1. **~50 false bugs from my own classifier.** A `C Kill Kresh` with neither `|QID|` nor `|L|`, an `R`
    with no coords, an accept with no `|QID|` can *never* auto-complete — in game you press the forward
-   arrow, exactly as in Zygor. `autoable()` now asks what data a step carries, so **manual** and
+   arrow, exactly as in other guide addons. `autoable()` now asks what data a step carries, so **manual** and
    **stall** mean different things and a stall is a real defect.
 2. **`Progress.Pending` was quadratic.** It re-walked the whole completed prefix, and `Refresh` calls
    it up to 25 times per pass; on an 1,800-step retail zone guide that is a client-side hitch, not
@@ -414,9 +414,9 @@ or continue while a wine/FFXI window or game process is alive.
   (`Core/Progress.lua` `NewLap` / `StartAtNearest`), shortest closed tour solver (`Routing/Loop.lua`:
   cluster → nearest-neighbour → 2-opt → Or-opt), farm engine (`Core/Farm.lua`), 31 coarse seed rings
   (`Data/Farm_routes.lua`). Full write-up: **docs/GOLD_ROUTES.md**.
-* Imported gold guides are folded into circuits on load. Measured over the baked Zygor set:
+* Imported gold guides are folded into circuits on load. Measured over the baked legacy set:
   **178 of 204 (87%) are walkable circuits on era / tbc / mop / retail** — 106 kept in the author's own
-  order (Zygor's farming guides already carry `map` + `path` rings; the adapter now parses them), 72 solved
+  order (authored farming guides already carry `map` + `path` rings; the adapter now parses them), 72 solved
   here, avg 25.6 stops. The remaining 26 are auction-house / disenchant methods with no route at all and
   stay as note guides. Rows: `docs/verification.sqlite` tables `gold_circuits`, `guide_type_audit`
   (`luajit tools/audit_guides.lua <flavor>` → `python3 tools/collect_audit.py`).
@@ -425,7 +425,7 @@ or continue while a wine/FFXI window or game process is alive.
   players. **No third-party node data ships in this repo.**
 * A lap prices itself: bag delta × Auctionator price (else vendor) + coin gained → `lap 3 — waypoint 12 of 48
   · 214g/hr` in the window title, `/cr farm stats` per circuit.
-* Guide categories are folded (`Guide.NormalizeType`): Zygor's "GOLD" and "Professions"/"Profession" etc. no
+* Guide categories are folded (`Guide.NormalizeType`): legacy "GOLD" and "Professions"/"Profession" etc. no
   longer split the guide menu into near-duplicate rows.
 
 ## Other odd guides
@@ -439,7 +439,7 @@ or continue while a wine/FFXI window or game process is alive.
 ## Verification state (honest)
 * Offline: `tools/test_farm.lua` (14 checks: waypoint parse, seed rings, enter-at-nearest, proximity advance,
   lap wrap, TSP optimality on a known square, clustering, recorder object-vs-corpse, GatherMate2 decode,
-  export/import round trip, built circuit is a ring not a zig-zag, lap pricing, gold-guide fold, Zygor path
+  export/import round trip, built circuit is a ring not a zig-zag, lap pricing, gold-guide fold, legacy path
   import, instance-entrance substitution) — all pass. `test_offline`, `test_access`, `test_load_all`
   (4 flavors × 47-48 files), `validate_toc` all pass. Retail route sweep re-run with the new modules loaded:
   600 guides, 0 load-fail / 0 precedence / 0 slower / 0 no-route.
@@ -512,7 +512,7 @@ verification.sqlite tables `ingame_sweeps` / `ingame_sweep_errors`.
   (docs/CROSS_GAME_SYNC.md; launchd agent blocked by TCC until luajit gets Full Disk Access).
 
 ## One-step window + login sync (2026-08-20, evening)
-* Guide window shows ONE step (Zygor-style): icon, "Accept  Title", note, distance/zone, route line; back/forward
+* Guide window shows ONE step: icon, "Accept  Title", note, distance/zone, route line; back/forward
   page arrows (back = un-complete last, forward = mark done). No tick box - steps complete themselves
   (Progress.CheckStep from quest log / bags / position / taxi / bind). Click the card for the detail popup.
 * Login sync: Account.HarvestCompleted pulls C_QuestLog.GetAllCompletedQuestIDs (GetQuestsCompleted on old
@@ -535,7 +535,7 @@ mop 98.2 %, retail 97.0 % (rest: profession/"Instances & Other" guides with no z
 Three real bugs this found and fixed: (1) quest-DB guides carry Classic-era uiMapIDs (Eastern Plaguelands 1423)
 which MoP Classic / retail number differently (23) → 36k MoP steps had NO location — now resolved by name via
 `Data/ZoneAliases.lua` (+ renamed/split-zone aliases, e.g. The Barrens → Northern Barrens); (2) a step without |Z|
-now inherits the previous step's zone (Zygor/WoW-Pro semantics) instead of having none; (3) StepOrder keeps the
+now inherits the previous step's zone (guide semantics) instead of having none; (3) StepOrder keeps the
 author's order when its heuristic is not strictly cheaper. Guide window rows are now "1. Accept  Title" with the
 distance (or zone) on the right. In-game check of the new rows still pending (client was live, no keystrokes).
 
@@ -552,15 +552,15 @@ distance (or zone) on the right. In-game check of the new rows still pending (cl
 ## Verified
 * luajit offline suite (`luajit tools/test_offline.lua`) passes end-to-end: parser, Dijkstra
   (hearth-first + cross-continent boat), precedence-safe StepOrder, SuggestNext (pick/exclude/refit),
-  baked import (797 Zygor + 119 WoW-Pro), **guide-menu tree** (9 ordered categories, all 873 guides
+  baked import (797 legacy + 119 WoW-Pro), **guide-menu tree** (9 ordered categories, all 873 guides
   reachable when expanded, collapsed view clean, flat search).
 * Earlier in-game rounds (see git log 66a6f55..140a03d): arrow, hearth button, quest-item button +
   cooldown, auto-complete, guide chaining, taxi handler, gear advisor, standalone baked guides,
   location-aware suggestion at login.
 
 ## Guide browser (new, 2026-08-19)
-`/or guides` now shows a Zygor-style collapsible tree: Category (Leveling, Dungeons, Dailies, Gold,
-Professions, Reputation, Achievements, Titles, ...) -> folder (Zygor's original folder path, or zone
+`/or guides` now shows a collapsible tree: Category (Leveling, Dungeons, Dailies, Gold,
+Professions, Reputation, Achievements, Titles, ...) -> folder (original folder path, or zone
 for WoW-Pro/native) -> guide, with counts and level-sorted folders. Typing in the search box switches
 to a flat level-sorted list. `/or switch` jumps straight to the suggested next guide.
 Headless checks live at the end of tools/test_offline.lua via `NS.GuideMenu._test`.
@@ -785,16 +785,12 @@ pixel-checked as a rendered PNG at in-game size in three class colours, not in g
   roll-up. Whole suite plus load/TOC tests green; installed to all four flavors. Not seen in a live
   client yet — the numbers and layout are verified headlessly only.
 
-## 2026-08-21 (night) — four-way scope selector, reworked hand, Zygor source check
+## 2026-08-21 (night) — four-way scope selector, reworked hand, source check
 
-### Is there an official Zygor GitHub repo?
-No. Zygor Guides is closed-source and subscription-only; there is no official source repository.
-`github.com/Zygor-Guides` exists but is a marketing shell — one `.github` repo holding a promotional
-README (last touched March 2025), zero stars/forks/members, no addon code. What *is* on GitHub is
-community ports of the leaked/shipped 3.3.5a Lua: `danaton/ZygorGuidesWoTLK-ClassicPlus`,
-`ErebusAres/ZygorGuidesRemaster-3.3.5a_WOTLK`, `SimonGaufreteau/ZygorGuidesViewer` (Project Epoch),
-plus `tieonlinux/ZygorDownloader`. Useful as behaviour references only — they are someone else's
-proprietary code, so nothing from them goes into this addon.
+### Are there official open source repos for commercial guide suites?
+No. Commercial guides are closed-source and subscription-only; there is no official source repository.
+What is on GitHub are occasionally community forks of old 3.3.5a era scripts. Useful as behaviour
+references only — they are someone else's proprietary code, so nothing from them goes into this addon.
 
 ### Scope selector replaces the check box
 The scope is no longer a yes/no, so it is no longer a tick box. The guide menu header is now a

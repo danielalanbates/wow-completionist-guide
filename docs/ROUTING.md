@@ -107,10 +107,10 @@ without a search. 37x fewer relaxations, identical routes (same TSV). `TG.stats`
   (`unlock` quest complete) -> the cheap `after` edge (portal / airship / beacon);
 * the **steps** to do it, in guide format (quest ids, NPC, coordinates) - `Progress.Load` injects them in front
   of any guide whose first located step lies behind a locked chain (indices -k..-1, so the guide's own progress
-  keys are untouched; chat: "Access: N steps to unlock ... first"). Zygor's zone guides open the same way.
+  keys are untouched; chat: "Access: N steps to unlock ... first"). Comprehensive zone guides open the same way.
 The graph is rebuilt after a quest turn-in so a freshly unlocked chain switches to its `after` edge.
 Offline check: `luajit tools/test_access.lua` (resolves, routes through, parses, injects, un-injects when done).
-Entries marked `approx = true` were written from memory where the local Zygor install had no guide (Horde
+Entries marked `approx = true` were written from memory / Wowhead (e.g. Horde
 Nazjatar) - verify in game. Not yet chained: Dalaran-Crater / scenario starts, pet-battle maps inside instances.
 
 

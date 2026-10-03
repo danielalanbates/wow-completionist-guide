@@ -6,10 +6,10 @@ SRC="$(cd "$(dirname "$0")/.." && pwd)/CompletionRoute"
 WOW="${WOW_DIR:-/Volumes/x10/Video Games/Mac/World of Warcraft}"
 # bake third-party guides from the local install so CompletionRoute is standalone (non-fatal if luajit/addons missing)
 command -v luajit >/dev/null && luajit "$(dirname "$0")/export_guides.lua" || true
-# Guides/ now holds a baked set per flavor (Zygor's retail install alone is ~30 MB); ship each client
+# Guides/ now holds a baked set per flavor (the retail install alone is ~30 MB); ship each client
 # only its own, or every game folder carries ~90 MB of other eras' guides it will never load.
 # Guard: Imported_Quests_*.lua are the community (Questie/Blizzard-POI) guides — generated, gitignored,
-# and the whole point of the addon once the Zygor sub ends. A fresh clone lacks them, and rsync --delete
+# and the whole point of the standalone addon. A fresh clone lacks them, and rsync --delete
 # below would then strip them from every client (happened 2026-09-18/19). Refuse instead.
 for tier in era tbc wotlk cata mop retail; do
   [ -s "$SRC/Guides/Imported_Quests_$tier.lua" ] || { echo "install.sh: missing Guides/Imported_Quests_$tier.lua — regenerate (tools/gen_quest_guides.lua / gen_quest_guides_retail.py) or copy it in; refusing to wipe the community guides from the clients" >&2; exit 1; }
@@ -32,7 +32,7 @@ for fl in "${@:-_anniversary_}"; do
   EXCL=()
   for other in era tbc mop retail; do
     [ "$other" = "$MINE" ] && continue
-    EXCL+=(--exclude "Guides/Imported_Zygor_$other.lua" --exclude "Guides/Imported_WoWPro_$other.lua"
+    EXCL+=(--exclude "Guides/Imported_Legacy_$other.lua" --exclude "Guides/Imported_WoWPro_$other.lua"
            --exclude "Guides/Imported_Achievements_$other.lua" --exclude "Guides/Imported_Storylines_$other.lua"
            --exclude "Guides/Imported_Missions_$other.lua")
   done

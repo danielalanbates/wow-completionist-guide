@@ -4,7 +4,7 @@
 -- for doing the chain the first time, `after` = the cheaper edge that exists once `unlock` quests are complete)
 -- and (2) the STEPS to get there, in CompletionRoute guide format (docs/GUIDE_FORMAT.md). When a guide's first
 -- step lies behind a locked chain, Progress injects these steps in front of the guide (negative step indices),
--- exactly the way Zygor's own zone guides open with the zone intro.
+-- exactly the way comprehensive zone guides open with the zone intro.
 -- Facts only (quest ids, NPCs, map coordinates). Coordinates are map percentages; approximate +-2%.
 -- `unlock` = quest ids that mark the chain done (any one complete = unlocked). `fac` = "A"|"H"|nil.
 local ADDON, NS = ...
@@ -120,7 +120,7 @@ N Follow the "Undermined" campaign chapter 1 through "Down Undermine" (83151): P
 T Down Undermine|QID|83151|M|24.10,51.17|Z|Undermine|N|Monte Gazlowe.|
 ]] },
     -- ---------------- Battle for Azeroth: Nazjatar (8.2), Horde ----------------
-    -- APPROXIMATE: Daniel's Zygor install only carries the Alliance Nazjatar guide. Horde facts from memory: Nathanos
+    -- APPROXIMATE: Horde facts from memory / community sources: Nathanos
     -- Blightcaller offers "Send the Fleet" (56044) at the Port of Zandalar; sail from the harbor. Verify in game.
     { key = "nazjatar_h", fac = "H", flavors = { retail = true }, unlock = { 56044 }, cost = 400, approx = true,
       from = { "Zuldazar", 58.0, 62.5 }, to = { "Nazjatar", 50.9, 94.2 },

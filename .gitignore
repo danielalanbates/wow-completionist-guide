@@ -11,7 +11,7 @@ WTF/
 *.env
 CREDENTIALS*
 
-# Baked third-party guide data (Zygor proprietary / WoW-Pro CC BY-NC-ND) - never commit
+# Baked third-party guide data (proprietary / CC BY-NC-ND) - never commit
 CompletionRoute/Guides/Imported_*.lua
 CompletionRoute/Data/Imported_*.lua
 tools/__pycache__/

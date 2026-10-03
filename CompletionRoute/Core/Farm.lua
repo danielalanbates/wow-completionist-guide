@@ -1,5 +1,5 @@
 -- CompletionRoute :: Core/Farm.lua
--- Gold guides done the way Zygor never did them: a farm CIRCUIT you just walk.
+-- Gold guides done right: a continuous farm CIRCUIT you just walk.
 --
 -- A farm guide is an ordinary guide with `loop = true` whose steps are all `G` waypoints.  Nothing is
 -- ever clicked: the waypoint ticks when you stand on it, the arrow swings to the next one, and when the
@@ -250,7 +250,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Turning an imported "gold guide" into a circuit
 -- ---------------------------------------------------------------------------
--- Zygor-style gold guides are a wall of note steps you click through: "go here, kill these, now click
+-- Legacy commercial gold guides are a wall of note steps you click through: "go here, kill these, now click
 -- Next".  What a farmer actually wants is the loop.  Circuitize takes every located step of such a
 -- guide, solves the shortest closed tour through them (Routing/Loop.lua) and hands back G waypoints
 -- carrying the original text as their notes - so the guide's knowledge survives, the clicking does not.
@@ -288,7 +288,7 @@ function F.Circuitize(guide, opts)
     if not (guide and NS.Loop) then return nil, "no guide" end
     local steps = G.Steps(guide.id)
     if not steps or #steps == 0 then return nil, "no steps" end
-    -- The guide already IS a ring (Zygor "path ... loop on", or one of ours): keep the author's order,
+    -- The guide already IS a ring (e.g. "path ... loop on", or one of ours): keep the author's order,
     -- they walked it. Re-solving a hand-tuned route only makes it worse.
     local waypoints = 0
     for _, st in ipairs(steps) do if st.action == "G" then waypoints = waypoints + 1 end end

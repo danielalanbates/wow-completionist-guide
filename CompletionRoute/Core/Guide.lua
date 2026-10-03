@@ -147,7 +147,7 @@ function G.StepTitle(step)
     return t
 end
 
--- Imported sources spell their categories differently (Zygor "GOLD", WoW-Pro "Professions",
+-- Imported sources spell their categories differently (e.g. "GOLD", WoW-Pro "Professions",
 -- our own "Profession"): fold them so the guide menu has one row per category, not three.
 local TYPE_CANON = { gold = "Gold", leveling = "Leveling", quests = "Quests", dungeon = "Dungeons", dungeons = "Dungeons",
     profession = "Professions", professions = "Professions", daily = "Dailies", dailies = "Dailies",
@@ -197,7 +197,7 @@ function G.Steps(id)
         n = n + 1
         local s, err = G.ParseLine(line, n, g.zone)
         if s then
-            -- Zygor/WoW-Pro semantics: a zone stays in force until the guide names another one
+            -- Guide semantics: a zone stays in force until the guide names another one
             if s.zone then lastZone, lastZoneName = s.zone, s.zoneName
             elseif lastZone then s.zone, s.zoneName, s.zoneInherited = lastZone, lastZoneName, true end
             s.index = #steps + 1 s.guide = id steps[#steps + 1] = s

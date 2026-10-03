@@ -5,7 +5,7 @@ Mists (Classic) and retail from the **same** addon folder — no per-flavor fork
 
 ## 1. Target Beacon (`UI/Beacon.lua`)
 
-"Where is the thing?" Zygor puts a marker over the quest giver's head; so does this.
+"Where is the thing?" Commercial guides put a marker over the quest giver's head; so does this.
 
 | Surface | What you get | API used | Availability |
 |---|---|---|---|
@@ -24,7 +24,7 @@ Mists (Classic) and retail from the **same** addon folder — no per-flavor fork
    anything that starts with a digit or runs over 48 characters.
 
 The current step plus the next 4 upcoming steps contribute names, so sticky/parallel objectives
-stay marked (Zygor behaviour).
+stay marked.
 
 ### Two bugs only a live client could find
 * `C_NamePlate.GetNamePlates(true)` — that second argument is `isSecure`, and passing it from

@@ -33,7 +33,7 @@ bind point.  `C_QuestLog`, `C_Item`, `UnitLevel` and friends read from it, so ev
 * **auto** — the step ticked by itself once the world satisfied it.  This is the addon working.
 * **manual** — the step *can never* tick, because it does not carry the data the check needs: a note,
   a `C Kill Kresh` with neither `|QID|` nor `|L|`, an `R` with no coords and no zone.  In game these
-  are the steps you press the forward arrow for; Zygor behaves the same way.  Not a bug — but the
+  are the steps you press the forward arrow for; other guide addons behave the same way.  Not a bug — but the
   count is worth watching, because it is exactly "how much clicking does this guide still cost you".
 * **stall** — the step carried everything it needed and *still* did not tick.  **That is a bug**, and
   it lands in `docs/vplayer_<flavor>_stalls.tsv` / the `vplayer_stalls` table with its action, title,

@@ -8,7 +8,7 @@ grouped into one "<Zone> Quests" guide per zone, with real coordinates.
 Why this exists
 ---------------
 Questie's database (tools/gen_quest_guides.lua) stops at MoP, so on retail the addon had NO community
-quest guides at all offline — only the 113 WoW-Pro guides and whatever a Zygor installation lends at
+quest guides at all offline — only the 113 WoW-Pro guides and whatever a commercial installation lends at
 runtime.  Retail's own client data does carry the quest map pins: QuestPOIBlob (quest -> uiMap +
 objective index) and QuestPOIPoint (the world coordinates of each pin).  That is 21,766 quests with
 locations, which is what the router actually needs.

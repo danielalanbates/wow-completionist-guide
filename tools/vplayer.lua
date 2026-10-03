@@ -116,8 +116,8 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
     "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
     "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
     "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
-    "Adapters/Zygor.lua", "Adapters/WoWPro.lua",
-    ("Guides/Imported_Zygor_" .. flavor .. ".lua"), ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
+    "Adapters/LegacyGuides.lua", "Adapters/WoWPro.lua",
+    ("Guides/Imported_Legacy_" .. flavor .. ".lua"), ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
     "Guides/Imported_Quests_era.lua", "Guides/Imported_Quests_tbc.lua", "Guides/Imported_Quests_wotlk.lua",
     "Guides/Imported_Quests_cata.lua", "Guides/Imported_Quests_mop.lua", "Guides/Imported_Quests_retail.lua",
     ("Guides/Imported_Achievements_" .. flavor .. ".lua"), ("Guides/Imported_Storylines_" .. flavor .. ".lua"),
@@ -126,7 +126,7 @@ CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
 NS.db.profile.debug = false
 NS.Print, NS.Debug, NS.Error = function() end, function() end, function() end
-pcall(NS.Adapters.Zygor.ImportStatic)
+if NS.Adapters.LegacyGuides then pcall(NS.Adapters.LegacyGuides.ImportStatic) end
 pcall(NS.Adapters.WoWPro.ImportStatic)
 NS.TravelGraph.Build()
 
@@ -144,7 +144,7 @@ G.Suggest = function() return nil end
 -- Can the client EVER auto-complete this step?  Progress.CheckStep only ticks a step when the step
 -- carries the data the check needs: an accept without |QID|, a "Kill Kresh" with neither QID nor |L|
 -- loot, an |R| with no coords and no zone can never tick — in game you press the forward arrow, the
--- same as in Zygor.  Judging by the action letter alone reported those as bugs, which they are not.
+-- same as in other guide addons.  Judging by the action letter alone reported those as bugs, which they are not.
 -- Returns true (auto) or false plus the reason it can only ever be manual.
 local function autoable(step)
     local a = step.action

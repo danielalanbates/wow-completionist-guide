@@ -1,6 +1,6 @@
 -- CompletionRoute :: UI/GuideMenu.lua
--- Zygor-style guide browser: collapsible tree of Category (type) -> area/sub-folder -> guide.
--- Zygor guides use their original folder paths (from the title); WoW-Pro guides group by zone.
+-- Guide browser: collapsible tree of Category (type) -> area/sub-folder -> guide.
+-- Imported guides use their original folder paths (from the title); WoW-Pro guides group by zone.
 -- Typing in the filter box switches to a flat search across all guides.
 local ADDON, NS = ...
 local U, G, P = NS.Util, NS.Guide, NS.Progress
@@ -106,7 +106,7 @@ local expanded = {}   -- [nodePath] = true
 local function srcColor(src)
     if src == "CompletionRoute" then return "|cff3ec6ff" end
     if src == "WoWPro" then return "|cffff9900" end
-    if src == "Zygor" then return "|cffffd200" end
+    if src == "Legacy" then return "|cffffd200" end
     return "|cffaaaaaa"
 end
 
@@ -119,7 +119,7 @@ local function normCat(s)
     return CAT_ALIAS[s] or s
 end
 
--- Category display order (Zygor-like); anything else lands after, alphabetical
+-- Category display order; anything else lands after, alphabetical
 local NEXT_CAT = "Next Step"
 local CAT_ORDER = { [NEXT_CAT] = 0, Leveling = 1, Quests = 2, Dungeons = 3, Dailies = 4, Daily = 4, Gold = 5, Professions = 6, Profession = 6,
     Reputation = 7, Reputations = 7, Achievements = 8, Achievement = 8, Titles = 9, ["Pets & Mounts"] = 10, Events = 11 }
@@ -146,9 +146,10 @@ local function tex(path, size) return ("|T%s:%d:%d:0:-1|t"):format(path, size or
 
 -- Path of a guide inside the tree: { "Leveling", "Starter Guides (1-12)" } (leaf shown separately)
 local function guidePath(g)
-    if (g.id or ""):find("^zygor:") then
+    local subPath = (g.id or ""):match("^legacy:(.+)")
+    if subPath then
         local segs = {}
-        for seg in g.id:sub(7):gmatch("[^\\]+") do segs[#segs + 1] = seg end
+        for seg in subPath:gmatch("[^\\]+") do segs[#segs + 1] = seg end
         segs[#segs] = nil -- last segment is the guide itself
         if segs[1] then segs[1] = normCat(segs[1]) else segs[1] = normCat(g.type) end
         return segs

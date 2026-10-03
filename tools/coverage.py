@@ -31,7 +31,7 @@ FLAVORS = ["era", "tbc", "mop", "retail"]
 
 # what each client loads (TOC order; Imported_Quests_<tier> files gate themselves on NS.flavor)
 def guide_files(gdir, fl):
-    names = [f"Imported_Zygor_{fl}.lua", f"Imported_WoWPro_{fl}.lua", f"Imported_Quests_{fl}.lua",
+    names = [f"Imported_Legacy_{fl}.lua", f"Imported_WoWPro_{fl}.lua", f"Imported_Quests_{fl}.lua",
              f"Imported_Achievements_{fl}.lua", f"Imported_Storylines_{fl}.lua", f"Imported_Missions_{fl}.lua"]
     out = [gdir / n for n in names if (gdir / n).exists()]
     out += sorted((gdir / "Leveling").glob("*.lua"))
@@ -40,24 +40,24 @@ def guide_files(gdir, fl):
 RE_QID = re.compile(r"\|QID\|([\d.^;&]+)")
 RE_ACH = re.compile(r"\|ACH\|(\d+)")
 RE_MIS = re.compile(r"\|MISSION\|(\d+)")
-RE_ZY_Q = re.compile(r"(?:accept|turnin)\s[^\n|]*?##(\d+)|(?:^|\|)\s*q\s+(\d+)", re.M)
-RE_ZY_A = re.compile(r"\bachieve\s+(\d+)")
-RE_ZY_GOTO = re.compile(r"\bgoto\b|\|M\|")
+RE_LEG_Q = re.compile(r"(?:accept|turnin)\s[^\n|]*?##(\d+)|(?:^|\|)\s*q\s+(\d+)", re.M)
+RE_LEG_A = re.compile(r"\bachieve\s+(\d+)")
+RE_LEG_GOTO = re.compile(r"\bgoto\b|\|M\|")
 
 
 def scan(path):
     """-> dict kind -> {id: located_bool}"""
     found = {"quest": {}, "achievement": {}, "mission": {}}
     txt = path.read_text(encoding="utf-8", errors="replace")
-    zy = "Imported_Zygor_" in path.name
-    if zy:
-        # Zygor raw text: split into steps; a step is located when it has a goto
+    is_legacy = "Imported_Legacy_" in path.name
+    if is_legacy:
+        # Legacy raw text: split into steps; a step is located when it has a goto
         for step in txt.split("step\\"):
             loc = "goto" in step
-            for a, b in RE_ZY_Q.findall(step):
+            for a, b in RE_LEG_Q.findall(step):
                 q = int(a or b)
                 found["quest"][q] = found["quest"].get(q, False) or loc
-            for a in RE_ZY_A.findall(step):
+            for a in RE_LEG_A.findall(step):
                 found["achievement"][int(a)] = found["achievement"].get(int(a), False) or loc
         return found
     for line in txt.splitlines():

@@ -1,5 +1,5 @@
 -- CompletionRoute :: Routing/TravelGraph.lua
--- The travel-system graph (the Zygor "LibRover" equivalent, written from scratch, open data):
+-- The travel-system graph (written from scratch, open data):
 --   nodes  = flight masters (from wago.tools TaxiNodes), transit endpoints (boats/zeppelins/portals/trams),
 --            the character's hearth location, plus a virtual start (player) and goal.
 --   edges  = taxi flights (real polyline lengths), transit rides, hearth (cast + cooldown), and implicit

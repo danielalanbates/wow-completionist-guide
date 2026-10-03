@@ -11,7 +11,7 @@ Tables
 A "stall" is a step whose action carried the data its check needs (an accept with a QID, a travel
 step with coords...) and which still did not tick after the virtual player performed it.  Steps that
 can never auto-tick (a note, a "Kill Kresh" with no QID) are counted as `manual` — in game those are
-the ones you press the forward arrow for, exactly as in Zygor.
+the ones you press the forward arrow for, exactly as in other guide addons.
 """
 import csv, glob, re, sqlite3, datetime
 from pathlib import Path

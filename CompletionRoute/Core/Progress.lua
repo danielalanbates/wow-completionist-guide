@@ -46,7 +46,7 @@ function P.Load(id)
     end
     P.steps = G.Steps(id)
     -- Behind a locked access chain (Siren Isle, Argus, Zereth Mortis...)? Put the unlock steps first, the way
-    -- Zygor's zone guides open with the zone intro. Negative indices keep the guide's own progress keys intact.
+    -- comprehensive zone guides open with the zone intro. Negative indices keep the guide's own progress keys intact.
     local prefix = NS.Access and NS.Access.PrefixFor(P.steps, id)
     if prefix and #prefix > 0 then
         local merged = {}
@@ -212,7 +212,7 @@ function P.CheckStep(step)
         if step.item and U.ItemCount(step.item) > 0 then step.hadItem = true end
         if step.qid then
             if anyQuestDone(step.qid, U.IsQuestComplete) then return true end
-            -- Zygor's "use" lines complete on quest objective progress (their |q qid/obj goal),
+            -- Imported "use" lines complete on quest objective progress (their |q qid/obj goal),
             -- not on turn-in: mirror the C branch
             for _, q in ipairs(step.qid) do
                 if U.IsOnQuest(q) then

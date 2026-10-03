@@ -27,7 +27,7 @@ local TITLE_PATTERNS = {
     K = { "^[Kk]ill%s+(.+)$", "^(.+)$" },
     l = { ".*%f[%a]from%s+(.+)$" },
     C = { ".*%f[%a]from%s+(.+)$", ".*%f[%a][Tt]alk to%s+(.+)$", ".*%f[%a][Ss]peak to%s+(.+)$" },
-    -- Note/misc steps are very often "Talk to <NPC>" (Zygor's most common note shape)
+    -- Note/misc steps are very often "Talk to <NPC>" (common imported note shape)
     N = TALK, M = TALK, ["="] = TALK, U = TALK, ["$"] = TALK,
     B = { ".*%f[%a]from%s+(.+)$" },
     f = { ".*%f[%a]from%s+(.+)$" },
@@ -55,7 +55,7 @@ function B.WantedNames()
         if name and not out[name:lower()] then out[name:lower()] = name n = n + 1 end
     end
     local steps = { NS.Progress.current }
-    -- sticky steps that are still open also count (Zygor keeps those on-screen)
+    -- sticky steps that are still open also count (keep those active)
     for _, s in ipairs(NS.Progress.Upcoming(4)) do steps[#steps + 1] = s end
     for _, s in ipairs(steps) do
         if s then
