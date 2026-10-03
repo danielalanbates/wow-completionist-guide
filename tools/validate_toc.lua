@@ -1,11 +1,11 @@
--- Validates every OpenRoute *.toc: listed files exist, Interface directive present,
+-- Validates every CompletionRoute *.toc: listed files exist, Interface directive present,
 -- no duplicate entries, SavedVariables consistent across flavors.
 -- Run: luajit tools/validate_toc.lua   (from repo root)
-local tocs = { "OpenRoute.toc", "OpenRoute_Mists.toc", "OpenRoute_TBC.toc", "OpenRoute_Vanilla.toc" }
+local tocs = { "CompletionRoute.toc", "CompletionRoute_Mists.toc", "CompletionRoute_TBC.toc", "CompletionRoute_Vanilla.toc" }
 local fail = 0
 local savedvars = {}
 for _, toc in ipairs(tocs) do
-    local path = "OpenRoute/" .. toc
+    local path = "CompletionRoute/" .. toc
     local fh = io.open(path, "r")
     if not fh then print("FAIL " .. toc .. ": missing"); fail = fail + 1 else
         local seen, hasInterface, n = {}, false, 0
@@ -19,9 +19,9 @@ for _, toc in ipairs(tocs) do
                 n = n + 1
                 if seen[rel] then print("FAIL " .. toc .. ": duplicate " .. rel); fail = fail + 1 end
                 seen[rel] = true
-                local f = io.open("OpenRoute/" .. rel, "r")
+                local f = io.open("CompletionRoute/" .. rel, "r")
                 if f then f:close()
-                elseif rel:match("^Guides/Imported_") then
+                elseif rel:match("^Guides/Imported_") or rel:match("^Data/Imported_") then
                     print("skip " .. toc .. ": " .. rel .. " (baked locally, gitignored)")
                 else print("FAIL " .. toc .. ": missing file " .. rel); fail = fail + 1 end
             end
