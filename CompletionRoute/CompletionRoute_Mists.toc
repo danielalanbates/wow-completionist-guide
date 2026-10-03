@@ -1,0 +1,62 @@
+## Interface: 50504
+## Title: |cff7ddf8fCompletionist's|r |cffffd200Guide|r
+## Notes: The completionist's guide: community-driven guides for every quest, with Zygor-style optimal routing (flight paths, boats, portals, hearthstone) and a smart arrow that becomes the quest item / hearthstone when you should click it.
+## Author: Daniel Bates (BatesAI) + contributors
+## Version: 0.1.0
+## SavedVariables: CompletionRouteDB
+## SavedVariablesPerCharacter: CompletionRouteCharDB
+## OptionalDeps: WoWPro, WoWPro_Leveling, ZygorGuidesViewer, ZygorGuidesViewerClassic, ZygorGuidesViewerClassicTBC, ZygorGuidesViewerClassicTBCAnniv, TomTom
+## IconTexture: Interface\Icons\INV_Misc_Map_01
+## X-License: PolyForm Noncommercial 1.0.0 + 10% commercial rider (see LICENSE) - (c) 2026 Bates LLC, all rights reserved
+## X-Website: https://batesai.org
+## X-Email: help@batesai.org
+
+Libs\LibStub\LibStub.lua
+Libs\CallbackHandler-1.0\CallbackHandler-1.0.xml
+Libs\HereBeDragons\HereBeDragons-2.0.lua
+Libs\HereBeDragons\HereBeDragons-Pins-2.0.lua
+Core\Init.lua
+Core\Util.lua
+Core\Conditions.lua
+Core\Guide.lua
+Core\Account.lua
+Core\Progress.lua
+Core\Farm.lua
+Core\Instances.lua
+Data\Taxi_era.lua
+Data\Taxi_tbc.lua
+Data\Taxi_mop.lua
+Data\Taxi_retail.lua
+Data\Transit.lua
+Data\Imported_Entrances.lua
+Data\Inns.lua
+Data\Farm_routes.lua
+Data\ZoneAliases.lua
+Data\Roads_ek.lua
+Data\Roads_kalimdor.lua
+Routing\TravelGraph.lua
+Routing\Roads.lua
+Routing\StepOrder.lua
+Routing\Router.lua
+Routing\Loop.lua
+UI\Arrow.lua
+UI\GuideFrame.lua
+UI\Beacon.lua
+UI\GuideMenu.lua
+UI\Options.lua
+UI\Log.lua
+UI\ItemScore.lua
+Adapters\WoWPro.lua
+Adapters\DynamicQuests.lua
+Adapters\Zygor.lua
+Guides\Imported_Zygor_mop.lua
+Guides\Imported_WoWPro_mop.lua
+Guides\Imported_Quests_era.lua
+Guides\Imported_Quests_tbc.lua
+Guides\Imported_Quests_wotlk.lua
+Guides\Imported_Quests_cata.lua
+Guides\Imported_Quests_mop.lua
+Guides\Imported_Achievements_mop.lua
+Guides\Guides.xml
+Core\Sweep.lua
+Core\Slash.lua

@@ -1,0 +1,189 @@
+#!/usr/bin/env python3
+"""One deliberate verification launch of ONE WoW flavor, end to end, with no typing in the client.
+
+    python3 tools/run_flavor_verify.py _classic_era_ [--no-sweep] [--minutes 7] [--version-click]
+
+Refuses if any WoW client or a wine (FFXI) window is already up. Arms the SavedVariables
+(autoVerifyAll + autoSweep), presses Play in the Battle.net launcher (--version-click sets the
+GAME VERSION from the dropdown; without it the launcher keeps whatever was chosen last), waits
+for the client window, clicks Enter World on the selected character, screenshots the window every
+30 s into docs/screenshots/run_<flavor>_<secs>.png, dismisses the Blizzard "blocked action" popup
+if it appears, and after --minutes quits the client from outside (quit from inside is protected).
+Then run tools/collect_verify.py (+ tools/sync_progress.lua runs by itself via the launchd agent).
+Coordinates: launcher Play button = window origin + (155, 696); Enter World = client centre-bottom.
+"""
+import subprocess, sys, time, functools
+print = functools.partial(print, flush=True)   # log is readable live when redirected to a file
+from pathlib import Path
+import Quartz
+
+WOW = Path("/Volumes/x10/Video Games/Mac/World of Warcraft")
+SHOTS = Path(__file__).resolve().parent.parent / "docs" / "screenshots"
+HERE = Path(__file__).resolve().parent
+
+def windows(onscreen=True):
+    opt = Quartz.kCGWindowListOptionOnScreenOnly if onscreen else Quartz.kCGWindowListOptionAll
+    return [(w.get("kCGWindowOwnerName") or "", w.get("kCGWindowNumber"), dict(w.get("kCGWindowBounds") or {}))
+            for w in Quartz.CGWindowListCopyWindowInfo(opt, Quartz.kCGNullWindowID)]
+
+def find(owner_sub, minw=600):
+    for o, n, b in windows():
+        if owner_sub in o and b.get("Width", 0) > minw: return n, b
+    return None, None
+
+def front_is(sub):
+    f = subprocess.run(["lsappinfo", "front"], capture_output=True, text=True).stdout.strip()
+    info = subprocess.run(["lsappinfo", "info", "-only", "name", f], capture_output=True, text=True).stdout
+    return sub in info
+
+def click(x, y):
+    # WoW ignores a click that arrives too soon after the pointer moves, and a 0.1 s press is often
+    # too short for it: Enter World silently did nothing until the move was given time to settle and
+    # the button held down longer. The launcher tolerates either, so both use the slow form.
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, Quartz.CGEventCreateMouseEvent(
+        None, Quartz.kCGEventMouseMoved, (x, y), Quartz.kCGMouseButtonLeft))
+    time.sleep(0.4)
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, Quartz.CGEventCreateMouseEvent(
+        None, Quartz.kCGEventLeftMouseDown, (x, y), Quartz.kCGMouseButtonLeft))
+    time.sleep(0.25)
+    Quartz.CGEventPost(Quartz.kCGHIDEventTap, Quartz.CGEventCreateMouseEvent(
+        None, Quartz.kCGEventLeftMouseUp, (x, y), Quartz.kCGMouseButtonLeft))
+    time.sleep(0.2)
+
+def shot(win, path):
+    SHOTS.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["screencapture", "-x", "-o", "-l", str(win), str(path)], check=False)
+
+def main(argv):
+    flavor = [a for a in argv if not a.startswith("--")][0]
+    minutes = 7
+    for a in argv:
+        if a.startswith("--minutes="): minutes = int(a.split("=")[1])
+    attach = "--attach" in argv   # resume driving a client that is already in the world (driver restart)
+    if not attach and subprocess.run(["pgrep", "-f", "World of Warcraft Classic.app/Contents/MacOS"], capture_output=True).stdout.strip():
+        print("a WoW client is already running - not launching another (one app per variety)"); return 2
+    import Quartz as _Q
+    if (_Q.CGSessionCopyCurrentDictionary() or {}).get("CGSSessionScreenIsLocked"):
+        print("screen is locked - clicks and captures cannot reach the client; unlock (or caffeinate -dimsu) first"); return 2
+    subprocess.Popen(["caffeinate", "-dimsu", "-t", str(minutes * 60 + 600)])   # keep display awake for the run
+    if any(o == "wine" for o, _, _ in windows()) and "--take-screen" not in argv:
+        print("FFXI (wine) window on screen - refusing to take over the display "
+              "(pass --take-screen only when Daniel has said the screen is free)"); return 2
+    if attach:
+        win, wb = find("Wow")
+        if not win: print("--attach: no client window"); return 1
+        print("attached to client window", win, wb)
+    arm = ["python3", str(HERE / "queue_verify.py"), flavor]
+    if "--no-sweep" not in argv: arm.append("--sweep")
+    arm.append("--resume")   # continue an unfinished sweep of this flavor (fresh start if none / finished)
+    if "--sweep-only" in argv: arm.append("--sweep-only")
+    arm.append(f"--quit-after={minutes * 60 - 30}")
+    if not attach: subprocess.run(arm, check=False)
+    if not attach:
+      subprocess.run(["open", "-b", "net.battle.app"]); time.sleep(8)
+      n, b = find("Battle.net", 800)
+      if not n: print("no launcher window"); return 1
+      if not front_is("Battle.net"): print("launcher not frontmost - not clicking"); return 1
+      if "--version-click" in argv:
+          # Do NOT use the product page's GAME VERSION dropdown: its list is repositioned so the
+          # CURRENT selection sits at a fixed spot, so a hard-coded row picks a different version
+          # depending on what was selected last (this silently re-launched Classic Era when asked for
+          # Burning Crusade Anniversary). The GAMES tab's "N Installed" menu is stable - it always
+          # lists the three installed classic versions in the same order.
+          # Offsets are window-relative points on the 1440x806 launcher, measured 2026-08-24.
+          click(b["X"] + 319, b["Y"] + 55); time.sleep(4)          # GAMES tab
+          if flavor == "_retail_":
+              click(b["X"] + 228, b["Y"] + 115); time.sleep(4)     # gold WoW favourite = retail
+          else:
+              row = {"_classic_": 562, "_anniversary_": 594, "_classic_era_": 626}[flavor]
+              click(b["X"] + 337, b["Y"] + 527); time.sleep(2.5)   # "3 Installed" chevron
+              click(b["X"] + 360, b["Y"] + row); time.sleep(5)
+          # crop just the GAME VERSION combobox: small, cheap to eyeball, unambiguous
+          subprocess.run(["screencapture", "-x",
+                          f"-R{int(b['X'])+30},{int(b['Y'])+625},320,45",
+                          str(SHOTS / f"launcher_{flavor.strip('_')}_version.png")], check=False)
+          print(f"selected {flavor}; VERIFY docs/screenshots/launcher_{flavor.strip('_')}_version.png "
+                f"before trusting this run")
+      click(b["X"] + 155, b["Y"] + 696); print("pressed Play")
+      t0 = time.time(); win = None
+      while time.time() - t0 < 480:
+          win, wb = find("Wow")
+          if win: break
+          time.sleep(5)
+      if not win: print("client window never appeared"); return 1
+      print("client window", win, wb, "after", int(time.time() - t0), "s")
+      time.sleep(45)   # character select
+      shot(win, SHOTS / f"run_{flavor.strip('_')}_charselect.png")
+      if not front_is("Wow"):   # another app (Notes...) may have taken focus while loading - raise the client once
+          subprocess.run(["open", "-b", "com.blizzard.worldofwarcraft"], check=False); time.sleep(3)
+      if not front_is("Wow"): print("client not frontmost - not clicking Enter World"); return 1
+      sx, sy = wb["Width"], wb["Height"]
+      click(wb["X"] + sx * 0.498, wb["Y"] + sy * 0.918)   # Enter World
+      print("clicked Enter World")
+    start = time.time(); popup_done = False
+    svs = list((WOW / flavor).glob("WTF/Account/*/SavedVariables/CompletionRoute.lua"))
+    sv_m = max((p.stat().st_mtime for p in svs), default=0)
+    sessions = 1
+    while time.time() - start < minutes * 60:
+        el = int(time.time() - start)
+        win, wb = find("Wow")
+        if not win: print("client window gone"); break
+        shot(win, SHOTS / f"run_{flavor.strip('_')}_{el:04d}.png")
+        # retail logs an idle character out after ~30 min -> SavedVariables get written -> the client sits
+        # at character select. Re-arm the sweep in resume mode and Enter World again (one click per logout).
+        m = max((p.stat().st_mtime for p in svs), default=0)
+        if m > sv_m:
+            sv_m = m
+            text = "".join(p.read_text(errors="replace") for p in svs)
+            sweep_done = '["finishedAt"]' in (text.split('["routeSweep"]')[1].split("\n}")[0] if '["routeSweep"]' in text else "")
+            vall_done = '["finished"]' in (text.split('["verifyAll"]')[1].split("\n}")[0] if '["verifyAll"]' in text else "")
+            if sweep_done and vall_done:
+                print(f"logged out after {el}s and both sweeps are finished"); break
+            sessions += 1
+            print(f"logged out after {el}s (sweep finished={sweep_done}, verifyall finished={vall_done}) -> session {sessions}, resuming")
+            subprocess.run(["python3", str(HERE / "queue_verify.py"), flavor, "--sweep", "--resume"] + (["--sweep-only"] if "--sweep-only" in argv else []), check=False)
+            sv_m = max((p.stat().st_mtime for p in svs), default=0)   # arming rewrote the file - not a logout
+            time.sleep(20)
+            if not front_is("Wow"):
+                subprocess.run(["open", "-b", "com.blizzard.worldofwarcraft"], check=False); time.sleep(3)
+            if front_is("Wow"):
+                shot(win, SHOTS / f"run_{flavor.strip('_')}_charselect_s{sessions}.png")
+                click(wb["X"] + wb["Width"] * 0.5, wb["Y"] + wb["Height"] * 0.897); print("clicked Enter World again")
+            else:
+                print("client not frontmost - cannot re-enter world"); break
+        time.sleep(30)
+    # the Blizzard "blocked from an action" popup (if any) sits under the minimap; Ignore is at ~(0.515, 0.24)
+    if win and front_is("Wow"):
+        click(wb["X"] + wb["Width"] * 0.5156, wb["Y"] + wb["Height"] * 0.24)
+    time.sleep(1)
+    # SavedVariables are only written when the client exits, and nothing outside the client can make
+    # that happen: Quit()/Logout() are protected, WoW ignores synthetic KEY events entirely (Cmd+Q
+    # never arrives) and `tell application ... to quit` answers "User canceled (-128)" in the world.
+    # WoW does accept synthetic MOUSE clicks, so Core/Sweep.lua pins a secure "/quit" macro button to
+    # the top-left corner for the duration of an armed run - click that.
+    svs_before = max((p.stat().st_mtime for p in svs), default=0)
+    win, wb = find("Wow")
+    if win:
+        subprocess.run(["open", "-b", "com.blizzard.worldofwarcraft"], check=False)
+        time.sleep(3)
+        if front_is("Wow"):
+            click(wb["X"] + 10, wb["Y"] + 10)      # CompletionRouteVerifyQuit
+            print("clicked the verification quit button")
+        else:
+            print("client not frontmost - cannot click the quit button")
+    t1 = time.time()
+    while time.time() - t1 < 150 and subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip():
+        time.sleep(3)
+    still = subprocess.run(["pgrep", "-f", "World of Warcraft"], capture_output=True).stdout.strip()
+    svs_after = max((p.stat().st_mtime for p in svs), default=0)
+    if still:
+        print("WARNING: client still running")
+    if svs_after <= svs_before:
+        print("WARNING: SavedVariables were NOT rewritten - this run recorded nothing")
+    else:
+        print("SavedVariables flushed")
+    print("client quit; run: python3 tools/collect_verify.py")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

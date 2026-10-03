@@ -1,16 +1,16 @@
--- OpenRoute :: tools/gen_quest_guides.lua
+-- CompletionRoute :: tools/gen_quest_guides.lua
 -- Generate per-zone "Quests" guides covering EVERY quest in a game version, using a local
 -- Questie checkout (https://github.com/Questie/Questie) as the data reference.
 -- Output is gitignored (Questie is GPL; we bake locally like Imported_Zygor.lua).
 --
 --   luajit tools/gen_quest_guides.lua <questie_dir> <flavor>
---   flavor: era | tbc | wotlk | cata | mop      (writes OpenRoute/Guides/Imported_Quests_<flavor>.lua)
+--   flavor: era | tbc | wotlk | cata | mop      (writes CompletionRoute/Guides/Imported_Quests_<flavor>.lua)
 --
 -- Guides land in the browser tree as: Quests -> <Zone> -> "<Zone> Quests (Faction)".
 -- Steps use the WoW-Pro syntax (A/C/T + QID/M/Z/PRE/N) so the router can optimize order.
 
-local QUESTIE, FLAVOR = arg[1], arg[2]
-assert(QUESTIE and FLAVOR, "usage: luajit tools/gen_quest_guides.lua <questie_dir> <flavor>")
+local QUESTIE, FLAVOR, OUTPATH = arg[1], arg[2], arg[3]
+assert(QUESTIE and FLAVOR, "usage: luajit tools/gen_quest_guides.lua <questie_dir> <flavor> [out.lua]")
 local DBDIR = { era = "Classic/classic", tbc = "TBC/tbc", wotlk = "Wotlk/wotlk", cata = "Cata/cata", mop = "MoP/mop" }
 assert(DBDIR[FLAVOR], "unknown flavor " .. FLAVOR)
 
@@ -54,10 +54,21 @@ end
 local quests = loadDB("quest")
 local npcs   = loadDB("npc")
 local objects = loadDB("object")
+local okItems, items = pcall(loadDB, "item")   -- item-started quests: where does the starter item drop?
+if not okItems then io.stderr:write("itemDB not loaded (" .. tostring(items) .. "); item starters stay unlocated\n") items = {} end
 
 -- ---- helpers -------------------------------------------------------------------------------
 local ALLIANCE = { [1]=true, [4]=true, [8]=true, [64]=true, [1024]=true, [2097152]=true }  -- human dwarf nelf gnome draenei worgen
 local HORDE    = { [2]=true, [16]=true, [32]=true, [128]=true, [512]=true, [256]=true }    -- orc undead tauren troll belf goblin
+-- join a Questie prerequisite list into a WoW-Pro PRE tag value
+local function prelist(t, sep)
+    if type(t) ~= "table" or #t == 0 then return nil end
+    local out = {}
+    for _, v in ipairs(t) do if type(v) == "number" and v > 0 then out[#out + 1] = tostring(v) end end
+    if #out == 0 then return nil end
+    return table.concat(out, sep)
+end
+
 local function factionOf(mask)
     if not mask or mask == 0 then return "Both" end
     local a, h = false, false
@@ -111,16 +122,41 @@ local function entitySpawn(startedBy, finish)
             if o then local zid, pts = firstSpawn(o[4]) if zid then return zid, table.concat(pts, ";"), clean(o[1]) end end
         end
     end
-    if lists.items and lists.items[1] then return nil, nil, nil, true end -- item-started
+    if lists.items and lists.items[1] then
+        -- item-started: follow the item to whoever drops / sells it (Questie itemDB: 2 npcDrops,
+        -- 3 objectDrops, 14 vendors) so the accept step has a place to go instead of "somewhere"
+        for _, iid in ipairs(lists.items) do
+            local it = items[iid]
+            if type(it) == "table" then
+                local iname = clean(it[1])
+                for _, src in ipairs({ { it[2], "npc", "Loot" }, { it[3], "obj", "Loot" }, { it[14], "npc", "Buy" } }) do
+                    if type(src[1]) == "table" then
+                        for _, id in ipairs(src[1]) do
+                            local ent = src[2] == "npc" and npcs[id] or objects[id]
+                            local zid, pts
+                            if ent then zid, pts = firstSpawn(src[2] == "npc" and ent[7] or ent[4]) end
+                            if zid then
+                                return zid, table.concat(pts, ";"), clean(ent[1]), true,
+                                       ("%s %s from %s - it starts this quest."):format(src[3], iname ~= "" and iname or ("item " .. iid), clean(ent[1])), iid
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return nil, nil, nil, true, nil, lists.items[1]
+    end
 end
 
 -- ---- bucket quests by zone + faction --------------------------------------------------------
 local zones = {}   -- [areaId] = { Alliance = {quests}, Horde = {}, Both = {} }
 local skipped, total = 0, 0
+local itemRows = {}   -- qid, starter item, located? -> tools/db2/<flavor>/item_quests.tsv (coverage.py)
 for qid, q in pairs(quests) do
     total = total + 1
     local name = clean(q[1])
-    local startZid, startCoords, startNpc, itemStart = entitySpawn(q[2], false)
+    local startZid, startCoords, startNpc, itemStart, itemNote, itemId = entitySpawn(q[2], false)
+    if itemStart then itemRows[#itemRows + 1] = ("%d\t%s\t%s"):format(qid, tostring(itemId or ""), startCoords and "1" or "0") end
     local endZid, endCoords, endNpc = entitySpawn(q[3], true)
     local objZid, objCoords
     if type(q[10]) == "table" then
@@ -141,9 +177,11 @@ for qid, q in pairs(quests) do
         zones[zid][fac] = zones[zid][fac] or {}
         table.insert(zones[zid][fac], {
             qid = qid, name = name, lvl = q[5] or 0, req = q[4] or 0,
-            startCoords = startCoords, startZid = startZid, startNpc = startNpc, itemStart = itemStart,
+            startCoords = startCoords, startZid = startZid, startNpc = startNpc, itemStart = itemStart, itemNote = itemNote,
             endCoords = endCoords, endZid = endZid, endNpc = endNpc,
-            pre = (type(q[13]) == "table" and q[13][1]) or nil,
+            -- preQuestSingle (q[13]) = any ONE of these opens the quest -> ";" list (OR)
+            -- preQuestGroup  (q[12]) = ALL of them are needed          -> "&" list (AND)
+            pre = prelist(q[13], ";") or prelist(q[12], "&"),
             objText = type(q[8]) == "table" and clean(q[8][1]) or nil,
             objZid = objZid, objCoords = objCoords,
             hasObjectives = type(q[10]) == "table",
@@ -158,8 +196,9 @@ local function stepLines(e, zoneUi, zoneNm)
     local function z(zid) return ("%d; %s"):format(areaToUi[zid] or zoneUi, areaName[zid] or zoneNm) end
     local ctag = e.classes and ("|C|" .. e.classes) or ""
     if e.startCoords then
-        out[#out + 1] = ("A %s|QID|%d%s|M|%s|Z|%s|%sN|From %s.|"):format(e.name, e.qid,
-            e.pre and ("|PRE|" .. e.pre) or "", e.startCoords, z(e.startZid), ctag ~= "" and (ctag .. "|") or "", e.startNpc or "?")
+        out[#out + 1] = ("A %s|QID|%d%s|M|%s|Z|%s|%sN|%s|"):format(e.name, e.qid,
+            e.pre and ("|PRE|" .. e.pre) or "", e.startCoords, z(e.startZid), ctag ~= "" and (ctag .. "|") or "",
+            e.itemNote or ("From " .. (e.startNpc or "?") .. "."))
     else
         out[#out + 1] = ("A %s|QID|%d%s|%sN|%s|"):format(e.name, e.qid, e.pre and ("|PRE|" .. e.pre) or "",
             ctag ~= "" and (ctag .. "|") or "", e.itemStart and "Started by an item drop." or "Starter location unknown.")
@@ -179,7 +218,13 @@ local function stepLines(e, zoneUi, zoneNm)
     return table.concat(out, "\n")
 end
 
-local outPath = "OpenRoute/Guides/Imported_Quests_" .. FLAVOR .. ".lua"
+local outPath = OUTPATH or ("CompletionRoute/Guides/Imported_Quests_" .. FLAVOR .. ".lua")
+do
+    local tsvDir = "tools/db2/" .. (FLAVOR == "wotlk" and "wotlk" or FLAVOR)
+    os.execute(("mkdir -p %q"):format(tsvDir))
+    local tf = io.open(tsvDir .. "/item_quests.tsv", "w")
+    if tf then tf:write("qid\titem\tlocated\n", table.concat(itemRows, "\n"), "\n") tf:close() end
+end
 local f = assert(io.open(outPath, "w"))
 f:write(("-- AUTO-GENERATED by tools/gen_quest_guides.lua from a local Questie checkout (%s DB).\n"):format(FLAVOR))
 f:write("-- Questie is GPL-licensed: this file is for local use and is gitignored - do not redistribute.\n")
@@ -209,7 +254,7 @@ for _, zid in ipairs(zoneIds) do
         local facLabel = fac == "Both" and "" or (" (" .. fac .. ")")
         guideCount = guideCount + 1
         local zoneField = zoneUi > 0 and tostring(zoneUi) or ("%q"):format(zoneNm)
-        f:write(("R({ id=%q, name=%q, type=\"Quests\", zone=%s, %sminlevel=%d, maxlevel=%d, author=\"Questie data\", source=\"OpenRoute\", text=[==[\n"):format(
+        f:write(("R({ id=%q, name=%q, type=\"Quests\", zone=%s, %sminlevel=%d, maxlevel=%d, author=\"Questie data\", source=\"CompletionRoute\", text=[==[\n"):format(
             ("qdb:%s:%s:%s"):format(FLAVOR, tostring(zid), fac), ("%s Quests%s"):format(zoneNm, facLabel),
             zoneField, fac ~= "Both" and ("faction=%q, "):format(fac) or "", minl, maxl))
         f:write(table.concat(lines, "\n"))

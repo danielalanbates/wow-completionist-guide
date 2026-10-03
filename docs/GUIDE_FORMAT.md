@@ -1,4 +1,4 @@
-# OpenRoute guide format
+# CompletionRoute guide format
 
 One step per line.  First character = action, then a space, then the title, then `|TAG|value|` pairs.
 This is the WoW-Pro community syntax (so thousands of existing guide lines are valid) with a few additions.
@@ -25,17 +25,29 @@ h Goldshire|M|43.7,65.8|Z|1429; Elwynn Forest|N|Set hearth at the Lion's Pride I
 | `L` | reach level N | level ≥ N |
 | `U` | use item `|U|id` | item consumed / quest complete |
 | `B` / `r` / `N` / `M` / `=` / `$` | buy / repair-sell / note / misc / treasure | `B`: has `L` items; others manual |
+| `G` | farm waypoint (gold circuits) | you stand within `RAD` yards of it — nothing to click |
 
 ## Tags
 `QID` (`^` or, `&` and) · `PRE` prereq quests · `ACTIVE` only while on quest (negative = while not on) · `AVAILABLE` hide when done · `M` `x,y;x,y` · `Z` `mapID; name` (name only also works) · `N` note (`\n`, `[color=RRGGBB]`) · `L` `itemID qty;itemID qty` · `QO` objective index · `T` target name · `U`/`ITEM` item id (drives the arrow's item button) · `C` class list (`;`), `-` prefix = not · `R` race · `P` profession `Name;skill` · `LVL` min level (negative = max) · `FACTION` · `S` sticky, `US` unsticky, `S!US` · `O` optional · `NC` non-combat · `RANK` · `SPELL` · `BUFF`.
 
-OpenRoute-only: `|ROUTE|` mark a step as reorderable, `|FIXED|` never reorder. Defaults: A/C/T/K/r/B/$/l/! reorderable, everything else fixed (acts as an anchor).
+CompletionRoute-only: `|RAD|` waypoint radius in yards (`G` steps) · `|KIND|` what grows there · `|ROUTE|` mark a step as reorderable, `|FIXED|` never reorder. Defaults: A/C/T/K/r/B/$/l/! reorderable, everything else fixed (acts as an anchor).
 
 ## Registering a guide (Lua)
 ```lua
 local _, NS = ...
 NS.Guide.Register({ id="OR_Human_01_06_Northshire", name="Human Starter (1-6)", type="Leveling",
   zone="Elwynn Forest", faction="Alliance", minlevel=1, maxlevel=6, next="OR_Elwynn_06_12",
-  author="you", source="OpenRoute", text=[[ ...lines... ]] })
+  author="you", source="CompletionRoute", text=[[ ...lines... ]] })
 ```
-Add the file to `OpenRoute/Guides/Guides.xml`. Files are CC BY-SA 4.0 — put the header comment in.
+Add the file to `CompletionRoute/Guides/Guides.xml`. Files are CC BY-SA 4.0 — put the header comment in.
+
+## Loop guides (gold / farm circuits)
+`NS.Guide.Register{ ..., type = "Gold", loop = true }` makes a guide a **circuit**: its `G` waypoints complete
+by proximity, and when the last one is reached `Progress.NewLap` clears the lap, records what it was worth and
+re-enters the ring at the nearest waypoint. Circuits never finish and never load a "next" guide. Imported gold
+guides are folded into circuits automatically — see `docs/GOLD_ROUTES.md`.
+
+## Access chains
+A guide may start somewhere that needs an unlock (Siren Isle, Argus, Zereth Mortis...). Do not write the unlock
+into every guide: `Data/Access.lua` holds it once per place, in this same step format, and the addon prepends it
+to any guide whose first step is behind the lock (see docs/ROUTING.md "Access chains").

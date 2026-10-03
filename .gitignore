@@ -12,4 +12,26 @@ WTF/
 CREDENTIALS*
 
 # Baked third-party guide data (Zygor proprietary / WoW-Pro CC BY-NC-ND) - never commit
-OpenRoute/Guides/Imported_*.lua
+CompletionRoute/Guides/Imported_*.lua
+CompletionRoute/Data/Imported_*.lua
+tools/__pycache__/
+__pycache__/
+
+# generated Blizzard quest POI dumps (regenerate: tools/gen_quest_guides_retail.py)
+tools/db2/retail/QuestPOI*.csv
+tools/db2/questie_index.tsv
+*.app
+app/*.app/
+
+# Blizzard client-data exports used by tools/coverage.py + tools/gen_completion_guides.py (regenerate from wago.tools)
+tools/db2/*/QuestV2.csv
+tools/db2/*/QuestLine*.csv
+tools/db2/*/Achievement*.csv
+tools/db2/*/Criteria*.csv
+tools/db2/*/GarrMission.csv
+tools/db2/*/QuestInfo.csv
+tools/db2/*/QuestSort.csv
+tools/db2/*/item_quests.tsv
+# local no-route / sample harness output
+docs/vplayer_*_noroute.tsv
+tools/db2/*/Taxi*.csv

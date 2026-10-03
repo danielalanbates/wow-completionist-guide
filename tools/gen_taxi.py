@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate OpenRoute/Data/Taxi_<flavor>.lua from wago.tools DB2 CSV exports.
+"""Generate CompletionRoute/Data/Taxi_<flavor>.lua from wago.tools DB2 CSV exports.
 
 Usage: python3 tools/gen_taxi.py [flavor build] ...
   e.g. python3 tools/gen_taxi.py tbc 2.5.6.69110 era 1.15.9.69109
@@ -15,7 +15,7 @@ Faction from MountCreatureID_0 (Horde mount) / MountCreatureID_1 (Alliance mount
 import csv, math, os, sys, urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "..", "OpenRoute", "Data")
+OUT = os.path.join(HERE, "..", "CompletionRoute", "Data")
 TABLES = ["TaxiNodes", "TaxiPath", "TaxiPathNode"]
 
 def fetch(flavor, build):

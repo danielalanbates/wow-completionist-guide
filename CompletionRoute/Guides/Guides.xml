@@ -1,0 +1,5 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<!-- Native CompletionRoute guides. Add new guide files here (CC BY-SA 4.0). -->
+	<Script file="Leveling\Alliance_Human_01_06_Northshire.lua"/>
+	<Script file="Leveling\Horde_Orc_Troll_01_06_ValleyOfTrials.lua"/>
+</Ui>
