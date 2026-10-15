@@ -85,6 +85,8 @@ function G.ParseLine(text, lineno, defaultZone)
             step.zone = mid or U.MapIDByName(val)
             step.zoneName = (name ~= "" and name) or val
         elseif tag == "N" then step.note = (val or ""):gsub("\\n", "\n"):gsub("%[color=(%x%x%x%x%x%x)%]", "|cff%1"):gsub("%[/color%]", "|r")
+            -- "Head to X by any means possible." is filler; the arrow already shows the way
+            step.note = step.note:gsub("%s+[Bb]y any means possible", ""):gsub("%s+[Bb]y any means([%.!,;])", "%1")
         elseif tag == "L" then step.loot = {} for pair in (val or ""):gmatch("[^;]+") do local id, q = pair:match("(%d+)%s*(%-?%d*)") if id then step.loot[#step.loot + 1] = { id = tonumber(id), qty = tonumber(q) or 1 } end end
         elseif tag == "QO" then step.qo = val
         elseif tag == "T" then step.target = val
