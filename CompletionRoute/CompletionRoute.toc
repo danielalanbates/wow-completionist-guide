@@ -33,6 +33,7 @@ Data\Access.lua
 Data\Inns.lua
 Data\Farm_routes.lua
 Data\ZoneAliases.lua
+Data\QuestCoordFixes_retail.lua
 Data\Roads_ek.lua
 Data\Roads_kalimdor.lua
 Routing\TravelGraph.lua

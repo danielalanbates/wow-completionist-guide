@@ -831,3 +831,58 @@ the class-colour idea. Say which you prefer and I will build that instead.
 Preview renders live in the scratchpad (`hand6.png`), verified at in-game size in three class
 colours over a mid-tone background. Whole offline suite, load tests and TOC validation green;
 installed to all four flavors. Nothing in this batch has been seen in a live client.
+
+## Quest location audit: retail (2026-10-15)
+`tools/audit_quest_locations_retail.py` checks every A/C/T step that has a single QID in the retail guides, using the
+locations the addon itself parses (`tools/dump_quest_steps.lua`, so zone-name resolution is included). Each step is
+converted to world yards with `tools/maps_retail.lua`.
+References:
+* **T**: Blizzard turn-in pin (QuestPOIBlob objective -1) or a Questie ender spawn.
+* **C**: the objective's POI area (inside it or within 40 yd). Achievement "complete quest" criteria also accept the turn-in.
+* **A**: Questie giver spawns (all of them; `tools/questie_spawns.lua`, MoP DB wins). Post-MoP quests have no giver
+  data, so they are checked only by cross-source consensus: two independent sources (WoW-Pro, legacy, and the
+  generated files counted as one source) agree within 40 yd and this step does not.
+
+A step is wrong when it is more than 40 yd from every reference. These also count as wrong: another
+instance or continent, coords outside 0-100, an unknown zone, or no coords where a reference exists.
+The tool corrects each wrong step to the nearest reference and writes the committed table
+`Data/QuestCoordFixes_retail.lua` (19,472 keys). `Core/Guide.lua` (`G.ApplyCoordFix`) applies the table at parse time.
+Each key is the step's own old location (`action|qid|qo|uiMap|x,y`), so only that exact step moves.
+Detail: `docs/quest_location_audit_retail.tsv`. Tables in `docs/verification.sqlite`: `quest_location_audit` and
+`quest_location_audit_summary`.
+
+| File | Checked | OK | Wrong (fixed) | of which >40 yd / other zone / no coords | No reference | Disputed (not fixed) |
+|---|---:|---:|---:|---|---:|---:|
+| Imported_Quests_retail | 64,871 | 50,584 | 6,913 | 2,629 / 288 / 3,996 | 7,373 | 1 |
+| Imported_Storylines_retail | 69,061 | 54,666 | 4,137 | 3,591 / 339 / 207 | 10,257 | 1 |
+| Imported_Achievements_retail (quest C steps) | 11,647 | 4,571 | 157 | 34 / 6 / 117 | 6,919 | 0 |
+| Imported_WoWPro_retail | 66,494 | 40,023 | 7,293 | 3,999 / 1,731 / 1,443 (+120 unknown zone) | 18,633 | 542 |
+| Imported_Legacy_retail | 96,077 | 46,552 | 8,376 | 3,373 / 2,616 / 2,348 (+34 unknown zone, 5 out of range) | 40,494 | 560 |
+| Leveling/Northshire (retail) | 43 | 27 | 4 | 4 / 0 / 0 | 12 | 0 |
+| Leveling/Valley of Trials (retail) | 19 | 13 | 0 | - | 6 | 0 |
+
+What the numbers mean:
+* In the generated files most wrong A steps were the turn-in-pin fallback ("Approximate"), which WoW-Pro and the
+  legacy guides placed somewhere else. Most "no coords" steps are pin-less T steps, now filled from the Questie ender.
+* A legacy or WoW-Pro "other zone" step usually has the right x,y on the wrong map (a phased or duplicate map
+  name such as Wandering Isle 378/2366, Mardum 672/720, or Shattrath coords tagged Terokkar). The fix moves
+  the step onto the POI's map.
+* Disputed (1,104): the step is off Questie's giver, but no second source backs Questie (Questie is MoP-era and
+  some givers moved later). These were left alone.
+* Not fixed:
+  * 98 steps on maps without bounds.
+  * Multi-QID "accept all" steps (skipped).
+  * C steps for quests with no POI objective area: about 20k, most of the "no reference" count.
+  * Post-MoP A steps without consensus.
+* Re-audit with the table applied (`--verify`) leaves 449 residual flags (about 0.15%). These come from consensus
+  shifting once outliers move. A second `--write-fixes` pass would need keys from fixed positions, so it was not run.
+* About 40 steps that were already correct share a key with a wrong step (same qid, action and spot, but a
+  different source) and move with it. The move is to a reference location, so they stay correct.
+* C fixes go to the objective area's centroid. When the centroid falls outside a concave area, they go to the
+  area vertex nearest the old spot.
+* Re-run after any guide regeneration:
+  1. `luajit tools/questie_spawns.lua <Questie>`
+  2. `python3 tools/audit_quest_locations_retail.py --write-fixes`
+  3. Then `--verify`.
+
+  Keys are exact, so a regenerated file whose coords move just skips stale keys. The audit then flags those steps again.
