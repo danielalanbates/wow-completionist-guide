@@ -200,6 +200,9 @@ function P.CheckStep(step)
         if step.coords then if nearCoords(step, step.radius or (NS.db.profile.farm and NS.db.profile.farm.radius) or 40) then return true end
         elseif inZone(step) then return true end
     elseif a == "R" then
+        -- "R Stormwind City" means reach the zone, not the author's sample coordinate inside it
+        local dest = step.title and U.MapIDByName(step.title)
+        if dest and inZone({ zone = dest }) then return true end
         if step.coords then if nearCoords(step, 30) then return true end
         elseif inZone(step) then return true end
     elseif a == "P" then
