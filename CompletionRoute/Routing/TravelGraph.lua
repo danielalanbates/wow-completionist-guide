@@ -85,6 +85,10 @@ function TG.Build()
         if okFlavor and okFac then
             local ax, ay, ai = zoneToWorld(t.from[1], t.from[2], t.from[3])
             local bx, by, bi = zoneToWorld(t.to[1], t.to[2], t.to[3])
+            -- a spot learned by actually taking this portal beats the hand-typed (+-2%) coordinate
+            local fix = NS.db and NS.db.global.transitFix and NS.db.global.transitFix[t.title or ""]
+            if fix and ax and fix.from and fix.from[3] == ai then ax, ay = fix.from[1], fix.from[2] end
+            if fix and bx and fix.to and fix.to[3] == bi then bx, by = fix.to[1], fix.to[2] end
             if ax and bx then
                 local a = newNode("transit", ai, ax, ay, t.from.name or t.from[1]); a.mode = t.mode
                 local b = newNode("transit", bi, bx, by, t.to.name or t.to[1]); b.mode = t.mode
@@ -668,3 +672,45 @@ function TG.Describe(path)
 end
 
 NS:On("ADDON_READY", function() NS:After(0.5, function() pcall(TG.Build) end) end)
+
+-- Learn real portal / boat spots: remember where the player stood just before a teleport-sized jump and,
+-- if that was near one end of a transit edge and they landed near the other, store both spots so the
+-- arrow aims at the actual portal (down to 0 yd) instead of an approximate room centre.
+do
+    local last, lastT = nil, 0
+    local lf = CreateFrame("Frame")
+    lf:SetScript("OnUpdate", function(_, el)
+        lastT = lastT + el
+        if lastT < 0.25 then return end
+        lastT = 0
+        local _, _, _, inst, wx, wy = U.PlayerPos()
+        if not wx then return end
+        if last and (last.inst ~= inst or dist(last.wx, last.wy, wx, wy) > 300) then
+            pcall(TG.LearnTransit, last, { inst = inst, wx = wx, wy = wy })
+        end
+        last = { inst = inst, wx = wx, wy = wy }
+    end)
+end
+function TG.LearnTransit(a, b)
+    if not TG.nodes or not NS.db then return end
+    for _, n in ipairs(TG.nodes) do
+        if n.kind == "transit" and n.inst == a.inst and dist(n.wx, n.wy, a.wx, a.wy) < 150 then
+            for _, e in ipairs(n.edges) do
+                local t = e.to
+                if e.title and t.inst == b.inst and dist(t.wx, t.wy, b.wx, b.wy) < 400 then
+                    local g = NS.db.global
+                    g.transitFix = g.transitFix or {}
+                    local fixFrom = { a.wx, a.wy, a.inst }
+                    local fixTo = { b.wx, b.wy, b.inst }
+                    -- the edge may be the reverse direction of the data row (twoway)
+                    local row = e.data
+                    if row and row.from and U.MapIDByName and n.name ~= (row.from.name or row.from[1]) then fixFrom, fixTo = fixTo, fixFrom end
+                    g.transitFix[e.title] = { from = fixFrom, to = fixTo }
+                    NS:Debug("Learned transit spot: " .. e.title)
+                    TG.built = false
+                    return
+                end
+            end
+        end
+    end
+end
