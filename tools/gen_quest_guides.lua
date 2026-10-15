@@ -5,6 +5,10 @@
 --
 --   luajit tools/gen_quest_guides.lua <questie_dir> <flavor>
 --   flavor: era | tbc | wotlk | cata | mop      (writes CompletionRoute/Guides/Imported_Quests_<flavor>.lua)
+--   Run with Lua 5.3+ (`lua`): the npc DB exceeds LuaJIT's 65536-constant limit. Corrections are applied
+--   (tools/questie_env.lua). Installed Questie packages omit Database/Cata/; for cata fetch
+--   Database/Cata/cata{Quest,Npc,Object,Item}DB.lua from the same Questie tag into a copy of the checkout.
+--   Verify output with tools/audit_quest_locations.lua.
 --
 -- Guides land in the browser tree as: Quests -> <Zone> -> "<Zone> Quests (Faction)".
 -- Steps use the WoW-Pro syntax (A/C/T + QID/M/Z/PRE/N) so the router can optimize order.
@@ -14,48 +18,15 @@ assert(QUESTIE and FLAVOR, "usage: luajit tools/gen_quest_guides.lua <questie_di
 local DBDIR = { era = "Classic/classic", tbc = "TBC/tbc", wotlk = "Wotlk/wotlk", cata = "Cata/cata", mop = "MoP/mop" }
 assert(DBDIR[FLAVOR], "unknown flavor " .. FLAVOR)
 
--- ---- minimal Questie environment ----------------------------------------------------------
-local modules = {}
-QuestieLoader = { ImportModule = function(_, n) modules[n] = modules[n] or { private = {} } return modules[n] end }
-UnitFactionGroup = function() return "Alliance" end
-local function slurp(path) local f = assert(io.open(path, "r"), "cannot read " .. path) local s = f:read("*a") f:close() return s end
-local function loadchunk(s)
-    local fn, err = (loadstring or load)(s)
-    assert(fn, err)
-    return fn()
-end
-
--- zone areaId -> uiMapId, and English names from the table's comments
-local zoneText = slurp(QUESTIE .. "/Database/Zones/data/areaIdToUiMapId.lua")
-local areaToUi, areaName = {}, {}
-local body = zoneText:match("areaIdToUiMapId = %[%[return {(.-)}%]%]")
-assert(body, "areaIdToUiMapId table not found")
-for aidS, uidS, name in body:gmatch("%[(%d+)%]%s*=%s*(%d+),%s*%-%-%s*([^\r\n]+)") do
-    local aid, uid = tonumber(aidS), tonumber(uidS)
-    if uid > 0 and not areaToUi[aid] then areaToUi[aid] = uid areaName[aid] = name:gsub("%s+$", "") end
-end
-local over = zoneText:match("areaIdToUiMapIdOverride = %[%[return {(.-)}%]%]") or ""
-for aidS, uidS, name in over:gmatch("%[(%d+)%]%s*=%s*(%d+),%s*%-%-%s*([^\r\n]+)") do
-    local aid, uid = tonumber(aidS), tonumber(uidS)
-    if uid > 0 then areaToUi[aid] = uid areaName[aid] = areaName[aid] or name:gsub("%s+$", "") end
-end
-
--- flavor databases
-local function loadDB(kind)
-    local path = ("%s/Database/%s%sDB.lua"):format(QUESTIE, DBDIR[FLAVOR], kind)
-    local env_mod = { private = {} }
-    modules.QuestieDB = env_mod
-    QuestieDB = env_mod
-    loadchunk(slurp(path))
-    local data = env_mod[kind .. "Data"]
-    assert(data, kind .. "Data missing in " .. path)
-    return loadchunk(data)
-end
-local quests = loadDB("quest")
-local npcs   = loadDB("npc")
-local objects = loadDB("object")
-local okItems, items = pcall(loadDB, "item")   -- item-started quests: where does the starter item drop?
-if not okItems then io.stderr:write("itemDB not loaded (" .. tostring(items) .. "); item starters stay unlocated\n") items = {} end
+-- ---- Questie database + its Corrections (tools/questie_env.lua) ------------------------------
+-- Corrections matter: Questie's raw DB has stale/moved spawns that the in-game addon patches via
+-- Database/Corrections/*Fixes.lua; without them ~2% of steps pointed at the wrong spot or zone
+-- (see docs/quest_location_audit_classic.tsv).
+local here = (arg[0]:match("^(.*)/[^/]*$") or ".")
+local QDB = dofile(here .. "/questie_env.lua").load(QUESTIE, FLAVOR)
+for _, l in ipairs(QDB.log) do io.stderr:write("[questie] ", l, "\n") end
+local quests, npcs, objects, items = QDB.quests, QDB.npcs, QDB.objects, QDB.items
+local areaToUi, areaName = QDB.areaToUi, QDB.areaName
 
 -- ---- helpers -------------------------------------------------------------------------------
 local ALLIANCE = { [1]=true, [4]=true, [8]=true, [64]=true, [1024]=true, [2097152]=true }  -- human dwarf nelf gnome draenei worgen
@@ -70,7 +41,7 @@ local function prelist(t, sep)
 end
 
 local function factionOf(mask)
-    if not mask or mask == 0 then return "Both" end
+    if type(mask) ~= "number" or mask == 0 then return "Both" end
     local a, h = false, false
     for bit_, side in pairs({ [1]="A",[4]="A",[8]="A",[64]="A",[1024]="A",[2097152]="A",
                               [2]="H",[16]="H",[32]="H",[128]="H",[512]="H",[256]="H" }) do
@@ -81,7 +52,7 @@ end
 local CLASSNAME = { [1]="Warrior",[2]="Paladin",[4]="Hunter",[8]="Rogue",[16]="Priest",[32]="DeathKnight",
     [64]="Shaman",[128]="Mage",[256]="Warlock",[512]="Monk",[1024]="Druid" }
 local function classTag(mask)
-    if not mask or mask == 0 then return nil end
+    if type(mask) ~= "number" or mask == 0 then return nil end
     local out = {}
     for bit_, name in pairs(CLASSNAME) do if mask % (bit_ * 2) >= bit_ then out[#out + 1] = name end end
     return #out > 0 and table.concat(out, ";") or nil
@@ -90,7 +61,11 @@ local function clean(s) return (tostring(s or ""):gsub("[|\r\n]", " "):gsub("%s+
 local function firstSpawn(spawns)   -- prefer an outdoor zone we can map; returns areaId, {coords}
     if type(spawns) ~= "table" then return nil end
     local best
-    for zid, list in pairs(spawns) do
+    local zids = {}
+    for zid in pairs(spawns) do if type(zid) == "number" then zids[#zids + 1] = zid end end
+    table.sort(zids)
+    for _, zid in ipairs(zids) do
+        local list = spawns[zid]
         if areaToUi[zid] and type(list) == "table" then
             local pts = {}
             for _, c in ipairs(list) do
@@ -159,16 +134,28 @@ for qid, q in pairs(quests) do
     if itemStart then itemRows[#itemRows + 1] = ("%d\t%s\t%s"):format(qid, tostring(itemId or ""), startCoords and "1" or "0") end
     local endZid, endCoords, endNpc = entitySpawn(q[3], true)
     local objZid, objCoords
+    local function tryObj(zi, pts) if zi and not objZid then objZid, objCoords = zi, table.concat(pts, ";") end end
+    local function tryNpc(id) local n = npcs[id] if n and not objZid then tryObj(firstSpawn(n[7])) end end
+    local function tryObject(id) local ob = objects[id] if ob and not objZid then tryObj(firstSpawn(ob[4])) end end
     if type(q[10]) == "table" then
-        local oc = q[10][1]   -- creature objectives
-        if type(oc) == "table" then for _, o in ipairs(oc) do
-            local n = type(o) == "table" and npcs[o[1]]
-            if n then local zi, pts = firstSpawn(n[7]) if zi then objZid, objCoords = zi, table.concat(pts, ";") break end end
-        end end
-        if not objZid and type(q[10][2]) == "table" then for _, o in ipairs(q[10][2]) do
-            local ob = type(o) == "table" and objects[o[1]]
-            if ob then local zi, pts = firstSpawn(ob[4]) if zi then objZid, objCoords = zi, table.concat(pts, ";") break end end
-        end end
+        local o = q[10]
+        for _, e in ipairs(type(o[1]) == "table" and o[1] or {}) do if type(e) == "table" then tryNpc(e[1]) end end
+        for _, e in ipairs(type(o[2]) == "table" and o[2] or {}) do if type(e) == "table" then tryObject(e[1]) end end
+        for _, e in ipairs(type(o[5]) == "table" and o[5] or {}) do   -- killCredit {{npcIds}, base, text}
+            if type(e) == "table" and type(e[1]) == "table" then for _, id in ipairs(e[1]) do tryNpc(id) end end
+        end
+        for _, e in ipairs(type(o[3]) == "table" and o[3] or {}) do   -- item objectives -> who drops / sells it
+            local it = type(e) == "table" and items[e[1]]
+            if type(it) == "table" then
+                for _, id in ipairs(type(it[2]) == "table" and it[2] or {}) do tryNpc(id) end
+                for _, id in ipairs(type(it[3]) == "table" and it[3] or {}) do tryObject(id) end
+                for _, id in ipairs(type(it[14]) == "table" and it[14] or {}) do tryNpc(id) end
+            end
+        end
+    end
+    if not objZid and type(q[9]) == "table" and type(q[9][2]) == "table" then tryObj(firstSpawn(q[9][2])) end   -- triggerEnd area
+    if not objZid and type(q[29]) == "table" then
+        for _, e in ipairs(q[29]) do if type(e) == "table" and not objZid then tryObj(firstSpawn(e[1])) end end
     end
     local zid = startZid or endZid or (type(q[17]) == "number" and q[17] > 0 and areaToUi[q[17]] and q[17]) or "OTHER"
     if name == "" then skipped = skipped + 1 else
@@ -184,7 +171,7 @@ for qid, q in pairs(quests) do
             pre = prelist(q[13], ";") or prelist(q[12], "&"),
             objText = type(q[8]) == "table" and clean(q[8][1]) or nil,
             objZid = objZid, objCoords = objCoords,
-            hasObjectives = type(q[10]) == "table",
+            hasObjectives = type(q[10]) == "table" or objZid ~= nil,
             classes = classTag(q[7]),
         })
     end
