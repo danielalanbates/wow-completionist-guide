@@ -311,6 +311,13 @@ def main():
                 cons = consensus(action, qid, qo, src_group(s["file"]))
                 if cons is None or min(x.distance(cons.w) for x in refs) > TOL:
                     status = "disputed"
+            if w is not None and d > TOL and action == "T" and not turnin.get(qid):
+                # Questie-only ender (no Blizzard turn-in pin): when another independent guide source
+                # agrees with this step (2 sources vs Questie's single MoP-era spawn), do not move it.
+                key = (action, qid, "")
+                if any(g != src_group(s["file"]) and g != "native" and any(dist(p[0], w) <= TOL for p in pts)
+                       for g, pts in pool.get(key, {}).items()):
+                    status = "disputed"
         if status in ("wrong", "wrong-zone", "missing-coords", "coords-out-of-range", "unknown-zone"):
             if w is not None:
                 r = min(refs, key=lambda t: t.distance(w))

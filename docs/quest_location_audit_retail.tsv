@@ -11293,7 +11293,7 @@ retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	96	27448	A	questie-giver	23:34.8,69.1		1042	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	100	27455	A	questie-giver	23:52.9,53.2		1805	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	128	27466	T	poi-turnin/questie-ender	23:61.5,42.9	23:62.5,42.2	45	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	129	27457	T	poi-turnin/questie-ender	23:61.5,42.9	23:9.0,66.5	2209	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	129	27457	T	poi-turnin/questie-ender	23:61.5,42.9		2209	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	131	27487	A	questie-giver	23:61.5,43.2		549	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	133	27487	C1	poi-objective	23:60.6,35.5	23:60.9,31.4	110	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	137	27488	A	questie-giver	23:61.5,43.2		549	disputed
@@ -11302,7 +11302,7 @@ retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	146	27522	A	questie-giver	23:50.5,20.3		1268	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	150	27524	A	questie-giver	23:50.5,20.3		2083	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	153	27525	A	questie-giver	23:27.5,21.2		2042	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	160	27525	T	poi-turnin/questie-ender	23:27.4,21.3	23:73.8,52.0	2044	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	160	27525	T	poi-turnin/questie-ender	23:27.4,21.3		2044	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	162	27526	A	questie-giver	23:27.4,21.3		2044	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Eastern Kingdoms\Full Caravan	166	27527	A	questie-giver	23:28.3,25.9		1964	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Northrend\D.E.H.T.A's Little P.I.T.A.	15	11884	C2	poi-objective	114:46.4,40.0	114:48.5,40.2	121	wrong->fixed
@@ -11313,7 +11313,7 @@ retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\And the
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	4	28825	A	questie-giver		84:62.9,71.5		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	54	25323	T	poi-turnin/questie-ender		198:47.7,35.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	55	25464	A	questie-giver		198:47.7,35.5		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	115	25280	T	poi-turnin/questie-ender	198:28.2,29.8	198:30.1,31.3	92	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	115	25280	T	poi-turnin/questie-ender	198:28.2,29.8		92	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	116	25278	A	questie-giver	198:28.2,29.8		92	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	118	25297	A	questie-giver	198:28.2,29.9		99	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	120	25300	A	questie-giver	198:28.6,30.2		82	disputed
@@ -11325,7 +11325,7 @@ retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware 
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	177	25576	C1	poi-objective		198:29.2,42.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	178	25576	C	poi-objective-any		198:29.2,42.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	179	25576	C	poi-objective-any		198:29.2,42.3		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	202	25352	T	poi-turnin/questie-ender	198:28.2,29.8	198:30.1,31.3	92	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	202	25352	T	poi-turnin/questie-ender	198:28.2,29.8		92	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	205	27874	A	questie-giver	198:28.3,29.7		1439	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	207	25630	A	questie-giver	198:28.2,29.9		99	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Beware of the 'Unbeatable?' Pterodactyl	315	25663	T	poi-turnin/questie-ender		198:41.0,44.3		missing-coords->fixed
@@ -11386,7 +11386,7 @@ retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\King of
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\King of the Mountain	646	27743	T	poi-turnin/questie-ender		241:36.1,90.5		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\King of the Mountain	647	27744	T	poi-turnin/questie-ender		241:34.2,86.5		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\King of the Mountain	648	27745	A	questie-giver		241:37.6,88.7		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\King of the Mountain	657	27782	T	poi-turnin/questie-ender	241:36.4,66.0	241:37.9,63.7	112	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\King of the Mountain	657	27782	T	poi-turnin/questie-ender	241:36.4,66.0		112	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\King of the Mountain	658	27784	A	questie-giver	241:36.4,66.0		112	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Round Three, Fight!	8	27863	T	poi-turnin/questie-ender		241:50.7,58.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Cataclysm\Round Three, Fight!	9	27861	T	poi-turnin/questie-ender		241:50.7,58.4		missing-coords->fixed
@@ -11466,7 +11466,7 @@ retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Collect\Craz
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Collect\Crazy for Cats	79	29120	T	poi-turnin/questie-ender		50:66.5,32.9		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Collect\Crazy for Cats	80	29213	A	questie-giver		50:66.5,32.9		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\The Longest Day	23	31852	A	questie-giver	50:46.0,40.4		618	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\The Longest Day	26	31852	T	poi-turnin/questie-ender	50:46.0,40.4	50:43.4,62.7	618	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\The Longest Day	26	31852	T	poi-turnin/questie-ender	50:46.0,40.4		618	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\The Longest Day	36	31916	T	poi-turnin/questie-ender	42:65.7,64.5	42:40.2,76.4	668	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Mists of Pandaria\Amber is the Color of My Energy	36	31026	T	poi-turnin/questie-ender		422:57.4,57.9		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Quests\Mists of Pandaria\Amber is the Color of My Energy	43	31179	C1	poi-objective	422:25.7,50.3	422:25.8,52.1	66	wrong->fixed
@@ -11887,9 +11887,9 @@ retail	Imported_Legacy_retail	legacy:Daily Guides\Wrath of the Lich King Dailies
 retail	Imported_Legacy_retail	legacy:Daily Guides\Cataclysm Dailies\Tol Barad Dailies	102	28660	A	questie-giver	244:51.5,49.7		79	disputed
 retail	Imported_Legacy_retail	legacy:Daily Guides\Cataclysm Dailies\Tol Barad Dailies	103	28662	A	questie-giver	244:51.5,49.7		79	disputed
 retail	Imported_Legacy_retail	legacy:Daily Guides\Cataclysm Dailies\Tol Barad Dailies	104	28661	A	questie-giver	244:51.5,49.7		79	disputed
-retail	Imported_Legacy_retail	legacy:Daily Guides\Cataclysm Dailies\Tol Barad Dailies	142	28660	T	poi-turnin/questie-ender	244:51.5,49.7	244:53.6,44.8	79	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Daily Guides\Cataclysm Dailies\Tol Barad Dailies	143	28662	T	poi-turnin/questie-ender	244:51.5,49.7	244:53.6,44.8	79	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Daily Guides\Cataclysm Dailies\Tol Barad Dailies	144	28661	T	poi-turnin/questie-ender	244:51.5,49.7	244:53.6,44.8	79	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Daily Guides\Cataclysm Dailies\Tol Barad Dailies	142	28660	T	poi-turnin/questie-ender	244:51.5,49.7		79	disputed
+retail	Imported_Legacy_retail	legacy:Daily Guides\Cataclysm Dailies\Tol Barad Dailies	143	28662	T	poi-turnin/questie-ender	244:51.5,49.7		79	disputed
+retail	Imported_Legacy_retail	legacy:Daily Guides\Cataclysm Dailies\Tol Barad Dailies	144	28661	T	poi-turnin/questie-ender	244:51.5,49.7		79	disputed
 retail	Imported_Legacy_retail	legacy:Daily Guides\Mists of Pandaria Dailies\Dominance Offensive Dailies	11	32250	T	poi-turnin/questie-ender	418:11.5,61.2	418:8.7,64.5	167	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Daily Guides\Mists of Pandaria Dailies\Beast Master Dailies (Dominance Offensive)	11	32250	T	poi-turnin/questie-ender	418:11.5,61.2	418:8.7,64.5	167	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Daily Guides\Mists of Pandaria Dailies\Sunreaver Onslaught Quests	20	32212	C	poi-objective-any	504:42.7,50.5	504:28.4,52.4	595	wrong->fixed
@@ -12012,17 +12012,17 @@ retail	Imported_Legacy_retail	legacy:Events Guides\Darkmoon Faire\Achievements\D
 retail	Imported_Legacy_retail	legacy:Events Guides\Darkmoon Faire\Achievements\Darkmoon Dungeoneer	27	29445	T	poi-turnin/questie-ender	407:51.9,60.9	407:53.2,75.8	186	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Quests	7	8311	A	questie-giver	37:32.0,50.4		600	disputed
 retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Quests	11	29430	A	questie-giver	37:32.3,50.9		54	disputed
-retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Quests	34	29430	T	poi-turnin/questie-ender	84:60.0,75.1	84:65.9,30.6	526	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Quests	34	29430	T	poi-turnin/questie-ender	84:60.0,75.1		526	disputed
 retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Quests	35	29392	A	questie-giver	84:60.0,75.1		526	disputed
-retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Quests	51	29392	T	poi-turnin/questie-ender	84:24.0,44.8	84:21.8,43.2	43	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Quests	51	29392	T	poi-turnin/questie-ender	84:24.0,44.8		43	disputed
 retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Quests	52	29398	A	questie-giver	84:24.0,44.8		43	disputed
-retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Quests	114	8311	T	poi-turnin/questie-ender	37:32.0,50.4	37:22.9,28.4	600	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Quests	114	8311	T	poi-turnin/questie-ender	37:32.0,50.4		600	disputed
 retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Dailies	14	29371	A	questie-giver	37:32.1,50.6		66	disputed
 retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Dailies	16	29054	A	questie-giver	37:32.4,50.9		54	disputed
 retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Dailies	17	29144	A	questie-giver	37:32.4,50.9		54	disputed
-retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Dailies	20	29144	T	poi-turnin/questie-ender	37:32.4,50.9	37:33.9,51.2	54	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Dailies	25	29054	T	poi-turnin/questie-ender	37:32.4,50.9	37:33.9,51.2	54	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Dailies	43	29371	T	poi-turnin/questie-ender	37:32.1,50.6	37:33.9,51.2	66	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Dailies	20	29144	T	poi-turnin/questie-ender	37:32.4,50.9		54	disputed
+retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Dailies	25	29054	T	poi-turnin/questie-ender	37:32.4,50.9		54	disputed
+retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Hallow's End Dailies	43	29371	T	poi-turnin/questie-ender	37:32.1,50.6		66	disputed
 retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Achievements\Tricks and Treats	31	12402	A	questie-giver	23:40.7,90.4		1750	disputed
 retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Achievements\Tricks and Treats	52	28964	A	questie-giver	50:53.2,67.0		1039	disputed
 retail	Imported_Legacy_retail	legacy:Events Guides\Hallow's End\Achievements\Tricks and Treats	58	29006	A	questie-giver	199:39.0,11.0		69	disputed
@@ -12728,7 +12728,7 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern King
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Redridge Mountains (7-70)	120	26571	T	poi-turnin/questie-ender		49:28.6,40.7		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Redridge Mountains (7-70)	121	26573	A	questie-giver		49:28.7,40.7		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Redridge Mountains (7-70)	145	26563	A	questie-giver		49:28.6,17.7		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Redridge Mountains (7-70)	159	26570	T	poi-turnin/questie-ender	49:29.7,44.5	49:31.9,44.9	56	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Redridge Mountains (7-70)	159	26570	T	poi-turnin/questie-ender	49:29.7,44.5		56	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Redridge Mountains (7-70)	198	26646	T	poi-turnin/questie-ender		49:52.5,55.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Redridge Mountains (7-70)	199	26651	A	questie-giver		49:52.7,55.9		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Redridge Mountains (7-70)	218	26693	T	poi-turnin/questie-ender		49:77.7,65.5		missing-coords->fixed
@@ -12749,12 +12749,12 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern King
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Arathi Highlands (10-70)	90	26035	C2	poi-objective	14:60.9,64.8	14:63.0,73.7	77	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	2	26732	A	questie-giver	50:47.2,11.1		149	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	4	26740	A	questie-giver	50:47.1,10.7		146	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	6	26838	T	poi-turnin/questie-ender	50:47.6,10.3	50:45.9,14.5	133	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	6	26838	T	poi-turnin/questie-ender	50:47.6,10.3		133	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	7	26735	A	questie-giver	50:47.6,10.3		133	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	10	583	A	questie-giver	50:44.2,22.1		344	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	13	194	A	questie-giver	50:44.2,23.0		374	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	15	26343	A	questie-giver	50:43.6,23.4		370	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	17	26740	T	poi-turnin/questie-ender	50:43.6,23.1	50:39.6,35.1	366	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	17	26740	T	poi-turnin/questie-ender	50:43.6,23.1		366	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	18	26763	A	questie-giver	50:43.6,23.1		366	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	20	190	A	questie-giver	50:43.7,22.3		351	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	22	26269	A	questie-giver	50:44.2,22.1		344	disputed
@@ -12769,16 +12769,16 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern King
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	50	26738	A	questie-giver	50:57.7,21.4		546	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	53	186	T	poi-turnin/questie-ender		50:44.5,22.7		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	54	187	A	questie-giver		50:32.2,44.8		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	58	26732	T	poi-turnin/questie-ender	50:47.2,11.1	50:45.4,15.8	149	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	58	26732	T	poi-turnin/questie-ender	50:47.2,11.1		149	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	59	26733	A	questie-giver	50:47.2,11.1		149	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	62	26739	A	questie-giver	50:47.0,10.8		151	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	65	26736	A	questie-giver	50:47.6,10.3		133	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	72	26733	T	poi-turnin/questie-ender	50:47.2,11.1	50:45.4,15.8	149	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	72	26733	T	poi-turnin/questie-ender	50:47.2,11.1		149	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	73	26734	A	questie-giver	50:47.2,11.1		149	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	76	26744	A	questie-giver	50:47.0,10.8		151	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	79	26737	A	questie-giver	50:47.6,10.3		133	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	87	26742	A	questie-giver	50:48.0,12.0		710	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	89	26734	T	poi-turnin/questie-ender	50:47.2,11.1	50:45.4,15.8	149	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	89	26734	T	poi-turnin/questie-ender	50:47.2,11.1		149	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	93	26729	A	questie-giver	50:47.7,10.3		750	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	96	26345	A	questie-giver	50:43.6,23.4		370	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	99	187	T	poi-turnin/questie-ender		50:44.5,22.7		missing-coords->fixed
@@ -12790,7 +12790,7 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern King
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	121	26729	T	poi-turnin/questie-ender		50:47.7,10.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	122	26730	A	questie-giver		50:60.1,30.5		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	125	26743	A	questie-giver	50:48.0,12.0		710	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	127	26744	T	poi-turnin/questie-ender	50:47.0,10.8	50:45.0,15.4	151	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	127	26744	T	poi-turnin/questie-ender	50:47.0,10.8		151	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	130	26746	A	questie-giver	50:47.1,10.6		760	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	145	26730	T	poi-turnin/questie-ender		50:47.7,10.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	146	26731	A	questie-giver		50:60.1,30.5		missing-coords->fixed
@@ -12804,19 +12804,19 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern King
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	170	26781	A	questie-giver	50:53.2,66.9		1046	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	176	26747	A	questie-giver	50:47.1,10.6		760	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	178	26751	A	questie-giver	50:47.5,10.8		139	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	184	26763	T	poi-turnin/questie-ender	50:43.6,23.1	50:39.6,35.1	366	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	184	26763	T	poi-turnin/questie-ender	50:43.6,23.1		366	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	185	26765	A	questie-giver	50:43.6,23.1		366	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	189	208	A	questie-giver	50:44.2,23.0		374	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	201	26731	T	poi-turnin/questie-ender		50:47.7,10.3		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	203	26765	T	poi-turnin/questie-ender	50:47.1,10.7	50:45.2,15.2	146	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	203	26765	T	poi-turnin/questie-ender	50:47.1,10.7		146	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	207	26748	A	questie-giver	50:47.2,10.6		1896	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	211	26749	A	questie-giver	50:47.1,10.6		760	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	213	26751	T	poi-turnin/questie-ender	50:47.5,10.7	50:45.9,15.3	142	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	213	26751	T	poi-turnin/questie-ender	50:47.5,10.7		142	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	216	26772	A	questie-giver	50:53.5,66.8		1042	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	226	26782	T	poi-turnin/questie-ender	50:53.4,66.3	224:53.4,66.3	1035	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	226	26782	T	poi-turnin/questie-ender	50:53.4,66.3		1035	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	229	26773	A	questie-giver	50:53.5,66.8		1042	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	234	26774	A	questie-giver	50:53.5,66.8		1042	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	236	26781	T	poi-turnin/questie-ender	50:53.2,66.9	224:53.2,66.9	1046	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	236	26781	T	poi-turnin/questie-ender	50:53.2,66.9		1046	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	240	26779	A	questie-giver	50:52.7,66.8		1043	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	242	26780	A	questie-giver	50:53.1,66.5		1055	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	249	26775	A	questie-giver	50:53.5,66.8		1042	disputed
@@ -12827,9 +12827,9 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern King
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	268	26775	C	poi-objective-any	50:82.5,33.9	50:82.8,37.5	101	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	273	26775	C	poi-objective-any	50:74.3,31.2	50:73.4,32.9	60	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	277	26776	A	questie-giver	50:53.5,66.8		1042	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	279	26776	T	poi-turnin/questie-ender	50:52.7,66.8	224:52.7,66.8	1043	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	280	26779	T	poi-turnin/questie-ender	50:52.7,66.8	224:52.7,66.8	1043	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	282	26780	T	poi-turnin/questie-ender	50:53.0,66.7	224:53.1,66.9	1050	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	279	26776	T	poi-turnin/questie-ender	50:52.7,66.8		1043	disputed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	280	26779	T	poi-turnin/questie-ender	50:52.7,66.8		1043	disputed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Northern Stranglethorn (10-70)	282	26780	T	poi-turnin/questie-ender	50:53.0,66.7		1050	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\The Cape of Stranglethorn (10-70)	2	26805	A	questie-giver	50:53.4,66.3		1035	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\The Cape of Stranglethorn (10-70)	70	26603	A	questie-giver	210:62.4,46.8	210:57.0,54.5	293	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\The Cape of Stranglethorn (10-70)	76	26812	A	questie-giver		224:78.3,44.0		missing-coords->fixed
@@ -12949,14 +12949,14 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern King
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	257	27620	T	poi-turnin/questie-ender	23:41.0,87.9	23:75.6,52.0	1695	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	259	27466	A	questie-giver	23:42.5,91.3		1645	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	264	27481	A	questie-giver	23:61.1,43.0		415	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	270	27457	T	poi-turnin/questie-ender	23:61.5,42.7	23:9.0,66.5	2209	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	270	27457	T	poi-turnin/questie-ender	23:61.5,42.7		2209	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	271	27466	T	poi-turnin/questie-ender	23:61.5,42.7	23:62.5,42.2	44	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	273	27487	A	questie-giver	23:61.6,43.2		546	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	275	27487	C1	poi-objective	23:61.8,35.7	23:60.9,31.4	120	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	281	27481	T	poi-turnin/questie-ender		23:53.1,52.7		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	282	27482	A	questie-giver		23:53.1,52.7		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	285	27482	T	poi-turnin/questie-ender		23:53.1,52.7		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	289	27479	T	poi-turnin/questie-ender	23:61.3,44.5	23:61.3,42.8	45	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	289	27479	T	poi-turnin/questie-ender	23:61.3,44.5		45	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	295	27488	A	questie-giver	23:61.6,43.2		546	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	300	27488	T	poi-turnin/questie-ender	23:61.6,43.2	23:62.3,42.2	40	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Eastern Kingdoms\Eastern Plaguelands (15-70)	301	27489	A	questie-giver	23:61.6,43.2		546	disputed
@@ -12996,18 +12996,18 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Blo
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Bloodmyst Isle (1-70)	211	9649	C1	poi-objective	106:71.4,28.3	106:74.1,17.3	118	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Bloodmyst Isle (1-70)	234	9683	C1	poi-objective	106:85.9,54.3	106:85.5,52.6	41	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Bloodmyst Isle (1-70)	304	9759	C	poi-objective-any	106:14.2,53.7	106:16.1,53.7	59	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	3	28490	T	poi-turnin/questie-ender	62:51.8,18.0	62:50.6,19.7	104	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	4	26383	T	poi-turnin/questie-ender	62:51.8,18.0	62:50.6,19.7	104	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	5	26385	T	poi-turnin/questie-ender	62:51.8,18.0	62:50.6,19.7	104	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	3	28490	T	poi-turnin/questie-ender	62:51.8,18.0		104	disputed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	4	26383	T	poi-turnin/questie-ender	62:51.8,18.0		104	disputed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	5	26385	T	poi-turnin/questie-ender	62:51.8,18.0		104	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	6	13518	A	questie-giver	62:51.8,18.0		104	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	19	13518	T	poi-turnin/questie-ender	62:51.8,18.0	62:51.0,18.6	56	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	21	13520	A	questie-giver	62:51.8,18.1		148	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	37	13520	T	poi-turnin/questie-ender	62:50.8,18.1	62:50.1,20.4	109	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	37	13520	T	poi-turnin/questie-ender	62:50.8,18.1		109	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	44	13529	A	questie-giver	62:56.8,30.1		579	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	63	13563	A	questie-giver	62:50.8,17.9		81	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	86	13566	C1	poi-objective	62:41.9,39.6	62:40.2,35.2	71	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	110	13599	T	poi-turnin/questie-ender	62:50.9,18.2	62:50.1,20.4	108	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	112	13563	T	poi-turnin/questie-ender	62:50.8,17.9	62:50.1,19.5	81	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	110	13599	T	poi-turnin/questie-ender	62:50.9,18.2		108	disputed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	112	13563	T	poi-turnin/questie-ender	62:50.8,17.9		81	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	131	13506	A	questie-giver	62:60.6,20.2		113	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	156	13510	A	questie-giver	62:64.5,5.5		55	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Darkshore (5-70)	202	13591	A	questie-giver	62:72.8,18.1		1434	disputed
@@ -13034,7 +13034,7 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Sto
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Stonetalon Mountains (10-70)	93	25729	T	poi-turnin/questie-ender		65:71.9,37.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Stonetalon Mountains (10-70)	208	25930	T	poi-turnin/questie-ender		65:33.1,59.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Stonetalon Mountains (10-70)	209	25931	A	questie-giver		65:33.1,59.6		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Stonetalon Mountains (10-70)	222	25935	T	poi-turnin/questie-ender	65:32.2,60.9	65:33.0,59.5	74	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Stonetalon Mountains (10-70)	222	25935	T	poi-turnin/questie-ender	65:32.2,60.9		74	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Stonetalon Mountains (10-70)	259	25806	T	poi-turnin/questie-ender		65:72.3,76.1		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Stonetalon Mountains (10-70)	260	25808	A	questie-giver		65:72.1,76.0		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Stonetalon Mountains (10-70)	261	25808	C1	poi-objective	65:70.2,73.2	65:69.1,71.9	83	wrong->fixed
@@ -13196,7 +13196,7 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Terokkar Forest (15-70)	282	10016	C1	poi-objective	108:40.5,33.4	108:59.5,41.0	783	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Terokkar Forest (15-70)	342	10022	C	poi-objective-any	108:65.0,36.6	108:69.4,33.1	268	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Terokkar Forest (15-70)	343	10022	C1	poi-objective	108:65.0,36.6	108:69.4,33.1	268	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Terokkar Forest (15-70)	378	10917	T	poi-turnin/questie-ender	111:52.0,18.1	111:46.2,22.4	84	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Terokkar Forest (15-70)	378	10917	T	poi-turnin/questie-ender	111:52.0,18.1		84	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Terokkar Forest (15-70)	385	10035	C	poi-objective-any	108:26.9,55.6	108:27.5,57.4	71	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Terokkar Forest (15-70)	386	10035	C1	poi-objective	108:26.9,55.6	108:27.5,57.4	71	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Nagrand (15-70)	21	9835	C1	poi-objective	102:33.6,31.8	102:35.4,28.5	44	wrong->fixed
@@ -13208,7 +13208,7 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Nagrand (15-70)	185	9999	C2	poi-objective	107:20.1,51.4	107:18.6,50.9	47	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Nagrand (15-70)	198	9849	C	poi-objective-any	107:28.9,68.5	107:31.7,79.6	200	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Nagrand (15-70)	200	9849	C1	poi-objective	107:28.9,68.5	107:31.7,79.6	200	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Nagrand (15-70)	204	9956	T	poi-turnin/questie-ender	107:54.1,69.5	107:54.2,72.3	101	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Nagrand (15-70)	204	9956	T	poi-turnin/questie-ender	107:54.1,69.5		101	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Nagrand (15-70)	302	9853	C	poi-objective-any	107:47.0,23.5	107:26.9,20.2	983	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Nagrand (15-70)	303	9853	C	poi-objective-any	107:47.0,23.5	107:26.9,20.2	983	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\The Burning Crusade (10-70)\Nagrand (15-70)	349	10228	T	poi-turnin/questie-ender	111:61.6,40.7	111:49.1,35.9	169	wrong->fixed
@@ -13326,10 +13326,10 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	414	11957	A	questie-giver		114:33.3,34.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	422	11957	T	poi-turnin/questie-ender		114:33.2,34.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	423	11967	A	questie-giver		114:33.3,34.3		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	453	11729	T	poi-turnin/questie-ender	114:57.6,19.0	114:58.2,18.3	40	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	453	11729	T	poi-turnin/questie-ender	114:57.6,19.0		40	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	454	11730	A	questie-giver	114:57.6,19.0	114:58.2,18.3	40	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	555	12019	C	poi-objective-any	114:86.5,28.5	114:86.0,29.9	59	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	567	11730	T	poi-turnin/questie-ender	114:57.6,19.1	114:58.2,18.3	42	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	567	11730	T	poi-turnin/questie-ender	114:57.6,19.1		42	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	568	11653	A	questie-giver	114:57.6,19.1	114:58.2,18.3	42	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	573	11658	A	questie-giver	114:57.6,19.0	114:58.2,18.3	42	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	581	11571	C	poi-objective-any	114:42.8,17.1	114:43.0,18.2	44	wrong->fixed
@@ -13340,7 +13340,7 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	642	11670	C	poi-objective-any		114:55.3,12.0		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Borean Tundra (10-70)	643	11670	C	poi-objective-any		114:55.3,12.0		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Howling Fjord (10-70)	26	11443	A	questie-giver	117:63.1,60.0		62	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Howling Fjord (10-70)	31	11443	T	poi-turnin/questie-ender	117:63.1,60.0	117:62.8,58.5	62	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Howling Fjord (10-70)	31	11443	T	poi-turnin/questie-ender	117:63.1,60.0		62	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Howling Fjord (10-70)	163	11421	C1	poi-objective	117:64.8,52.7	117:60.7,53.6	216	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Howling Fjord (10-70)	182	11483	C2	poi-objective	117:64.7,41.0	117:63.8,40.5	58	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Howling Fjord (10-70)	186	11483	C3	poi-objective	117:60.8,61.5	117:59.9,61.4	52	wrong->fixed
@@ -13511,14 +13511,14 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Icecrown (25-70)	724	13402	A	questie-giver	118:59.5,47.4		257	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Icecrown (25-70)	725	13338	T	poi-turnin/questie-ender	118:59.5,47.4	118:62.2,42.9	254	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Wrath of the Lich King (10-70)\Icecrown (25-70)	726	13339	T	poi-turnin/questie-ender	118:59.5,47.4	118:62.8,43.8	257	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	117	25280	T	poi-turnin/questie-ender	198:28.2,29.8	198:30.1,31.3	92	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	117	25280	T	poi-turnin/questie-ender	198:28.2,29.8		92	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	118	25278	A	questie-giver	198:28.2,29.8		92	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	120	25297	A	questie-giver	198:28.2,29.9		100	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	122	25300	A	questie-giver	198:28.4,30.0		92	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	160	25352	A	questie-giver	198:28.2,29.8		92	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	161	25353	A	questie-giver	198:28.2,29.8		92	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	170	25353	T	poi-turnin/questie-ender		198:28.6,39.3		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	204	25352	T	poi-turnin/questie-ender	198:28.2,29.7	198:30.1,31.3	92	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	204	25352	T	poi-turnin/questie-ender	198:28.2,29.7		92	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	207	27874	A	questie-giver	198:28.3,29.7		1441	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	209	25630	A	questie-giver	198:28.2,29.9		100	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Mount Hyjal (30-70)	233	25411	T	poi-turnin/questie-ender		198:12.6,40.0		missing-coords->fixed
@@ -13556,7 +13556,7 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Vashj'ir 
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Vashj'ir (30-70)	540	25911	A	questie-giver	205:56.6,80.2		379	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Vashj'ir (30-70)	564	25951	C	poi-objective-any	205:43.1,78.5	205:45.5,78.4	115	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Vashj'ir (30-70)	584	26103	A	questie-giver	204:55.5,72.9		1726	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Vashj'ir (30-70)	596	26103	T	poi-turnin/questie-ender	204:55.5,72.9	204:97.3,62.2	1726	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Vashj'ir (30-70)	596	26103	T	poi-turnin/questie-ender	204:55.5,72.9		1726	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Vashj'ir (30-70)	597	26106	A	questie-giver	204:55.5,72.9		1726	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Vashj'ir (30-70)	635	25981	A	questie-giver	204:55.5,72.9		1726	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Vashj'ir (30-70)	652	25987	A	questie-giver	204:55.5,72.9		1726	disputed
@@ -13666,7 +13666,7 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Twilight 
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Twilight Highlands (30-70)	645	27743	T	poi-turnin/questie-ender		241:36.1,90.5		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Twilight Highlands (30-70)	646	27744	T	poi-turnin/questie-ender		241:34.2,86.5		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Twilight Highlands (30-70)	647	27745	A	questie-giver		241:37.6,88.7		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Twilight Highlands (30-70)	656	27782	T	poi-turnin/questie-ender	241:36.4,66.0	241:37.9,63.7	112	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Twilight Highlands (30-70)	656	27782	T	poi-turnin/questie-ender	241:36.4,66.0		112	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Cataclysm (10-70)\Twilight Highlands (30-70)	657	27784	A	questie-giver	241:36.4,66.0		112	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Heritage Armor\Dwarf Heritage Armor	6	53838	C2	poi-objective	27:40.3,21.7	27:78.2,49.0	2059	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Heritage Armor\Dwarf Heritage Armor	8	53838	T	poi-turnin/questie-ender	27:39.8,22.6	27:78.2,49.1	2069	wrong->fixed
@@ -17696,7 +17696,7 @@ retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Azs
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Azshara (5-70)	472	14390	T	poi-turnin/questie-ender		76:27.9,40.0		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Azshara (5-70)	473	14391	A	questie-giver		76:27.9,40.0		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Azshara (5-70)	503	24467	A	questie-giver	76:66.5,20.4		1318	disputed
-retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Azshara (5-70)	511	24467	T	poi-turnin/questie-ender	76:71.8,16.7	76:55.5,52.1	1583	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Azshara (5-70)	511	24467	T	poi-turnin/questie-ender	76:71.8,16.7		1583	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Classic (1-70)\Kalimdor\Azshara (5-70)	521	14392	A	questie-giver	76:67.0,20.5		117	disputed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Heritage Armor\Blood Elf Heritage Armor	18	53735	T	poi-turnin/questie-ender		95:36.9,65.1		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Leveling Guides\Heritage Armor\Blood Elf Heritage Armor	23	53736	T	poi-turnin/questie-ender		95:46.3,32.0		missing-coords->fixed
@@ -17976,21 +17976,21 @@ retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\R
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	131	28122	T	poi-turnin/questie-ender		244:48.2,54.8		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	132	28162	T	poi-turnin/questie-ender		244:48.2,54.8		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	133	28163	T	poi-turnin/questie-ender		244:48.2,54.8		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	135	28165	T	poi-turnin/questie-ender	244:51.4,49.6	244:48.8,55.3	93	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	136	28185	T	poi-turnin/questie-ender	244:51.4,49.6	244:48.8,55.3	93	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	137	28186	T	poi-turnin/questie-ender	244:51.4,49.6	244:48.8,55.3	93	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	139	28117	T	poi-turnin/questie-ender	244:51.5,49.5	244:48.6,55.2	97	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	140	28120	T	poi-turnin/questie-ender	244:51.5,49.5	244:48.6,55.2	97	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	141	28118	T	poi-turnin/questie-ender	244:51.5,49.5	244:48.6,55.2	97	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	143	28232	T	poi-turnin/questie-ender	244:51.5,49.6	244:48.4,55.1	96	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	144	28188	T	poi-turnin/questie-ender	244:51.5,49.6	244:48.4,55.1	96	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	145	28223	T	poi-turnin/questie-ender	244:51.5,49.6	244:48.4,55.1	96	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	135	28165	T	poi-turnin/questie-ender	244:51.4,49.6		93	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	136	28185	T	poi-turnin/questie-ender	244:51.4,49.6		93	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	137	28186	T	poi-turnin/questie-ender	244:51.4,49.6		93	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	139	28117	T	poi-turnin/questie-ender	244:51.5,49.5		97	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	140	28120	T	poi-turnin/questie-ender	244:51.5,49.5		97	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	141	28118	T	poi-turnin/questie-ender	244:51.5,49.5		97	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	143	28232	T	poi-turnin/questie-ender	244:51.5,49.6		96	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	144	28188	T	poi-turnin/questie-ender	244:51.5,49.6		96	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Steed	145	28223	T	poi-turnin/questie-ender	244:51.5,49.6		96	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Talbuk Mounts	4	9835	A	questie-giver		102:41.9,27.2		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Talbuk Mounts	5	10115	A	questie-giver		102:41.9,27.2		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Talbuk Mounts	51	9956	A	questie-giver	107:54.2,70.0		84	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Talbuk Mounts	81	9878	C1	poi-objective	107:29.5,43.5	107:32.4,42.7	82	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Talbuk Mounts	82	9878	C2	poi-objective	107:29.5,43.5	107:32.5,43.6	53	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Talbuk Mounts	89	9956	T	poi-turnin/questie-ender	107:54.2,70.0	107:54.2,72.3	84	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Talbuk Mounts	89	9956	T	poi-turnin/questie-ender	107:54.2,70.0		84	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Talbuk Mounts	149	9982	A	questie-giver		107:54.2,72.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Talbuk Mounts	162	9938	C1	poi-objective		107:30.0,63.2		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Talbuk Mounts	168	9999	C1	poi-objective	107:24.5,37.9	107:20.5,50.8	491	wrong->fixed
@@ -18028,15 +18028,15 @@ retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\R
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	129	28122	T	poi-turnin/questie-ender		244:48.2,54.8		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	130	28162	T	poi-turnin/questie-ender		244:48.2,54.8		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	131	28163	T	poi-turnin/questie-ender		244:48.2,54.8		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	133	28165	T	poi-turnin/questie-ender	244:51.4,49.6	244:48.8,55.3	93	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	134	28185	T	poi-turnin/questie-ender	244:51.4,49.6	244:48.8,55.3	93	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	135	28186	T	poi-turnin/questie-ender	244:51.4,49.6	244:48.8,55.3	93	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	137	28117	T	poi-turnin/questie-ender	244:51.5,49.5	244:48.6,55.2	97	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	138	28120	T	poi-turnin/questie-ender	244:51.5,49.5	244:48.6,55.2	97	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	139	28118	T	poi-turnin/questie-ender	244:51.5,49.5	244:48.6,55.2	97	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	141	28232	T	poi-turnin/questie-ender	244:51.5,49.6	244:48.4,55.1	96	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	142	28188	T	poi-turnin/questie-ender	244:51.5,49.6	244:48.4,55.1	96	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	143	28223	T	poi-turnin/questie-ender	244:51.5,49.6	244:48.4,55.1	96	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	133	28165	T	poi-turnin/questie-ender	244:51.4,49.6		93	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	134	28185	T	poi-turnin/questie-ender	244:51.4,49.6		93	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	135	28186	T	poi-turnin/questie-ender	244:51.4,49.6		93	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	137	28117	T	poi-turnin/questie-ender	244:51.5,49.5		97	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	138	28120	T	poi-turnin/questie-ender	244:51.5,49.5		97	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	139	28118	T	poi-turnin/questie-ender	244:51.5,49.5		97	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	141	28232	T	poi-turnin/questie-ender	244:51.5,49.6		96	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	142	28188	T	poi-turnin/questie-ender	244:51.5,49.6		96	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Drake of the West Wind	143	28223	T	poi-turnin/questie-ender	244:51.5,49.6		96	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Netherwing Drakes\Quests & Dailies	2	10804	A	questie-giver	104:61.4,59.1		121	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Netherwing Drakes\Quests & Dailies	7	10804	T	poi-turnin/questie-ender	104:61.4,59.1	104:59.2,58.7	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Flying Mounts\Reputation Mounts\Netherwing Drakes\Quests & Dailies	8	10811	A	questie-giver	104:61.4,59.1	104:59.2,58.7	121	wrong->fixed
@@ -18153,7 +18153,7 @@ retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tourname
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Stormwind\Human	610	26573	A	questie-giver	49:51.5,41.3		587	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Stormwind\Human	614	26560	A	questie-giver		49:78.2,65.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Stormwind\Human	635	26563	A	questie-giver		49:28.6,17.7		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Stormwind\Human	649	26570	T	poi-turnin/questie-ender	49:29.7,44.5	49:31.9,44.9	56	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Stormwind\Human	649	26570	T	poi-turnin/questie-ender	49:29.7,44.5		56	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Stormwind\Human	664	26637	T	poi-turnin/questie-ender		49:52.4,55.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Stormwind\Human	693	26646	T	poi-turnin/questie-ender	49:69.3,59.4	49:52.7,55.9	430	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Stormwind\Human	694	26651	A	questie-giver	49:69.3,59.4		220	disputed
@@ -18195,12 +18195,12 @@ retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tourname
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	267	13518	A	questie-giver		62:50.6,19.7		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	280	13518	T	poi-turnin/questie-ender	62:51.8,18.0	62:51.0,18.6	56	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	282	13520	A	questie-giver	62:50.9,18.1		112	disputed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	298	13520	T	poi-turnin/questie-ender	62:50.8,18.1	62:50.1,20.4	109	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	298	13520	T	poi-turnin/questie-ender	62:50.8,18.1		109	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	305	13529	A	questie-giver	62:56.8,30.1		579	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	326	13563	A	questie-giver	62:50.8,17.9		80	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	346	13566	C1	poi-objective	62:42.4,39.8	62:40.2,35.2	94	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	370	13599	T	poi-turnin/questie-ender	62:50.9,18.2	62:50.1,20.4	108	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	372	13563	T	poi-turnin/questie-ender	62:50.8,17.9	62:50.1,19.5	80	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	370	13599	T	poi-turnin/questie-ender	62:50.9,18.2		108	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	372	13563	T	poi-turnin/questie-ender	62:50.8,17.9		80	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	395	13506	A	questie-giver	62:60.5,21.3		130	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	407	13507	C2	poi-objective	62:61.6,11.6	62:62.7,8.4	49	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	416	13510	A	questie-giver	62:64.5,5.5		55	disputed
@@ -18210,7 +18210,7 @@ retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tourname
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	513	13605	A	questie-giver	62:38.6,42.5		283	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	600	13544	C	poi-objective-any	62:44.8,78.5	62:45.6,79.3	64	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	601	13544	C	poi-objective-any	62:44.8,78.5	62:45.6,79.3	64	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	631	13892	T	poi-turnin/questie-ender	62:40.6,84.5	62:45.3,75.1	505	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	631	13892	T	poi-turnin/questie-ender	62:40.6,84.5		505	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Home Cities Reputation\Darnassus\Night Elf	632	13948	A	questie-giver	62:40.6,84.5	62:45.3,75.1	505	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Argent Tournament Grounds Aspirant Rank Dailies	2	13672	A	questie-giver		118:76.5,19.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Argent Tournament Grounds Aspirant Rank Dailies	10	13625	A	questie-giver		118:76.5,19.5		missing-coords->fixed
@@ -18327,9 +18327,9 @@ retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\R
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Wolf	104	28660	A	questie-giver	244:51.5,49.7		79	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Wolf	105	28662	A	questie-giver	244:51.5,49.7		79	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Wolf	106	28661	A	questie-giver	244:51.5,49.7		79	disputed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Wolf	140	28660	T	poi-turnin/questie-ender	244:51.5,49.7	244:53.6,44.8	79	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Wolf	141	28662	T	poi-turnin/questie-ender	244:51.5,49.7	244:53.6,44.8	79	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Wolf	142	28661	T	poi-turnin/questie-ender	244:51.5,49.7	244:53.6,44.8	79	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Wolf	140	28660	T	poi-turnin/questie-ender	244:51.5,49.7		79	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Wolf	141	28662	T	poi-turnin/questie-ender	244:51.5,49.7		79	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Ground Mounts\Reputation Mounts\Spectral Wolf	142	28661	T	poi-turnin/questie-ender	244:51.5,49.7		79	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Crusader Title\Blood Elf Champion Rank	3	13711	A	questie-giver		118:76.5,23.8		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Crusader Title\Blood Elf Champion Rank	4	13711	T	poi-turnin/questie-ender		118:76.5,23.8		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Mounts\Argent Tournament Guides\Crusader Title\Blood Elf Champion Rank	5	13722	A	questie-giver		118:76.5,23.8		missing-coords->fixed
@@ -18532,7 +18532,7 @@ retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Undead Pet
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	2	26732	A	questie-giver	50:47.2,11.1		149	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	4	26735	A	questie-giver	50:47.6,10.2		133	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	12	26738	A	questie-giver	50:56.6,19.1		485	disputed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	14	26732	T	poi-turnin/questie-ender	50:47.2,11.1	50:45.4,15.8	149	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	14	26732	T	poi-turnin/questie-ender	50:47.2,11.1		149	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	17	26739	A	questie-giver	50:47.0,10.8		150	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	20	26736	A	questie-giver	50:47.6,10.2		134	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	32	26746	A	questie-giver	50:47.1,10.6		759	disputed
@@ -18544,7 +18544,7 @@ retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	60	26774	A	questie-giver	50:53.5,66.8		1042	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	65	26775	A	questie-giver	50:53.5,66.8		1042	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	81	26776	A	questie-giver	50:53.5,66.8		1042	disputed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	83	26776	T	poi-turnin/questie-ender	50:52.7,66.8	224:52.7,66.8	1042	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Lashtail Hatchling	83	26776	T	poi-turnin/questie-ender	50:52.7,66.8		1042	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Panther Cub	2	29100	A	questie-giver		84:25.9,29.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Panther Cub	3	29102	A	questie-giver		84:25.9,29.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Beast Pets\Panther Cub	5	29102	T	poi-turnin/questie-ender		224:52.9,67.3		missing-coords->fixed
@@ -18566,11 +18566,11 @@ retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental 
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	5	13518	A	questie-giver		62:50.6,19.7		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	18	13518	T	poi-turnin/questie-ender	62:51.8,18.0	62:51.0,18.6	56	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	20	13520	A	questie-giver	62:51.8,18.1		148	disputed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	36	13520	T	poi-turnin/questie-ender	62:50.8,18.1	62:50.1,20.4	109	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	36	13520	T	poi-turnin/questie-ender	62:50.8,18.1		109	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	64	13563	A	questie-giver	62:50.8,17.9		80	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	84	13566	C1	poi-objective	62:42.4,39.8	62:40.2,35.2	94	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	108	13599	T	poi-turnin/questie-ender	62:50.9,18.2	62:50.1,20.4	108	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	110	13563	T	poi-turnin/questie-ender	62:50.8,17.9	62:50.1,19.5	80	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	108	13599	T	poi-turnin/questie-ender	62:50.9,18.2		108	disputed
+retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	110	13563	T	poi-turnin/questie-ender	62:50.8,17.9		80	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	133	13506	A	questie-giver	62:60.5,21.3		130	disputed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	145	13507	C2	poi-objective	62:61.6,11.6	62:62.7,8.4	49	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Pets & Mounts Guides\Battle Pets\Elemental Pets\Withers	154	13510	A	questie-giver	62:64.5,5.5		55	disputed
@@ -19254,7 +19254,7 @@ retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputatio
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Kurenai	43	9956	A	questie-giver	107:54.2,70.0		84	disputed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Kurenai	76	9878	C1	poi-objective	107:29.5,43.5	107:32.4,42.7	82	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Kurenai	77	9878	C2	poi-objective	107:29.5,43.5	107:32.5,43.6	53	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Kurenai	83	9956	T	poi-turnin/questie-ender	107:54.2,70.0	107:54.2,72.3	84	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Kurenai	83	9956	T	poi-turnin/questie-ender	107:54.2,70.0		84	disputed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Kurenai	142	9982	A	questie-giver	107:54.8,70.5	107:54.2,72.3	72	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Kurenai	155	9938	C1	poi-objective		107:30.0,63.2		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Kurenai	161	9999	C1	poi-objective	107:25.2,38.3	107:20.5,50.8	497	wrong->fixed
@@ -19271,7 +19271,7 @@ retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputatio
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Lower City	129	10930	C	poi-objective-any	108:48.0,75.1	108:47.0,74.5	61	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Lower City	131	10930	C	poi-objective-any	108:48.0,75.1	108:47.0,74.5	61	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Lower City	132	10930	C1	poi-objective	108:48.0,75.1	108:47.0,74.5	61	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Lower City	144	10917	T	poi-turnin/questie-ender	111:50.3,18.3	111:46.2,22.4	64	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Lower City	144	10917	T	poi-turnin/questie-ender	111:50.3,18.3		64	disputed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Lower City	147	11373	A	questie-giver		111:75.1,36.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Lower City	148	11372	A	questie-giver		111:75.1,36.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Burning Crusade Reputations\Lower City	149	11374	A	questie-giver		111:75.1,36.6		missing-coords->fixed
@@ -19422,7 +19422,7 @@ retail	Imported_Legacy_retail	legacy:Reputation Guides\Wrath of the Lich King Re
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Wrath of the Lich King Reputations\The Wyrmrest Accord	271	12456	C	poi-objective-any	115:64.6,77.2	115:64.5,78.8	59	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Wrath of the Lich King Reputations\The Wyrmrest Accord	272	12456	C1	poi-objective	115:64.6,77.2	115:64.5,78.8	59	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Wrath of the Lich King Reputations\The Wyrmrest Accord	280	12459	C1	poi-objective	115:55.2,45.7	115:54.6,35.4	80	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	106	25280	T	poi-turnin/questie-ender	198:28.2,29.8	198:30.1,31.3	92	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	106	25280	T	poi-turnin/questie-ender	198:28.2,29.8		92	disputed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	107	25278	A	questie-giver	198:28.2,29.8		92	disputed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	109	25297	A	questie-giver	198:28.2,29.9		99	disputed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	111	25300	A	questie-giver	198:28.6,30.2		82	disputed
@@ -19434,7 +19434,7 @@ retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Gua
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	168	25576	C1	poi-objective		198:29.2,42.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	169	25576	C	poi-objective-any		198:29.2,42.3		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	170	25576	C	poi-objective-any		198:29.2,42.3		missing-coords->fixed
-retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	193	25352	T	poi-turnin/questie-ender	198:28.2,29.8	198:30.1,31.3	92	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	193	25352	T	poi-turnin/questie-ender	198:28.2,29.8		92	disputed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	196	27874	A	questie-giver	198:28.2,29.8		1444	disputed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	198	25630	A	questie-giver	198:28.2,29.9		99	disputed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Guardians of Hyjal	384	25525	C1	poi-objective	198:35.4,51.7	198:37.4,57.6	125	wrong->fixed
@@ -19611,16 +19611,16 @@ retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Hel
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Hellscream's Reach	102	28660	A	questie-giver	244:51.5,49.7		79	disputed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Hellscream's Reach	103	28662	A	questie-giver	244:51.5,49.7		79	disputed
 retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Hellscream's Reach	104	28661	A	questie-giver	244:51.5,49.7		79	disputed
-retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Hellscream's Reach	139	28660	T	poi-turnin/questie-ender	244:51.5,49.7	244:53.6,44.8	79	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Hellscream's Reach	140	28662	T	poi-turnin/questie-ender	244:51.5,49.7	244:53.6,44.8	79	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Hellscream's Reach	141	28661	T	poi-turnin/questie-ender	244:51.5,49.7	244:53.6,44.8	79	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Hellscream's Reach	139	28660	T	poi-turnin/questie-ender	244:51.5,49.7		79	disputed
+retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Hellscream's Reach	140	28662	T	poi-turnin/questie-ender	244:51.5,49.7		79	disputed
+retail	Imported_Legacy_retail	legacy:Reputation Guides\Cataclysm Reputations\Hellscream's Reach	141	28661	T	poi-turnin/questie-ender	244:51.5,49.7		79	disputed
 retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\Crusader\Dwarf Champion Rank	3	13703	A	questie-giver		118:76.6,19.5		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\Crusader\Dwarf Champion Rank	4	13703	T	poi-turnin/questie-ender		118:76.6,19.5		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\Crusader\Dwarf Champion Rank	5	13714	A	questie-giver		118:76.6,19.5		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\The Diplomat\Kurenai Faction	43	9956	A	questie-giver	107:54.2,70.0		84	disputed
 retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\The Diplomat\Kurenai Faction	76	9878	C1	poi-objective	107:29.5,43.5	107:32.4,42.7	82	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\The Diplomat\Kurenai Faction	77	9878	C2	poi-objective	107:29.5,43.5	107:32.5,43.6	53	wrong->fixed
-retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\The Diplomat\Kurenai Faction	83	9956	T	poi-turnin/questie-ender	107:54.2,70.0	107:54.2,72.3	84	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\The Diplomat\Kurenai Faction	83	9956	T	poi-turnin/questie-ender	107:54.2,70.0		84	disputed
 retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\The Diplomat\Kurenai Faction	142	9982	A	questie-giver	107:54.8,70.5	107:54.2,72.3	72	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\The Diplomat\Kurenai Faction	155	9938	C1	poi-objective		107:30.0,63.2		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\The Diplomat\Kurenai Faction	161	9999	C1	poi-objective	107:25.2,38.3	107:20.5,50.8	497	wrong->fixed
@@ -19706,61 +19706,61 @@ retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\
 retail	Imported_Legacy_retail	legacy:Title Guides\Wrath of the Lich King Titles\Reputations\The Diplomat\Mag'har Faction	313	10010	A	questie-giver	108:77.3,34.9	108:36.2,21.6	2268	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Aquatic Battler of Eastern Kingdoms	6	31780	T	poi-turnin/questie-ender		52:60.8,18.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Aquatic Battler of Eastern Kingdoms	18	31852	A	questie-giver	50:46.0,40.5		616	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Aquatic Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5	50:43.4,62.7	616	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Aquatic Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5		616	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Aquatic Battler of Eastern Kingdoms	41	31781	T	poi-turnin/questie-ender		49:33.2,52.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Aquatic Battler of Eastern Kingdoms	58	31911	A	questie-giver	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Aquatic Battler of Eastern Kingdoms	61	31911	T	poi-turnin/questie-ender	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Beast Battler of Eastern Kingdoms	6	31780	T	poi-turnin/questie-ender		52:60.8,18.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Beast Battler of Eastern Kingdoms	18	31852	A	questie-giver	50:46.0,40.5		616	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Beast Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5	50:43.4,62.7	616	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Beast Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5		616	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Beast Battler of Eastern Kingdoms	41	31781	T	poi-turnin/questie-ender		49:33.2,52.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Beast Battler of Eastern Kingdoms	58	31911	A	questie-giver	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Beast Battler of Eastern Kingdoms	61	31911	T	poi-turnin/questie-ender	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Critter Battler of Eastern Kingdoms	6	31780	T	poi-turnin/questie-ender		52:60.8,18.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Critter Battler of Eastern Kingdoms	18	31852	A	questie-giver	50:46.0,40.5		616	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Critter Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5	50:43.4,62.7	616	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Critter Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5		616	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Critter Battler of Eastern Kingdoms	41	31781	T	poi-turnin/questie-ender		49:33.2,52.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Critter Battler of Eastern Kingdoms	58	31911	A	questie-giver	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Critter Battler of Eastern Kingdoms	61	31911	T	poi-turnin/questie-ender	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Dragonkin Battler of Eastern Kingdoms	6	31780	T	poi-turnin/questie-ender		52:60.8,18.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Dragonkin Battler of Eastern Kingdoms	18	31852	A	questie-giver	50:46.0,40.5		616	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Dragonkin Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5	50:43.4,62.7	616	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Dragonkin Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5		616	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Dragonkin Battler of Eastern Kingdoms	41	31781	T	poi-turnin/questie-ender		49:33.2,52.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Dragonkin Battler of Eastern Kingdoms	58	31911	A	questie-giver	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Dragonkin Battler of Eastern Kingdoms	61	31911	T	poi-turnin/questie-ender	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Elemental Battler of Eastern Kingdoms	6	31780	T	poi-turnin/questie-ender		52:60.8,18.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Elemental Battler of Eastern Kingdoms	18	31852	A	questie-giver	50:46.0,40.5		616	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Elemental Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5	50:43.4,62.7	616	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Elemental Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5		616	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Elemental Battler of Eastern Kingdoms	41	31781	T	poi-turnin/questie-ender		49:33.2,52.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Elemental Battler of Eastern Kingdoms	58	31911	A	questie-giver	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Elemental Battler of Eastern Kingdoms	61	31911	T	poi-turnin/questie-ender	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Flying Battler of Eastern Kingdoms	6	31780	T	poi-turnin/questie-ender		52:60.8,18.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Flying Battler of Eastern Kingdoms	18	31852	A	questie-giver	50:46.0,40.5		616	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Flying Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5	50:43.4,62.7	616	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Flying Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5		616	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Flying Battler of Eastern Kingdoms	41	31781	T	poi-turnin/questie-ender		49:33.2,52.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Flying Battler of Eastern Kingdoms	58	31911	A	questie-giver	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Flying Battler of Eastern Kingdoms	61	31911	T	poi-turnin/questie-ender	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Humanoid Battler of Eastern Kingdoms	6	31780	T	poi-turnin/questie-ender		52:60.8,18.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Humanoid Battler of Eastern Kingdoms	18	31852	A	questie-giver	50:46.0,40.5		616	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Humanoid Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5	50:43.4,62.7	616	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Humanoid Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5		616	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Humanoid Battler of Eastern Kingdoms	41	31781	T	poi-turnin/questie-ender		49:33.2,52.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Humanoid Battler of Eastern Kingdoms	58	31911	A	questie-giver	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Humanoid Battler of Eastern Kingdoms	61	31911	T	poi-turnin/questie-ender	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Magic Battler of Eastern Kingdoms	6	31780	T	poi-turnin/questie-ender		52:60.8,18.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Magic Battler of Eastern Kingdoms	18	31852	A	questie-giver	50:46.0,40.5		616	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Magic Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5	50:43.4,62.7	616	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Magic Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5		616	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Magic Battler of Eastern Kingdoms	41	31781	T	poi-turnin/questie-ender		49:33.2,52.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Magic Battler of Eastern Kingdoms	58	31911	A	questie-giver	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Magic Battler of Eastern Kingdoms	61	31911	T	poi-turnin/questie-ender	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Mechanical Battler of Eastern Kingdoms	6	31780	T	poi-turnin/questie-ender		52:60.8,18.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Mechanical Battler of Eastern Kingdoms	18	31852	A	questie-giver	50:46.0,40.5		616	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Mechanical Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5	50:43.4,62.7	616	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Mechanical Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5		616	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Mechanical Battler of Eastern Kingdoms	41	31781	T	poi-turnin/questie-ender		49:33.2,52.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Mechanical Battler of Eastern Kingdoms	58	31911	A	questie-giver	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Mechanical Battler of Eastern Kingdoms	61	31911	T	poi-turnin/questie-ender	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Undead Battler of Eastern Kingdoms	6	31780	T	poi-turnin/questie-ender		52:60.8,18.4		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Undead Battler of Eastern Kingdoms	18	31852	A	questie-giver	50:46.0,40.5		616	disputed
-retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Undead Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5	50:43.4,62.7	616	wrong->fixed
+retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Undead Battler of Eastern Kingdoms	21	31852	T	poi-turnin/questie-ender	50:46.0,40.5		616	disputed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Undead Battler of Eastern Kingdoms	41	31781	T	poi-turnin/questie-ender		49:33.2,52.6		missing-coords->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Undead Battler of Eastern Kingdoms	58	31911	A	questie-giver	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
 retail	Imported_Legacy_retail	legacy:Achievement Guides\Pet Battles\Classic (1-60)\Undead Battler of Eastern Kingdoms	61	31911	T	poi-turnin/questie-ender	23:66.5,56.8	23:67.0,52.4	121	wrong->fixed
@@ -20249,15 +20249,15 @@ retail	Imported_WoWPro_retail	wowpro:CraToBarA	8	28163	A	questie-giver	244:51.0,
 retail	Imported_WoWPro_retail	wowpro:CraToBarA	40	28122	T	poi-turnin/questie-ender	244:51.0,49.4	244:48.2,54.8	93	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:CraToBarA	41	28162	T	poi-turnin/questie-ender	244:51.0,49.4	244:48.2,54.8	93	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:CraToBarA	42	28163	T	poi-turnin/questie-ender	244:51.0,49.4	244:48.2,54.8	93	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarA	44	28120	T	poi-turnin/questie-ender	244:51.8,49.6	244:48.6,55.2	99	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarA	45	28117	T	poi-turnin/questie-ender	244:51.8,49.6	244:48.6,55.2	99	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarA	46	28118	T	poi-turnin/questie-ender	244:51.8,49.6	244:48.6,55.2	99	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarA	48	28188	T	poi-turnin/questie-ender	244:51.8,49.6	244:48.4,55.1	100	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarA	49	28232	T	poi-turnin/questie-ender	244:51.8,49.6	244:48.4,55.1	100	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarA	50	28223	T	poi-turnin/questie-ender	244:51.8,49.6	244:48.4,55.1	100	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarA	52	28165	T	poi-turnin/questie-ender	244:51.8,49.6	244:48.8,55.3	97	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarA	53	28186	T	poi-turnin/questie-ender	244:51.8,49.6	244:48.8,55.3	97	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarA	54	28185	T	poi-turnin/questie-ender	244:51.8,49.6	244:48.8,55.3	97	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:CraToBarA	44	28120	T	poi-turnin/questie-ender	244:51.8,49.6		99	disputed
+retail	Imported_WoWPro_retail	wowpro:CraToBarA	45	28117	T	poi-turnin/questie-ender	244:51.8,49.6		99	disputed
+retail	Imported_WoWPro_retail	wowpro:CraToBarA	46	28118	T	poi-turnin/questie-ender	244:51.8,49.6		99	disputed
+retail	Imported_WoWPro_retail	wowpro:CraToBarA	48	28188	T	poi-turnin/questie-ender	244:51.8,49.6		100	disputed
+retail	Imported_WoWPro_retail	wowpro:CraToBarA	49	28232	T	poi-turnin/questie-ender	244:51.8,49.6		100	disputed
+retail	Imported_WoWPro_retail	wowpro:CraToBarA	50	28223	T	poi-turnin/questie-ender	244:51.8,49.6		100	disputed
+retail	Imported_WoWPro_retail	wowpro:CraToBarA	52	28165	T	poi-turnin/questie-ender	244:51.8,49.6		97	disputed
+retail	Imported_WoWPro_retail	wowpro:CraToBarA	53	28186	T	poi-turnin/questie-ender	244:51.8,49.6		97	disputed
+retail	Imported_WoWPro_retail	wowpro:CraToBarA	54	28185	T	poi-turnin/questie-ender	244:51.8,49.6		97	disputed
 retail	Imported_WoWPro_retail	wowpro:LudoShieldWall	11	32247	T	poi-turnin/questie-ender		418:85.2,29.2		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:LudoShieldWall	13	32109	T	poi-turnin/questie-ender	418:85.6,29.2	418:86.6,29.4	46	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:LudoShieldWall	21	32380	C	poi-objective-any	418:70.0,46.8	418:89.5,32.5	1017	wrong->fixed
@@ -20315,7 +20315,7 @@ retail	Imported_WoWPro_retail	wowpro:LudoValExp	42	13333	A	questie-giver	118:62.
 retail	Imported_WoWPro_retail	wowpro:LudoValExp	45	13336	T	poi-turnin/questie-ender	118:61.8,56.6	118:60.9,52.7	172	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:LudoValExp	46	13333	T	poi-turnin/questie-ender	118:62.2,49.2	118:60.9,53.0	179	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:RajiPetBattles	58	31852	A	questie-giver	50:46.0,40.4		617	disputed
-retail	Imported_WoWPro_retail	wowpro:RajiPetBattles	60	31852	T	poi-turnin/questie-ender	50:46.0,40.4	50:43.4,62.7	617	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:RajiPetBattles	60	31852	T	poi-turnin/questie-ender	50:46.0,40.4		617	disputed
 retail	Imported_WoWPro_retail	wowpro:TR_ShieldWall	6	32247	A	consensus	418:84.0,58.8	418:85.2,29.2	927	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:TR_ShieldWall	10	32247	T	poi-turnin/questie-ender		418:85.2,29.2		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:TR_ShieldWall	12	32109	T	poi-turnin/questie-ender	418:85.6,29.2	418:86.6,29.4	46	wrong->fixed
@@ -20359,9 +20359,9 @@ retail	Imported_WoWPro_retail	wowpro:TR_ThunderKing	224	32640	C3	poi-objective	5
 retail	Imported_WoWPro_retail	wowpro:CraToBarH	38	28657	T	poi-turnin/questie-ender	244:21.0,49.4	244:50.9,49.9	602	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:CraToBarH	39	28658	T	poi-turnin/questie-ender	244:21.0,49.4	244:50.9,49.9	602	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:CraToBarH	40	28659	T	poi-turnin/questie-ender	244:21.0,49.4	244:50.9,49.9	602	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarH	42	28662	T	poi-turnin/questie-ender	244:51.8,49.6	244:53.6,44.8	75	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarH	43	28660	T	poi-turnin/questie-ender	244:51.8,49.6	244:53.6,44.8	75	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraToBarH	44	28661	T	poi-turnin/questie-ender	244:51.8,49.6	244:53.6,44.8	75	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:CraToBarH	42	28662	T	poi-turnin/questie-ender	244:51.8,49.6		75	disputed
+retail	Imported_WoWPro_retail	wowpro:CraToBarH	43	28660	T	poi-turnin/questie-ender	244:51.8,49.6		75	disputed
+retail	Imported_WoWPro_retail	wowpro:CraToBarH	44	28661	T	poi-turnin/questie-ender	244:51.8,49.6		75	disputed
 retail	Imported_WoWPro_retail	wowpro:LudoDomOffence	9	32250	C1	poi-objective	418:8.6,64.4	418:11.2,60.8	48	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:LudoDomOffence	10	32250	T	poi-turnin/questie-ender		418:8.7,64.5		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:LudoDomOffence	142	32256	T	poi-turnin/questie-ender	418:32.2,84.9	390:59.3,16.9	4449	wrong->fixed
@@ -20655,7 +20655,7 @@ retail	Imported_WoWPro_retail	wowpro:JamNag6668	118	9879	C	poi-objective-any		10
 retail	Imported_WoWPro_retail	wowpro:JamNag6668	194	9954	T	poi-turnin/questie-ender	107:27.0,23.0	107:29.5,26.1	180	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamNag6668	195	9955	A	questie-giver	107:27.0,23.0	107:29.5,26.1	180	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamNag6668	199	9955	C	poi-objective-any	107:27.0,23.0	107:29.5,26.1	179	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:JamNag6668	208	9956	T	poi-turnin/questie-ender	107:54.2,70.0	107:54.2,72.3	84	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:JamNag6668	208	9956	T	poi-turnin/questie-ender	107:54.2,70.0		84	disputed
 retail	Imported_WoWPro_retail	wowpro:JamNag6668	240	10011	C1	poi-objective		107:25.1,36.0		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:CraSha7070A	73	10759	T	poi-turnin/questie-ender	104:35.2,39.3	104:35.4,42.2	104	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:CraSha7070A	74	10777	A	questie-giver	104:35.2,39.3		104	disputed
@@ -20701,7 +20701,7 @@ retail	Imported_WoWPro_retail	wowpro:JamTer6466	21	10917	A	questie-giver	111:51.
 retail	Imported_WoWPro_retail	wowpro:JamTer6466	29	9951	A	questie-giver	108:45.0,22.5		84	disputed
 retail	Imported_WoWPro_retail	wowpro:JamTer6466	39	9979	A	questie-giver	108:47.1,27.0		213	disputed
 retail	Imported_WoWPro_retail	wowpro:JamTer6466	52	10869	C	poi-objective-any		108:49.6,16.3		missing-coords->fixed
-retail	Imported_WoWPro_retail	wowpro:JamTer6466	70	10917	T	poi-turnin/questie-ender	111:51.1,17.6	111:46.2,22.4	76	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:JamTer6466	70	10917	T	poi-turnin/questie-ender	111:51.1,17.6		76	disputed
 retail	Imported_WoWPro_retail	wowpro:JamTer6466	106	10880	A	questie-giver	108:32.2,52.8		307	disputed
 retail	Imported_WoWPro_retail	wowpro:JamTer6466	107	10840	C	poi-objective-any		108:47.7,55.0		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:JamTer6466	108	10842	C	poi-objective-any	108:47.0,55.0	108:49.1,54.6	52	wrong->fixed
@@ -21089,20 +21089,20 @@ retail	Imported_WoWPro_retail	wowpro:BitCap3035	186	26663	T	poi-turnin/questie-e
 retail	Imported_WoWPro_retail	wowpro:BitCap3035	187	26665	A	questie-giver	210:44.7,92.8		221	disputed
 retail	Imported_WoWPro_retail	wowpro:BitCap3035	207	26697	C	poi-objective-any	210:40.5,73.4	210:35.0,56.9	174	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:BitCap3035	210	26703	C	poi-objective-any	210:40.5,73.4	210:35.6,66.7	258	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:JamDar1320	4	26385	T	poi-turnin/questie-ender	62:51.8,18.1	62:50.6,19.7	102	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:JamDar1320	5	26383	T	poi-turnin/questie-ender	62:51.8,18.1	62:50.6,19.7	102	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:JamDar1320	6	28490	T	poi-turnin/questie-ender	62:51.8,18.1	62:50.6,19.7	102	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:JamDar1320	4	26385	T	poi-turnin/questie-ender	62:51.8,18.1		102	disputed
+retail	Imported_WoWPro_retail	wowpro:JamDar1320	5	26383	T	poi-turnin/questie-ender	62:51.8,18.1		102	disputed
+retail	Imported_WoWPro_retail	wowpro:JamDar1320	6	28490	T	poi-turnin/questie-ender	62:51.8,18.1		102	disputed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	7	13518	A	questie-giver	62:51.8,18.1		102	disputed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	8	13522	A	questie-giver	62:50.4,18.8	62:50.7,19.7	46	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	17	13518	T	poi-turnin/questie-ender	62:51.8,18.1	62:51.0,18.6	52	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	18	13520	A	questie-giver	62:51.8,18.1		147	disputed
-retail	Imported_WoWPro_retail	wowpro:JamDar1320	26	13520	T	poi-turnin/questie-ender	62:50.9,18.8	62:50.1,20.4	89	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:JamDar1320	26	13520	T	poi-turnin/questie-ender	62:50.9,18.8		89	disputed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	35	13529	A	questie-giver	62:56.2,27.4	62:51.1,19.7	466	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	40	13831	A	questie-giver	62:56.8,33.5	62:57.4,33.8	44	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	54	13563	A	questie-giver	62:50.8,18.0		79	disputed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	81	13569	C	poi-objective-any	62:43.7,40.3	62:42.8,38.3	110	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:JamDar1320	85	13599	T	poi-turnin/questie-ender	62:50.9,18.2	62:50.1,20.4	107	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:JamDar1320	86	13563	T	poi-turnin/questie-ender	62:50.9,18.0	62:50.1,19.5	78	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:JamDar1320	85	13599	T	poi-turnin/questie-ender	62:50.9,18.2		107	disputed
+retail	Imported_WoWPro_retail	wowpro:JamDar1320	86	13563	T	poi-turnin/questie-ender	62:50.9,18.0		78	disputed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	87	13562	T	poi-turnin/questie-ender	62:50.8,18.2	62:50.7,19.7	67	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	88	13589	A	questie-giver	62:50.8,18.2	62:50.7,19.7	67	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	100	13506	A	questie-giver	62:60.7,17.7		136	disputed
@@ -21111,7 +21111,7 @@ retail	Imported_WoWPro_retail	wowpro:JamDar1320	139	13515	C	poi-objective-any	62
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	141	13591	A	questie-giver	62:72.3,18.9		1399	disputed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	171	13605	A	questie-giver	62:38.6,42.4		286	disputed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	220	13587	C	poi-objective-any	62:49.3,55.7	62:50.1,55.3	52	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:JamDar1320	240	13892	T	poi-turnin/questie-ender	62:40.7,84.6	62:45.3,75.1	503	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:JamDar1320	240	13892	T	poi-turnin/questie-ender	62:40.7,84.6		503	disputed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	293	13925	C	poi-objective-any	62:45.8,76.5	62:41.1,71.5	72	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamDar1320	301	13885	C	poi-objective-any	62:44.5,75.3	62:43.4,70.8	77	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:WkjDes3035	25	14193	T	poi-turnin/questie-ender	66:77.1,18.2	66:69.3,29.3	482	wrong->fixed
@@ -21183,12 +21183,12 @@ retail	Imported_WoWPro_retail	wowpro:WkjLoc1220	49	26860	C	poi-objective-any	48:
 retail	Imported_WoWPro_retail	wowpro:WkjLoc1220	50	25118	C	poi-objective-any	48:38.0,39.2	48:33.8,34.6	85	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:WkjLoc1220	155	27026	C	poi-objective-any	48:71.6,76.9	48:69.3,72.4	66	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:WkjLoc1220	180	27078	C	poi-objective-any	48:74.8,19.8	48:79.7,14.8	163	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	4	26838	T	poi-turnin/questie-ender	50:47.6,10.2	50:45.9,14.5	133	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	4	26838	T	poi-turnin/questie-ender	50:47.6,10.2		133	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	5	28699	T	poi-turnin/questie-ender	50:47.6,10.2	50:45.9,14.5	133	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	6	26735	A	questie-giver	50:47.6,10.2		133	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	7	26732	A	questie-giver	50:47.2,11.1		149	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	11	26738	A	questie-giver	50:57.9,20.6		546	disputed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	13	26732	T	poi-turnin/questie-ender	50:47.2,11.1	50:45.4,15.8	149	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	13	26732	T	poi-turnin/questie-ender	50:47.2,11.1		149	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	14	26733	A	questie-giver	50:47.2,11.1		149	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	16	26736	A	questie-giver	50:47.6,10.2		133	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	18	26739	A	questie-giver	50:47.0,10.8		149	disputed
@@ -21199,7 +21199,7 @@ retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	24	185	A	questie-giver	50:44.
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	25	26269	A	questie-giver	50:44.2,22.1		344	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	26	190	A	questie-giver	50:43.7,22.3		352	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	27	26343	A	questie-giver	50:43.6,23.4		370	disputed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	28	26740	T	poi-turnin/questie-ender	50:43.6,23.1	50:39.6,35.1	365	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	28	26740	T	poi-turnin/questie-ender	50:43.6,23.1		365	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	29	26763	A	questie-giver	50:43.6,23.1		365	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	33	26343	C	poi-objective-any	50:39.0,19.4	50:42.4,19.6	94	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	36	186	A	questie-giver	50:41.5,23.4		300	disputed
@@ -21208,10 +21208,10 @@ retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	42	191	A	questie-giver	50:53.
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	45	187	A	questie-giver	50:60.2,29.4		686	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	46	26763	A	questie-giver	50:43.6,23.1		365	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	51	26345	A	questie-giver	50:43.6,23.4		370	disputed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	52	26763	T	poi-turnin/questie-ender	50:43.6,23.1	50:39.6,35.1	365	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	52	26763	T	poi-turnin/questie-ender	50:43.6,23.1		365	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	53	26765	A	questie-giver	50:43.6,23.1		365	disputed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	54	26765	T	poi-turnin/questie-ender	50:47.1,10.7	50:45.2,15.2	146	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	60	26733	T	poi-turnin/questie-ender	50:47.2,11.1	50:45.4,15.8	149	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	54	26765	T	poi-turnin/questie-ender	50:47.1,10.7		146	disputed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	60	26733	T	poi-turnin/questie-ender	50:47.2,11.1		149	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	61	26734	A	questie-giver	50:47.2,11.1		149	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	63	26744	A	questie-giver	50:47.0,10.8		149	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	65	26737	A	questie-giver	50:47.6,10.2		133	disputed
@@ -21224,8 +21224,8 @@ retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	74	194	T	poi-turnin/questie-e
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	75	195	A	questie-giver	50:30.4,31.5		317	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	79	195	T	poi-turnin/questie-ender	50:38.5,43.6	50:40.3,35.3	237	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	80	196	A	questie-giver	50:38.5,43.6		237	disputed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	88	26734	T	poi-turnin/questie-ender	50:47.2,11.1	50:45.4,15.8	149	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	89	26744	T	poi-turnin/questie-ender	50:47.0,10.8	50:45.0,15.4	149	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	88	26734	T	poi-turnin/questie-ender	50:47.2,11.1		149	disputed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	89	26744	T	poi-turnin/questie-ender	50:47.0,10.8		149	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	91	26746	A	questie-giver	50:47.1,10.6		759	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	93	26729	A	questie-giver	50:47.7,10.3		750	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	94	26742	A	questie-giver	50:48.0,12.0		710	disputed
@@ -21243,24 +21243,24 @@ retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	122	26743	A	questie-giver	50:
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	124	26747	A	questie-giver	50:47.2,10.6		758	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	125	26751	A	questie-giver	50:47.5,10.7		141	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	129	208	A	questie-giver	50:44.2,23.0		374	disputed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	138	26751	T	poi-turnin/questie-ender	50:47.4,10.8	50:45.9,15.3	139	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	138	26751	T	poi-turnin/questie-ender	50:47.4,10.8		139	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	140	26748	A	questie-giver	50:47.2,10.6		1895	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	142	26749	A	questie-giver	50:47.2,10.7		754	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	145	26772	A	questie-giver	50:53.4,66.7		1043	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	146	26782	A	questie-giver	50:53.3,66.4		1033	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	147	26805	A	questie-giver	50:53.3,66.4		1033	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	148	26781	A	questie-giver	50:53.3,66.8		1049	disputed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	154	26781	T	poi-turnin/questie-ender	50:53.3,66.8	224:53.2,66.9	1049	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	154	26781	T	poi-turnin/questie-ender	50:53.3,66.8		1049	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	156	26773	A	questie-giver	50:53.4,66.8		1041	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	159	26774	A	questie-giver	50:53.4,66.8		1043	disputed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	160	26782	T	poi-turnin/questie-ender	50:53.3,66.3	224:53.4,66.3	1035	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	160	26782	T	poi-turnin/questie-ender	50:53.3,66.3		1035	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	161	26780	A	questie-giver	50:53.3,66.3		1060	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	162	26779	A	questie-giver	50:52.7,66.7		1045	disputed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	174	26779	T	poi-turnin/questie-ender	50:52.7,66.7	224:52.7,66.8	1045	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	175	26780	T	poi-turnin/questie-ender	50:52.8,66.4	224:53.1,66.9	1058	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	174	26779	T	poi-turnin/questie-ender	50:52.7,66.7		1045	disputed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	175	26780	T	poi-turnin/questie-ender	50:52.8,66.4		1058	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	177	26775	A	questie-giver	50:53.4,66.6		1046	disputed
 retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	183	26776	A	questie-giver	50:53.4,66.8		1043	disputed
-retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	184	26776	T	poi-turnin/questie-ender	50:52.8,66.8	224:52.7,66.8	1043	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:SavNorStr2530	184	26776	T	poi-turnin/questie-ender	50:52.8,66.8		1043	disputed
 retail	Imported_WoWPro_retail	wowpro:KurRed1520	40	26512	T	poi-turnin/questie-ender		49:28.9,41.1		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:KurRed1520	41	26514	A	questie-giver		49:28.9,41.1		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:KurRed1520	47	26514	T	poi-turnin/questie-ender		49:28.9,41.1		missing-coords->fixed
@@ -21271,7 +21271,7 @@ retail	Imported_WoWPro_retail	wowpro:KurRed1520	69	26570	A	questie-giver	49:29.6
 retail	Imported_WoWPro_retail	wowpro:KurRed1520	75	26571	T	poi-turnin/questie-ender		49:28.6,40.7		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:KurRed1520	76	26573	A	questie-giver		49:28.7,40.7		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:KurRed1520	79	26560	A	questie-giver	49:47.6,41.8		885	disputed
-retail	Imported_WoWPro_retail	wowpro:KurRed1520	98	26570	T	poi-turnin/questie-ender	49:29.6,44.4	49:31.9,44.9	57	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:KurRed1520	98	26570	T	poi-turnin/questie-ender	49:29.6,44.4		57	disputed
 retail	Imported_WoWPro_retail	wowpro:KurRed1520	123	26646	T	poi-turnin/questie-ender		49:52.5,55.4		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:KurRed1520	124	26651	A	questie-giver		49:52.7,55.9		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:KurRed1520	131	26668	C1	poi-objective-any		49:77.4,65.5		missing-coords->fixed
@@ -21312,7 +21312,7 @@ retail	Imported_WoWPro_retail	wowpro:WkjSton2530	207	25935	A	questie-giver	65:32
 retail	Imported_WoWPro_retail	wowpro:WkjSton2530	213	25930	C	poi-objective-any	65:29.2,71.1	65:30.6,69.9	90	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:WkjSton2530	214	25930	T	poi-turnin/questie-ender	65:29.5,71.5	65:33.1,59.6	513	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:WkjSton2530	215	25931	A	questie-giver	65:29.5,71.5		513	disputed
-retail	Imported_WoWPro_retail	wowpro:WkjSton2530	224	25935	T	poi-turnin/questie-ender	65:32.5,61.2	65:33.0,59.5	76	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:WkjSton2530	224	25935	T	poi-turnin/questie-ender	65:32.5,61.2		76	disputed
 retail	Imported_WoWPro_retail	wowpro:CraSwa5254	7	27587	C	poi-objective-any	51:86.3,14.4	51:80.9,10.1	48	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:CraSwa5254	36	27600	C3	poi-objective	51:93.8,27.1	51:98.8,27.2	125	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:CraSwa5254	56	27704	A	questie-giver	51:54.0,79.7	51:69.5,54.5	572	wrong->fixed
@@ -21398,7 +21398,7 @@ retail	Imported_WoWPro_retail	wowpro:MagTwi8485	447	27743	T	poi-turnin/questie-e
 retail	Imported_WoWPro_retail	wowpro:MagTwi8485	448	27742	T	poi-turnin/questie-ender	241:39.0,94.1	241:35.9,90.7	202	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:MagTwi8485	449	27744	T	poi-turnin/questie-ender	241:34.9,85.8	241:34.2,86.5	45	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:MagTwi8485	450	27745	A	questie-giver	241:34.9,85.8		176	disputed
-retail	Imported_WoWPro_retail	wowpro:MagTwi8485	455	27782	T	poi-turnin/questie-ender	241:36.4,66.0	241:37.9,63.7	112	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:MagTwi8485	455	27782	T	poi-turnin/questie-ender	241:36.4,66.0		112	disputed
 retail	Imported_WoWPro_retail	wowpro:MagTwi8485	456	27784	A	questie-giver	241:36.4,66.0		112	disputed
 retail	Imported_WoWPro_retail	wowpro:AriVasA8082	6	14482	C	poi-objective-any	84:18.5,25.5	201:45.3,23.6	4521	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:AriVasA8082	51	25371	C	poi-objective-any	201:43.7,47.5	201:45.4,46.4	52	wrong->fixed
@@ -21456,7 +21456,7 @@ retail	Imported_WoWPro_retail	wowpro:AriVasA8082	395	25951	C1	poi-objective	205:
 retail	Imported_WoWPro_retail	wowpro:AriVasA8082	396	25951	C2	poi-objective	205:42.9,78.4	205:45.5,78.4	126	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:AriVasA8082	398	25626	T	poi-turnin/questie-ender	205:46.7,57.5	205:47.8,58.2	56	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:AriVasA8082	406	26103	A	questie-giver	204:55.5,72.9		1726	disputed
-retail	Imported_WoWPro_retail	wowpro:AriVasA8082	411	26103	T	poi-turnin/questie-ender	204:55.5,72.9	204:97.3,62.2	1726	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:AriVasA8082	411	26103	T	poi-turnin/questie-ender	204:55.5,72.9		1726	disputed
 retail	Imported_WoWPro_retail	wowpro:AriVasA8082	412	26106	A	questie-giver	204:55.5,72.9		1726	disputed
 retail	Imported_WoWPro_retail	wowpro:AriVasA8082	429	26021	A	questie-giver		204:47.4,49.8		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:AriVasA8082	436	25981	A	questie-giver	204:55.5,72.9		1726	disputed
@@ -21585,7 +21585,7 @@ retail	Imported_WoWPro_retail	wowpro:BitSha0105	77	13946	C	poi-objective-any	57:
 retail	Imported_WoWPro_retail	wowpro:BitSha0105	79	932	C	poi-objective-any	57:53.0,44.0	57:51.8,43.8	67	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:BitSha0105	103	486	C	poi-objective-any	57:51.7,38.7	57:51.7,39.9	44	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:BitSha0105	132	938	A	questie-giver	57:34.5,27.8		64	disputed
-retail	Imported_WoWPro_retail	wowpro:BitSha0105	165	26383	T	poi-turnin/questie-ender	62:51.8,18.0	62:50.6,19.7	105	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:BitSha0105	165	26383	T	poi-turnin/questie-ender	62:51.8,18.0		105	disputed
 retail	Imported_WoWPro_retail	wowpro:RpoGil0113	13	14094	C	poi-objective-any		202:60.7,32.1		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:RpoGil0113	14	14093	C	poi-objective-any		202:60.2,29.2		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:RpoGil0113	72	14294	T	poi-turnin/questie-ender	202:53.8,84.0	202:30.4,73.2	218	wrong->fixed
@@ -22117,7 +22117,7 @@ retail	Imported_WoWPro_retail	wowpro:JamGriA7577	285	12238	A	questie-giver		116:
 retail	Imported_WoWPro_retail	wowpro:JamGriA7577	287	12114	C	poi-objective-any		116:72.2,26.2		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:JamGriA7577	361	12249	C	poi-objective-any	116:52.6,24.1	116:52.0,17.8	222	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamHow7274	20	11443	A	questie-giver	117:63.0,60.0		60	disputed
-retail	Imported_WoWPro_retail	wowpro:JamHow7274	24	11443	T	poi-turnin/questie-ender	117:63.0,60.0	117:62.8,58.5	60	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:JamHow7274	24	11443	T	poi-turnin/questie-ender	117:63.0,60.0		60	disputed
 retail	Imported_WoWPro_retail	wowpro:JamHow7274	63	11251	T	poi-turnin/questie-ender	117:57.3,46.8	117:59.4,49.1	158	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamHow7274	74	11344	C	poi-objective-any	117:69.1,54.9	117:69.6,54.1	43	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamHow7274	101	11421	C	poi-objective-any	117:64.6,54.3	117:60.7,53.6	215	wrong->fixed
@@ -22479,7 +22479,7 @@ retail	Imported_WoWPro_retail	wowpro:JamTer6567	52	9993	C	poi-objective-any	108:
 retail	Imported_WoWPro_retail	wowpro:JamTer6567	56	10868	C	poi-objective-any		108:49.6,16.3		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:JamTer6567	62	10847	C1	poi-objective	108:50.1,19.4	108:50.8,17.8	70	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamTer6567	65	10868	C	poi-objective-any		108:49.6,16.3		missing-coords->fixed
-retail	Imported_WoWPro_retail	wowpro:JamTer6567	74	10917	T	poi-turnin/questie-ender	111:51.1,17.6	111:46.2,22.4	76	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:JamTer6567	74	10917	T	poi-turnin/questie-ender	111:51.1,17.6		76	disputed
 retail	Imported_WoWPro_retail	wowpro:JamTer6567	109	10880	A	questie-giver	108:32.2,52.8		307	disputed
 retail	Imported_WoWPro_retail	wowpro:JamTer6567	113	10842	C	poi-objective-any	108:47.0,55.0	108:49.1,54.6	52	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:JamTer6567	147	10008	C	poi-objective-any		108:66.9,52.7		missing-coords->fixed
@@ -22687,7 +22687,7 @@ retail	Imported_WoWPro_retail	wowpro:BitAzs1220	312	14389	T	poi-turnin/questie-e
 retail	Imported_WoWPro_retail	wowpro:BitAzs1220	313	14390	A	questie-giver		76:27.9,40.0		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:BitAzs1220	316	14391	A	questie-giver		76:27.9,40.0		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:BitAzs1220	323	24467	A	questie-giver	76:66.5,20.4		1318	disputed
-retail	Imported_WoWPro_retail	wowpro:BitAzs1220	330	24467	T	poi-turnin/questie-ender	76:71.8,16.7	76:55.5,52.1	1583	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:BitAzs1220	330	24467	T	poi-turnin/questie-ender	76:71.8,16.7		1583	disputed
 retail	Imported_WoWPro_retail	wowpro:BitAzs1220	335	14392	A	questie-giver	76:67.0,20.4		117	disputed
 retail	Imported_WoWPro_retail	wowpro:BitAzs1220	354	14475	T	poi-turnin/questie-ender	76:13.7,70.9	76:14.5,75.6	177	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:LiaBad4548	3	27763	T	poi-turnin/questie-ender	15:88.4,32.7	15:65.1,38.4	725	wrong->fixed
@@ -24107,14 +24107,14 @@ retail	Imported_WoWPro_retail	wowpro:CraEas4045	179	27613	A	questie-giver	23:76.
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	184	27617	A	questie-giver	23:76.7,73.2		174	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	186	27620	A	questie-giver	23:76.1,75.3		139	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	203	27466	A	questie-giver	23:61.6,43.2		547	disputed
-retail	Imported_WoWPro_retail	wowpro:CraEas4045	204	27457	T	poi-turnin/questie-ender	23:61.4,42.8	23:9.0,66.5	2206	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:CraEas4045	204	27457	T	poi-turnin/questie-ender	23:61.4,42.8		2206	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	205	27466	T	poi-turnin/questie-ender	23:61.4,42.8	23:62.5,42.2	47	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	208	27481	A	questie-giver	23:61.3,42.8		424	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	210	27487	A	questie-giver	23:61.5,43.3		547	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	216	27481	T	poi-turnin/questie-ender	23:66.6,9.2	23:53.1,52.7	1290	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	217	27482	A	questie-giver	23:66.6,9.2		1290	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	219	27482	T	poi-turnin/questie-ender	23:67.3,9.1	23:53.1,52.7	1304	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:CraEas4045	221	27479	T	poi-turnin/questie-ender	23:61.4,44.4	23:61.3,42.8	41	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:CraEas4045	221	27479	T	poi-turnin/questie-ender	23:61.4,44.4		41	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	224	27488	A	questie-giver	23:61.5,43.2		549	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	226	27488	T	poi-turnin/questie-ender	23:61.5,43.3	23:62.3,42.2	44	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	228	27489	A	questie-giver	23:61.5,43.3		547	disputed
@@ -24123,11 +24123,11 @@ retail	Imported_WoWPro_retail	wowpro:CraEas4045	241	27524	A	questie-giver	23:50.
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	242	27532	A	questie-giver	23:50.5,20.3		1427	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	245	27525	A	questie-giver	23:27.6,21.1		2039	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	254	27526	A	questie-giver	23:27.5,21.3		2042	disputed
-retail	Imported_WoWPro_retail	wowpro:CraEas4045	255	27525	T	poi-turnin/questie-ender	23:27.5,21.3	23:73.8,52.0	2042	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:CraEas4045	255	27525	T	poi-turnin/questie-ender	23:27.5,21.3		2042	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	259	27526	C	poi-objective-any	23:32.1,25.4	23:28.5,25.9	145	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	261	27527	A	questie-giver	23:28.3,25.9		1962	disputed
 retail	Imported_WoWPro_retail	wowpro:CraEas4045	289	27762	T	poi-turnin/questie-ender	23:73.8,53.0	15:92.6,39.0	8945	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:Arihyj8082	82	25280	T	poi-turnin/questie-ender	198:28.3,29.8	198:30.1,31.3	89	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:Arihyj8082	82	25280	T	poi-turnin/questie-ender	198:28.3,29.8		89	disputed
 retail	Imported_WoWPro_retail	wowpro:Arihyj8082	83	25278	A	questie-giver	198:28.2,29.9		91	disputed
 retail	Imported_WoWPro_retail	wowpro:Arihyj8082	87	25270	C	poi-objective-any		198:28.7,31.2		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:Arihyj8082	93	25279	T	poi-turnin/questie-ender	198:28.4,29.9	198:30.2,31.7	91	wrong->fixed
@@ -24144,7 +24144,7 @@ retail	Imported_WoWPro_retail	wowpro:Arihyj8082	128	25353	C	poi-objective-any	19
 retail	Imported_WoWPro_retail	wowpro:Arihyj8082	129	25353	T	poi-turnin/questie-ender	198:22.9,31.9	198:28.6,39.3	321	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:Arihyj8082	133	25355	T	poi-turnin/questie-ender		198:28.7,38.8		missing-coords->fixed
 retail	Imported_WoWPro_retail	wowpro:Arihyj8082	147	25577	C	poi-objective-any		198:29.0,41.4		missing-coords->fixed
-retail	Imported_WoWPro_retail	wowpro:Arihyj8082	158	25352	T	poi-turnin/questie-ender	198:28.2,29.8	198:30.1,31.3	92	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:Arihyj8082	158	25352	T	poi-turnin/questie-ender	198:28.2,29.8		92	disputed
 retail	Imported_WoWPro_retail	wowpro:Arihyj8082	162	25354	T	poi-turnin/questie-ender	198:28.4,29.9	198:30.2,31.7	91	wrong->fixed
 retail	Imported_WoWPro_retail	wowpro:Arihyj8082	163	27874	A	questie-giver	198:28.4,29.8		1435	disputed
 retail	Imported_WoWPro_retail	wowpro:Arihyj8082	164	25630	A	questie-giver	198:28.2,29.9		100	disputed
@@ -27964,14 +27964,14 @@ retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	13	29371	A	questie-giver	37:32.1
 retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	15	29430	A	questie-giver	37:32.4,50.8		54	disputed
 retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	16	29054	A	questie-giver	37:32.4,50.8		54	disputed
 retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	17	29144	A	questie-giver	37:32.4,50.8		54	disputed
-retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	22	29054	T	poi-turnin/questie-ender	37:32.4,50.8	37:33.9,51.2	54	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	31	29430	T	poi-turnin/questie-ender	84:60.1,75.1	84:65.9,30.6	525	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	22	29054	T	poi-turnin/questie-ender	37:32.4,50.8		54	disputed
+retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	31	29430	T	poi-turnin/questie-ender	84:60.1,75.1		525	disputed
 retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	32	29392	A	questie-giver	84:60.1,75.1		525	disputed
-retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	35	29392	T	poi-turnin/questie-ender	84:24.0,44.6	84:21.8,43.2	41	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	35	29392	T	poi-turnin/questie-ender	84:24.0,44.6		41	disputed
 retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	36	29398	A	questie-giver	84:24.0,44.6		41	disputed
-retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	115	8311	T	poi-turnin/questie-ender	37:32.1,50.5	37:22.9,28.4	602	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	116	29371	T	poi-turnin/questie-ender	37:32.1,50.5	37:33.9,51.2	65	wrong->fixed
-retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	117	29144	T	poi-turnin/questie-ender	37:32.4,50.8	37:33.9,51.2	54	wrong->fixed
+retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	115	8311	T	poi-turnin/questie-ender	37:32.1,50.5		602	disputed
+retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	116	29371	T	poi-turnin/questie-ender	37:32.1,50.5		65	disputed
+retail	Imported_WoWPro_retail	wowpro:TwiHallEnd	117	29144	T	poi-turnin/questie-ender	37:32.4,50.8		54	disputed
 retail	Imported_WoWPro_retail	wowpro:CraLunFesEldA	65	8716	A	questie-giver	50:71.0,34.3		719	disputed
 retail	Imported_WoWPro_retail	wowpro:CraLunFesEldA	74	8646	A	questie-giver	37:32.2,52.7		100	disputed
 retail	Imported_WoWPro_retail	wowpro:CraLunFesEldA	79	8683	A	questie-giver	36:52.4,23.9		41	disputed
