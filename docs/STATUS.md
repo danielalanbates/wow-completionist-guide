@@ -886,3 +886,37 @@ What the numbers mean:
   3. Then `--verify`.
 
   Keys are exact, so a regenerated file whose coords move just skips stale keys. The audit then flags those steps again.
+
+## Quest location audit — classic flavors (2026-10-15)
+
+Every A/T/C step with a QID in `Imported_Quests_{era,tbc,wotlk,cata,mop}.lua` and the two `Leveling/` starter guides was
+checked against Questie 11.38.0 **with its Corrections applied** (A → starter NPC/object/item-source spawns, T → ender
+spawns, C → objective creature/object/item-drop/killCredit/triggerEnd/extraObjective spawns), same uiMap, 40 yd tolerance
+(map sizes from `tools/maps_*.lua`; 2.0 map-% where a map has no size). Tool: `tools/audit_quest_locations.lua`;
+rows: `docs/quest_location_audit_classic.tsv` and table `quest_location_audit` in `docs/verification.sqlite`.
+
+Root causes found and fixed in the generator (`tools/gen_quest_guides.lua` + new `tools/questie_env.lua`), then
+regenerated into all four installed clients and Drive:
+- Questie's `Corrections/*Fixes.lua` were never applied, so moved/corrected spawns and starters were stale.
+- Cata/MoP used Questie's *classic* areaId→uiMap table (|Z|1429 instead of 37); Questie-Mists uses `Zones/data/MoP/`.
+- C steps only looked at creature/object objectives; item objectives (drop sources), killCredit, triggerEnd and
+  extraObjectives were ignored, leaving thousands of C steps with no coords.
+
+| flavor | file | steps checked | wrong (>40 yd / wrong zone) | missing coords (ref existed) | fixed | no reference (after) |
+|---|---|---|---|---|---|---|
+| era | Imported_Quests_era | 11005 | 139 | 1434 | 1573 | 1565 |
+| era/tbc/wotlk | Leveling/Northshire | 43 | 7 | 0 | 7 | 0 |
+| era/tbc/wotlk | Leveling/Valley of Trials | 19 | 10 | 0 | 10 | 0 |
+| tbc | Imported_Quests_tbc | 16831 | 188 | 2190 | 2378 | 2497 |
+| wotlk | Imported_Quests_wotlk | 23547 | 330 | 4263 | 4593 | 3162 |
+| cata | Imported_Quests_cata | 38906 | 1785 | 6438 | 8223 | 8546 |
+| mop | Imported_Quests_mop | 45571 | 1967 | 11540 | 13507 | 9913 |
+
+After regeneration every step that has a Questie reference is within 40 yd of one (0 wrong in all five files).
+"No reference" = Questie itself has no mappable spawn (unknown starter, instance-only ender, event NPC); nothing invented.
+Leveling guides: 17 coords corrected (e.g. *Sting of the Scorpid* is from Hana'zua, not Gornek; Milly Osworth is
+north-east of the Abbey); they are now skipped on Cata/MoP clients, where those pre-Cataclysm quests do not exist.
+
+Caveats: the audit and generator share the Questie loader, so the "after" result proves the files match corrected
+Questie, not that Questie is right; faction-specific fixes (`LoadFactionFixes`) are not applied; the Cata DB came from
+Questie v11.38.0 on GitHub (the installed copy ships without it); wotlk map sizes are tbc+mop tables merged.
