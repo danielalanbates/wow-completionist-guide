@@ -35,3 +35,7 @@ tools/db2/*/item_quests.tsv
 # local no-route / sample harness output
 docs/vplayer_*_noroute.tsv
 tools/db2/*/Taxi*.csv
+
+# quest location audit inputs (derived, regenerate with tools/questie_spawns.lua / dump_quest_steps.lua)
+tools/db2/questie_spawns.tsv
+tools/db2/retail/quest_steps_dump.tsv
