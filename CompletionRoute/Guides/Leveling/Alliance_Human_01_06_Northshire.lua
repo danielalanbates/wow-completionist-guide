@@ -1,6 +1,8 @@
 -- CompletionRoute community guide.  License: CC BY-SA 4.0.  Format: see docs/GUIDE_FORMAT.md
 -- Author: CompletionRoute contributors (initial: BatesAI). Zone: Elwynn Forest (uiMap 1429). Flavor: Classic Era / Anniversary / TBC.
 local _, NS = ...
+-- pre-Cataclysm quests (783, 4641, ...) do not exist on Cata/MoP clients (quest_location_audit: no Questie reference there)
+if NS.flavor == "cata" or NS.flavor == "mop" then return end
 NS.Guide.Register({
     id = "OR_Human_01_06_Northshire", name = "Human Starter: Northshire (1-6)", type = "Leveling", zone = "Elwynn Forest",
     faction = "Alliance", minlevel = 1, maxlevel = 6, author = "CompletionRoute community", source = "CompletionRoute",
@@ -26,7 +28,7 @@ A Glyphic Letter|QID|3104|PRE|7|M|48.92,41.61|Z|1429; Elwynn Forest|N|From Marsh
 A Tainted Letter|QID|3105|PRE|7|M|48.92,41.61|Z|1429; Elwynn Forest|N|From Marshal McBride.|C|Warlock|
 T Simple Letter|QID|3100|M|50.24,42.28|Z|1429; Elwynn Forest|N|To Llane Beshere in the Hall of Arms.|C|Warrior|
 T Consecrated Letter|QID|3101|M|50.43,42.12|Z|1429; Elwynn Forest|N|To Brother Sammuel in the Hall of Arms.|C|Paladin|
-T Encrypted Letter|QID|3102|M|49.7,42.6|Z|1429; Elwynn Forest|N|To Jorik Kerridan behind the Abbey.|C|Rogue|
+T Encrypted Letter|QID|3102|M|50.3,39.9|Z|1429; Elwynn Forest|N|To Jorik Kerridan behind the Abbey.|C|Rogue|
 T Hallowed Letter|QID|3103|M|50.3,39.9|Z|1429; Elwynn Forest|N|To Priestess Anetta in the Abbey library.|C|Priest|
 T Glyphic Letter|QID|3104|M|50.4,39.4|Z|1429; Elwynn Forest|N|To Khelden Bremen in the Abbey library.|C|Mage|
 T Tainted Letter|QID|3105|M|49.87,42.65|Z|1429; Elwynn Forest|N|To Drusilla La Salle outside the Abbey.|C|Warlock|
@@ -35,17 +37,17 @@ T Investigate Echo Ridge|QID|15|M|48.92,41.61|Z|1429; Elwynn Forest|N|To Marshal
 A Skirmish at Echo Ridge|QID|21|PRE|15|M|48.92,41.61|Z|1429; Elwynn Forest|N|From Marshal McBride.|
 A Brotherhood of Thieves|QID|18|M|48.15,42.95|Z|1429; Elwynn Forest|N|From Deputy Willem.|
 A Milly Osworth|QID|3903|M|48.15,42.95|Z|1429; Elwynn Forest|N|From Deputy Willem.|
-T Milly Osworth|QID|3903|M|49.8,45.4|Z|1429; Elwynn Forest|N|To Milly Osworth at the vineyard south-east of the Abbey.|
-A Milly's Harvest|QID|3904|PRE|3903|M|49.8,45.4|Z|1429; Elwynn Forest|N|From Milly Osworth.|
+T Milly Osworth|QID|3903|M|50.7,39.4|Z|1429; Elwynn Forest|N|To Milly Osworth, north-east of the Abbey by the vineyard path.|
+A Milly's Harvest|QID|3904|PRE|3903|M|50.7,39.4|Z|1429; Elwynn Forest|N|From Milly Osworth.|
 C Milly's Harvest|QID|3904|M|52.6,46.6|Z|1429; Elwynn Forest|N|Collect 8 Milly's Harvest from the crates in the vineyard.|L|11119 8|
 C Brotherhood of Thieves|QID|18|M|53.6,44.5|Z|1429; Elwynn Forest|N|Kill Defias Thugs in the vineyard for 12 Red Burlap Bandanas.|L|182 12|
-T Milly's Harvest|QID|3904|M|49.8,45.4|Z|1429; Elwynn Forest|N|To Milly Osworth.|
-A Grape Manifest|QID|3905|PRE|3904|M|49.8,45.4|Z|1429; Elwynn Forest|N|From Milly Osworth.|
+T Milly's Harvest|QID|3904|M|50.7,39.4|Z|1429; Elwynn Forest|N|To Milly Osworth.|
+A Grape Manifest|QID|3905|PRE|3904|M|50.7,39.4|Z|1429; Elwynn Forest|N|From Milly Osworth.|
 T Grape Manifest|QID|3905|M|48.9,42.6|Z|1429; Elwynn Forest|N|To Brother Neals upstairs in the Abbey.|
 T Brotherhood of Thieves|QID|18|M|48.15,42.95|Z|1429; Elwynn Forest|N|To Deputy Willem.|
 A Bounty on Garrick Padfoot|QID|6|PRE|18|M|48.15,42.95|Z|1429; Elwynn Forest|N|From Deputy Willem.|
-C Skirmish at Echo Ridge|QID|21|M|49.4,35.4|Z|1429; Elwynn Forest|N|Kill 12 Kobold Laborers inside Echo Ridge Mine.|T|Kobold Laborer|
-C Bounty on Garrick Padfoot|QID|6|M|56.7,49.5|Z|1429; Elwynn Forest|N|Garrick Padfoot is in the small house across the river to the south-east.|T|Garrick Padfoot|L|182 1|
+C Skirmish at Echo Ridge|QID|21|M|47.8,31.6|Z|1429; Elwynn Forest|N|Kill 12 Kobold Laborers inside Echo Ridge Mine.|T|Kobold Laborer|
+C Bounty on Garrick Padfoot|QID|6|M|57.5,48.2|Z|1429; Elwynn Forest|N|Garrick Padfoot is in the small house across the river to the south-east.|T|Garrick Padfoot|L|182 1|
 T Bounty on Garrick Padfoot|QID|6|M|48.15,42.95|Z|1429; Elwynn Forest|N|To Deputy Willem.|
 T Skirmish at Echo Ridge|QID|21|M|48.92,41.61|Z|1429; Elwynn Forest|N|To Marshal McBride.|
 A Report to Goldshire|QID|54|PRE|21|M|48.92,41.61|Z|1429; Elwynn Forest|N|From Marshal McBride.|

@@ -831,3 +831,99 @@ the class-colour idea. Say which you prefer and I will build that instead.
 Preview renders live in the scratchpad (`hand6.png`), verified at in-game size in three class
 colours over a mid-tone background. Whole offline suite, load tests and TOC validation green;
 installed to all four flavors. Nothing in this batch has been seen in a live client.
+
+## Quest location audit: retail (2026-10-15)
+`tools/audit_quest_locations_retail.py` checks every A/C/T step that has a single QID in the retail guides, using the
+locations the addon itself parses (`tools/dump_quest_steps.lua`, so zone-name resolution is included). Each step is
+converted to world yards with `tools/maps_retail.lua`.
+References:
+* **T**: Blizzard turn-in pin (QuestPOIBlob objective -1) or a Questie ender spawn.
+* **C**: the objective's POI area (inside it or within 40 yd). Achievement "complete quest" criteria also accept the turn-in.
+* **A**: Questie giver spawns (all of them; `tools/questie_spawns.lua`, MoP DB wins). Post-MoP quests have no giver
+  data, so they are checked only by cross-source consensus: two independent sources (WoW-Pro, legacy, and the
+  generated files counted as one source) agree within 40 yd and this step does not.
+
+A step is wrong when it is more than 40 yd from every reference. These also count as wrong: another
+instance or continent, coords outside 0-100, an unknown zone, or no coords where a reference exists.
+The tool corrects each wrong step to the nearest reference and writes the committed table
+`Data/QuestCoordFixes_retail.lua` (19,373 keys). `Core/Guide.lua` (`G.ApplyCoordFix`) applies the table at parse time.
+Each key is the step's own old location (`action|qid|qo|uiMap|x,y`), so only that exact step moves.
+Detail: `docs/quest_location_audit_retail.tsv`. Tables in `docs/verification.sqlite`: `quest_location_audit` and
+`quest_location_audit_summary`.
+
+| File | Checked | OK | Wrong (fixed) | of which >40 yd / other zone / no coords | No reference | Disputed (not fixed) |
+|---|---:|---:|---:|---|---:|---:|
+| Imported_Quests_retail | 64,871 | 50,584 | 6,913 | 2,629 / 288 / 3,996 | 7,373 | 1 |
+| Imported_Storylines_retail | 69,061 | 54,666 | 4,137 | 3,591 / 339 / 207 | 10,257 | 1 |
+| Imported_Achievements_retail (quest C steps) | 11,647 | 4,571 | 157 | 34 / 6 / 117 | 6,919 | 0 |
+| Imported_WoWPro_retail | 66,494 | 40,023 | 7,293 | 3,999 / 1,731 / 1,443 (+120 unknown zone) | 18,633 | 542 |
+| Imported_Legacy_retail | 96,077 | 46,552 | 8,376 | 3,373 / 2,616 / 2,348 (+34 unknown zone, 5 out of range) | 40,494 | 560 |
+| Leveling/Northshire (retail) | 43 | 27 | 4 | 4 / 0 / 0 | 12 | 0 |
+| Leveling/Valley of Trials (retail) | 19 | 13 | 0 | - | 6 | 0 |
+
+What the numbers mean:
+* In the generated files most wrong A steps were the turn-in-pin fallback ("Approximate"), which WoW-Pro and the
+  legacy guides placed somewhere else. Most "no coords" steps are pin-less T steps, now filled from the Questie ender.
+* A legacy or WoW-Pro "other zone" step usually has the right x,y on the wrong map (a phased or duplicate map
+  name such as Wandering Isle 378/2366, Mardum 672/720, or Shattrath coords tagged Terokkar). The fix moves
+  the step onto the POI's map.
+* Disputed (1,258; was 1,104 before the verifier pass): the step is off Questie's giver, but no second source backs Questie (Questie is MoP-era and
+  some givers moved later). These were left alone.
+* Not fixed:
+  * 98 steps on maps without bounds.
+  * Multi-QID "accept all" steps (skipped).
+  * C steps for quests with no POI objective area: about 20k, most of the "no reference" count.
+  * Post-MoP A steps without consensus.
+* Re-audit with the table applied (`--verify`) leaves 449 residual flags (about 0.15%). These come from consensus
+  shifting once outliers move. A second `--write-fixes` pass would need keys from fixed positions, so it was not run.
+* About 40 steps that were already correct share a key with a wrong step (same qid, action and spot, but a
+  different source) and move with it. The move is to a reference location, so they stay correct.
+* C fixes go to the objective area's centroid. When the centroid falls outside a concave area, they go to the
+  area vertex nearest the old spot.
+* Re-run after any guide regeneration:
+  1. `luajit tools/questie_spawns.lua <Questie>`
+  2. `python3 tools/audit_quest_locations_retail.py --write-fixes`
+  3. Then `--verify`.
+
+  Keys are exact, so a regenerated file whose coords move just skips stale keys. The audit then flags those steps again.
+
+## Quest location audit — classic flavors (2026-10-15)
+
+Every A/T/C step with a QID in `Imported_Quests_{era,tbc,wotlk,cata,mop}.lua` and the two `Leveling/` starter guides was
+checked against Questie 11.38.0 **with its Corrections applied** (A → starter NPC/object/item-source spawns, T → ender
+spawns, C → objective creature/object/item-drop/killCredit/triggerEnd/extraObjective spawns), same uiMap, 40 yd tolerance
+(map sizes from `tools/maps_*.lua`; 2.0 map-% where a map has no size). Tool: `tools/audit_quest_locations.lua`;
+rows: `docs/quest_location_audit_classic.tsv` and table `quest_location_audit` in `docs/verification.sqlite`.
+
+Root causes found and fixed in the generator (`tools/gen_quest_guides.lua` + new `tools/questie_env.lua`), then
+regenerated into all four installed clients and Drive:
+- Questie's `Corrections/*Fixes.lua` were never applied, so moved/corrected spawns and starters were stale.
+- Cata/MoP used Questie's *classic* areaId→uiMap table (|Z|1429 instead of 37); Questie-Mists uses `Zones/data/MoP/`.
+- C steps only looked at creature/object objectives; item objectives (drop sources), killCredit, triggerEnd and
+  extraObjectives were ignored, leaving thousands of C steps with no coords.
+
+| flavor | file | steps checked | wrong (>40 yd / wrong zone) | missing coords (ref existed) | fixed | no reference (after) |
+|---|---|---|---|---|---|---|
+| era | Imported_Quests_era | 11005 | 139 | 1434 | 1573 | 1565 |
+| era/tbc/wotlk | Leveling/Northshire | 43 | 7 | 0 | 7 | 0 |
+| era/tbc/wotlk | Leveling/Valley of Trials | 19 | 10 | 0 | 10 | 0 |
+| tbc | Imported_Quests_tbc | 16831 | 188 | 2190 | 2378 | 2497 |
+| wotlk | Imported_Quests_wotlk | 23547 | 330 | 4263 | 4593 | 3162 |
+| cata | Imported_Quests_cata | 38906 | 1785 | 6438 | 8223 | 8546 |
+| mop | Imported_Quests_mop | 45571 | 1967 | 11540 | 13507 | 9913 |
+
+After regeneration every step that has a Questie reference is within 40 yd of one (0 wrong in all five files).
+"No reference" = Questie itself has no mappable spawn (unknown starter, instance-only ender, event NPC); nothing invented.
+Leveling guides: 17 coords corrected (e.g. *Sting of the Scorpid* is from Hana'zua, not Gornek; Milly Osworth is
+north-east of the Abbey); they are now skipped on Cata/MoP clients, where those pre-Cataclysm quests do not exist.
+
+Caveats: the audit and generator share the Questie loader, so the "after" result proves the files match corrected
+Questie, not that Questie is right; faction-specific fixes (`LoadFactionFixes`) are not applied; the Cata DB came from
+Questie v11.38.0 on GitHub (the installed copy ships without it); wotlk map sizes are tbc+mop tables merged.
+
+**Verifier pass (retail, 2026-10-15):** independent recompute of 40 random fixes and 20 random unflagged steps
+found A/T placements within 0-4 yd of the reference. One systematic flaw fixed: turn-in steps with no Blizzard
+turn-in pin were moved to Questie's single MoP-era ender spawn even when two independent guide sources (WoW-Pro +
+legacy) agreed elsewhere (e.g. 27457 Eastern Plaguelands caravan). Those 154 steps are now `disputed` and left
+in place; fixes total 26,726 (table 19,373 keys). "consensus" Accept fixes (6,576 rows) are guide-vs-guide, not
+authoritative data.
