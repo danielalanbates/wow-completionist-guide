@@ -846,7 +846,7 @@ References:
 A step is wrong when it is more than 40 yd from every reference. These also count as wrong: another
 instance or continent, coords outside 0-100, an unknown zone, or no coords where a reference exists.
 The tool corrects each wrong step to the nearest reference and writes the committed table
-`Data/QuestCoordFixes_retail.lua` (19,472 keys). `Core/Guide.lua` (`G.ApplyCoordFix`) applies the table at parse time.
+`Data/QuestCoordFixes_retail.lua` (19,373 keys). `Core/Guide.lua` (`G.ApplyCoordFix`) applies the table at parse time.
 Each key is the step's own old location (`action|qid|qo|uiMap|x,y`), so only that exact step moves.
 Detail: `docs/quest_location_audit_retail.tsv`. Tables in `docs/verification.sqlite`: `quest_location_audit` and
 `quest_location_audit_summary`.
@@ -867,7 +867,7 @@ What the numbers mean:
 * A legacy or WoW-Pro "other zone" step usually has the right x,y on the wrong map (a phased or duplicate map
   name such as Wandering Isle 378/2366, Mardum 672/720, or Shattrath coords tagged Terokkar). The fix moves
   the step onto the POI's map.
-* Disputed (1,104): the step is off Questie's giver, but no second source backs Questie (Questie is MoP-era and
+* Disputed (1,258; was 1,104 before the verifier pass): the step is off Questie's giver, but no second source backs Questie (Questie is MoP-era and
   some givers moved later). These were left alone.
 * Not fixed:
   * 98 steps on maps without bounds.
@@ -920,3 +920,10 @@ north-east of the Abbey); they are now skipped on Cata/MoP clients, where those 
 Caveats: the audit and generator share the Questie loader, so the "after" result proves the files match corrected
 Questie, not that Questie is right; faction-specific fixes (`LoadFactionFixes`) are not applied; the Cata DB came from
 Questie v11.38.0 on GitHub (the installed copy ships without it); wotlk map sizes are tbc+mop tables merged.
+
+**Verifier pass (retail, 2026-10-15):** independent recompute of 40 random fixes and 20 random unflagged steps
+found A/T placements within 0-4 yd of the reference. One systematic flaw fixed: turn-in steps with no Blizzard
+turn-in pin were moved to Questie's single MoP-era ender spawn even when two independent guide sources (WoW-Pro +
+legacy) agreed elsewhere (e.g. 27457 Eastern Plaguelands caravan). Those 154 steps are now `disputed` and left
+in place; fixes total 26,726 (table 19,373 keys). "consensus" Accept fixes (6,576 rows) are guide-vs-guide, not
+authoritative data.
