@@ -1,7 +1,7 @@
 # Guide Feature Parity Verification — RESULTS (2026-08-18, live on TBC Anniversary 2.5.6, char Meln/Dreamscythe)
 
 Automated `/or verify` (auto-runs 25s after login, persisted to SavedVariables): **20/20 PASS**
-- guide loaded (legacy:Durotar 6-10, 186 steps parsed), suggest correct for level/faction
+- guide loaded (Durotar 6-10, 186 steps parsed), suggest correct for level/faction
 - travel graph 156 nodes, tbc taxi data, player world pos
 - route to current step: "Walk 421 yd → zeppelin Orgrimmar<->Undercity → walk 1.3k yd (~8m)" — cross-continent, live
 - arrow recommendation + frame + secure button type=item
@@ -16,7 +16,7 @@ Live gameplay verification (screenshots in session log):
 - [x] step auto-completion: injected R-step at player position auto-completed <1s and advanced to next step
 - [x] optimizer: /or order lists upcoming steps with per-step travel ETAs from player position
 - [x] guide viewer step list with action icons, checkboxes, skip/undo buttons
-- [x] guide sources: native 2 + legacy 714 + WoW-Pro 39 imported at runtime
+- [x] guide sources: native + WoW-Pro imported at runtime (2026-08-18 run also loaded Commercial-derived guides, since removed)
 - [x] hearth location learned from tavern-name seed (Gallows' End Tavern)
 - [x] /or verify, route, order, stats, log, guides menu (mouse), Options panel loads without error
 
@@ -44,7 +44,7 @@ to confirm learned-taxi persistence, reorder quality over hours. Everything mech
 
 - [x] **gold guides are circuits, not click-throughs** (`docs/GOLD_ROUTES.md`): `G` waypoints, proximity
   advance, endless laps, measured gold/hr, node recorder + GatherMate2/Routes import, authored `path` rings kept
-  in the author's order; 178/204 imported gold guides are walkable circuits on every flavor
+  in the author's order
 - [x] dungeon steps route to the instance ENTRANCE (learned door + retail encounter-journal), not "no route"
 
 Known feature gaps vs commercial suite (by design, documented): profession guide engine, gear/talent

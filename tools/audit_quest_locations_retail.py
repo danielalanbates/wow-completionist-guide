@@ -18,7 +18,7 @@ Rules (docs/STATUS.md "Quest location audit"):
   A  -> nearest Questie giver spawn.  Post-MoP quests have no giver reference: they are corrected only by
         cross-source consensus (2+ independent sources agree within 40 yd and this one is farther).
         The three generated files (Quests/Storylines/Achievements) come from the same Blizzard data and
-        count as ONE source for consensus; WoW-Pro and the legacy guides are the other two.
+        count as ONE source for consensus; WoW-Pro is the other.
   A step is WRONG when it is > 40 yd from every reference (or on another continent/instance), its map
   is unknown, or its coordinates are outside 0-100.  It is corrected to the nearest reference.
 Outputs: docs/quest_location_audit_retail.tsv, table quest_location_audit in docs/verification.sqlite, and

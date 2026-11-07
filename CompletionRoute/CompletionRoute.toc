@@ -33,7 +33,6 @@ Data\Access.lua
 Data\Inns.lua
 Data\Farm_routes.lua
 Data\ZoneAliases.lua
-Data\QuestCoordFixes_retail.lua
 Data\Roads_ek.lua
 Data\Roads_kalimdor.lua
 Routing\TravelGraph.lua
@@ -50,8 +49,6 @@ UI\Log.lua
 UI\ItemScore.lua
 Adapters\WoWPro.lua
 Adapters\DynamicQuests.lua
-Adapters\LegacyGuides.lua
-Guides\Imported_Legacy_retail.lua
 Guides\Imported_WoWPro_retail.lua
 Guides\Imported_Quests_era.lua
 Guides\Imported_Quests_tbc.lua

@@ -22,9 +22,9 @@ smart arrow — while the guide content is community-driven and open.
 | Travel system: flight paths, boats, zeppelins, portals | ✅ `Routing/TravelGraph.lua` Dijkstra over ~180 taxi nodes (real polyline lengths from game data) + `Data/Transit.lua` |
 | Only uses flight paths you have learned | ✅ learned when you open any flight map (`TAXIMAP_OPENED`), stored per character |
 | Optimal quest routing for the chosen guide | ✅ `Routing/StepOrder.lua` — precedence-constrained reordering of the next N steps (accept → complete → turn-in kept, anchors like *run to zone* respected) |
-| Guide library | ✅ native guides in `Guides/` (WoW-Pro line syntax, CC BY-SA) + **runtime adapters** that read your installed **WoW-Pro** guides and local legacy guides (interop only, nothing copied) |
+| Guide library | ✅ native guides in `Guides/` (WoW-Pro line syntax, CC BY-SA) + a **runtime adapter** that reads your installed **WoW-Pro** guides (interop only, nothing copied) |
 | Every quest in the game, covered | ✅ generated zone guides: Classic flavors from a local **Questie** checkout, **retail from Blizzard's own quest POI client data** (`tools/gen_quest_guides_retail.py` — 379 zone guides, 17,161 quests, 56,843 steps). No subscription required.
-| Gold guides | ✅ **circuits, not click-throughs**: `G` waypoints that complete by proximity, endless laps, shortest-loop solver (`Routing/Loop.lua`), node recorder + GatherMate2/Routes import, measured gold/hour. 178/204 imported gold guides come out as walkable rings — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
+| Gold guides | ✅ **circuits, not click-throughs**: `G` waypoints that complete by proximity, endless laps, shortest-loop solver (`Routing/Loop.lua`), node recorder + GatherMate2/Routes import, measured gold/hour — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
 | Dungeon guides | ✅ steps inside an instance route to the **entrance** (learned door + retail encounter journal), `Core/Instances.lua` |
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
 
@@ -40,10 +40,15 @@ regenerable**, so nothing here depends on a subscription staying alive:
 | Blizzard quest POI client data (wago.tools `QuestPOIBlob`/`QuestPOIPoint`) | retail | `tools/gen_quest_guides_retail.py` — every quest that has a map pin, grouped per zone |
 | **Questie** database (local checkout) | era, tbc, wotlk, cata, mop | `tools/gen_quest_guides.lua` |
 | **WoW-Pro** guides installed on your machine | all | `Adapters/WoWPro.lua` (runtime interop) |
-| **Local legacy** guides installed on your machine | all | `Adapters/LegacyGuides.lua` (runtime interop, **optional** — nothing is copied or redistributed) |
 | Hand-authored native guides | all | `Guides/` |
 
 Generated guide files are gitignored: the *generators* ship, the third-party-derived data does not.
+
+**No Commercial content.** Completionist's Guide contains, reads and ships nothing from commercial guides — no guides, no
+adapter, no derived coordinates or orderings. All Commercial-derived files were removed from this repository and its
+entire git history on 2026-11-07. The planned source of truth for quest data is the community
+[Warcraft Wiki](https://warcraft.wiki.gg) (CC BY-SA 4.0), with Blizzard's own client data filling coordinates;
+see [docs/FINISH_PLAN.md](docs/FINISH_PLAN.md).
 
 ## Verification — no characters required
 
@@ -79,7 +84,7 @@ To rebuild and deploy:
 * `/or` — toggle guide window · `/or guides` — pick a guide · `/or route` — explain the current route
 * `/or order` — show the optimizer's order for the upcoming steps · `/or taxi` — flight paths learned · `/or hearth`
 * `/cr farm` — farm circuits: status, `build`, `record`, `import`, `export`, `stats`, `radius`
-* `/or test` — routing self-test from your position to major cities · `/or import` — re-scan WoW-Pro/legacy guides
+* `/or test` — routing self-test from your position to major cities · `/or import` — re-scan WoW-Pro guides
 * Checkbox / Shift-click a step = complete · right-click = skip · `<` undo · `>` skip · `Route` toggles reordering
 
 Open a flight master's map once on each continent so the router knows which flight paths you have.
@@ -99,7 +104,7 @@ CompletionRoute/            the addon (copy this folder into Interface/AddOns)
   Routing/            TravelGraph (Dijkstra), StepOrder (optimizer), Router (facade + arrow recommendation)
   Data/               Taxi_<flavor>.lua (generated), Transit.lua (hand-authored), Inns.lua (seed)
   UI/                 Arrow, GuideFrame, GuideMenu, Options
-  Adapters/           WoWPro.lua, LegacyGuides.lua (runtime import of locally installed guides)
+  Adapters/           WoWPro.lua (runtime import of an installed WoW-Pro)
   Guides/             native community guides (CC BY-SA)
   Libs/               LibStub, CallbackHandler, HereBeDragons-2.0
 tools/                gen_taxi.py (wago.tools → Data), gen_textures.py, install.sh, test_offline.lua (luajit smoke test)

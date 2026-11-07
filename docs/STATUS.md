@@ -1,3 +1,18 @@
+# Status / handoff (2026-11-07, Commercial removed, wiki becomes source of truth)
+
+* **Daniel's directive (2026-11-07): nothing from Commercial, ever.** Removed `Adapters/Commercial.lua`, `Adapters/LegacyGuides.lua`,
+  `tools/export_guides.lua`, every `Imported_Commercial_*` / `Imported_Legacy_*` bake, `Data/QuestCoordFixes_retail.lua`
+  (it was keyed on Commercial step coordinates), and every sweep/audit TSV/CSV/SQL that carried Commercial guide titles. Purged
+  from the **entire git history** with `git filter-repo` (repo 256 MB → 4 MB) and force-pushed. `tools/install.sh`
+  refuses to install if any Commercial-derived file reappears. "legacy" in older sections below = Commercial-derived.
+* All numbers in older sections were measured WITH commercial guides loaded and are no longer valid. `docs/verification.sqlite`
+  must be rebuilt from community-only guides.
+* **Source of truth for quest data = Warcraft Wiki (warcraft.wiki.gg, CC BY-SA 4.0)**: 40,357 pages carry `{{Questbox}}`
+  (id, faction, level, start/end NPC, previous/next chain); 84,575 `{{Npcbox}}` pages carry `{{Coords|x|y|zone}}`.
+  Blizzard client data (wago.tools DB2) fills objective areas. Wiki-derived data files must be CC BY-SA 4.0 with
+  attribution (share-alike); code stays PolyForm NC.
+* Daniel beta-tests in game himself. No AI in-game passes. Plan: docs/FINISH_PLAN.md.
+
 # Status / handoff (2026-09-25, completionist coverage charted in SQL)
 
 ## What changed

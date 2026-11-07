@@ -38,9 +38,6 @@ otherwise a closing lap would tick every waypoint in sequence and eat itself (th
    (`/cr farm import`). Their coordinate packing is decoded in `Farm.ImportGatherMate2`.
 3. **Other people.** `/cr farm export` writes a plain-text node list (`map x y kind count`) into
    `CompletionRouteDB.farmExport`; `Farm.ImportText` reads it back. Hand the file to a guildmate.
-4. **Legacy guides, if you have them.** Authored farming guides already contain `map <Zone>` + `path` vertex lists
-   ("path follow smart; loop on"). The adapter now parses those into `G` waypoints, in the author's order —
-   interop only, from the user's own install, nothing copied into this repo.
 
 ## Folding an imported gold guide into a circuit
 
@@ -53,18 +50,8 @@ otherwise a closing lap would tick every waypoint in sequence and eat itself (th
 4. No coordinates at all but a zone ("kill kodos in the Barrens") → a hunting ring across the zone.
 5. Mostly quest steps → refused: that is a questing guide, not a farm route.
 
-Measured on the baked legacy set (`luajit tools/audit_guides.lua <flavor>`, rows in
-`docs/verification.sqlite` tables `gold_circuits` / `guide_type_audit`):
-
-| flavor | gold guides | are circuits | authored rings kept | solved here |
-|---|---|---|---|---|
-| era | 204 | 178 (87%) | 106 | 72 |
-| tbc | 204 | 178 (87%) | 106 | 72 |
-| mop | 204 | 178 (87%) | 106 | 72 |
-| retail | 204 | 178 (87%) | 106 | 72 |
-
-The 26 that stay lists are genuinely not routes — disenchanting and auction-house methods
-("Strange Dust", "Lesser Magic Essence"). They keep working as note guides.
+Circuit coverage will be re-measured on the wiki-sourced gold guides (FINISH_PLAN.md); the earlier
+measurement used Commercial-derived guides and was deleted with them on 2026-11-07.
 
 ## What a lap is worth
 

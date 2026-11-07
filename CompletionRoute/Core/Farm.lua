@@ -250,7 +250,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Turning an imported "gold guide" into a circuit
 -- ---------------------------------------------------------------------------
--- Legacy commercial gold guides are a wall of note steps you click through: "go here, kill these, now click
+-- Step-by-step gold guides are a wall of note steps you click through: "go here, kill these, now click
 -- Next".  What a farmer actually wants is the loop.  Circuitize takes every located step of such a
 -- guide, solves the shortest closed tour through them (Routing/Loop.lua) and hands back G waypoints
 -- carrying the original text as their notes - so the guide's knowledge survives, the clicking does not.
