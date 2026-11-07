@@ -6,7 +6,7 @@ Community-driven guides for **every** quest, with optimal travel routing,
 progress tracked **across all your characters**, and a marker over the head of whatever the current
 step wants you to find. One addon, every version of the game — Era, TBC Anniversary, Mists, retail.
 
-**Status: v1.0.0 — verified release (TBC Anniversary / Classic Era / Mists / Retail TOCs).**
+**Status: beta.** v1.0.0 was withdrawn on 2026-11-07 (it shipped a Commercial adapter). v2.0 — Warcraft Wiki as the source of truth — is in progress; see [docs/FINISH_PLAN.md](docs/FINISH_PLAN.md).
 Built as a comprehensive replacement for proprietary subscription guide addons that keeps the *one thing* no free addon has:
 an optimal travel-routing engine (flight paths, boats/zeppelins/portals/tram, Hearthstone) driving a
 smart arrow — while the guide content is community-driven and open.
