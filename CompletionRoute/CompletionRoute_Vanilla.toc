@@ -48,8 +48,6 @@ UI\Log.lua
 UI\ItemScore.lua
 Adapters\WoWPro.lua
 Adapters\DynamicQuests.lua
-Adapters\LegacyGuides.lua
-Guides\Imported_Legacy_era.lua
 Guides\Imported_WoWPro_era.lua
 Guides\Imported_Quests_era.lua
 Guides\Imported_Quests_tbc.lua

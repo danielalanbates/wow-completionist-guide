@@ -4,8 +4,6 @@
 set -e
 SRC="$(cd "$(dirname "$0")/.." && pwd)/CompletionRoute"
 WOW="${WOW_DIR:-/Volumes/x10/Video Games/Mac/World of Warcraft}"
-# bake third-party guides from the local install so CompletionRoute is standalone (non-fatal if luajit/addons missing)
-command -v luajit >/dev/null && luajit "$(dirname "$0")/export_guides.lua" || true
 # Guides/ now holds a baked set per flavor (the retail install alone is ~30 MB); ship each client
 # only its own, or every game folder carries ~90 MB of other eras' guides it will never load.
 # Guard: Imported_Quests_*.lua are the community (Questie/Blizzard-POI) guides — generated, gitignored,
@@ -21,6 +19,10 @@ for f in Imported_Achievements_mop Imported_Achievements_retail Imported_Storyli
   [ -s "$SRC/Guides/$f.lua" ] || echo "install.sh: note: Guides/$f.lua missing - run tools/gen_completion_guides.py to add it" >&2
 done
 flavor_of() { case "$1" in _retail_) echo retail;; _classic_) echo mop;; _classic_era_) echo era;; _anniversary_) echo tbc;; *) echo retail;; esac; }
+# Commercial-derived guides must never be installed or shipped (Daniel, 2026-11-07).
+for f in "$SRC"/Guides/Imported_Legacy_* "$SRC"/Guides/Imported_Commercial_* "$SRC"/Adapters/Commercial.lua "$SRC"/Adapters/LegacyGuides.lua; do
+  if [ -e "$f" ]; then echo "install.sh: Commercial-derived file $f found - delete it first" >&2; exit 1; fi
+done
 for fl in "${@:-_anniversary_}"; do
   LEGACY="$WOW/$fl/Interface/AddOns/OpenRoute"
   if [ -d "$LEGACY" ]; then
@@ -32,7 +34,7 @@ for fl in "${@:-_anniversary_}"; do
   EXCL=()
   for other in era tbc mop retail; do
     [ "$other" = "$MINE" ] && continue
-    EXCL+=(--exclude "Guides/Imported_Legacy_$other.lua" --exclude "Guides/Imported_WoWPro_$other.lua"
+    EXCL+=(--exclude "Guides/Imported_WoWPro_$other.lua"
            --exclude "Guides/Imported_Achievements_$other.lua" --exclude "Guides/Imported_Storylines_$other.lua"
            --exclude "Guides/Imported_Missions_$other.lua")
   done

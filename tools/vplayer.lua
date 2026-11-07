@@ -116,8 +116,8 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
     "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
     "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
     "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
-    "Adapters/LegacyGuides.lua", "Adapters/WoWPro.lua",
-    ("Guides/Imported_Legacy_" .. flavor .. ".lua"), ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
+    "Adapters/WoWPro.lua",
+    ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
     "Guides/Imported_Quests_era.lua", "Guides/Imported_Quests_tbc.lua", "Guides/Imported_Quests_wotlk.lua",
     "Guides/Imported_Quests_cata.lua", "Guides/Imported_Quests_mop.lua", "Guides/Imported_Quests_retail.lua",
     ("Guides/Imported_Achievements_" .. flavor .. ".lua"), ("Guides/Imported_Storylines_" .. flavor .. ".lua"),
@@ -126,7 +126,6 @@ CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
 NS.db.profile.debug = false
 NS.Print, NS.Debug, NS.Error = function() end, function() end, function() end
-if NS.Adapters.LegacyGuides then pcall(NS.Adapters.LegacyGuides.ImportStatic) end
 pcall(NS.Adapters.WoWPro.ImportStatic)
 NS.TravelGraph.Build()
 

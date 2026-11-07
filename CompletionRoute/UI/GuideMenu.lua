@@ -106,7 +106,6 @@ local expanded = {}   -- [nodePath] = true
 local function srcColor(src)
     if src == "CompletionRoute" then return "|cff3ec6ff" end
     if src == "WoWPro" then return "|cffff9900" end
-    if src == "Legacy" then return "|cffffd200" end
     return "|cffaaaaaa"
 end
 
@@ -146,14 +145,6 @@ local function tex(path, size) return ("|T%s:%d:%d:0:-1|t"):format(path, size or
 
 -- Path of a guide inside the tree: { "Leveling", "Starter Guides (1-12)" } (leaf shown separately)
 local function guidePath(g)
-    local subPath = (g.id or ""):match("^legacy:(.+)")
-    if subPath then
-        local segs = {}
-        for seg in subPath:gmatch("[^\\]+") do segs[#segs + 1] = seg end
-        segs[#segs] = nil -- last segment is the guide itself
-        if segs[1] then segs[1] = normCat(segs[1]) else segs[1] = normCat(g.type) end
-        return segs
-    end
     local cat = normCat(g.type)
     local area = g.zone
     if type(area) == "number" then local mi = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(area) area = mi and mi.name end
