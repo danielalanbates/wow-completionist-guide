@@ -102,7 +102,10 @@ function I.Entrance(mapID)
         -- last fallback: the seeded door (Data/Imported_Entrances.lua, tools/gen_entrances.py), keyed by
         -- the interior map's name so every floor of a multi-level dungeon finds it
         local seed = NS.EntranceSeed and NS.EntranceSeed[U.MapName(mapID) or ""]
-        if seed then rec = { map = seed[1], x = seed[2], y = seed[3], name = U.MapName(mapID), src = "seed" } end
+        if seed then
+            local x, y = U.EraToForever(seed[1], seed[2], seed[3])   -- seeds are Era map points
+            rec = { map = seed[1], x = x, y = y, name = U.MapName(mapID), src = "seed" }
+        end
     end
     if not rec then return nil end
     local wx, wy, inst = U.World(rec.map, rec.x, rec.y)

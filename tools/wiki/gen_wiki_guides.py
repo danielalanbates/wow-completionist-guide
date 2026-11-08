@@ -5,7 +5,7 @@
 # https://batesai.org  help@batesai.org
 """Generate per-zone quest guides from the Warcraft Wiki (the source of truth), one file per client.
 
-    nice -n 10 python3 tools/wiki/gen_wiki_guides.py [era tbc mop retail] [--no-fallback]
+    nice -n 10 python3 tools/wiki/gen_wiki_guides.py [era tbc mop retail forever] [--no-fallback]
 
 Inputs : tools/wiki/wiki.sqlite (tools/wiki/parse_wiki.py), tools/db2/<flavor>/QuestV2.csv (+ retail
          QuestObjective.csv; tools/wiki/fetch_db2.py), tools/maps_<flavor>.lua, and - only to fill a step the wiki has
@@ -18,7 +18,7 @@ Outputs: CompletionRoute/Guides/Imported_Wiki_<flavor>.lua        the wiki guide
 All outputs are gitignored like every other Imported_* file.
 
 Flavor membership (docs/WIKI_DATA_SPEC.md 6): a wiki quest belongs to a client when its id is in that client's
-QuestV2, it never shipped-and-was-pulled (RemovedFromBeta/Alpha/PTR), it is not Forever-only or Season of Discovery,
+QuestV2, it never shipped-and-was-pulled (RemovedFromBeta/Alpha/PTR), it is not Forever-only (except on forever) or Season of Discovery,
 it was not removed at or before the client's game version ({{Classic only}}, {{Removed}}, ==Patch changes==), and
 its added patch fits the client.  When a quest id has several pages ("(Classic)", "(BC Classic)" twins) the page made
 for that client wins.
@@ -47,15 +47,25 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import wikimaps  # noqa: E402
+import gen_spine  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 WIKI = ROOT / "tools" / "wiki" / "wiki.sqlite"
 GUIDES = ROOT / "CompletionRoute" / "Guides"
 VERIF = ROOT / "docs" / "verification.sqlite"
-FLAVORS = ["era", "tbc", "mop", "retail"]
+FLAVORS = ["era", "tbc", "mop", "retail", "forever"]
+# WoW Forever (product wowf, 1.60.x): Era content (1.12 base + the 1.13-1.15 Era line) plus its own 1.60 additions
+# (Skyborne, Zephras Isle, Mount Hyjal, Riverglades, new class quests) on reshaped maps (tools/maps_forever.lua).
+# The client runs the era code path (Core/Init.lua: NS.flavor "era", NS.isForever).
+CLASSICISH = ("era", "tbc", "forever")
 # flavor -> (expansion number, last original patch it is built on)
-EXP = {"era": (1, (1, 12, 9)), "tbc": (2, (2, 4, 9)), "mop": (5, (5, 4, 9)), "retail": (99, (99, 0, 0))}
-CO_KEY = {"era": ("wow", "classic", "vanilla", "era"), "tbc": ("tbc", "bc"), "mop": ("mop",), "retail": ()}
+EXP = {"era": (1, (1, 12, 9)), "tbc": (2, (2, 4, 9)), "mop": (5, (5, 4, 9)), "retail": (99, (99, 0, 0)),
+       "forever": (1, (1, 12, 9))}
+CO_KEY = {"era": ("wow", "classic", "vanilla", "era"), "tbc": ("tbc", "bc"), "mop": ("mop",), "retail": (),
+          "forever": ("wow", "classic", "vanilla", "era", "forever")}
+# Forever has no Questie-derived Imported_Quests_forever.lua of its own: the fallback points and the _gaps guides
+# come from the era file (Era maps; reshaped maps are converted, see Gen.era_to_forever / Core/Util.lua).
+FALLBACK_OF = {"forever": "era"}
 SKIP_TYPES = re.compile(r"world quest|calling|emissary", re.I)
 DELIVERY = re.compile(r"^(speak|talk|report|return|bring|take|deliver|go|travel|meet|seek|find|visit|"
                       r"give|hand|show|tell|carry|ask)\b", re.I)
@@ -87,13 +97,13 @@ def patch_line(k):
 
 
 VARIANT_FOR = {
-    "classic": {"era", "tbc"}, "bc classic": {"tbc"}, "anniversary classic": {"tbc"},
+    "classic": {"era", "tbc", "forever"}, "bc classic": {"tbc"}, "anniversary classic": {"tbc"},
     "wrath classic": {"mop"}, "cata classic": {"mop"}, "mop classic": {"mop"},
-    "season of discovery": set(), "beta": set(), "alpha": set(), "forever": set(), "hardcore": set(),
+    "season of discovery": set(), "beta": set(), "alpha": set(), "forever": {"forever"}, "hardcore": set(),
 }
 VARIANT_PREF = {
     "era": ["classic"], "tbc": ["bc classic", "anniversary classic", "classic"],
-    "mop": ["mop classic", "cata classic", "wrath classic"], "retail": [],
+    "mop": ["mop classic", "cata classic", "wrath classic"], "retail": [], "forever": ["forever", "classic"],
 }
 
 
@@ -103,7 +113,7 @@ def membership(r, fl, qv2):
         return False, "not in QuestV2"
     if r["beta"]:
         return False, "removed from beta/alpha/ptr"
-    if r["forever"]:
+    if r["forever"] and fl != "forever":
         return False, "Forever only"
     if r["sod"]:
         return False, "Season of Discovery"
@@ -126,12 +136,15 @@ def membership(r, fl, qv2):
                 return False, f"removed {r['removed_patch']}"
             if line not in ("orig", None) and line == fl:
                 return False, f"removed {r['removed_patch']}"
+            # Forever was built from the Era line: an Era-line removal (1.13-1.15) is assumed to carry over
+            if fl == "forever" and line == "era":
+                return False, f"removed {r['removed_patch']} (Era line)"
         elif r["removed_flag"] and fl == "retail":
             return False, "removed"
     ak = pkey(r["added_patch"])
     if ak:
         line = patch_line(ak)
-        if line == "forever":
+        if line == "forever" and fl != "forever":
             return False, "added in Forever"
         if fl == "retail" and line != "orig":
             return False, f"added in Classic patch {r['added_patch']}"
@@ -141,7 +154,19 @@ def membership(r, fl, qv2):
             return False, f"added {r['added_patch']}"
         if fl == "mop" and not ((line == "orig" and ak <= vmax) or line in ("wrath", "cata", "mop")):
             return False, f"added {r['added_patch']}"
+        if fl == "forever" and not ((line == "orig" and ak <= vmax) or line in ("era", "forever")):
+            return False, f"added {r['added_patch']}"
     return True, ""
+
+
+def flavor_gate(fl):
+    """the flavor guard at the top of a generated file.  Forever runs NS.flavor "era", so the era files step aside
+    for Forever's own (NS.isForever) and the Forever files load nowhere else."""
+    if fl == "forever":
+        return "if not NS.isForever then return end"
+    if fl == "era":
+        return 'if NS.flavor ~= "era" or NS.isForever then return end'
+    return f'if NS.flavor ~= "{fl}" then return end'
 
 
 def clean(s, n=180):
@@ -157,9 +182,9 @@ class Fallback:
     """steps of Imported_Quests_<flavor>.lua indexed by quest id (used only where the wiki has no coordinates)"""
     RE_LINE = re.compile(r"^([ACT]) .*?\|QID\|(\d+)\|")
 
-    def __init__(self, fl):
+    def __init__(self, fl, convert=None):
         self.fl = fl
-        self.path = GUIDES / f"Imported_Quests_{fl}.lua"
+        self.path = GUIDES / f"Imported_Quests_{FALLBACK_OF.get(fl, fl)}.lua"
         self.q = defaultdict(lambda: {"A": None, "T": None, "C": {}})
         if not self.path.exists():
             print(f"  note: {self.path.name} missing - no fallback locations for {fl}")
@@ -174,11 +199,15 @@ class Fallback:
             if not (mm and zz):
                 continue
             note = (re.search(r"\|N\|([^|]*)\|", ln) or [None, ""])[1]
+            pts = mm.group(1)
+            if convert:
+                zid = re.match(r"\s*(\d+)", zz.group(1))
+                pts = convert(int(zid.group(1)) if zid else None, pts)
             if fl == "retail":
                 src = "Questie data" if "(Questie)" in note else "Blizzard data"
             else:
                 src = "Questie data"
-            rec = (mm.group(1), zz.group(1).strip(), src)
+            rec = (pts, zz.group(1).strip(), src)
             if act == "C":
                 qo = re.search(r"\|QO\|(\d+)\|", ln)
                 self.q[qid]["C"].setdefault(int(qo.group(1)) if qo else 0, rec)
@@ -230,6 +259,25 @@ class Gen:
         self.place_cache = {}
 
     # ---- locations ---------------------------------------------------------------------------------
+    def era_to_forever(self, mid, pts):
+        """'x,y;x,y' (percent) on an Era map -> the same places on the Forever map (only reshaped maps change)"""
+        a = self.atlas.sets["era"].maps.get(mid) if mid else None
+        b = self.atlas.sets["forever"].maps.get(mid) if mid else None
+        if not a or not b or not isinstance(a.get("w"), float) or not isinstance(b.get("w"), float):
+            return pts
+        if max(abs(a[k] - b[k]) for k in ("topX", "leftY", "w", "h")) < 0.5:
+            return pts
+        out = []
+        for pr in pts.split(";"):
+            try:
+                x, y = (float(v) / 100.0 for v in pr.split(","))
+            except ValueError:
+                out.append(pr)
+                continue
+            wx, wy = a["topX"] - y * a["h"], a["leftY"] - x * a["w"]
+            out.append(fmt_xy((b["leftY"] - wy) / b["w"] * 100.0, (b["topX"] - wx) / b["h"] * 100.0))
+        return ";".join(out)
+
     def resolve_title(self, t):
         if not t:
             return None, None
@@ -270,7 +318,7 @@ class Gen:
         def score(p):
             zone, x, y, src, badge, classic = p
             s = 0
-            if fl in ("era", "tbc"):
+            if fl in CLASSICISH:
                 s += 0 if classic else 2
                 if fl == "tbc" and "(burning crusade)" in zone.lower():
                     s -= 1
@@ -295,7 +343,7 @@ class Gen:
         if fl == "retail":
             return True
         e = EXP[fl][0]
-        if fl in ("era", "tbc"):
+        if fl in CLASSICISH:
             return bool(classic) or (0 < (badge or 0) <= e)
         return (not classic) and 0 < (badge or 0) <= e
 
@@ -320,7 +368,7 @@ class Gen:
     # ---- one client ---------------------------------------------------------------------------------
     def run(self, fl):
         maps = self.atlas.sets[fl]
-        fb = Fallback(fl) if self.use_fallback else None
+        fb = Fallback(fl, self.era_to_forever if fl == "forever" else None) if self.use_fallback else None
         st = Counter()
         skip = []
         by_id = defaultdict(list)
@@ -578,56 +626,32 @@ class Gen:
             hdr.append("-- Steps whose note says \"(location: Blizzard data)\" / \"(location: Questie data)\" took their map "
                        "point from Imported_Quests_" + fl + ".lua because the wiki has none; those points are not "
                        "wiki data. Regenerate with --no-fallback for a wiki-only file.")
-        hdr += ["local _, NS = ...", f'if NS.flavor ~= "{fl}" then return end', "local R = NS.Guide.Register", ""]
+        hdr += ["local _, NS = ...", flavor_gate(fl), "local R = NS.Guide.Register", ""]
         body = []
-        nguides = 0
-        for (hm, fac) in sorted(guides, key=lambda k: ((maps.maps.get(k[0]) or {"name": "~"})["name"], k[1])):
-            qs = guides[(hm, fac)]
-            order = sorted(qs, key=lambda q: (q[1] if q[1] is not None else 999, q[3], q[0]))
-            pos = {q[0]: i for i, q in enumerate(order)}
-            # stable topological pass: a quest never sits before its in-guide prerequisite
-            placed, emitted = set(), []
-            pending = list(order)
-            while pending:
-                progress = False
-                for q in list(pending):
-                    deps = [p for p in pre.get(q[0], ()) if p in pos and p not in placed]
-                    if not deps:
-                        emitted.append(q)
-                        placed.add(q[0])
-                        pending.remove(q)
-                        progress = True
-                        break
-                if not progress:
-                    emitted.extend(pending)
-                    break
-            lv = [q[1] for q in qs if q[1]]
-            lr = [q[2] for q in qs if q[2]]
-            lo = min(lr + lv) if (lr or lv) else None
-            # band = lowest requirement .. 90th-percentile quest level (one level-60 event quest in Elwynn
-            # should not make it a "1-60" zone)
-            hi = sorted(lv)[int(0.9 * (len(lv) - 1))] if lv else None
-            if hi is not None and lo is not None and hi < lo:
-                hi = lo
-            zname = maps.maps[hm]["name"] if hm in maps.maps else "Other Quests"
-            band = (f" {lo}-{hi}" if hi > lo else f" {lo}") if lo and hi else ""
-            flabel = "" if fac == "Both" else f" ({fac})"
-            gname = f"{zname} Quests{band}{flabel}".replace('"', '\\"')
-            zfield = str(hm) if hm in maps.maps else '"Other"'
-            facf = f'faction="{fac}", ' if fac != "Both" else ""
-            levels = f"minlevel={lo or 1}, maxlevel={hi or lo or 1}, "
-            body.append(f'R({{ id="wiki:{fl}:{hm}:{fac}", name="{gname}", type="Quests", zone={zfield}, {facf}{levels}'
-                        f'author="Warcraft Wiki contributors (CC BY-SA 4.0)", source="CompletionRoute", text=[==[')
-            for q in emitted:
-                body.extend(q[4])
+        # zone order, split of huge zone guides and the step order inside each guide: tools/wiki/gen_spine.py
+        parts, cycles = gen_spine.build_parts(fl, guides, pre, maps, chosen)
+        for p in parts:
+            gname = p["name"].replace('"', '\\"')
+            zfield = str(p["zone"]) if p["zone"] is not None else '"Other"'
+            facf = f'faction="{p["faction"]}", ' if p["faction"] != "Both" else ""
+            levels = f"minlevel={p['minlevel']}, maxlevel={p['maxlevel']}, "
+            # forever=true: the points are already on Forever's maps (Core/Guide.lua skips the Era->Forever remap)
+            native = "forever=true, " if fl == "forever" else ""
+            if p.get("oversize"):
+                native += f'oversize="{p["oversize"]}", '
+            body.append(f'R({{ id="{p["id"]}", name="{gname}", type="Quests", zone={zfield}, {facf}{levels}'
+                        f'{native}author="Warcraft Wiki contributors (CC BY-SA 4.0)", source="CompletionRoute", text=[==[')
+            body.extend(p["lines"])
             body.append("]==] })")
-            nguides += 1
+        nguides = len(parts)
         out.write_text("\n".join(hdr + body) + "\n", encoding="utf-8")
+        gen_spine.write_sidecar(fl, parts, pre, cycles)
         st["guides"] = nguides
+        st["zone_guides"] = len(guides)
         st["file_kb"] = out.stat().st_size // 1024
 
         # ---- gaps file: the old generated guides minus the quests the wiki now covers ------------------
-        old = GUIDES / f"Imported_Quests_{fl}.lua"
+        old = GUIDES / f"Imported_Quests_{FALLBACK_OF.get(fl, fl)}.lua"
         gap_out = GUIDES / f"Imported_Quests_{fl}_gaps.lua"
         kept_q, dropped_q = set(), set()
         if old.exists():
@@ -654,9 +678,11 @@ class Gen:
                     continue
                 if ln.startswith("-- "):
                     continue
+                if re.match(r'^if NS\.flavor ~= "\w+" then return end$', ln):
+                    ln = flavor_gate(fl)
                 res.append(ln)
             gap_hdr = [f"-- Imported_Quests_{fl}_gaps.lua - GENERATED {today} by tools/wiki/gen_wiki_guides.py from "
-                       f"Imported_Quests_{fl}.lua:",
+                       f"Imported_Quests_{FALLBACK_OF.get(fl, fl)}.lua:",
                        "-- the same guides with every quest that Imported_Wiki_" + fl + ".lua covers removed, so no quest is "
                        "listed twice. Local use only - gitignored (source data: "
                        + ("Blizzard quest POI + Questie" if fl == "retail" else "Questie, GPL") + ")."]
@@ -707,6 +733,9 @@ def main():
               f"{st['steps_fallback']} ({100*st['steps_fallback']/s:.1f}%), none {st['steps_none']} "
               f"({100*st['steps_none']/s:.1f}%); DB2-only gap {st['db2_only_gap']}; old guides: "
               f"{st['old_quests_now_wiki']} quests now from wiki, {st['gap_quests_kept']} kept in _gaps; {st['file_kb']} KB")
+        print(f"       zone guides {st['zone_guides']} -> {st['guides']} guides after splitting (gen_spine.MAX_STEPS)")
+        if "--no-spine" not in sys.argv:
+            gen_spine.build_spine(fl, flavor_gate(fl))
     c = g.write_conflicts(flavors)
     print("conflicts logged (docs/verification.sqlite wiki_db2_conflict):", dict(c))
 

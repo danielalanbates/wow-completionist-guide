@@ -13,7 +13,13 @@ local FLAVORS = {
     { toc = "CompletionRoute_Mists.toc",   tocver = 50501,  name = "mists" },
     { toc = "CompletionRoute_TBC.toc",     tocver = 20504,  name = "tbc-anniversary" },
     { toc = "CompletionRoute_Vanilla.toc", tocver = 11507,  name = "era" },
+    -- WoW Forever (wowf 1.60.x): era code path, its own data set.  _Camelot.toc is the same file under the
+    -- client's internal suffix (validate_toc.lua checks they are identical).
+    { toc = "CompletionRoute_Forever.toc", tocver = 16001,  name = "forever", flavor = "era", forever = true, data = "forever" },
+    { toc = "CompletionRoute_Camelot.toc", tocver = 16001,  name = "forever-camelot", flavor = "era", forever = true, data = "forever" },
 }
+-- expected flavor detection (Core/Init.lua) per TOC
+local EXPECT = { retail = "retail", mists = "mop", ["tbc-anniversary"] = "tbc", era = "era" }
 
 -- callable stub whose every field is another stub; tostring/number-safe
 local function mkstub()
@@ -72,7 +78,7 @@ for _, fl in ipairs(FLAVORS) do
     for _, rel in ipairs(files) do
         if rel:match("^Libs/") then
             loaded = loaded + 1 -- third-party libs need a real client env; not our code under test
-        elseif (rel:match("^Guides/Imported_") or rel:match("^Data/Imported_")) and not io.open("CompletionRoute/" .. rel, "r") then
+        elseif (rel:match("^Guides/Imported_") or rel:match("^Data/Imported_") or rel:match("^Data/RouteOrder_")) and not io.open("CompletionRoute/" .. rel, "r") then
             loaded = loaded + 1 -- baked locally, gitignored; absent in CI checkouts
         elseif rel:match("%.lua$") then
             local chunk, err = loadfile("CompletionRoute/" .. rel)
@@ -87,6 +93,32 @@ for _, fl in ipairs(FLAVORS) do
         else
             loaded = loaded + 1 -- .xml: existence already checked by validate_toc
         end
+    end
+    -- flavor detection + the data set this client must see
+    local wantFlavor = fl.flavor or EXPECT[fl.name]
+    local wantData = fl.data or wantFlavor
+    if NS.flavor ~= wantFlavor or (NS.isForever and true or false) ~= (fl.forever or false) or NS.dataFlavor ~= wantData then
+        print(("FAIL %-16s flavor detection: flavor=%s isForever=%s dataFlavor=%s (want %s/%s/%s)"):format(fl.name,
+            tostring(NS.flavor), tostring(NS.isForever), tostring(NS.dataFlavor), wantFlavor, tostring(fl.forever or false), wantData))
+        failed = failed + 1
+    end
+    if not (NS.TaxiData and NS.TaxiData[wantData]) then
+        print(("FAIL %-16s no NS.TaxiData[%s]"):format(fl.name, wantData)) failed = failed + 1
+    end
+    if fl.forever then
+        if not (NS.ForeverMapFix and next(NS.ForeverMapFix)) then print(("FAIL %-16s NS.ForeverMapFix missing"):format(fl.name)) failed = failed + 1 end
+        -- the era wiki/gaps files must step aside on Forever and the Forever files must register (when baked)
+        local nf, ne = 0, 0
+        for id in pairs(NS.Guide and NS.Guide.registry or {}) do
+            if type(id) == "string" then
+                if id:match("^wiki:forever:") then nf = nf + 1 elseif id:match("^wiki:era:") then ne = ne + 1 end
+            end
+        end
+        if ne > 0 then print(("FAIL %-16s %d era wiki guides registered on Forever"):format(fl.name, ne)) failed = failed + 1 end
+        if io.open("CompletionRoute/Guides/Imported_Wiki_forever.lua", "r") and nf == 0 then
+            print(("FAIL %-16s no Forever wiki guides registered"):format(fl.name)) failed = failed + 1
+        end
+        print(("     %-16s %d Forever wiki guides registered"):format(fl.name, nf))
     end
     print(("%-4s %-16s %d/%d files load clean"):format(failed == 0 and "OK" or "FAIL", fl.name, loaded, #files))
     if failed > 0 then anyfail = true end

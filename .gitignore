@@ -26,6 +26,7 @@ app/*.app/
 # Blizzard client-data exports used by tools/coverage.py + tools/gen_completion_guides.py (regenerate from wago.tools)
 tools/db2/*/QuestV2.csv
 tools/db2/*/QuestLine*.csv
+tools/db2/*/Campaign*.csv
 tools/db2/*/Achievement*.csv
 tools/db2/*/Criteria*.csv
 tools/db2/*/GarrMission.csv
@@ -52,3 +53,6 @@ tools/db2/*/BUILD
 # SQL chart: local + Drive only. Holds Questie-derived fallback coordinates (all rights reserved), so never commit it.
 docs/verification.sqlite
 docs/verification.sql
+
+# baked route orders (tools/optimize_routes.py from tools/cost_matrix.lua; regenerate, built on the generated guides)
+CompletionRoute/Data/RouteOrder_*.lua

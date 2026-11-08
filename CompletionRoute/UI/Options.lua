@@ -42,6 +42,15 @@ check("Pointer: hand in your class colour (off = chevron arrow)",
     function(v) P().arrow.style = v and "hand" or "arrow" end)
 check("Lock guide window", function() return P().frame.lock end, function(v) P().frame.lock = v end)
 check("Route optimizer: reorder upcoming steps by travel time", function() return P().routing.reorder end, function(v) P().routing.reorder = v NS.Progress.Refresh() end)
+check("Route optimizer: use the pre-computed fastest order for quest guides", function() return P().routing.baked ~= false end, function(v)
+    P().routing.baked = v
+    -- the order is applied when a guide is parsed: drop the parses it changes and reload the open guide
+    for _, id in ipairs(NS.Guide.list) do
+        local g = NS.Guide.registry[id]
+        if g and g.steps and (g.baked or (NS.RouteOrder and (NS.RouteOrder[id] or (g.part and NS.RouteOrder[g.part])))) then g.steps = nil end
+    end
+    if NS.Progress.guide then NS.Progress.Load(NS.Progress.guide.id) end
+end, "Data/RouteOrder: each quest guide's steps solved offline for the least travel time (A before C before T, prerequisites, quest log size and level kept). Off = the guide's own order.")
 check("Routing: use flight paths", function() return P().routing.taxi end, function(v) P().routing.taxi = v NS.Router.Invalidate() end)
 check("Routing: prefer flight paths (comfort mode)", function() return P().routing.preferTaxi end, function(v) P().routing.preferTaxi = v NS.Router.Invalidate() end, "Favors comfortable automated flight paths over manual flying.")
 check("Routing: route by every flight path your faction can use (off = only ones you have learned)", function() return NS.TravelGraph.TaxiPolicy() == "faction" end, function(v) P().routing.taxiPolicy = v and "faction" or "known" P().routing.assumeAllTaxi = nil NS.Router.Invalidate() end, "A flight you have not learned yet is labelled (new flight path); the route still walks you to the right flight master.")

@@ -25,8 +25,14 @@ BUILDS = {
     "tbc": ("wow_anniversary", "2.5.6.70577"),
     "mop": ("wow_classic", "5.5.4.70631"),
     "retail": ("wow", "12.1.5.70783"),
+    # WoW Forever: own product "wowf" (1.60.x, Interface 16001), Era content on the modern client. Pinned to the
+    # build installed in _forever_/.build.info on 2026-11-07.
+    "forever": ("wowf", "1.60.1.70790"),
 }
-TABLES = {"era": ["QuestV2"], "tbc": ["QuestV2"], "mop": ["QuestV2"], "retail": ["QuestV2", "QuestObjective"]}
+TABLES = {"era": ["QuestV2"], "tbc": ["QuestV2"], "mop": ["QuestV2"], "retail": ["QuestV2", "QuestObjective",
+          # storyline splits + campaign order for tools/wiki/gen_spine.py
+          "QuestLine", "QuestLineXQuest", "Campaign", "CampaignXQuestLine"],
+          "forever": ["QuestV2"]}
 
 
 def main():

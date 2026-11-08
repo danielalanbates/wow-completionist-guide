@@ -17,6 +17,15 @@ elseif toc >= 30000 then NS.flavor = "wrath"
 elseif toc >= 20000 then NS.flavor = "tbc"
 else NS.flavor = "era" end
 NS.isClassic = toc < 100000
+-- WoW Forever (product wowf, client 1.60.x, Interface 16001): Era content on the modern client.  It runs the era
+-- code path (NS.flavor == "era": era guides, no flying, Classic speeds) with its own data where Forever differs:
+-- QuestV2 (+1,811 quest ids), taxi nodes (Mount Hyjal, Riverglades, Zephras Isle) and four reshaped zone maps
+-- (Data/MapFix_forever.lua).  NS.dataFlavor names the data set ("forever"); NS.flavor stays "era".
+-- WOW_PROJECT_ID alone cannot tell (Forever reports its own WOW_PROJECT_CAMELOT on newer builds, and Questie notes
+-- builds that share Retail's id), so the interface range decides, with the constant as a second signal.
+NS.isForever = (toc >= 16000 and toc < 17000) or (WOW_PROJECT_CAMELOT ~= nil and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT)
+if NS.isForever then NS.flavor = "era" end
+NS.dataFlavor = NS.isForever and "forever" or NS.flavor
 
 -- ---------------------------------------------------------------------------
 -- Defaults
@@ -26,7 +35,7 @@ NS.defaults = {
         arrow = { enabled = true, scale = 1.0, alpha = 1.0, lock = false, x = 0, y = -180, point = "TOP",
                   style = "hand" },   -- "hand": pointing hand in your class colour; "arrow": the old chevron
         frame = { scale = 1.0, alpha = 0.95, width = 320, height = 300, showSteps = 6, lock = false, x = 0, y = 0, point = "CENTER" },
-        routing = { enabled = true, reorder = true, hearth = true, taxi = true, transit = true, window = 12,
+        routing = { enabled = true, reorder = true, baked = true, hearth = true, taxi = true, transit = true, window = 12,
                     runSpeed = 7, mountSpeed = nil, terrainFactor = 1.25, taxiSpeed = 32,
                     taxiPolicy = "faction",   -- "faction": any flight master your faction can use; "known": learned only
                     preferTaxi = false,       -- comfort mode: favors flight paths when available
@@ -158,5 +167,5 @@ end
 
 NS:RegisterEvent("PLAYER_LOGIN", function()
     NS:Fire("PLAYER_READY")
-    NS:Print("v" .. NS.version .. " loaded (" .. NS.flavor .. "). Type /cr for help (/or still works).")
+    NS:Print("v" .. NS.version .. " loaded (" .. (NS.isForever and "forever" or NS.flavor) .. "). Type /cr for help (/or still works).")
 end)

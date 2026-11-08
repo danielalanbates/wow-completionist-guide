@@ -97,14 +97,19 @@ function P.Skip(step) if step then charReopened()[step.index] = nil charSkipped(
 -- made Back appear to do nothing.  Reopened steps are pinned (see charReopened) until ticked forward again.
 function P.Undo()
     local d, s = charDone(), charSkipped()
-    local limit = P.current and P.current.index or math.huge
+    -- "before" = earlier in the displayed step list, which is not index order once a baked route order
+    -- (Data/RouteOrder_<flavor>.lua) has permuted the guide; indices only identify the step
+    local pos = {}
+    for k, st in ipairs(P.steps or {}) do pos[st.index] = k end
+    local function at(idx) return pos[idx] or idx end
+    local limit = P.current and at(P.current.index) or math.huge
     local best
-    local function consider(idx) if idx < limit and (not best or idx > best) then best = idx end end
+    local function consider(idx) if at(idx) < limit and (not best or at(idx) > at(best)) then best = idx end end
     for idx in pairs(d) do consider(idx) end
     for idx in pairs(s) do consider(idx) end
     if not best then   -- nothing before the current step: fall back to the newest done step anywhere
-        for idx in pairs(d) do if not best or idx > best then best = idx end end
-        for idx in pairs(s) do if not best or idx > best then best = idx end end
+        for idx in pairs(d) do if not best or at(idx) > at(best) then best = idx end end
+        for idx in pairs(s) do if not best or at(idx) > at(best) then best = idx end end
     end
     if not best then return end
     charReopened()[best] = true

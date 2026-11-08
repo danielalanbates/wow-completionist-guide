@@ -34,10 +34,10 @@ Rewritten 2026-11-07 from Daniel's decisions. Status of each milestone is in [ST
 | M | Content | Exit criteria |
 |---|---|---|
 | M0 | Clean repo | 0 third-party guide artifacts in tree or history; one canonical tree in Drive; TOCs pass `validate_toc.lua` |
-| M1 | W1 wiki guides on 4 flavors | all test harnesses pass; `coverage` rows per flavor; spot-check vs wiki pages |
-| M2 | W7 Forever | Forever TOC loads in stub test; installed on the Forever client |
-| M3 | W2 spine | generated leveling order for every zone with wiki quests |
-| M4 | W5 + W3 | `route_compare` filled; quest guides ≥30% faster than author order; 0 violations |
+| M1 | W1 wiki guides on 4 flavors (**done 2026-11-07**) | all test harnesses pass; `coverage` rows per flavor; spot-check vs wiki pages |
+| M2 | W7 Forever | Forever TOC loads in stub test; installed on the Forever client — **done 2026-11-08 (offline; not yet loaded in client)** |
+| M3 | W2 spine | generated leveling order for every zone with wiki quests — **done 2026-11-08** (0 PRE violations; level-gate revisit open) |
+| M4 | W5 + W3 | `route_compare` filled; quest guides ≥30% faster than author order; 0 violations — **partial 2026-11-08**: 0 violations, model 21–29% median, in-game +5–13% over live window; mop/retail sampled only |
 | M5 | W4 | CPU p95 ≤ 3 ms; recovery within 10% of re-solved optimum |
 | M6 | W6 | routable `no_route` = 0; achievements located ≥80% |
 | M7 | Daniel beta | beta .app installed; Daniel's reports triaged into `beta_reports` |

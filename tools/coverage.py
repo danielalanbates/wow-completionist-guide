@@ -27,7 +27,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DB2 = ROOT / "tools" / "db2"
-FLAVORS = ["era", "tbc", "mop", "retail"]
+FLAVORS = ["era", "tbc", "mop", "retail", "forever"]
+# WoW Forever loads the era WoW-Pro adapter file (CompletionRoute_Forever.toc)
+WOWPRO_OF = {"forever": "era"}
 
 # what each client loads (TOC order).  Quests: Imported_Wiki_<fl> (Warcraft Wiki) + Imported_Quests_<fl>_gaps
 # (tools/wiki/gen_wiki_guides.py); a tree generated before the wiki pipeline only has Imported_Quests_<fl>.
@@ -35,7 +37,7 @@ def guide_files(gdir, fl):
     quests = [f"Imported_Wiki_{fl}.lua", f"Imported_Quests_{fl}_gaps.lua"]
     if not any((gdir / n).exists() for n in quests):
         quests = [f"Imported_Quests_{fl}.lua"]
-    names = [f"Imported_WoWPro_{fl}.lua"] + quests + [
+    names = [f"Imported_WoWPro_{WOWPRO_OF.get(fl, fl)}.lua"] + quests + [
              f"Imported_Achievements_{fl}.lua", f"Imported_Storylines_{fl}.lua", f"Imported_Missions_{fl}.lua"]
     out = [gdir / n for n in names if (gdir / n).exists()]
     out += sorted((gdir / "Leveling").glob("*.lua"))

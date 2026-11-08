@@ -16,7 +16,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-SETS = ("era", "tbc", "mop", "retail")
+SETS = ("era", "tbc", "mop", "retail", "forever")
 RE_MAP = re.compile(r'\[(\d+)\] = \{ "((?:[^"\\]|\\.)*)", (-?\d+), (-?[\d.]+), (-?[\d.]+), (-?[\d.]+), (-?[\d.]+), '
                     r'(\d+), (\d+) \}')
 CAPITALS = {"Stormwind City", "Orgrimmar", "Ironforge", "Undercity", "Thunder Bluff", "Darnassus", "The Exodar",
@@ -183,7 +183,9 @@ class Atlas:
 
     def source_set(self, zone, page_classic):
         z = (zone or "").lower()
-        if "(classic)" in z or "(forever)" in z or "(season of discovery)" in z:
+        if "(forever)" in z:
+            return "forever"   # written on Forever's own (partly reshaped) maps
+        if "(classic)" in z or "(season of discovery)" in z:
             return "era"
         if "(burning crusade)" in z or "(bc classic)" in z:
             return "tbc"

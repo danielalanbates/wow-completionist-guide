@@ -111,7 +111,7 @@ Location: exploration criteria link to subzone pages. Quest criteria resolve thr
 | tbc | `wow_anniversary` | 2.5.6.70577 | 6,160 | `...?product=wow_anniversary` |
 | mop | `wow_classic` | 5.5.4.70631 | 17,140 | `...?product=wow_classic` |
 | retail | `wow` | 12.1.5.70783 | 66,552 | `...?product=wow` |
-| (forever) | `wowf` | 1.60.1.70862 | 6,626 | `...?product=wowf` (no TOC yet) |
+| forever | `wowf` | 1.60.1.70790 (pinned: the installed client) | 6,616 | `...?product=wowf` (`CompletionRoute_Forever.toc`) |
 
 Pin the build when generating: `?build=<version>` (from `https://wago.tools/api/builds`, key → list, newest first).
 QuestV2 is cumulative. It keeps removed IDs: all 36 sampled `Classic only|4.0.3a` quests were also in the mop and retail QuestV2.

@@ -130,3 +130,33 @@ SELECT flavor, COUNT(*) AS guides, SUM(steps) AS steps,
        SUM(CASE WHEN opt_cost > author_cost + 1 THEN 1 ELSE 0 END) AS slower_windows
 FROM route_sweep GROUP BY flavor ORDER BY flavor;
 ```
+
+## Tier A: offline route optimizer (FINISH_PLAN W3, 2026-11-07)
+
+Bakes, per quest guide (wiki zone guides `wiki:*` + gaps guides `qdb:*`/`qpoi:*`), the fastest legal step order.
+
+1. `luajit tools/cost_matrix.lua <fl> [--sample K] [--guide ID] [--exact]` loads the real addon (parser, TravelGraph
+   with the flavor's taxi/transit/roads/access, Router) and writes one JSON line per guide to
+   `~/.claude/jobs/.../tmp/costmx/<fl>.jsonl` (never the repo): the parsed steps and the travel-seconds matrix between
+   the guide's distinct step locations, plus a start column from the guide zone's centre (where vplayer starts).
+   Costs = `Router.TravelSeconds` (walk < 700 yd, else FindPath with taxi/boats/portals/roads; **no hearth** - the
+   pairwise router never spends the one-shot hearth). Default mode runs FindPath's search once per source point
+   (same graph, rules and walk costs) instead of once per pair; every guide re-checks 200 random pairs against
+   `Router.TravelSeconds` and records the largest difference (`verify_maxdiff`; 0.000 s on every run so far).
+2. `venv/bin/python tools/optimize_routes.py <fl>` (OR-Tools 9.15 in `../venv`, python 3.12 via uv). Model per
+   guide: blocks = a located step + the unlocated steps after it; anchors (non-routable / sticky steps) cut the guide
+   into independently solved segments. Hard rules: A < C < T per quest, PRE turn-in < accept (only edges the author
+   order keeps), quest log <= 20 (era/forever) / 25 (tbc/mop) / 35 (retail) or the author's own peak, level gates
+   (a step above the start level needs as many turn-ins before it as the author needed before its first step of that
+   level). Solve: feasible nearest-neighbour vs author order -> OR-Tools routing (order/log/turn-in dimensions, guided
+   local search, 2 s + 0.1 s/block, max 30 s) -> exact DP over precedence-closed subsets on the metric closure of the
+   costs (<= 90 blocks, 6 s): when it finishes its optimum is a true lower bound (`lb_exact`), otherwise the bound is
+   max(assignment, MST, Held-Karp) and ignores precedence (loose). Writes `Data/RouteOrder_<fl>.lua` (gitignored;
+   only guides the bake makes > 1 s faster) as `O[id] = { n, sum, o = "1-5,9,6-8" }`.
+3. `Core/Guide.lua G.Steps` permutes a guide's parsed steps when `n` and the checksum still match (`G.BakedOrder`;
+   spine entries look up their `part`). `s.index` stays the author index, so saved progress never moves;
+   `P.Undo` compares display positions. Option "use the pre-computed fastest order" = `routing.baked`. The live
+   12-step window (`Router.OrderSteps`) still runs on top.
+4. Measure: `luajit tools/vplayer.lua <fl> --guides-file F --order author|baked --live on|off`, then
+   `python3 tools/collect_routes.py collect` -> `route_compare`, `opt_violations` in `docs/verification.sqlite`.
+   Check: `luajit tools/test_route_order.lua`.
