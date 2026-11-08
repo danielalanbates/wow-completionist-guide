@@ -39,3 +39,16 @@ tools/db2/*/Taxi*.csv
 # quest location audit inputs (derived, regenerate with tools/questie_spawns.lua / dump_quest_steps.lua)
 tools/db2/questie_spawns.tsv
 tools/db2/retail/quest_steps_dump.tsv
+
+# Warcraft Wiki raw cache (CC BY-SA 4.0 source, regenerate: tools/wiki/fetch_wiki.py)
+tools/wiki/cache/
+
+# parsed Warcraft Wiki tables (CC BY-SA 4.0 derived, regenerate: tools/wiki/parse_wiki.py)
+tools/wiki/wiki.sqlite
+tools/wiki/__pycache__/
+tools/db2/*/QuestObjective.csv
+tools/db2/*/BUILD
+
+# SQL chart: local + Drive only. Holds Questie-derived fallback coordinates (all rights reserved), so never commit it.
+docs/verification.sqlite
+docs/verification.sql

@@ -1,12 +1,92 @@
-# Status / handoff (2026-11-07, Commercial removed, wiki becomes source of truth)
+# Status / handoff (2026-11-07, wiki pipeline built: Warcraft Wiki → quest guides on all four clients)
 
-* **Daniel's directive (2026-11-07): nothing from Commercial, ever.** Removed `Adapters/Commercial.lua`, `Adapters/LegacyGuides.lua`,
-  `tools/export_guides.lua`, every `Imported_Commercial_*` / `Imported_Legacy_*` bake, `Data/QuestCoordFixes_retail.lua`
-  (it was keyed on Commercial step coordinates), and every sweep/audit TSV/CSV/SQL that carried Commercial guide titles. Purged
-  from the **entire git history** with `git filter-repo` (repo 256 MB → 4 MB) and force-pushed. `tools/install.sh`
-  refuses to install if any Commercial-derived file reappears. "legacy" in older sections below = Commercial-derived.
-* All numbers in older sections were measured WITH commercial guides loaded and are no longer valid. `docs/verification.sqlite`
-  must be rebuilt from community-only guides.
+* **Pipeline** (`tools/wiki/`, see [tools/wiki/README.md](../tools/wiki/README.md)):
+  `fetch_wiki.py` (148,223 infobox pages) → `fetch_titles.py` (+16,056 linked pages: items, objects, places,
+  redirects; 383 requests) → `parse_wiki.py` → `wiki.sqlite` → `fetch_db2.py` (pinned QuestV2 per flavor) →
+  `gen_wiki_guides.py` → `Guides/Imported_Wiki_<fl>.lua` (CC BY-SA 4.0 header) + `Imported_Quests_<fl>_gaps.lua`.
+  Everything generated is gitignored.
+* **Parse rates** (40,357 Questbox pages): 2,488 are faction-disambiguation pages without a box, 168 have no id.
+  That leaves 38,058 quest rows (37,297 ids). The start is linked on 81.5% and has its own `{{co}}` on 18.6%. Any
+  start coordinate (own or on the linked page) exists for 43.4%. `previous` resolves to an id on 20,360 of 21,107.
+  There are 51,803 objective bullets. NPC pages carry coordinates only 16.1% of the time, object pages 29.5%.
+* **Per flavor** (steps = A + C + T lines). Coordinate source is wiki, fallback (Imported_Quests_<fl>, note-tagged),
+  or none:
+
+  | Flavor | QuestV2 | Wiki-assigned | Guides | Steps | Wiki coords | Fallback | None | QuestV2 with no wiki page |
+  |---|---:|---:|---:|---:|---:|---:|---:|---:|
+  | era | 4,807 | 3,299 | 131 | 9,712 | 3,111 (32.0%) | 5,497 (56.6%) | 1,104 (11.4%) | 816 |
+  | tbc | 6,160 | 5,021 | 169 | 14,900 | 5,178 (34.8%) | 8,364 (56.1%) | 1,358 (9.1%) | 854 |
+  | mop | 17,140 | 10,562 | 264 | 32,090 | 12,777 (39.8%) | 17,604 (54.9%) | 1,709 (5.3%) | 2,896 |
+  | retail | 66,552 | 26,642 | 467 | 87,726 | 35,063 (40.0%) | 27,882 (31.8%) | 24,781 (28.2%) | 31,662 |
+
+  * **Fallback sources.** Retail: 25,137 Blizzard POI and 2,747 Questie. Classic: all Questie.
+  * **Version overrides.** Some fallback steps replaced a wiki point that was written for another game version
+    and sat more than 300 yd from the client data: era 768, tbc 1,048, mop 2,453.
+  * **Agreement check.** Where both sources place a giver or ender on the same continent, the wiki point and the
+    old generated point agree within 50 yd for 81% (era), 86% (tbc), 94% (mop) and 76% (retail) of steps. Median
+    gap is 4 to 7 yd.
+* **Coverage** (`tools/coverage.py --label wiki-2026-11-07`, QuestV2 ids in a loaded guide): era 3,565 (74.2%),
+  tbc 5,845 (94.9%), mop 16,562 (96.6%), retail 34,249 (51.5%). No quest that the old generated guides covered was
+  lost. Retail quest guides went from 21,140 to 29,334 ids.
+* **No duplicates.** The TOCs, `install.sh` (`--delete-excluded`; full `Imported_Quests_*` never shipped),
+  `coverage.py`, `vplayer.lua`, `route_sweep.lua` and `audit_guides.lua` load `Imported_Wiki_<fl>` +
+  `Imported_Quests_<fl>_gaps`. Of the old quests, 3,288 (era), 5,012 (tbc), 10,544 (mop) and 18,448 (retail) now
+  come from the wiki.
+* **SQL.** `docs/verification.sqlite` `wiki_db2_conflict` holds:
+  * 165 era `membership` rows (wiki says vanilla, era client lacks the id);
+  * 114 retail `objective_count` rows (`QO` dropped);
+  * 694 retail `turnin_xy` rows (wiki ender over 50 yd from the POI pin);
+  * `*_xy_version` rows.
+
+  `wiki.sqlite` holds `flavor_quests`, `flavor_gap`, `flavor_skip` and `gen_stats`.
+* **Achievements** are parsed into SQL (9,157 with an id). The wiki criteria have no criterion ids and no
+  coordinates, so the DB2 achievement guides stay (see tools/wiki/README.md).
+* **Tests:** `test_offline`, `test_farm`, `test_access`, `test_load_all` and `validate_toc` pass. New:
+  `tools/test_wiki.lua`. It checks that all four wiki files parse (0 unparsable lines), are flavor-gated and carry
+  the attribution header. It also checks era quest 7 Kobold Camp Cleanup: an A step at Marshal McBride 48.9,41.6
+  Elwynn (PRE 783), a C step for Kobold Vermin at 50.0,36.6 (from the Classic mob page), and a T step.
+  `vplayer` played the wiki guides as both factions:
+
+  | Flavor | Guides | Finished | Stalls | no_route steps |
+  |---|---:|---:|---:|---:|
+  | era | 175 (all) | 175 | 0 | 78 |
+  | tbc | 225 (all) | 225 | 0 | 24 |
+  | mop | 176 (every second guide) | 176 | 0 | 177 |
+  | retail | 161 (every fourth guide) | 160 | 0 | 261 |
+
+  The one unfinished retail guide is "Revendreth Quests 57" (1,359 steps). It hit vplayer's per-guide time cap; it
+  did not stall. Very large single-zone guides should be split, by storyline or level band.
+* **Known gaps:**
+  * Classic coordinates are thin on the wiki (NPC pages are retail-first), so era/tbc lean on the Questie fallback.
+    The pure-wiki file (`--no-fallback`) would have only 32–40% of steps located, depending on the flavor.
+  * Subzone/place pages are only fetched when linked directly.
+  * `(provided)` / item-drop resolution depends on the item page listing its sources.
+  * World quests, callings and emissary quests are excluded (2,856 retail).
+  * Season of Discovery pages are excluded from era (637).
+  * Forever has no TOC yet.
+* **Independent re-verification (same day):** all six harnesses pass again. The vplayer sample in
+  `docs/vplayer_<fl>.tsv` / `verification.sqlite` (`tools/collect_vplayer.py`):
+
+  | Flavor | Guides | Finished | Stalls | no_route steps | Notes |
+  |---|---:|---:|---:|---:|---|
+  | era | 131 | 131 | 0 | 78 | |
+  | tbc | 150 | 150 | 0 | 24 | |
+  | mop | 150 | 150 | 0 | 146 | |
+  | retail | 150 (every third) | 135 | 0 | 168 | 15 hit the `--guidecap 60` time cap (large zones, 169–1,342 steps); none stalled |
+
+  `docs/verification.sqlite` `coverage` rows per flavor carry `wiki` / `after` / `before` labels with the
+  wiki-vs-fallback location split; `wiki_gaps` 36,228 rows, `wiki_vs_db2` 12,296, `wiki_db2_conflict` 5,242.
+  No row in it or in any tracked file names a third-party guide. The `.sqlite` is gitignored (local + Drive
+  only) because its Classic fallback columns hold Questie-derived coordinates, which may not be published.
+
+# Status / handoff (2026-11-07, third-party guides removed, wiki becomes source of truth)
+
+* **Daniel's directive (2026-11-07): community sources only.** Every adapter, bake, export tool, coordinate-fix table and
+  sweep/audit output that carried third-party (commercial) guide content was removed and purged from the **entire git
+  history** with `git filter-repo`, then force-pushed. `tools/install.sh` installs only allowlisted generated guides
+  and adapters. "legacy" in older sections below = that removed content.
+* All numbers in older sections were measured with those guides loaded and are no longer valid. `docs/verification.sqlite`
+  is rebuilt from community-only guides.
 * **Source of truth for quest data = Warcraft Wiki (warcraft.wiki.gg, CC BY-SA 4.0)**: 40,357 pages carry `{{Questbox}}`
   (id, faction, level, start/end NPC, previous/next chain); 84,575 `{{Npcbox}}` pages carry `{{Coords|x|y|zone}}`.
   Blizzard client data (wago.tools DB2) fills objective areas. Wiki-derived data files must be CC BY-SA 4.0 with

@@ -1,0 +1,35 @@
+# Warcraft Wiki data: licence and attribution
+
+The files `Imported_Wiki_era.lua`, `Imported_Wiki_tbc.lua`, `Imported_Wiki_mop.lua` and `Imported_Wiki_retail.lua`
+in this folder hold quest data from **Warcraft Wiki** (<https://warcraft.wiki.gg>), written by the Warcraft Wiki
+contributors. That data covers quest names and ids, quest givers and enders, quest chains, objectives, faction, race,
+class and level requirements, and map coordinates.
+
+* **Source:** Warcraft Wiki, <https://warcraft.wiki.gg>. Each quest's authors are in the history of its page,
+  `https://warcraft.wiki.gg/wiki/<Quest title>` (the `page_title` column in `tools/wiki/wiki.sqlite`).
+* **Licence:** Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0),
+  <https://creativecommons.org/licenses/by-sa/4.0/>.
+* **Changes:** these files were made with `tools/wiki/parse_wiki.py` and `tools/wiki/gen_wiki_guides.py`. The wikitext
+  was turned into the guide step format (`docs/GUIDE_FORMAT.md`): coordinates were moved onto each game client's
+  map IDs, objectives became steps, and the wiki's `previous`/`next` links became `PRE` tags. Which quests appear in
+  which game version was checked against Blizzard's client quest table (QuestV2, via wago.tools). That table supplies
+  facts only, not wiki text.
+* **ShareAlike:** if you redistribute these data files, or anything adapted from them, you must use CC BY-SA 4.0 (or
+  a compatible licence) and keep this attribution.
+* **No endorsement:** Warcraft Wiki and its contributors do not endorse this project.
+
+## What this licence does not cover
+
+The rest of the add-on is *not* under CC BY-SA. That includes all Lua code, the routing engine, the tools and the
+hand-written guides. It is © 2026 Daniel Bates / Bates LLC, all rights reserved, and is licensed under PolyForm
+Noncommercial 1.0.0 with the 10% commercial rider (see `LICENSE` at the repository root, help@batesai.org,
+<https://batesai.org>). The wiki data files are kept separate from that code.
+
+## Steps that are not wiki data
+
+Some steps come from a locally generated file that is *not* wiki data. A note in the step says
+`(location: Blizzard data)` or `(location: Questie data)`. The tools only do this when the wiki has no usable
+coordinate for a step. Those coordinates come from `Imported_Quests_<flavor>.lua`: Blizzard quest-POI client data
+on retail, and the Questie database on Classic. Like every `Imported_*` file, they are generated locally and never
+committed. To get a file that is wiki data only (the shippable variant), run
+`python3 tools/wiki/gen_wiki_guides.py --no-fallback`.

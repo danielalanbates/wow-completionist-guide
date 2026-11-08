@@ -1,0 +1,151 @@
+flavor	guide	name	type	faction	zone	zone_name	steps	simulated	auto	manual	stalls	forced	laps	yards	seconds	no_route	finished	manual_reason	error
+mop	wiki:mop:327:Both	Ahn'Qiraj: The Fallen Kingdom Quests	Quests	Both	327	Ahn'Qiraj: The Fallen Kingdom	63	3	3	0	0	0	0	1066	224	0	1		
+mop	wiki:mop:91:Horde	Alterac Valley Quests (Horde)	Quests	Horde	91	Alterac Valley	33	32	32	0	0	0	0	11222	3733	0	1		
+mop	wiki:mop:93:Alliance	Arathi Basin Quests (Alliance)	Quests	Alliance	93	Arathi Basin	2	2	2	0	0	0	0	0	0	1	1		
+mop	wiki:mop:93:Horde	Arathi Basin Quests (Horde)	Quests	Horde	93	Arathi Basin	2	2	2	0	0	0	0	0	0	1	1		
+mop	wiki:mop:14:Alliance	Arathi Highlands Quests (Alliance)	Quests	Alliance	14	Arathi Highlands	59	48	48	0	0	0	0	22246	3041	0	1		
+mop	wiki:mop:14:Horde	Arathi Highlands Quests (Horde)	Quests	Horde	14	Arathi Highlands	69	58	58	0	0	0	0	31292	5668	0	1		
+mop	wiki:mop:63:Alliance	Ashenvale Quests 7-28 (Alliance)	Quests	Alliance	63	Ashenvale	223	209	209	0	0	0	0	108051	15258	3	1		
+mop	wiki:mop:63:Both	Ashenvale Quests 1-26	Quests	Both	63	Ashenvale	30	24	24	0	0	0	0	15645	3419	3	1		
+mop	wiki:mop:97:Alliance	Azuremyst Isle Quests 2-3 (Alliance)	Quests	Alliance	97	Azuremyst Isle	196	132	132	0	0	0	0	52566	9089	0	1		
+mop	wiki:mop:15:Both	Badlands Quests	Quests	Both	15	Badlands	86	72	72	0	0	0	0	18114	3143	3	1		
+mop	wiki:mop:105:Alliance	Blade's Edge Mountains Quests 1-60 (Alliance)	Quests	Alliance	105	Blade's Edge Mountains	149	133	133	0	0	0	0	61192	10103	0	1		
+mop	wiki:mop:105:Both	Blade's Edge Mountains Quests 70	Quests	Both	105	Blade's Edge Mountains	176	150	150	0	0	0	0	90211	6941	0	1		
+mop	wiki:mop:105:Horde	Blade's Edge Mountains Quests (Horde)	Quests	Horde	105	Blade's Edge Mountains	142	120	120	0	0	0	0	61591	8835	0	1		
+mop	wiki:mop:17:Alliance	Blasted Lands Quests (Alliance)	Quests	Alliance	17	Blasted Lands	109	89	89	0	0	0	0	26862	3676	0	1		
+mop	wiki:mop:106:Alliance	Bloodmyst Isle Quests (Alliance)	Quests	Alliance	106	Bloodmyst Isle	204	180	180	0	0	0	0	58887	10986	0	1		
+mop	wiki:mop:114:Alliance	Borean Tundra Quests (Alliance)	Quests	Alliance	114	Borean Tundra	218	182	182	0	0	0	0	78354	9796	0	1		
+mop	wiki:mop:114:Horde	Borean Tundra Quests (Horde)	Quests	Horde	114	Borean Tundra	286	239	239	0	0	0	0	114219	14716	0	1		
+mop	wiki:mop:36:Alliance	Burning Steppes Quests (Alliance)	Quests	Alliance	36	Burning Steppes	114	94	94	0	0	0	0	27544	3294	2	1		
+mop	wiki:mop:127:Both	Crystalsong Forest Quests	Quests	Both	127	Crystalsong Forest	3	3	3	0	0	0	0	163	29	0	1		
+mop	wiki:mop:501:Alliance	Dalaran Quests (Alliance)	Quests	Alliance	501	Dalaran	24	15	15	0	0	0	0	1005	179	1	1		
+mop	wiki:mop:407:Alliance	Darkmoon Island Quests 47-60 (Alliance)	Quests	Alliance	407	Darkmoon Island	6	6	6	0	0	0	0	489	847	0	1		
+mop	wiki:mop:62:Both	Darkshore Quests	Quests	Both	62	Darkshore	5	5	5	0	0	0	0	5816	1618	0	1		
+mop	wiki:mop:89:Alliance	Darnassus Quests (Alliance)	Quests	Alliance	89	Darnassus	71	45	45	0	0	0	0	10946	1765	1	1		
+mop	wiki:mop:89:Both	Darnassus Quests	Quests	Both	89	Darnassus	2	2	2	0	0	0	0	249	45	0	1		
+mop	wiki:mop:42:Both	Deadwind Pass Quests 1-70	Quests	Both	42	Deadwind Pass	97	77	77	0	0	0	0	36851	4741	6	1		
+mop	wiki:mop:42:Horde	Deadwind Pass Quests (Horde)	Quests	Horde	42	Deadwind Pass	2	2	2	0	0	0	0	508	703	0	1		
+mop	wiki:mop:207:Alliance	Deepholm Quests (Alliance)	Quests	Alliance	207	Deepholm	20	16	16	0	0	0	0	4125	737	0	1		
+mop	wiki:mop:207:Both	Deepholm Quests	Quests	Both	207	Deepholm	365	321	321	0	0	0	0	92968	17177	2	1		
+mop	wiki:mop:207:Horde	Deepholm Quests (Horde)	Quests	Horde	207	Deepholm	20	16	16	0	0	0	0	5728	1023	0	1		
+mop	wiki:mop:66:Both	Desolace Quests	Quests	Both	66	Desolace	134	120	120	0	0	0	0	45573	7191	0	1		
+mop	wiki:mop:66:Horde	Desolace Quests (Horde)	Quests	Horde	66	Desolace	94	81	81	0	0	0	0	50556	5456	0	1		
+mop	wiki:mop:115:Alliance	Dragonblight Quests (Alliance)	Quests	Alliance	115	Dragonblight	216	179	179	0	0	0	0	74585	9585	0	1		
+mop	wiki:mop:115:Both	Dragonblight Quests 1	Quests	Both	115	Dragonblight	236	212	212	0	0	0	0	97144	14170	10	1		
+mop	wiki:mop:27:Alliance	Dun Morogh Quests 1-3 (Alliance)	Quests	Alliance	27	Dun Morogh	430	219	219	0	0	0	0	97199	11518	2	1		
+mop	wiki:mop:27:Both	Dun Morogh Quests 1-2	Quests	Both	27	Dun Morogh	31	27	27	0	0	0	0	8477	1713	5	1		
+mop	wiki:mop:27:Horde	Dun Morogh Quests (Horde)	Quests	Horde	27	Dun Morogh	16	15	15	0	0	0	0	8929	1442	0	1		
+mop	wiki:mop:1:Alliance	Durotar Quests 90 (Alliance)	Quests	Alliance	1	Durotar	21	12	12	0	0	0	0	10071	853	0	1		
+mop	wiki:mop:1:Both	Durotar Quests	Quests	Both	1	Durotar	2	2	2	0	0	0	0	282	50	0	1		
+mop	wiki:mop:1:Horde	Durotar Quests 1-90 (Horde)	Quests	Horde	1	Durotar	459	299	299	0	0	0	0	132553	26390	0	1		
+mop	wiki:mop:70:Horde	Dustwallow Marsh Quests (Horde)	Quests	Horde	70	Dustwallow Marsh	104	92	92	0	0	0	0	59850	9641	0	1		
+mop	wiki:mop:23:Both	Eastern Plaguelands Quests 45-60	Quests	Both	23	Eastern Plaguelands	443	255	255	0	0	0	0	134156	10765	0	1		
+mop	wiki:mop:23:Horde	Eastern Plaguelands Quests (Horde)	Quests	Horde	23	Eastern Plaguelands	4	2	2	0	0	0	0	7528	417	0	1		
+mop	wiki:mop:37:Horde	Elwynn Forest Quests 1-10 (Horde)	Quests	Horde	37	Elwynn Forest	16	13	13	0	0	0	0	17057	1331	0	1		
+mop	wiki:mop:94:Horde	Eversong Woods Quests 1-3 (Horde)	Quests	Horde	94	Eversong Woods	249	140	140	0	0	0	0	67224	10582	0	1		
+mop	wiki:mop:77:Both	Felwood Quests	Quests	Both	77	Felwood	173	165	165	0	0	0	0	56443	9696	0	1		
+mop	wiki:mop:69:Both	Feralas Quests	Quests	Both	69	Feralas	64	59	59	0	0	0	0	21603	5447	0	1		
+mop	wiki:mop:95:Both	Ghostlands Quests	Quests	Both	95	Ghostlands	3	3	3	0	0	0	0	2598	464	0	1		
+mop	wiki:mop:179:Alliance	Gilneas Quests (Alliance)	Quests	Alliance	179	Gilneas	172	0	0	0	0	0	0	0	0	0	1		
+mop	wiki:mop:100:Alliance	Hellfire Peninsula Quests 20-61 (Alliance)	Quests	Alliance	100	Hellfire Peninsula	239	197	197	0	0	0	0	96919	15685	0	1		
+mop	wiki:mop:25:Both	Hillsbrad Foothills Quests 1-100	Quests	Both	25	Hillsbrad Foothills	36	16	16	0	0	0	0	2904	519	0	1		
+mop	wiki:mop:25:Horde	Hillsbrad Foothills Quests 50-52 (Horde)	Quests	Horde	25	Hillsbrad Foothills	209	176	176	0	0	0	0	42616	4098	0	1		
+mop	wiki:mop:117:Both	Howling Fjord Quests	Quests	Both	117	Howling Fjord	134	116	116	0	0	0	0	49907	8306	1	1		
+mop	wiki:mop:117:Horde	Howling Fjord Quests (Horde)	Quests	Horde	117	Howling Fjord	246	207	207	0	0	0	0	144329	17240	5	1		
+mop	wiki:mop:170:Both	Hrothgar's Landing Quests	Quests	Both	170	Hrothgar's Landing	3	3	3	0	0	0	0	3028	541	0	1		
+mop	wiki:mop:118:Both	Icecrown Quests	Quests	Both	118	Icecrown	556	462	462	0	0	0	0	208192	32149	23	1		
+mop	wiki:mop:87:Alliance	Ironforge Quests 1-80 (Alliance)	Quests	Alliance	87	Ironforge	118	98	98	0	0	0	0	79367	8428	0	1		
+mop	wiki:mop:122:Both	Isle of Quel'Danas Quests 70	Quests	Both	122	Isle of Quel'Danas	121	100	100	0	0	0	0	117279	8513	0	1		
+mop	wiki:mop:122:Horde	Isle of Quel'Danas Quests (Horde)	Quests	Horde	122	Isle of Quel'Danas	8	5	5	0	0	0	0	1496	1326	0	1		
+mop	wiki:mop:504:Both	Isle of Thunder Quests	Quests	Both	504	Isle of Thunder	42	34	34	0	0	0	0	8418	1503	2	1		
+mop	wiki:mop:504:Horde	Isle of Thunder Quests (Horde)	Quests	Horde	504	Isle of Thunder	264	228	228	0	0	0	0	70282	17786	7	1		
+mop	wiki:mop:418:Alliance	Krasarang Wilds Quests (Alliance)	Quests	Alliance	418	Krasarang Wilds	219	189	189	0	0	0	0	145257	16224	5	1		
+mop	wiki:mop:418:Both	Krasarang Wilds Quests	Quests	Both	418	Krasarang Wilds	228	200	200	0	0	0	0	66253	8831	1	1		
+mop	wiki:mop:418:Horde	Krasarang Wilds Quests (Horde)	Quests	Horde	418	Krasarang Wilds	232	210	210	0	0	0	0	131773	16335	3	1		
+mop	wiki:mop:379:Alliance	Kun-Lai Summit Quests 90 (Alliance)	Quests	Alliance	379	Kun-Lai Summit	111	79	79	0	0	0	0	44930	3438	2	1		
+mop	wiki:mop:379:Both	Kun-Lai Summit Quests 20-90	Quests	Both	379	Kun-Lai Summit	442	299	299	0	0	0	0	97323	12141	3	1		
+mop	wiki:mop:48:Alliance	Loch Modan Quests (Alliance)	Quests	Alliance	48	Loch Modan	148	128	128	0	0	0	0	37788	5224	0	1		
+mop	wiki:mop:48:Both	Loch Modan Quests 1	Quests	Both	48	Loch Modan	5	5	5	0	0	0	0	1708	305	0	1		
+mop	wiki:mop:80:Alliance	Moonglade Quests (Alliance)	Quests	Alliance	80	Moonglade	5	0	0	0	0	0	0	0	0	0	1		
+mop	wiki:mop:80:Both	Moonglade Quests	Quests	Both	80	Moonglade	16	11	11	0	0	0	0	7938	913	0	1		
+mop	wiki:mop:198:Alliance	Mount Hyjal Quests (Alliance)	Quests	Alliance	198	Mount Hyjal	28	22	22	0	0	0	0	4352	1082	0	1		
+mop	wiki:mop:7:Both	Mulgore Quests	Quests	Both	7	Mulgore	2	2	2	0	0	0	0	154	28	0	1		
+mop	wiki:mop:7:Horde	Mulgore Quests 2-3 (Horde)	Quests	Horde	7	Mulgore	162	84	84	0	0	0	0	26233	4348	0	1		
+mop	wiki:mop:107:Alliance	Nagrand Quests (Alliance)	Quests	Alliance	107	Nagrand	85	74	74	0	0	0	0	37971	6055	0	1		
+mop	wiki:mop:107:Both	Nagrand Quests	Quests	Both	107	Nagrand	196	159	159	0	0	0	0	126229	18910	2	1		
+mop	wiki:mop:107:Horde	Nagrand Quests (Horde)	Quests	Horde	107	Nagrand	131	111	111	0	0	0	0	66027	10314	0	1		
+mop	wiki:mop:109:Alliance	Netherstorm Quests (Alliance)	Quests	Alliance	109	Netherstorm	2	2	2	0	0	0	0	14171	817	0	1		
+mop	wiki:mop:109:Both	Netherstorm Quests 70	Quests	Both	109	Netherstorm	537	445	445	0	0	0	0	257201	21671	4	1		
+mop	wiki:mop:109:Horde	Netherstorm Quests (Horde)	Quests	Horde	109	Netherstorm	2	2	2	0	0	0	0	12335	784	0	1		
+mop	wiki:mop:50:Alliance	Northern Stranglethorn Quests (Alliance)	Quests	Alliance	50	Northern Stranglethorn	139	111	111	0	0	0	0	53192	7238	0	1		
+mop	wiki:mop:85:Alliance	Orgrimmar Quests 15-16 (Alliance)	Quests	Alliance	85	Orgrimmar	19	14	14	0	0	0	0	92	947	0	1		
+mop	wiki:mop:85:Both	Orgrimmar Quests 90-100	Quests	Both	85	Orgrimmar	62	57	57	0	0	0	0	1821	4099	0	1		
+mop	wiki:mop:32:Both	Searing Gorge Quests 55-60	Quests	Both	32	Searing Gorge	147	131	131	0	0	0	0	32508	3201	1	1		
+mop	wiki:mop:32:Horde	Searing Gorge Quests (Horde)	Quests	Horde	32	Searing Gorge	64	23	23	0	0	0	0	10742	2032	0	1		
+mop	wiki:mop:111:Horde	Shattrath City Quests (Horde)	Quests	Horde	111	Shattrath City	24	22	22	0	0	0	0	40374	4336	0	1		
+mop	wiki:mop:81:Alliance	Silithus Quests 1-60 (Alliance)	Quests	Alliance	81	Silithus	14	14	14	0	0	0	0	27115	3301	0	1		
+mop	wiki:mop:81:Both	Silithus Quests 60	Quests	Both	81	Silithus	231	106	106	0	0	0	0	54299	7564	4	1		
+mop	wiki:mop:81:Horde	Silithus Quests 54-60 (Horde)	Quests	Horde	81	Silithus	9	9	9	0	0	0	0	21011	1924	0	1		
+mop	wiki:mop:110:Horde	Silvermoon City Quests 65-70 (Horde)	Quests	Horde	110	Silvermoon City	20	5	5	0	0	0	0	1780	159	0	1		
+mop	wiki:mop:21:Both	Silverpine Forest Quests	Quests	Both	21	Silverpine Forest	4	4	4	0	0	0	0	326	58	2	1		
+mop	wiki:mop:21:Horde	Silverpine Forest Quests (Horde)	Quests	Horde	21	Silverpine Forest	159	148	148	0	0	0	0	55961	7958	1	1		
+mop	wiki:mop:199:Alliance	Southern Barrens Quests 28-30 (Alliance)	Quests	Alliance	199	Southern Barrens	171	156	156	0	0	0	0	95122	12750	0	1		
+mop	wiki:mop:65:Both	Stonetalon Mountains Quests 1-2	Quests	Both	65	Stonetalon Mountains	9	8	8	0	0	0	0	9207	675	0	1		
+mop	wiki:mop:65:Horde	Stonetalon Mountains Quests (Horde)	Quests	Horde	65	Stonetalon Mountains	132	111	111	0	0	0	0	52500	5952	0	1		
+mop	wiki:mop:84:Both	Stormwind City Quests 1-85	Quests	Both	84	Stormwind City	8	7	7	0	0	0	0	2274	366	1	1		
+mop	wiki:mop:84:Horde	Stormwind City Quests (Horde)	Quests	Horde	84	Stormwind City	6	5	5	0	0	0	0	11169	2326	0	1		
+mop	wiki:mop:224:Both	Stranglethorn Vale Quests	Quests	Both	224	Stranglethorn Vale	135	119	119	0	0	0	0	31768	5360	0	1		
+mop	wiki:mop:51:Alliance	Swamp of Sorrows Quests 36-60 (Alliance)	Quests	Alliance	51	Swamp of Sorrows	56	51	51	0	0	0	0	28852	2395	0	1		
+mop	wiki:mop:51:Both	Swamp of Sorrows Quests	Quests	Both	51	Swamp of Sorrows	71	62	62	0	0	0	0	9530	2065	0	1		
+mop	wiki:mop:57:Alliance	Teldrassil Quests 1-3 (Alliance)	Quests	Alliance	57	Teldrassil	177	123	123	0	0	0	0	38539	8536	0	1		
+mop	wiki:mop:57:Horde	Teldrassil Quests (Horde)	Quests	Horde	57	Teldrassil	6	4	4	0	0	0	0	2075	371	1	1		
+mop	wiki:mop:10:Both	The Barrens Quests 2-30	Quests	Both	10	The Barrens	52	45	45	0	0	0	0	22590	6631	0	1		
+mop	wiki:mop:103:Alliance	The Exodar Quests (Alliance)	Quests	Alliance	103	The Exodar	12	5	5	0	0	0	0	882	158	0	1		
+mop	wiki:mop:103:Both	The Exodar Quests 50-60	Quests	Both	103	The Exodar	2	2	2	0	0	0	0	337	705	0	1		
+mop	wiki:mop:103:Horde	The Exodar Quests (Horde)	Quests	Horde	103	The Exodar	2	2	2	0	0	0	0	197	2308	0	1		
+mop	wiki:mop:26:Alliance	The Hinterlands Quests 10-60 (Alliance)	Quests	Alliance	26	The Hinterlands	74	66	66	0	0	0	0	30953	3926	0	1		
+mop	wiki:mop:26:Both	The Hinterlands Quests	Quests	Both	26	The Hinterlands	16	14	14	0	0	0	0	35491	2602	0	1		
+mop	wiki:mop:26:Horde	The Hinterlands Quests (Horde)	Quests	Horde	26	The Hinterlands	77	65	65	0	0	0	0	34304	4411	0	1		
+mop	wiki:mop:371:Alliance	The Jade Forest Quests 10-90 (Alliance)	Quests	Alliance	371	The Jade Forest	198	145	145	0	0	0	0	52833	6545	0	1		
+mop	wiki:mop:371:Both	The Jade Forest Quests 90	Quests	Both	371	The Jade Forest	443	405	405	0	0	0	0	104959	9068	5	1		
+mop	wiki:mop:371:Horde	The Jade Forest Quests 90 (Horde)	Quests	Horde	371	The Jade Forest	202	156	156	0	0	0	0	47280	3587	0	1		
+mop	wiki:mop:174:Horde	The Lost Isles Quests (Horde)	Quests	Horde	174	The Lost Isles	210	0	0	0	0	0	0	0	0	0	1		
+mop	wiki:mop:433:Alliance	The Veiled Stair Quests 90 (Alliance)	Quests	Alliance	433	The Veiled Stair	19	15	15	0	0	0	0	12204	667	0	1		
+mop	wiki:mop:433:Both	The Veiled Stair Quests 90	Quests	Both	433	The Veiled Stair	80	64	64	0	0	0	0	23846	2486	3	1		
+mop	wiki:mop:168:Both	The Violet Hold Quests	Quests	Both	168	The Violet Hold	6	5	5	0	0	0	0	0	186	1	1		
+mop	wiki:mop:378:Both	The Wandering Isle Quests 1	Quests	Both	378	The Wandering Isle	197	0	0	0	0	0	0	0	0	0	1		
+mop	wiki:mop:64:Alliance	Thousand Needles Quests (Alliance)	Quests	Alliance	64	Thousand Needles	113	106	106	0	0	0	0	63210	6355	0	1		
+mop	wiki:mop:64:Horde	Thousand Needles Quests (Horde)	Quests	Horde	64	Thousand Needles	119	108	108	0	0	0	0	47246	5247	0	1		
+mop	wiki:mop:88:Alliance	Thunder Bluff Quests (Alliance)	Quests	Alliance	88	Thunder Bluff	2	2	2	0	0	0	0	338	852	0	1		
+mop	wiki:mop:88:Both	Thunder Bluff Quests	Quests	Both	88	Thunder Bluff	4	4	4	0	0	0	0	441	79	0	1		
+mop	wiki:mop:554:Both	Timeless Isle Quests 90	Quests	Both	554	Timeless Isle	100	84	84	0	0	0	0	16835	1731	0	1		
+mop	wiki:mop:18:Both	Tirisfal Glades Quests 90	Quests	Both	18	Tirisfal Glades	26	26	26	0	0	0	0	3092	1211	6	1		
+mop	wiki:mop:244:Alliance	Tol Barad Quests (Alliance)	Quests	Alliance	244	Tol Barad	40	39	39	0	0	0	0	4117	735	3	1		
+mop	wiki:mop:244:Horde	Tol Barad Quests (Horde)	Quests	Horde	244	Tol Barad	40	38	38	0	0	0	0	3481	622	3	1		
+mop	wiki:mop:245:Horde	Tol Barad Peninsula Quests (Horde)	Quests	Horde	245	Tol Barad Peninsula	61	60	60	0	0	0	0	9865	1762	0	1		
+mop	wiki:mop:388:Alliance	Townlong Steppes Quests 90 (Alliance)	Quests	Alliance	388	Townlong Steppes	3	3	3	0	0	0	0	12854	747	0	1		
+mop	wiki:mop:388:Both	Townlong Steppes Quests 90	Quests	Both	388	Townlong Steppes	430	363	363	0	0	0	0	123297	11046	0	1		
+mop	wiki:mop:241:Both	Twilight Highlands Quests	Quests	Both	241	Twilight Highlands	142	104	104	0	0	0	0	27658	2591	2	1		
+mop	wiki:mop:241:Horde	Twilight Highlands Quests (Horde)	Quests	Horde	241	Twilight Highlands	278	239	239	0	0	0	0	69052	6135	6	1		
+mop	wiki:mop:249:Both	Uldum Quests	Quests	Both	249	Uldum	417	357	357	0	0	0	0	160596	25705	0	1		
+mop	wiki:mop:78:Horde	Un'Goro Crater Quests (Horde)	Quests	Horde	78	Un'Goro Crater	28	20	20	0	0	0	0	27858	4232	0	1		
+mop	wiki:mop:390:Both	Vale of Eternal Blossoms Quests 1-90	Quests	Both	390	Vale of Eternal Blossoms	528	481	481	0	0	0	0	141933	16680	5	1		
+mop	wiki:mop:390:Horde	Vale of Eternal Blossoms Quests 87-90 (Horde)	Quests	Horde	390	Vale of Eternal Blossoms	55	48	48	0	0	0	0	33001	2589	0	1		
+mop	wiki:mop:376:Alliance	Valley of the Four Winds Quests 90 (Alliance)	Quests	Alliance	376	Valley of the Four Winds	25	16	16	0	0	0	0	6627	462	0	1		
+mop	wiki:mop:376:Both	Valley of the Four Winds Quests 86-90	Quests	Both	376	Valley of the Four Winds	758	632	632	0	0	0	0	183661	15266	0	1		
+mop	wiki:mop:376:Horde	Valley of the Four Winds Quests 90 (Horde)	Quests	Horde	376	Valley of the Four Winds	25	17	17	0	0	0	0	13619	767	0	1		
+mop	wiki:mop:203:Alliance	Vashj'ir Quests 30-81 (Alliance)	Quests	Alliance	203	Vashj'ir	228	180	180	0	0	0	0	64475	8554	0	1		
+mop	wiki:mop:203:Both	Vashj'ir Quests	Quests	Both	203	Vashj'ir	236	195	195	0	0	0	0	64278	11696	0	1		
+mop	wiki:mop:203:Horde	Vashj'ir Quests (Horde)	Quests	Horde	203	Vashj'ir	226	178	178	0	0	0	0	59430	7616	0	1		
+mop	wiki:mop:22:Horde	Western Plaguelands Quests 90 (Horde)	Quests	Horde	22	Western Plaguelands	88	79	79	0	0	0	0	50734	2574	2	1		
+mop	wiki:mop:52:Alliance	Westfall Quests (Alliance)	Quests	Alliance	52	Westfall	126	106	106	0	0	0	0	33340	4191	0	1		
+mop	wiki:mop:56:Alliance	Wetlands Quests (Alliance)	Quests	Alliance	56	Wetlands	142	131	131	0	0	0	0	50100	9262	0	1		
+mop	wiki:mop:123:Both	Wintergrasp Quests	Quests	Both	123	Wintergrasp	2	2	2	0	0	0	0	715	128	0	1		
+mop	wiki:mop:123:Horde	Wintergrasp Quests (Horde)	Quests	Horde	123	Wintergrasp	33	33	33	0	0	0	0	14916	2045	0	1		
+mop	wiki:mop:83:Alliance	Winterspring Quests (Alliance)	Quests	Alliance	83	Winterspring	25	22	22	0	0	0	0	25346	3220	0	1		
+mop	wiki:mop:83:Both	Winterspring Quests 1-4	Quests	Both	83	Winterspring	194	181	181	0	0	0	0	124233	15062	2	1		
+mop	wiki:mop:83:Horde	Winterspring Quests (Horde)	Quests	Horde	83	Winterspring	4	4	4	0	0	0	0	10864	893	0	1		
+mop	wiki:mop:102:Both	Zangarmarsh Quests	Quests	Both	102	Zangarmarsh	153	132	132	0	0	0	0	47567	10765	0	1		
+mop	wiki:mop:102:Horde	Zangarmarsh Quests (Horde)	Quests	Horde	102	Zangarmarsh	80	77	77	0	0	0	0	48912	6445	0	1		
+mop	wiki:mop:121:Both	Zul'Drak Quests	Quests	Both	121	Zul'Drak	432	369	369	0	0	0	0	127428	19227	0	1		
+mop	wiki:mop:0:Both	Other Quests Quests 1-80	Quests	Both	Other		74	51	51	0	0	0	0	0	0	0	1		

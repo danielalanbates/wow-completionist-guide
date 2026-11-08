@@ -118,8 +118,8 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
     "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
     "Adapters/WoWPro.lua",
     ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
-    "Guides/Imported_Quests_era.lua", "Guides/Imported_Quests_tbc.lua", "Guides/Imported_Quests_wotlk.lua",
-    "Guides/Imported_Quests_cata.lua", "Guides/Imported_Quests_mop.lua", "Guides/Imported_Quests_retail.lua",
+    -- quest guides exactly as the flavor TOC loads them: wiki guides + the older generated guides' gaps
+    ("Guides/Imported_Wiki_" .. flavor .. ".lua"), ("Guides/Imported_Quests_" .. flavor .. "_gaps.lua"),
     ("Guides/Imported_Achievements_" .. flavor .. ".lua"), ("Guides/Imported_Storylines_" .. flavor .. ".lua"),
     ("Guides/Imported_Missions_" .. flavor .. ".lua") }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil

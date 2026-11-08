@@ -29,9 +29,13 @@ ROOT = Path(__file__).resolve().parent.parent
 DB2 = ROOT / "tools" / "db2"
 FLAVORS = ["era", "tbc", "mop", "retail"]
 
-# what each client loads (TOC order; Imported_Quests_<tier> files gate themselves on NS.flavor)
+# what each client loads (TOC order).  Quests: Imported_Wiki_<fl> (Warcraft Wiki) + Imported_Quests_<fl>_gaps
+# (tools/wiki/gen_wiki_guides.py); a tree generated before the wiki pipeline only has Imported_Quests_<fl>.
 def guide_files(gdir, fl):
-    names = [f"Imported_WoWPro_{fl}.lua", f"Imported_Quests_{fl}.lua",
+    quests = [f"Imported_Wiki_{fl}.lua", f"Imported_Quests_{fl}_gaps.lua"]
+    if not any((gdir / n).exists() for n in quests):
+        quests = [f"Imported_Quests_{fl}.lua"]
+    names = [f"Imported_WoWPro_{fl}.lua"] + quests + [
              f"Imported_Achievements_{fl}.lua", f"Imported_Storylines_{fl}.lua", f"Imported_Missions_{fl}.lua"]
     out = [gdir / n for n in names if (gdir / n).exists()]
     out += sorted((gdir / "Leveling").glob("*.lua"))
@@ -129,7 +133,8 @@ def main():
                 cov = [i for i in uni if i in have[key]]
                 loc = [i for i in cov if have[key][i]]
                 miss = sorted(uni - set(cov))
-            con.execute("insert or replace into coverage values (?,?,?,?,?,?,?,datetime('now'))",
+            con.execute("insert or replace into coverage (flavor, category, label, total, covered, missing, located, measured) "
+                        "values (?,?,?,?,?,?,?,datetime('now'))",
                         (fl, cat, label, total, len(cov), total - len(cov), len(loc)))
             con.executemany("insert into coverage_missing values (?,?,?)", [(fl, cat, i) for i in miss])
             print(f"{label:7} {fl:6} {cat:11} total {total:6}  covered {len(cov):6} ({100*len(cov)/max(total,1):5.1f}%)"
