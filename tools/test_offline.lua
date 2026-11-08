@@ -84,24 +84,32 @@ else
     print("baked-count assertions SKIPPED (guides not baked; run tools/install.sh)")
 end
 -- 5b) generated quest DB guides (flavor-gated: harness reports TBC 2.5.6 -> only _tbc loads)
-local fq = io.open("CompletionRoute/Guides/Imported_Quests_tbc.lua")
+-- Since the wiki pipeline the clients load Imported_Wiki_<fl> + Imported_Quests_<fl>_gaps (tools/wiki/gen_wiki_guides.py);
+-- the era files are loaded too, to prove the flavor gate keeps them out of a TBC client.
+local QFILES = { "Guides/Imported_Wiki_era.lua", "Guides/Imported_Quests_era_gaps.lua",
+                 "Guides/Imported_Wiki_tbc.lua", "Guides/Imported_Quests_tbc_gaps.lua" }
+local fq = io.open("CompletionRoute/Guides/Imported_Wiki_tbc.lua")
+if not fq then
+    QFILES = { "Guides/Imported_Quests_era.lua", "Guides/Imported_Quests_tbc.lua" }
+    fq = io.open("CompletionRoute/Guides/Imported_Quests_tbc.lua")
+end
 if fq then
     fq:close()
-    for _, qf in ipairs({ "Guides/Imported_Quests_era.lua", "Guides/Imported_Quests_tbc.lua" }) do load(qf) end
+    for _, qf in ipairs(QFILES) do load(qf) end
     local qGuides, qSteps = 0, 0
     for _, id in ipairs(NS.Guide.list) do
         local g = NS.Guide.registry[id]
         if (g.type or "") == "Quests" then
             qGuides = qGuides + 1
             if qSteps <= 10 then local st = NS.Guide.Steps(id) qSteps = math.max(qSteps, st and #st or 0) end
-            assert(not id:find("^qdb:era"), "era quest guides leaked into tbc flavor: " .. id)
+            assert(not id:find("^qdb:era") and not id:find("^wiki:era"), "era quest guides leaked into tbc flavor: " .. id)
         end
     end
     assert(qGuides > 150, "expected >150 tbc quest guides, got " .. qGuides)
     assert(qSteps > 10, "quest guide steps did not parse")
     print(("quest DB guides OK: %d zone guides (tbc), sample parsed %d steps"):format(qGuides, qSteps))
 else
-    print("quest DB guides SKIPPED (Imported_Quests_tbc.lua not baked)")
+    print("quest DB guides SKIPPED (Imported_Wiki_tbc.lua / Imported_Quests_tbc.lua not generated)")
 end
 -- 6) guide menu tree (organization): categories ordered, every guide reachable, search works
 GameTooltip = CreateFrame()

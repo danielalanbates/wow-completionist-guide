@@ -6,7 +6,7 @@ Community-driven guides for **every** quest, with optimal travel routing,
 progress tracked **across all your characters**, and a marker over the head of whatever the current
 step wants you to find. One addon, every version of the game — Era, TBC Anniversary, Mists, retail.
 
-**Status: beta.** v1.0.0 was withdrawn on 2026-11-07 (it shipped a Commercial adapter). v2.0 — Warcraft Wiki as the source of truth — is in progress; see [docs/FINISH_PLAN.md](docs/FINISH_PLAN.md).
+**Status: beta.** v1.0.0 was withdrawn on 2026-11-07 (it bundled third-party guide content). v2.0 — Warcraft Wiki as the source of truth — is in progress; see [docs/FINISH_PLAN.md](docs/FINISH_PLAN.md).
 Built as a comprehensive replacement for proprietary subscription guide addons that keeps the *one thing* no free addon has:
 an optimal travel-routing engine (flight paths, boats/zeppelins/portals/tram, Hearthstone) driving a
 smart arrow — while the guide content is community-driven and open.
@@ -37,18 +37,15 @@ regenerable**, so nothing here depends on a subscription staying alive:
 
 | Source | Flavors | How |
 |---|---|---|
-| Blizzard quest POI client data (wago.tools `QuestPOIBlob`/`QuestPOIPoint`) | retail | `tools/gen_quest_guides_retail.py` — every quest that has a map pin, grouped per zone |
-| **Questie** database (local checkout) | era, tbc, wotlk, cata, mop | `tools/gen_quest_guides.lua` |
+| **Warcraft Wiki** (warcraft.wiki.gg, CC BY-SA 4.0) — **the source of truth** | era, tbc, mop, retail | `tools/wiki/` (fetch → parse → `gen_wiki_guides.py`) writes `Guides/Imported_Wiki_<flavor>.lua`: per-zone guides with the wiki's givers, enders, chains (`PRE`), objectives and coordinates. Flavor membership is checked against each client's QuestV2. See [tools/wiki/README.md](tools/wiki/README.md) |
+| Blizzard quest POI client data (wago.tools `QuestPOIBlob`/`QuestPOIPoint`) | retail | `tools/gen_quest_guides_retail.py`. Now fills wiki gaps only: coordinates for steps the wiki has none for, plus `Imported_Quests_retail_gaps.lua` for quests the wiki lacks |
+| **Questie** database (local checkout) | era, tbc, mop | `tools/gen_quest_guides.lua`. Local-only fallback where the wiki has no coordinate, plus `Imported_Quests_<flavor>_gaps.lua` for quests the wiki lacks |
 | **WoW-Pro** guides installed on your machine | all | `Adapters/WoWPro.lua` (runtime interop) |
 | Hand-authored native guides | all | `Guides/` |
 
 Generated guide files are gitignored: the *generators* ship, the third-party-derived data does not.
 
-**No Commercial content.** Completionist's Guide contains, reads and ships nothing from commercial guides — no guides, no
-adapter, no derived coordinates or orderings. All Commercial-derived files were removed from this repository and its
-entire git history on 2026-11-07. The planned source of truth for quest data is the community
-[Warcraft Wiki](https://warcraft.wiki.gg) (CC BY-SA 4.0), with Blizzard's own client data filling coordinates;
-see [docs/FINISH_PLAN.md](docs/FINISH_PLAN.md).
+**Community data only.** Completionist's Guide is built from Warcraft Wiki, Blizzard client data, Questie (generated locally at install) and WoW-Pro (read at runtime). It ships no commercial guide content.
 
 ## Verification — no characters required
 
@@ -117,6 +114,7 @@ archive/              dead ends kept for reference
 ```
 luajit tools/test_offline.lua        # parser + Dijkstra + optimizer smoke test with a stubbed WoW API
 luajit tools/test_load_all.lua       # every TOC's file list loads clean on all four flavors
+luajit tools/test_wiki.lua           # wiki guides parse, are flavor-gated, quest 7 has A/C/T with coords
 luajit tools/vplayer.lua retail --shard 1/4    # play every guide; python3 tools/collect_vplayer.py
 luajit tools/route_sweep.lua era     # route every guide from its own zone
 python3 tools/gen_quest_guides_retail.py       # regenerate the retail quest guides from client data

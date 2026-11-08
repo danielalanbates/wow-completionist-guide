@@ -1,0 +1,151 @@
+flavor	guide	name	type	faction	zone	zone_name	steps	simulated	auto	manual	stalls	forced	laps	yards	seconds	no_route	finished	manual_reason	error
+tbc	wiki:tbc:1416:Both	Alterac Mountains Quests 80	Quests	Both	1416	Alterac Mountains	2	1	1	0	0	0	0	1192	106	0	1		
+tbc	wiki:tbc:1416:Horde	Alterac Mountains Quests 29-34 (Horde)	Quests	Horde	1416	Alterac Mountains	9	3	3	0	0	0	0	536	96	0	1		
+tbc	wiki:tbc:1459:Alliance	Alterac Valley Quests 50-60 (Alliance)	Quests	Alliance	1459	Alterac Valley	37	36	36	0	0	0	0	27810	5205	0	1		
+tbc	wiki:tbc:1459:Horde	Alterac Valley Quests 50-60 (Horde)	Quests	Horde	1459	Alterac Valley	39	38	38	0	0	0	0	11154	3280	0	1		
+tbc	wiki:tbc:1461:Alliance	Arathi Basin Quests 20-60 (Alliance)	Quests	Alliance	1461	Arathi Basin	35	23	23	0	0	0	0	15641	821	9	1		
+tbc	wiki:tbc:1461:Horde	Arathi Basin Quests 20-60 (Horde)	Quests	Horde	1461	Arathi Basin	35	23	23	0	0	0	0	9537	1859	9	1		
+tbc	wiki:tbc:1417:Alliance	Arathi Highlands Quests 1-39 (Alliance)	Quests	Alliance	1417	Arathi Highlands	37	28	28	0	0	0	0	27383	2762	0	1		
+tbc	wiki:tbc:1417:Both	Arathi Highlands Quests 32-40	Quests	Both	1417	Arathi Highlands	35	26	26	0	0	0	0	51688	4209	0	1		
+tbc	wiki:tbc:1417:Horde	Arathi Highlands Quests 29-42 (Horde)	Quests	Horde	1417	Arathi Highlands	67	55	55	0	0	0	0	33620	7437	0	1		
+tbc	wiki:tbc:1440:Alliance	Ashenvale Quests 7-30 (Alliance)	Quests	Alliance	1440	Ashenvale	165	140	140	0	0	0	0	139500	18767	2	1		
+tbc	wiki:tbc:1440:Both	Ashenvale Quests 1-25	Quests	Both	1440	Ashenvale	21	15	15	0	0	0	0	21064	2541	0	1		
+tbc	wiki:tbc:1440:Horde	Ashenvale Quests 7-30 (Horde)	Quests	Horde	1440	Ashenvale	76	65	65	0	0	0	0	70362	7528	0	1		
+tbc	wiki:tbc:1447:Alliance	Azshara Quests 45-52 (Alliance)	Quests	Alliance	1447	Azshara	2	1	1	0	0	0	0	0	755	0	1		
+tbc	wiki:tbc:1447:Both	Azshara Quests 45-60	Quests	Both	1447	Azshara	114	54	54	0	0	0	0	54407	10927	0	1		
+tbc	wiki:tbc:1447:Horde	Azshara Quests 45-52 (Horde)	Quests	Horde	1447	Azshara	22	15	15	0	0	0	0	9408	1437	0	1		
+tbc	wiki:tbc:1943:Alliance	Azuremyst Isle Quests 1-20 (Alliance)	Quests	Alliance	1943	Azuremyst Isle	236	142	142	0	0	0	0	55001	9549	0	1		
+tbc	wiki:tbc:1418:Alliance	Badlands Quests 30-44 (Alliance)	Quests	Alliance	1418	Badlands	93	74	74	0	0	0	0	58194	8616	0	1		
+tbc	wiki:tbc:1418:Horde	Badlands Quests 30-59 (Horde)	Quests	Horde	1418	Badlands	83	63	63	0	0	0	0	93083	12314	0	1		
+tbc	wiki:tbc:1949:Alliance	Blade's Edge Mountains Quests (Alliance)	Quests	Alliance	1949	Blade's Edge Mountains	146	130	130	0	0	0	0	73321	9008	0	1		
+tbc	wiki:tbc:1949:Both	Blade's Edge Mountains Quests 70	Quests	Both	1949	Blade's Edge Mountains	186	150	150	0	0	0	0	97350	7272	0	1		
+tbc	wiki:tbc:1949:Horde	Blade's Edge Mountains Quests (Horde)	Quests	Horde	1949	Blade's Edge Mountains	142	119	119	0	0	0	0	60781	8606	0	1		
+tbc	wiki:tbc:1419:Alliance	Blasted Lands Quests 50-57 (Alliance)	Quests	Alliance	1419	Blasted Lands	5	4	4	0	0	0	0	10187	480	0	1		
+tbc	wiki:tbc:1419:Both	Blasted Lands Quests 45-60	Quests	Both	1419	Blasted Lands	72	47	47	0	0	0	0	13299	3222	0	1		
+tbc	wiki:tbc:1419:Horde	Blasted Lands Quests 58-60 (Horde)	Quests	Horde	1419	Blasted Lands	4	2	2	0	0	0	0	0	375	0	1		
+tbc	wiki:tbc:1950:Alliance	Bloodmyst Isle Quests 15-20 (Alliance)	Quests	Alliance	1950	Bloodmyst Isle	215	177	177	0	0	0	0	56199	9975	0	1		
+tbc	wiki:tbc:1428:Alliance	Burning Steppes Quests 48-60 (Alliance)	Quests	Alliance	1428	Burning Steppes	62	50	50	0	0	0	0	27379	2483	0	1		
+tbc	wiki:tbc:1428:Both	Burning Steppes Quests 50-60	Quests	Both	1428	Burning Steppes	83	48	48	0	0	0	0	41142	5657	0	1		
+tbc	wiki:tbc:1439:Alliance	Darkshore Quests 7-20 (Alliance)	Quests	Alliance	1439	Darkshore	205	172	172	0	0	0	0	98368	16342	0	1		
+tbc	wiki:tbc:1439:Both	Darkshore Quests	Quests	Both	1439	Darkshore	2	2	2	0	0	0	0	876	156	0	1		
+tbc	wiki:tbc:1457:Alliance	Darnassus Quests 1-60 (Alliance)	Quests	Alliance	1457	Darnassus	90	60	60	0	0	0	0	167501	14503	0	1		
+tbc	wiki:tbc:1457:Both	Darnassus Quests	Quests	Both	1457	Darnassus	2	2	2	0	0	0	0	306	55	0	1		
+tbc	wiki:tbc:1443:Horde	Desolace Quests 25-47 (Horde)	Quests	Horde	1443	Desolace	67	59	59	0	0	0	0	75415	11389	0	1		
+tbc	wiki:tbc:1426:Alliance	Dun Morogh Quests 1-30 (Alliance)	Quests	Alliance	1426	Dun Morogh	304	200	200	0	0	0	0	115525	19260	0	1		
+tbc	wiki:tbc:1426:Both	Dun Morogh Quests 22-30	Quests	Both	1426	Dun Morogh	25	21	21	0	0	0	0	22714	1822	0	1		
+tbc	wiki:tbc:1411:Alliance	Durotar Quests (Alliance)	Quests	Alliance	1411	Durotar	5	5	5	0	0	0	0	4392	764	0	1		
+tbc	wiki:tbc:1411:Both	Durotar Quests 7-11	Quests	Both	1411	Durotar	6	5	5	0	0	0	0	1692	280	0	1		
+tbc	wiki:tbc:1431:Alliance	Duskwood Quests 17-30 (Alliance)	Quests	Alliance	1431	Duskwood	176	150	150	0	0	0	0	80231	11020	0	1		
+tbc	wiki:tbc:1431:Horde	Duskwood Quests 37-42 (Horde)	Quests	Horde	1431	Duskwood	11	8	8	0	0	0	0	6938	1223	0	1		
+tbc	wiki:tbc:1445:Alliance	Dustwallow Marsh Quests 30-38 (Alliance)	Quests	Alliance	1445	Dustwallow Marsh	38	34	34	0	0	0	0	15487	5378	0	1		
+tbc	wiki:tbc:1445:Both	Dustwallow Marsh Quests 30-40	Quests	Both	1445	Dustwallow Marsh	54	22	22	0	0	0	0	21117	3998	0	1		
+tbc	wiki:tbc:1445:Horde	Dustwallow Marsh Quests 30-60 (Horde)	Quests	Horde	1445	Dustwallow Marsh	57	51	51	0	0	0	0	88618	11003	0	1		
+tbc	wiki:tbc:1415:Both	Eastern Kingdoms Quests 58-60	Quests	Both	1415	Eastern Kingdoms	54	37	37	0	0	0	0	46903	8298	0	1		
+tbc	wiki:tbc:1423:Alliance	Eastern Plaguelands Quests 53-60 (Alliance)	Quests	Alliance	1423	Eastern Plaguelands	25	15	15	0	0	0	0	42156	9385	0	1		
+tbc	wiki:tbc:1423:Both	Eastern Plaguelands Quests 45-60	Quests	Both	1423	Eastern Plaguelands	320	211	211	0	0	0	0	302306	30712	0	1		
+tbc	wiki:tbc:1423:Horde	Eastern Plaguelands Quests 54-60 (Horde)	Quests	Horde	1423	Eastern Plaguelands	51	36	36	0	0	0	0	33066	4599	0	1		
+tbc	wiki:tbc:1429:Alliance	Elwynn Forest Quests 1-15 (Alliance)	Quests	Alliance	1429	Elwynn Forest	177	125	125	0	0	0	0	49861	7882	0	1		
+tbc	wiki:tbc:1429:Both	Elwynn Forest Quests 1	Quests	Both	1429	Elwynn Forest	14	11	11	0	0	0	0	1465	262	0	1		
+tbc	wiki:tbc:1941:Horde	Eversong Woods Quests 1-12 (Horde)	Quests	Horde	1941	Eversong Woods	248	141	141	0	0	0	0	46861	9496	0	1		
+tbc	wiki:tbc:1448:Alliance	Felwood Quests 45-56 (Alliance)	Quests	Alliance	1448	Felwood	24	17	17	0	0	0	0	27992	3130	0	1		
+tbc	wiki:tbc:1448:Both	Felwood Quests 45-60	Quests	Both	1448	Felwood	111	49	49	0	0	0	0	40795	5017	0	1		
+tbc	wiki:tbc:1448:Horde	Felwood Quests 45-59 (Horde)	Quests	Horde	1448	Felwood	25	22	22	0	0	0	0	56650	3682	0	1		
+tbc	wiki:tbc:1444:Alliance	Feralas Quests 30-50 (Alliance)	Quests	Alliance	1444	Feralas	129	110	110	0	0	0	0	98036	14246	0	1		
+tbc	wiki:tbc:1444:Both	Feralas Quests 45-60	Quests	Both	1444	Feralas	82	51	51	0	0	0	0	17418	5647	0	1		
+tbc	wiki:tbc:1444:Horde	Feralas Quests 30-52 (Horde)	Quests	Horde	1444	Feralas	97	79	79	0	0	0	0	84353	13038	0	1		
+tbc	wiki:tbc:1942:Both	Ghostlands Quests 68-70	Quests	Both	1942	Ghostlands	21	17	17	0	0	0	0	4399	393	0	1		
+tbc	wiki:tbc:1942:Horde	Ghostlands Quests 10-18 (Horde)	Quests	Horde	1942	Ghostlands	211	149	149	0	0	0	0	62405	10626	0	1		
+tbc	wiki:tbc:1944:Alliance	Hellfire Peninsula Quests 58-70 (Alliance)	Quests	Alliance	1944	Hellfire Peninsula	236	190	190	0	0	0	0	88874	7661	0	1		
+tbc	wiki:tbc:1944:Both	Hellfire Peninsula Quests 68-70	Quests	Both	1944	Hellfire Peninsula	93	83	83	0	0	0	0	52614	3911	0	1		
+tbc	wiki:tbc:1944:Horde	Hellfire Peninsula Quests 58-70 (Horde)	Quests	Horde	1944	Hellfire Peninsula	253	205	205	0	0	0	0	94308	8172	0	1		
+tbc	wiki:tbc:1424:Both	Hillsbrad Foothills Quests 30-40	Quests	Both	1424	Hillsbrad Foothills	13	7	7	0	0	0	0	21036	1467	0	1		
+tbc	wiki:tbc:1424:Horde	Hillsbrad Foothills Quests 17-43 (Horde)	Quests	Horde	1424	Hillsbrad Foothills	162	110	110	0	0	0	0	54846	9793	0	1		
+tbc	wiki:tbc:1455:Alliance	Ironforge Quests 1-60 (Alliance)	Quests	Alliance	1455	Ironforge	331	226	226	0	0	0	0	212969	32265	0	1		
+tbc	wiki:tbc:1455:Both	Ironforge Quests 35-40	Quests	Both	1455	Ironforge	20	18	18	0	0	0	0	753	1597	0	1		
+tbc	wiki:tbc:1455:Horde	Ironforge Quests 30-80 (Horde)	Quests	Horde	1455	Ironforge	5	5	5	0	0	0	0	7176	1258	0	1		
+tbc	wiki:tbc:1957:Both	Isle of Quel'Danas Quests 70	Quests	Both	1957	Isle of Quel'Danas	102	81	81	0	0	0	0	93539	3637	0	1		
+tbc	wiki:tbc:1432:Both	Loch Modan Quests 1	Quests	Both	1432	Loch Modan	5	5	5	0	0	0	0	1708	305	0	1		
+tbc	wiki:tbc:1450:Alliance	Moonglade Quests 10-14 (Alliance)	Quests	Alliance	1450	Moonglade	9	0	0	0	0	0	0	0	0	0	1		
+tbc	wiki:tbc:1450:Both	Moonglade Quests 10-70	Quests	Both	1450	Moonglade	51	25	25	0	0	0	0	78101	6181	0	1		
+tbc	wiki:tbc:1450:Horde	Moonglade Quests 10-14 (Horde)	Quests	Horde	1450	Moonglade	9	0	0	0	0	0	0	0	0	0	1		
+tbc	wiki:tbc:1412:Both	Mulgore Quests	Quests	Both	1412	Mulgore	2	2	2	0	0	0	0	154	27	0	1		
+tbc	wiki:tbc:1951:Alliance	Nagrand Quests (Alliance)	Quests	Alliance	1951	Nagrand	85	75	75	0	0	0	0	46452	6904	0	1		
+tbc	wiki:tbc:1951:Both	Nagrand Quests 70	Quests	Both	1951	Nagrand	199	156	156	0	0	0	0	112225	9182	0	1		
+tbc	wiki:tbc:1951:Horde	Nagrand Quests 66-68 (Horde)	Quests	Horde	1951	Nagrand	135	113	113	0	0	0	0	58895	5389	0	1		
+tbc	wiki:tbc:1953:Alliance	Netherstorm Quests 61-70 (Alliance)	Quests	Alliance	1953	Netherstorm	5	5	5	0	0	0	0	12653	1387	0	1		
+tbc	wiki:tbc:1953:Both	Netherstorm Quests 68-70	Quests	Both	1953	Netherstorm	519	435	435	0	0	0	0	255562	21835	0	1		
+tbc	wiki:tbc:1953:Horde	Netherstorm Quests 61-70 (Horde)	Quests	Horde	1953	Netherstorm	5	5	5	0	0	0	0	11941	1474	0	1		
+tbc	wiki:tbc:1454:Alliance	Orgrimmar Quests 30-80 (Alliance)	Quests	Alliance	1454	Orgrimmar	5	5	5	0	0	0	0	437	1183	0	1		
+tbc	wiki:tbc:1454:Horde	Orgrimmar Quests 1-60 (Horde)	Quests	Horde	1454	Orgrimmar	373	232	232	0	0	0	0	226105	33951	0	1		
+tbc	wiki:tbc:1433:Alliance	Redridge Mountains Quests 11-25 (Alliance)	Quests	Alliance	1433	Redridge Mountains	103	81	81	0	0	0	0	51944	7103	0	1		
+tbc	wiki:tbc:1427:Alliance	Searing Gorge Quests 40-59 (Alliance)	Quests	Alliance	1427	Searing Gorge	54	47	47	0	0	0	0	34671	3939	0	1		
+tbc	wiki:tbc:1427:Both	Searing Gorge Quests 40-53	Quests	Both	1427	Searing Gorge	106	84	84	0	0	0	0	40072	7412	0	1		
+tbc	wiki:tbc:1427:Horde	Searing Gorge Quests 48-58 (Horde)	Quests	Horde	1427	Searing Gorge	39	30	30	0	0	0	0	25473	4350	0	1		
+tbc	wiki:tbc:1948:Alliance	Shadowmoon Valley Quests 70 (Alliance)	Quests	Alliance	1948	Shadowmoon Valley	104	83	83	0	0	0	0	39994	3160	0	1		
+tbc	wiki:tbc:1948:Both	Shadowmoon Valley Quests	Quests	Both	1948	Shadowmoon Valley	400	340	340	0	0	0	0	346851	40694	0	1		
+tbc	wiki:tbc:1948:Horde	Shadowmoon Valley Quests 70 (Horde)	Quests	Horde	1948	Shadowmoon Valley	111	93	93	0	0	0	0	50573	3461	0	1		
+tbc	wiki:tbc:1955:Alliance	Shattrath City Quests (Alliance)	Quests	Alliance	1955	Shattrath City	27	25	25	0	0	0	0	35300	4692	0	1		
+tbc	wiki:tbc:1955:Both	Shattrath City Quests 61-70	Quests	Both	1955	Shattrath City	130	111	111	0	0	0	0	120218	6801	0	1		
+tbc	wiki:tbc:1955:Horde	Shattrath City Quests (Horde)	Quests	Horde	1955	Shattrath City	24	22	22	0	0	0	0	40045	3728	0	1		
+tbc	wiki:tbc:1451:Both	Silithus Quests 54-60	Quests	Both	1451	Silithus	363	149	149	0	0	0	0	90272	9009	0	1		
+tbc	wiki:tbc:1451:Horde	Silithus Quests 54-55 (Horde)	Quests	Horde	1451	Silithus	7	7	7	0	0	0	0	20920	1090	0	1		
+tbc	wiki:tbc:1954:Both	Silvermoon City Quests	Quests	Both	1954	Silvermoon City	2	2	2	0	0	0	0	460	82	0	1		
+tbc	wiki:tbc:1421:Both	Silverpine Forest Quests	Quests	Both	1421	Silverpine Forest	2	2	2	0	0	0	0	326	58	0	1		
+tbc	wiki:tbc:1442:Alliance	Stonetalon Mountains Quests 17-27 (Alliance)	Quests	Alliance	1442	Stonetalon Mountains	45	37	37	0	0	0	0	54007	10220	0	1		
+tbc	wiki:tbc:1442:Both	Stonetalon Mountains Quests 16-27	Quests	Both	1442	Stonetalon Mountains	15	12	12	0	0	0	0	12151	1598	0	1		
+tbc	wiki:tbc:1442:Horde	Stonetalon Mountains Quests 12-26 (Horde)	Quests	Horde	1442	Stonetalon Mountains	83	59	59	0	0	0	0	78920	11746	0	1		
+tbc	wiki:tbc:1453:Alliance	Stormwind City Quests 1-60 (Alliance)	Quests	Alliance	1453	Stormwind City	441	263	263	0	0	0	0	312050	35993	0	1		
+tbc	wiki:tbc:1453:Both	Stormwind City Quests 24-52	Quests	Both	1453	Stormwind City	14	2	2	0	0	0	0	386	69	0	1		
+tbc	wiki:tbc:1453:Horde	Stormwind City Quests (Horde)	Quests	Horde	1453	Stormwind City	2	2	2	0	0	0	0	10866	668	0	1		
+tbc	wiki:tbc:1434:Alliance	Stranglethorn Vale Quests 30-40 (Alliance)	Quests	Alliance	1434	Stranglethorn Vale	61	50	50	0	0	0	0	75870	6976	0	1		
+tbc	wiki:tbc:1434:Both	Stranglethorn Vale Quests 1-60	Quests	Both	1434	Stranglethorn Vale	405	323	323	0	0	0	0	191642	24774	0	1		
+tbc	wiki:tbc:1434:Horde	Stranglethorn Vale Quests 30-46 (Horde)	Quests	Horde	1434	Stranglethorn Vale	70	57	57	0	0	0	0	49596	5393	0	1		
+tbc	wiki:tbc:1435:Alliance	Swamp of Sorrows Quests 32-43 (Alliance)	Quests	Alliance	1435	Swamp of Sorrows	24	20	20	0	0	0	0	18774	2904	0	1		
+tbc	wiki:tbc:1435:Both	Swamp of Sorrows Quests 30-55	Quests	Both	1435	Swamp of Sorrows	43	33	33	0	0	0	0	68255	8253	0	1		
+tbc	wiki:tbc:1435:Horde	Swamp of Sorrows Quests 30-51 (Horde)	Quests	Horde	1435	Swamp of Sorrows	53	43	43	0	0	0	0	44326	5845	0	1		
+tbc	wiki:tbc:1446:Alliance	Tanaris Quests 40-54 (Alliance)	Quests	Alliance	1446	Tanaris	15	10	10	0	0	0	0	18949	4536	0	1		
+tbc	wiki:tbc:1446:Both	Tanaris Quests 20-60	Quests	Both	1446	Tanaris	380	318	318	0	0	0	0	267667	40141	0	1		
+tbc	wiki:tbc:1446:Horde	Tanaris Quests 38-54 (Horde)	Quests	Horde	1446	Tanaris	23	14	14	0	0	0	0	20019	4758	0	1		
+tbc	wiki:tbc:1438:Both	Teldrassil Quests 1-60	Quests	Both	1438	Teldrassil	27	19	19	0	0	0	0	46504	5505	0	1		
+tbc	wiki:tbc:1438:Horde	Teldrassil Quests (Horde)	Quests	Horde	1438	Teldrassil	2	2	2	0	0	0	0	1474	1401	0	1		
+tbc	wiki:tbc:1952:Alliance	Terokkar Forest Quests (Alliance)	Quests	Alliance	1952	Terokkar Forest	83	68	68	0	0	0	0	37545	4884	0	1		
+tbc	wiki:tbc:1952:Both	Terokkar Forest Quests 60-70	Quests	Both	1952	Terokkar Forest	280	228	228	0	0	0	0	234183	14967	0	1		
+tbc	wiki:tbc:1952:Horde	Terokkar Forest Quests (Horde)	Quests	Horde	1952	Terokkar Forest	94	79	79	0	0	0	0	40927	5867	0	1		
+tbc	wiki:tbc:1413:Alliance	The Barrens Quests 15-30 (Alliance)	Quests	Alliance	1413	The Barrens	16	9	9	0	0	0	0	33257	5181	0	1		
+tbc	wiki:tbc:1413:Both	The Barrens Quests 9-40	Quests	Both	1413	The Barrens	129	72	72	0	0	0	0	59267	9413	0	1		
+tbc	wiki:tbc:1413:Horde	The Barrens Quests 1-29 (Horde)	Quests	Horde	1413	The Barrens	352	215	215	0	0	0	0	219478	29991	0	1		
+tbc	wiki:tbc:1947:Alliance	The Exodar Quests 10-60 (Alliance)	Quests	Alliance	1947	The Exodar	35	17	17	0	0	0	0	34931	5811	0	1		
+tbc	wiki:tbc:1947:Horde	The Exodar Quests (Horde)	Quests	Horde	1947	The Exodar	2	2	2	0	0	0	0	197	1057	0	1		
+tbc	wiki:tbc:1425:Both	The Hinterlands Quests 40-50	Quests	Both	1425	The Hinterlands	10	8	8	0	0	0	0	4407	1784	0	1		
+tbc	wiki:tbc:1425:Horde	The Hinterlands Quests 35-51 (Horde)	Quests	Horde	1425	The Hinterlands	76	61	61	0	0	0	0	96692	8181	0	1		
+tbc	wiki:tbc:1441:Alliance	Thousand Needles Quests 23-37 (Alliance)	Quests	Alliance	1441	Thousand Needles	10	10	10	0	0	0	0	8579	5085	0	1		
+tbc	wiki:tbc:1441:Both	Thousand Needles Quests 24-43	Quests	Both	1441	Thousand Needles	96	80	80	0	0	0	0	53262	9592	0	1		
+tbc	wiki:tbc:1441:Horde	Thousand Needles Quests 20-35 (Horde)	Quests	Horde	1441	Thousand Needles	95	81	81	0	0	0	0	63880	14025	0	1		
+tbc	wiki:tbc:1456:Alliance	Thunder Bluff Quests 16 (Alliance)	Quests	Alliance	1456	Thunder Bluff	4	2	2	0	0	0	0	10094	709	0	1		
+tbc	wiki:tbc:1456:Both	Thunder Bluff Quests 24-52	Quests	Both	1456	Thunder Bluff	17	8	8	0	0	0	0	18745	3957	0	1		
+tbc	wiki:tbc:1456:Horde	Thunder Bluff Quests 1-55 (Horde)	Quests	Horde	1456	Thunder Bluff	112	73	73	0	0	0	0	82430	15403	0	1		
+tbc	wiki:tbc:1420:Alliance	Tirisfal Glades Quests 28-40 (Alliance)	Quests	Alliance	1420	Tirisfal Glades	17	10	10	0	0	0	0	30208	4880	0	1		
+tbc	wiki:tbc:1420:Both	Tirisfal Glades Quests 57-60	Quests	Both	1420	Tirisfal Glades	4	3	3	0	0	0	0	11704	817	0	1		
+tbc	wiki:tbc:1420:Horde	Tirisfal Glades Quests 1-42 (Horde)	Quests	Horde	1420	Tirisfal Glades	226	154	154	0	0	0	0	77731	12637	0	1		
+tbc	wiki:tbc:1449:Both	Un'Goro Crater Quests 47-55	Quests	Both	1449	Un'Goro Crater	85	64	64	0	0	0	0	92524	8725	0	1		
+tbc	wiki:tbc:1449:Horde	Un'Goro Crater Quests 47-52 (Horde)	Quests	Horde	1449	Un'Goro Crater	11	7	7	0	0	0	0	9008	718	0	1		
+tbc	wiki:tbc:1458:Alliance	Undercity Quests (Alliance)	Quests	Alliance	1458	Undercity	4	4	4	0	0	0	0	174	31	0	1		
+tbc	wiki:tbc:1458:Both	Undercity Quests	Quests	Both	1458	Undercity	9	6	6	0	0	0	0	176	2457	0	1		
+tbc	wiki:tbc:1458:Horde	Undercity Quests 1-60 (Horde)	Quests	Horde	1458	Undercity	202	100	100	0	0	0	0	97768	15152	0	1		
+tbc	wiki:tbc:1460:Alliance	Warsong Gulch Quests 11-25 (Alliance)	Quests	Alliance	1460	Warsong Gulch	6	6	6	0	0	0	0	0	2108	3	1		
+tbc	wiki:tbc:1460:Horde	Warsong Gulch Quests 10-70 (Horde)	Quests	Horde	1460	Warsong Gulch	9	9	9	0	0	0	0	165	686	1	1		
+tbc	wiki:tbc:1422:Alliance	Western Plaguelands Quests 48-58 (Alliance)	Quests	Alliance	1422	Western Plaguelands	90	67	67	0	0	0	0	37563	6952	0	1		
+tbc	wiki:tbc:1422:Both	Western Plaguelands Quests 50-60	Quests	Both	1422	Western Plaguelands	102	77	77	0	0	0	0	46327	4838	0	1		
+tbc	wiki:tbc:1422:Horde	Western Plaguelands Quests 50-60 (Horde)	Quests	Horde	1422	Western Plaguelands	77	64	64	0	0	0	0	20755	5136	0	1		
+tbc	wiki:tbc:1436:Alliance	Westfall Quests 8-44 (Alliance)	Quests	Alliance	1436	Westfall	106	82	82	0	0	0	0	77126	9543	0	1		
+tbc	wiki:tbc:1436:Both	Westfall Quests 10-19	Quests	Both	1436	Westfall	24	21	21	0	0	0	0	13982	2472	0	1		
+tbc	wiki:tbc:1437:Alliance	Wetlands Quests 16-31 (Alliance)	Quests	Alliance	1437	Wetlands	101	81	81	0	0	0	0	61029	8245	0	1		
+tbc	wiki:tbc:1452:Alliance	Winterspring Quests 50-59 (Alliance)	Quests	Alliance	1452	Winterspring	36	28	28	0	0	0	0	32719	4950	0	1		
+tbc	wiki:tbc:1452:Both	Winterspring Quests 1-60	Quests	Both	1452	Winterspring	119	102	102	0	0	0	0	80785	11880	0	1		
+tbc	wiki:tbc:1452:Horde	Winterspring Quests 49-59 (Horde)	Quests	Horde	1452	Winterspring	8	8	8	0	0	0	0	20906	2410	0	1		
+tbc	wiki:tbc:1946:Alliance	Zangarmarsh Quests (Alliance)	Quests	Alliance	1946	Zangarmarsh	90	83	83	0	0	0	0	64876	7429	0	1		
+tbc	wiki:tbc:1946:Both	Zangarmarsh Quests 62-70	Quests	Both	1946	Zangarmarsh	159	118	118	0	0	0	0	74827	6172	0	1		
+tbc	wiki:tbc:1946:Horde	Zangarmarsh Quests (Horde)	Quests	Horde	1946	Zangarmarsh	80	77	77	0	0	0	0	48891	6440	0	1		
+tbc	wiki:tbc:0:Alliance	Other Quests Quests 55-59 (Alliance)	Quests	Alliance	Other		8	8	8	0	0	0	0	0	0	0	1		
+tbc	wiki:tbc:0:Both	Other Quests Quests 1-80	Quests	Both	Other		54	46	46	0	0	0	0	0	0	0	1		
+tbc	wiki:tbc:0:Horde	Other Quests Quests 1-59 (Horde)	Quests	Horde	Other		6	5	5	0	0	0	0	0	0	0	1		

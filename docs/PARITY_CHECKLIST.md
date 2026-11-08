@@ -16,7 +16,7 @@ Live gameplay verification (screenshots in session log):
 - [x] step auto-completion: injected R-step at player position auto-completed <1s and advanced to next step
 - [x] optimizer: /or order lists upcoming steps with per-step travel ETAs from player position
 - [x] guide viewer step list with action icons, checkboxes, skip/undo buttons
-- [x] guide sources: native + WoW-Pro imported at runtime (2026-08-18 run also loaded Commercial-derived guides, since removed)
+- [x] guide sources: native + WoW-Pro imported at runtime (2026-08-18 run also loaded third-party guides, since removed)
 - [x] hearth location learned from tavern-name seed (Gallows' End Tavern)
 - [x] /or verify, route, order, stats, log, guides menu (mouse), Options panel loads without error
 

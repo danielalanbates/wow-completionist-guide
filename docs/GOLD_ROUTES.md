@@ -51,7 +51,7 @@ otherwise a closing lap would tick every waypoint in sequence and eat itself (th
 5. Mostly quest steps → refused: that is a questing guide, not a farm route.
 
 Circuit coverage will be re-measured on the wiki-sourced gold guides (FINISH_PLAN.md); the earlier
-measurement used Commercial-derived guides and was deleted with them on 2026-11-07.
+measurement used third-party guides that were removed on 2026-11-07.
 
 ## What a lap is worth
 
