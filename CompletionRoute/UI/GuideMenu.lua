@@ -146,7 +146,8 @@ local function tex(path, size) return ("|T%s:%d:%d:0:-1|t"):format(path, size or
 -- Path of a guide inside the tree: { "Leveling", "Starter Guides (1-12)" } (leaf shown separately)
 local function guidePath(g)
     local cat = normCat(g.type)
-    local area = g.zone
+    -- g.folder overrides the zone folder (the generated leveling spine lists its guides under "Leveling (generated)")
+    local area = g.folder or g.zone
     if type(area) == "number" then local mi = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(area) area = mi and mi.name end
     return { cat, tostring(area or (g.source == "CompletionRoute" and "CompletionRoute" or "Other")) }
 end

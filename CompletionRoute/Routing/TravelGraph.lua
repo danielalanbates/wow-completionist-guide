@@ -29,10 +29,12 @@ end
 local function dist(ax, ay, bx, by) local dx, dy = ax - bx, ay - by return math.sqrt(dx * dx + dy * dy) end
 
 -- Convert zone-name coords to world; returns wx, wy, inst
+-- (static data: Inns, Transit, Roads - written on Era maps, so Forever converts reshaped maps first)
 local function zoneToWorld(zoneName, x, y)
     local mapID = U.MapIDByName(zoneName)
     if not mapID then return nil end
-    return HBD:GetWorldCoordinatesFromZone(x / 100, y / 100, mapID)
+    local x01, y01 = U.EraToForever(mapID, x / 100, y / 100)
+    return HBD:GetWorldCoordinatesFromZone(x01, y01, mapID)
 end
 TG.zoneToWorld = zoneToWorld
 
@@ -58,7 +60,8 @@ local TAXI_BLACKLIST = {
 function TG.Build()
     TG.nodes, TG.taxiByID, TG.unresolved = {}, {}, {}
     local flavor = NS.flavor
-    local taxi = NS.TaxiData and (NS.TaxiData[flavor] or NS.TaxiData.tbc)
+    -- Forever has its own taxi network (Data/Taxi_forever.lua); era data is the fallback
+    local taxi = NS.TaxiData and (NS.TaxiData[NS.dataFlavor or flavor] or NS.TaxiData[flavor] or NS.TaxiData.tbc)
     local fac = faction()
     if taxi then
         for id, n in pairs(taxi.nodes) do

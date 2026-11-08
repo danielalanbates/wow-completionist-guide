@@ -196,6 +196,40 @@ function G.ApplyCoordFix(s)
     s.coordFixed = true
 end
 
+-- Baked route order (Data/RouteOrder_<flavor>.lua, written offline by tools/optimize_routes.py from the
+-- addon's own travel graph). Same checksum as the generator: a guide regenerated since the bake no longer
+-- matches and simply keeps its author order. Spine entries reuse their zone guide's text, so they look up
+-- `part`. The live window (Router.OrderSteps) still reorders the next steps on top of this order.
+function G.RouteChecksum(steps)
+    local c = 0
+    for _, s in ipairs(steps) do c = (c * 31 + s.action:byte() + ((s.qid and s.qid[1]) or 0)) % 2147483647 end
+    return c
+end
+local function decodeOrder(str, n)
+    local out, used = {}, {}
+    for part in str:gmatch("[^,]+") do
+        local a, b = part:match("^(%d+)%-(%d+)$")
+        a, b = tonumber(a or part), tonumber(b or a or part)
+        if not a or not b or b < a then return nil end
+        for i = a, b do
+            if i < 1 or i > n or used[i] then return nil end
+            used[i] = true out[#out + 1] = i
+        end
+    end
+    if #out ~= n then return nil end
+    return out
+end
+function G.BakedOrder(g, steps)
+    local RO = NS.RouteOrder
+    if not RO or not g or #steps < 2 then return nil end
+    local r = NS.db and NS.db.profile and NS.db.profile.routing
+    if r and r.baked == false then return nil end
+    local e = RO[g.id] or (g.part and RO[g.part])
+    if not e or e.n ~= #steps or e.sum ~= G.RouteChecksum(steps) then return nil end
+    if not e.order then e.order = decodeOrder(e.o or "", e.n) or false end
+    return e.order or nil
+end
+
 -- Parse (lazily) a guide's steps
 function G.Steps(id)
     local g = G.registry[id]
@@ -220,8 +254,23 @@ function G.Steps(id)
             if s.zone then lastZone, lastZoneName = s.zone, s.zoneName
             elseif lastZone then s.zone, s.zoneName, s.zoneInherited = lastZone, lastZoneName, true end
             if NS.QuestCoordFixes then G.ApplyCoordFix(s) end
+            -- Forever: every guide except the Forever-native files (def.forever) is written on Era maps
+            if NS.isForever and not g.forever and s.coords and s.zone and NS.ForeverMapFix and NS.ForeverMapFix[s.zone] then
+                for _, c in ipairs(s.coords) do c.x, c.y = U.EraToForever(s.zone, c.x, c.y) end
+                s.eraMapFixed = true
+            end
             s.index = #steps + 1 s.guide = id steps[#steps + 1] = s
         elseif err then errors = errors + 1 NS:Debug("guide " .. id .. " line " .. n .. ": " .. err) end
+    end
+    -- baked order: same step tables (s.index stays the author index, so progress keys never move)
+    local order = G.BakedOrder(g, steps)
+    if order then
+        local baked = {}
+        for k, i in ipairs(order) do baked[k] = steps[i] end
+        steps = baked
+        g.baked = true
+    else
+        g.baked = nil
     end
     g.steps = steps
     g.parseErrors = errors

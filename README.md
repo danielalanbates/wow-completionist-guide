@@ -37,7 +37,7 @@ regenerable**, so nothing here depends on a subscription staying alive:
 
 | Source | Flavors | How |
 |---|---|---|
-| **Warcraft Wiki** (warcraft.wiki.gg, CC BY-SA 4.0) — **the source of truth** | era, tbc, mop, retail | `tools/wiki/` (fetch → parse → `gen_wiki_guides.py`) writes `Guides/Imported_Wiki_<flavor>.lua`: per-zone guides with the wiki's givers, enders, chains (`PRE`), objectives and coordinates. Flavor membership is checked against each client's QuestV2. See [tools/wiki/README.md](tools/wiki/README.md) |
+| **Warcraft Wiki** (warcraft.wiki.gg, CC BY-SA 4.0) — **the source of truth** | era, tbc, mop, retail, forever | `tools/wiki/` (fetch → parse → `gen_wiki_guides.py`) writes `Guides/Imported_Wiki_<flavor>.lua`: per-zone guides with the wiki's givers, enders, chains (`PRE`), objectives and coordinates. Flavor membership is checked against each client's QuestV2. See [tools/wiki/README.md](tools/wiki/README.md) |
 | Blizzard quest POI client data (wago.tools `QuestPOIBlob`/`QuestPOIPoint`) | retail | `tools/gen_quest_guides_retail.py`. Now fills wiki gaps only: coordinates for steps the wiki has none for, plus `Imported_Quests_retail_gaps.lua` for quests the wiki lacks |
 | **Questie** database (local checkout) | era, tbc, mop | `tools/gen_quest_guides.lua`. Local-only fallback where the wiki has no coordinate, plus `Imported_Quests_<flavor>_gaps.lua` for quests the wiki lacks |
 | **WoW-Pro** guides installed on your machine | all | `Adapters/WoWPro.lua` (runtime interop) |
@@ -113,8 +113,9 @@ archive/              dead ends kept for reference
 
 ```
 luajit tools/test_offline.lua        # parser + Dijkstra + optimizer smoke test with a stubbed WoW API
-luajit tools/test_load_all.lua       # every TOC's file list loads clean on all four flavors
-luajit tools/test_wiki.lua           # wiki guides parse, are flavor-gated, quest 7 has A/C/T with coords
+luajit tools/test_load_all.lua       # every TOC's file list loads clean on all five flavors (incl. Forever)
+luajit tools/test_wiki.lua           # wiki guides parse, are flavor-gated, quest 7 has A/C/T with coords, spine has 0 PRE violations
+luajit tools/test_route_order.lua    # baked RouteOrder never breaks precedence, loads on every flavor
 luajit tools/vplayer.lua retail --shard 1/4    # play every guide; python3 tools/collect_vplayer.py
 luajit tools/route_sweep.lua era     # route every guide from its own zone
 python3 tools/gen_quest_guides_retail.py       # regenerate the retail quest guides from client data

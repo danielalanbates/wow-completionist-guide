@@ -6,6 +6,8 @@ subscription.
 ```
 luajit tools/vplayer.lua <era|tbc|mop|retail> [--limit N] [--shard i/n] [--type Leveling]
                          [--guide ID] [--faction Horde] [--guidecap 20] [--out PATH] [--verbose]
+                         [--order author|baked] [--live on|off]
+# --order baked loads Data/RouteOrder_<fl>.lua (tools/optimize_routes.py); --live off disables the 12-step window
 python3 tools/collect_vplayer.py       # -> docs/verification.sqlite
 ```
 

@@ -1,3 +1,51 @@
+# Status / handoff (2026-11-08, Forever flavor, generated leveling spine, offline route optimizer)
+
+Built by a 4-agent run (Forever ‖ spine → optimizer → independent verifier); verifier re-ran everything and fixed 4 bugs.
+All 7 harnesses pass (`test_offline`, `test_farm`, `test_access`, `test_load_all`, `validate_toc`, `test_wiki`,
+`test_route_order`). Installed on all 5 clients. **Nothing loaded in a real client yet — Daniel beta-tests.**
+
+* **Forever** (wago product `wowf`, build 1.60.1.70790, Interface 16001). Era code path (`NS.flavor="era"`) with
+  `NS.isForever` / `NS.dataFlavor="forever"`. `CompletionRoute_Forever.toc` + identical `_Camelot.toc` (the client
+  binary carries both suffixes). Own QuestV2 (6,616 ids: 4,805 shared with era, 1,811 Forever-only, 190 of those on
+  the wiki), own `Taxi_forever.lua` (90 nodes), `MapFix_forever.lua` + `U.EraToForever` for the 4 reshaped maps
+  (Mulgore, Eastern Plaguelands, Redridge, Stormwind). HereBeDragons bumped to r35 Forever support.
+  142 guides, coverage 3,752 / 6,616 (56.7%). vplayer: 293/293 finished, 0 stalls.
+* **Spine** (`tools/wiki/gen_spine.py` → `Imported_Spine_<fl>.lua`, gitignored). In-zone order = topological over
+  wiki PRE, then level (classic) / Campaign→QuestLine (retail), then 50 yd hub, then a simulated player (accept all at
+  hub, objectives nearest-first, turn-ins, re-accept unlocks). Guides >250 steps split at ~200 by level / quest line.
+
+  | Flavor | Zone guides | Max steps | Spine A / H | PRE violations |
+  |---|---:|---:|---:|---:|
+  | era | 137 | 243 | 94 / 86 | 0 |
+  | tbc | 185 | 236 | 126 / 121 | 0 |
+  | mop | 337 | 249 | 236 / 241 | 0 |
+  | retail | 814 | 250 | 625 / 631 | 0 |
+  | forever | 142 | 231 | 97 / 90 | 0 |
+
+* **Optimizer (tier A)**: `tools/cost_matrix.lua` (real Router; matches `Router.TravelSeconds` exactly on 145,800
+  pairs) + `tools/optimize_routes.py` (OR-Tools 9.15 in `~/Downloads/CompletionistGuide-work/venv`, py3.12;
+  precedence, log cap 20/25/35, level gates, 30 s/guide) → `Data/RouteOrder_<fl>.lua` (gitignored, checksum-guarded;
+  stale → author order). Option `routing.baked`. SQL: `route_compare`, `opt_violations` (0).
+
+  | | era | tbc | mop | retail | forever |
+  |---|---|---|---|---|---|
+  | Guides optimized | all 234 | all 354 | 155 sample | 171 sample | all 239 |
+  | Model saving, median / total | 27.5 / 39.5% | 29.4 / 39.7% | 21.4 / 31.0% | 20.9 / 22.1% | 28.5 / 39.4% |
+  | vplayer baked vs author (live off) | 18.4% | 24.1% | 22.7% | 13.0% | 20.1% |
+  | **vplayer in game (baked+live vs author+live)** | 6.4% | 9.1% | 12.7% | 6.5% | 5.0% |
+  | Guides >1% slower (live on) | 22 | 7 | 16 | 26 | 16 |
+
+  Honest read: the existing 12-step live window already captures 31–39%; the bake adds 5–13% on top, median guide 0%.
+  Exact lower bounds exist for ~55% of guides and all of those are within 0.1% of optimal.
+* **Known gaps / next:**
+  1. Spine skips wide-level-band guides (e.g. "Darnassus 1-50") when remaining steps are level-gated and never
+     returns — needs a `Core/Progress.lua` revisit rule (2/25 era spine guides unfinished in vplayer).
+  2. Live window re-sorts the baked order greedily and can undo it → tier B replanner (W4) must respect the bake.
+  3. Full mop/retail optimizer runs (samples only so far).
+  4. Retail zone purity: off-map accepts 19% → 42% after PRE repair; 727 faction-gated quest copies.
+  5. Valley of Trials wiki points land in The Barrens; Zephras Isle (Forever) has almost no wiki coords.
+  6. Era maps file from 1.15.7 (client 1.15.9). Forever flying/profession API assumed era-like.
+
 # Status / handoff (2026-11-07, wiki pipeline built: Warcraft Wiki → quest guides on all four clients)
 
 * **Pipeline** (`tools/wiki/`, see [tools/wiki/README.md](../tools/wiki/README.md)):

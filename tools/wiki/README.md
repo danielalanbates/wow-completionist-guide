@@ -25,7 +25,7 @@ The rules live in [docs/WIKI_DATA_SPEC.md](../../docs/WIKI_DATA_SPEC.md); the co
 
 * **Membership.** A quest goes to a client only if all of these hold:
   * its id is in that client's QuestV2;
-  * it is not RemovedFromBeta/Alpha/PTR, Forever-only or Season of Discovery;
+  * it is not RemovedFromBeta/Alpha/PTR, Forever-only (allowed on `forever` only) or Season of Discovery;
   * it was not removed at or before the client's version (`{{Classic only|patch=}}`, `{{Removed|patch=}}`,
     `==Patch changes== note=Removed`);
   * its added patch fits the client.
@@ -59,6 +59,19 @@ The rules live in [docs/WIKI_DATA_SPEC.md](../../docs/WIKI_DATA_SPEC.md); the co
   * `docs/verification.sqlite`: `wiki_db2_conflict`, with fields `membership` (wiki says vanilla, era client lacks
     it), `objective_count` (retail wiki bullets vs QuestObjective rows, which also drops `QO`), `turnin_xy` (wiki
     ender over 50 yd from the retail POI turn-in pin), and `*_xy_version`.
+
+## WoW Forever
+
+Forever (product `wowf`, client 1.60.1, Interface 16001) is Era content on the modern client. Its QuestV2 holds
+4,805 of era's 4,807 ids plus 1,811 of its own (190 have a wiki page). Four zone maps are reshaped against Era
+(Mulgore, Eastern Plaguelands, Redridge Mountains, Stormwind City) and it adds Zephras Isle, Darkspear Islands,
+Mount Hyjal, Riverglades and Shen'dralas, with 8 new taxi nodes. So it is its own generator flavor:
+`gen_wiki_guides.py forever` takes era membership rules plus the 1.60 line and `{{Forever only}}` / `(Forever)`
+pages, places points on `tools/maps_forever.lua`, and takes fallback points and the `_gaps` guides from
+`Imported_Quests_era.lua` (no Forever Questie export), converting Era-map points on the reshaped maps. The addon
+runs the era code path there (`NS.flavor == "era"`, `NS.isForever`, `NS.dataFlavor == "forever"`); every Era-map
+point in other guides and data is converted at runtime by `U.EraToForever` (`Data/MapFix_forever.lua`, from
+`tools/gen_mapfix_forever.py`). Taxi: `Data/Taxi_forever.lua` (`tools/gen_taxi.py`, wowf 1.60.1.70790).
 
 ## Achievements
 

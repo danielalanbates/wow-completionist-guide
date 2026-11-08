@@ -128,6 +128,17 @@ function U.PlayerPos()
     return map, x, y, inst, wx, wy
 end
 
+-- WoW Forever reshaped a few Era maps (Data/MapFix_forever.lua).  Era-sourced map percentages on those maps are
+-- converted through world coordinates onto the Forever map; everywhere else (and on every other client) the point
+-- is returned unchanged.  x, y in 0..1.
+function U.EraToForever(mapID, x, y)
+    local f = NS.isForever and NS.ForeverMapFix and mapID and NS.ForeverMapFix[mapID]
+    if not f or not x or not y then return x, y end
+    local wx = f[1] - y * f[4]
+    local wy = f[2] - x * f[3]
+    return (f[6] - wy) / f[7], (f[5] - wx) / f[8]
+end
+
 -- World coords for (mapID, x01, y01)
 function U.World(mapID, x, y)
     if not mapID then return end

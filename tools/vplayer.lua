@@ -14,15 +14,18 @@
 -- Why: it replaces "level a character through 9,519 guides" with a few minutes of CPU, and it keeps
 -- working after the subscription lapses.  It does NOT replace in-game checks of the UI/API surface.
 --
--- Usage:  luajit tools/vplayer.lua <era|tbc|mop|retail> [--limit N] [--shard i/n] [--type Leveling] [--guides-file F]
+-- Usage:  luajit tools/vplayer.lua <era|tbc|mop|retail|forever> [--limit N] [--shard i/n] [--type Leveling] [--guides-file F] [--spine]
 --                                  [--guide ID] [--faction Horde] [--guidecap 20] [--out PATH]
+--                                  [--order author|baked] [--live on|off]   (baked = Data/RouteOrder_<fl>.lua; live = 12-step window)
 -- Then:   python3 tools/collect_vplayer.py   (folds the TSVs into docs/verification.sqlite)
 package.path = "./?.lua;" .. package.path
 
 local flavor = arg[1] or "era"
 local limit, shardI, shardN, onlyType, onlyGuide, forceFaction, guideCap, outPath = math.huge, 1, 1, nil, nil, nil, 90, nil
 local verbose = false
+local withSpine = false
 local guideSet = nil
+orderMode, liveWindow = "author", true
 for i = 2, #arg do
     local a = arg[i]
     if a == "--limit" then limit = tonumber(arg[i + 1])
@@ -35,13 +38,21 @@ for i = 2, #arg do
     elseif a == "--faction" then forceFaction = arg[i + 1]
     elseif a == "--guidecap" then guideCap = tonumber(arg[i + 1])
     elseif a == "--out" then outPath = arg[i + 1]
+    elseif a == "--spine" then withSpine = true   -- also load Guides/Imported_Spine_<fl>.lua (the generated leveling chain)
+    elseif a == "--order" then orderMode = arg[i + 1]      -- author | baked (Data/RouteOrder_<fl>.lua, tools/optimize_routes.py)
+    elseif a == "--live" then liveWindow = arg[i + 1] ~= "off" -- the 12-step live reorder window on top (default on)
     elseif a == "--verbose" then verbose = true end
 end
 outPath = outPath or ("docs/vplayer_" .. flavor .. (shardN > 1 and ("_" .. shardI) or "") .. ".tsv")
 local stallPath = outPath:gsub("%.tsv$", "") .. "_stalls.tsv"
 
-local TOC = { era = 11507, tbc = 20506, mop = 50504, retail = 120100 }
-local TAXI = { era = "Data/Taxi_era.lua", tbc = "Data/Taxi_tbc.lua", mop = "Data/Taxi_mop.lua", retail = "Data/Taxi_retail.lua" }
+-- forever = WoW Forever (wowf 1.60.x, Interface 16001): the era code path (NS.flavor "era", NS.isForever) on
+-- Forever's own maps (tools/maps_forever.lua), taxi network, map fix and wiki/gaps guides, plus the era WoW-Pro file.
+local TOC = { era = 11507, tbc = 20506, mop = 50504, retail = 120100, forever = 16001 }
+local TAXI = { era = "Data/Taxi_era.lua", tbc = "Data/Taxi_tbc.lua", mop = "Data/Taxi_mop.lua", retail = "Data/Taxi_retail.lua",
+               forever = "Data/Taxi_forever.lua" }
+local WOWPRO = { forever = "era" }
+local EXTRA = { forever = "Data/MapFix_forever.lua" }
 
 -- ---------------------------------------------------------------------------
 -- The fake world (mutable — this is what makes it a player and not a sweep)
@@ -112,19 +123,30 @@ local function load(path)
     f:close()
     assert(loadfile("CompletionRoute/" .. path))(ADDON, NS)
 end
-for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], "Data/Transit.lua", "Data/Imported_Entrances.lua", "Data/Access.lua",
+for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], EXTRA[flavor] or TAXI[flavor], "Data/Transit.lua", "Data/Imported_Entrances.lua", "Data/Access.lua",
     "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
     "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
     "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
     "Adapters/WoWPro.lua",
-    ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
+    ("Guides/Imported_WoWPro_" .. (WOWPRO[flavor] or flavor) .. ".lua"),
     -- quest guides exactly as the flavor TOC loads them: wiki guides + the older generated guides' gaps
     ("Guides/Imported_Wiki_" .. flavor .. ".lua"), ("Guides/Imported_Quests_" .. flavor .. "_gaps.lua"),
     ("Guides/Imported_Achievements_" .. flavor .. ".lua"), ("Guides/Imported_Storylines_" .. flavor .. ".lua"),
     ("Guides/Imported_Missions_" .. flavor .. ".lua") }) do load(f) end
+-- the spine reuses the wiki guides' text under "spine:" ids; only with --spine, so a default run plays each guide once
+if withSpine then load("Guides/Imported_Spine_" .. flavor .. ".lua") end
+if orderMode == "baked" then
+    load("Data/RouteOrder_" .. flavor .. ".lua")
+    if not NS.RouteOrder then error("vplayer --order baked: Data/RouteOrder_" .. flavor .. ".lua is missing (tools/optimize_routes.py)") end
+elseif orderMode ~= "author" then error("vplayer --order must be author or baked") end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
+-- the label every output row carries (collect_vplayer.py keys on it): Forever must not overwrite era rows
+FLABEL = NS.isForever and "forever" or NS.flavor
+if flavor == "forever" and not NS.isForever then error("vplayer forever: Core/Init.lua did not detect Forever (Interface 16001)") end
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
 NS.db.profile.debug = false
+NS.db.profile.routing.baked = (orderMode == "baked")
+NS.db.profile.routing.reorder = liveWindow
 NS.Print, NS.Debug, NS.Error = function() end, function() end, function() end
 pcall(NS.Adapters.WoWPro.ImportStatic)
 NS.TravelGraph.Build()
@@ -297,7 +319,10 @@ local function playGuide(g)
         while guard < cap do
             guard = guard + 1
             if os.clock() - t0 > guideCap then row.err = "guide time cap" break end
-            if P.guide == nil or P.guide.id ~= id then break end          -- chained away = finished
+            if P.guide == nil or P.guide.id ~= id then                    -- chained away = finished
+                if P.guide and g.next and P.guide.id == g.next then row.finished = 1 end   -- spine: loaded its `next`
+                break
+            end
             if g.loop and laps >= 2 then row.finished = 1 break end       -- circuits never end: two laps is a pass
             local step = P.current
             if not step then
@@ -315,7 +340,7 @@ local function playGuide(g)
             if not routed and hasDest then
                 row.noroute = row.noroute + 1
                 if noRouteOut then
-                    noRouteOut:write(table.concat({ NS.flavor, id, step.index, step.action, tostring(fromMap or ""),
+                    noRouteOut:write(table.concat({ FLABEL, id, step.index, step.action, tostring(fromMap or ""),
                         tostring(step.zone or ""), (tostring(step.zoneName or ""):gsub("\t", " ")) }, "\t") .. "\n")
                 end
             end
@@ -331,7 +356,7 @@ local function playGuide(g)
                 if canAuto then
                     row.stalls = row.stalls + 1
                     if stallOut and row.stalls <= 40 then
-                        stallOut:write(table.concat({ NS.flavor, id, step.index, step.action,
+                        stallOut:write(table.concat({ FLABEL, id, step.index, step.action,
                             (step.title or ""):gsub("\t", " "):sub(1, 90), tostring(step.qid and step.qid[1] or ""),
                             tostring(step.zone or ""), tostring(step.coords and "coords" or "nocoords") }, "\t") .. "\n")
                     end
@@ -366,7 +391,7 @@ stallOut:write("flavor\tguide\tstep\taction\ttitle\tqid\tzone\tcoords\n")
 noRouteOut = assert(io.open((outPath:gsub("%.tsv$", "")) .. "_noroute.tsv", "w"))
 noRouteOut:write("flavor\tguide\tstep\taction\tfrom_map\tto_map\tto_name\n")
 
-io.stderr:write(("vplayer %s: %d guides registered, shard %d/%d\n"):format(NS.flavor, #G.list, shardI, shardN))
+io.stderr:write(("vplayer %s: %d guides registered, shard %d/%d\n"):format(FLABEL, #G.list, shardI, shardN))
 local n, finished, stalled, errored = 0, 0, 0, 0
 local t0 = os.clock()
 for gi, id in ipairs(G.list) do
@@ -386,7 +411,7 @@ for gi, id in ipairs(G.list) do
                 local zname = g.zone and MAPS[g.zone] and MAPS[g.zone][1] or ""
                 local topReason, topN = "", 0
                 for why, c in pairs(row.reasons) do if c > topN then topReason, topN = why, c end end
-                out:write(table.concat({ NS.flavor, id, (g.name or ""):gsub("\t", " "), G.NormalizeType(g.type), g.faction or "Both",
+                out:write(table.concat({ FLABEL, id, (g.name or ""):gsub("\t", " "), G.NormalizeType(g.type), g.faction or "Both",
                     tostring(g.zone or ""), zname, row.steps, row.sim, row.auto, row.manual, row.stalls, row.forced, row.laps,
                     ("%.0f"):format(row.yards), ("%.0f"):format(row.seconds), row.noroute, row.finished, topReason, row.err }, "\t") .. "\n")
                 if verbose or n % 25 == 0 then

@@ -71,11 +71,11 @@ end
 -- A game type is the client flavor plus the rules that make progress non-transferable.  An
 -- Anniversary Hardcore character has nothing in common with an Anniversary normal one.
 function A.GameType()
-    local base = NS.flavor or "?"
+    local base = (NS.isForever and "forever") or NS.flavor or "?"
     return A.IsHardcore() and (base .. "-hardcore") or base
 end
 local GAMETYPE_NAME = { era = "Classic Era", tbc = "Anniversary (TBC)", wrath = "Wrath Classic", cata = "Cataclysm Classic",
-                        mop = "Mists Classic", retail = "Modern (retail)" }
+                        mop = "Mists Classic", retail = "Modern (retail)", forever = "WoW Forever" }
 function A.GameTypeName(t)
     t = t or A.GameType()
     local base, hc = t:match("^(.-)%-hardcore$"), true
