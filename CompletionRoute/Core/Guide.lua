@@ -389,8 +389,12 @@ end
 function G.SuggestNext(excludeId)
     local lvl = U.PlayerLevel()
     local cands = {}
+    -- a guide parked on a level gate has nothing to offer until the gate opens (Core/Progress.lua); offering it
+    -- anyway makes the chain load it, find it empty and move on
+    local Prog = NS.Progress
+    local function waiting(g) return Prog and Prog.ParkedWaiting and Prog.ParkedWaiting(g.id) end
     for _, g in ipairs(G.Available("Leveling")) do
-        if g.id ~= excludeId and (g.minlevel or 0) <= lvl + 0.5 and (g.maxlevel or 999) >= lvl then
+        if g.id ~= excludeId and (g.minlevel or 0) <= lvl + 0.5 and (g.maxlevel or 999) >= lvl and not waiting(g) then
             cands[#cands + 1] = g
         end
     end
@@ -398,11 +402,11 @@ function G.SuggestNext(excludeId)
         -- nothing spans our level (just dinged out of a bracket): take the nearest bracket above
         local bestMin
         for _, g in ipairs(G.Available("Leveling")) do
-            if g.id ~= excludeId and (g.minlevel or 0) > lvl and (not bestMin or g.minlevel < bestMin) then bestMin = g.minlevel end
+            if g.id ~= excludeId and (g.minlevel or 0) > lvl and (not bestMin or g.minlevel < bestMin) and not waiting(g) then bestMin = g.minlevel end
         end
         if not bestMin then return nil end
         for _, g in ipairs(G.Available("Leveling")) do
-            if g.id ~= excludeId and g.minlevel == bestMin then cands[#cands + 1] = g end
+            if g.id ~= excludeId and g.minlevel == bestMin and not waiting(g) then cands[#cands + 1] = g end
         end
     end
     -- level-fit score, used both to shortlist and as the travel tiebreak base
