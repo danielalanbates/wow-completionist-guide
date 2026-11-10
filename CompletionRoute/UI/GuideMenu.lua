@@ -516,6 +516,7 @@ function M.Refresh()
             b:SetHeight(20); b:SetPoint("LEFT", 0, 0); b:SetPoint("RIGHT", 0, 0)
             b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             b.text:SetPoint("LEFT", 4, 0); b.text:SetJustifyH("LEFT")
+            b.text:SetWordWrap(false)   -- a long name plus its band and "needs" tags must not wrap onto the next 20 px row
             -- right-hand completion column: "12 completed" on a category, a tick or % on a guide
             b.right = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             b.right:SetPoint("RIGHT", -6, 0); b.right:SetJustifyH("RIGHT")
