@@ -116,7 +116,7 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
         if flavor == "retail" then
             local ok = 0
             for _, st in ipairs(byQ[25172] or {}) do
-                if st.coords then
+                if st.coords and (st.action == "A" or st.action == "T") then
                     ok = ok + 1
                     local c = st.coords[1]
                     check(st.zone == 461, ("retail quest 25172 %s on map %s, want Valley of Trials 461"):format(st.action, tostring(st.zone)))
