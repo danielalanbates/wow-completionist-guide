@@ -18,6 +18,14 @@ class and level requirements, and map coordinates.
   a compatible licence) and keep this attribution.
 * **No endorsement:** Warcraft Wiki and its contributors do not endorse this project.
 
+## Gold guides
+
+`Imported_Gold_era.lua`, `Imported_Gold_tbc.lua`, `Imported_Gold_mop.lua`, `Imported_Gold_retail.lua` and `Imported_Gold_forever.lua` hold data
+derived from the same source under the same licence: where herbs, ore and fish occur, mob and NPC locations, daily quest ids and givers, Auction
+House and bank locations, and instance entrances, all placed on each client's maps by `tools/wiki/gen_gold.py`. Pages used include *Herb*, *Herbs by
+Area*, *Mining node* and each node's page, *Fishing locations*, *Auction House*, *Guide to making money*, and individual NPC, quest and instance pages;
+their authors are in each page's history. The advice text in those files is original wording. The files carry no auction price and no gold-per-hour figure.
+
 ## Profession guides
 
 `Imported_Professions_era.lua`, `Imported_Professions_tbc.lua`, `Imported_Professions_mop.lua`, `Imported_Professions_retail.lua` and
