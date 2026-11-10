@@ -47,9 +47,9 @@ cat << 'EOF' > "$CONTENTS_DIR/Info.plist"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.1.0</string>
+    <string>2.0.0-beta</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>
@@ -67,6 +67,11 @@ echo "App bundle built at: $BUNDLE_DIR"
 # 5. Install to /Applications
 DEST="/Applications/$APP_NAME.app"
 echo "Installing to $DEST..."
-rm -rf "$DEST"
+# Keep exactly one live copy; earlier builds go to the archive folder, never the trash.
+if [ -d "$DEST" ]; then
+    ARCHIVE="$HOME/Downloads/CompletionistGuide-work/archive/app"
+    mkdir -p "$ARCHIVE"
+    mv "$DEST" "$ARCHIVE/$APP_NAME-$(date +%Y%m%d-%H%M%S).app"
+fi
 cp -R "$BUNDLE_DIR" "$DEST"
 echo "Successfully installed $APP_NAME to $DEST"
