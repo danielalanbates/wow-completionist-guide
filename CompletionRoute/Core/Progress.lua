@@ -36,6 +36,8 @@ end
 function P.Load(id)
     local g = G.registry[id]
     if not g then NS:Error("Unknown guide: " .. tostring(id)) return false end
+    -- the player picked this guide (the chain sets P.chainLoading): any detour back to a parked guide is over
+    if not P.chainLoading then NS.db.char.parkReturn = nil end
     P.guide = g
     -- Gold guides are routes, not checklists: fold one into a circuit before its steps are read
     -- (Core/Farm.lua Circuitize). Turn it off with /cr farm circuit, or per guide with /cr farm uncircuit.
@@ -45,6 +47,9 @@ function P.Load(id)
         else g.noCircuit = true NS:Debug("circuitize " .. id .. ": " .. tostring(res or n)) end
     end
     P.steps = G.Steps(id)
+    P.finishedNotice = nil
+    P.altInst = nil
+    P.ResolveAlts()
     -- Behind a locked access chain (Siren Isle, Argus, Zereth Mortis...)? Put the unlock steps first, the way
     -- comprehensive zone guides open with the zone intro. Negative indices keep the guide's own progress keys intact.
     local prefix = NS.Access and NS.Access.PrefixFor(P.steps, id)
@@ -58,6 +63,7 @@ function P.Load(id)
     NS.db.char.guide = id
     dirty = true
     P.cursor = nil
+    if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
     NS:Print("Guide: " .. (g.name or g.id) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")")
     P.Refresh()
     if g.loop then
@@ -114,6 +120,8 @@ function P.Undo()
     if not best then return end
     charReopened()[best] = true
     P.cursor = nil
+    -- the live plan does not know the reopened step: back to the baked order, where it is the earliest pending step
+    if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
     d[best] = nil s[best] = nil
     if NS.Account and NS.Account.me and P.guide then
         local ad, as = NS.Account.Done(P.guide.id), NS.Account.Skipped(P.guide.id)
@@ -134,6 +142,7 @@ function P.Reset()
     NS.db.char.done[P.guide.id] = {}
     NS.db.char.skipped[P.guide.id] = {}
     if NS.db.char.reopened then NS.db.char.reopened[P.guide.id] = {} end
+    if NS.db.char.parked then NS.db.char.parked[P.guide.id] = nil end
     dirty = true
     P.cursor = nil
     P.Refresh()
@@ -169,8 +178,19 @@ local function inZone(step)
     return info and info.parentMapID == step.zone
 end
 
+-- SKILL|Cooking;75| reached?  An unknown skill (Core/Professions.lua returns nil) is never "reached".
+function P.SkillMet(sk)
+    local Prof = NS.Professions
+    if not Prof then return false end
+    local rank = Prof.Skill(sk.name, sk.tier)
+    return rank ~= nil and rank >= sk.target
+end
+
 -- returns true if step is (now) complete or obsolete
 function P.CheckStep(step)
+    -- Profession steps finish on what the character can do, whatever their action letter (either tag is enough)
+    if step.skill and P.SkillMet(step.skill) then return true end
+    if step.recipe and NS.Professions and NS.Professions.KnowsSpell(step.recipe) then return true end
     local a = step.action
     if a == "A" or a == "a" or a == "!" then
         if step.qid and anyQuestDone(step.qid, function(q) return U.IsOnQuest(q) or U.IsQuestComplete(q) end) then return true end
@@ -265,6 +285,48 @@ function P.CheckStep(step)
 end
 
 -- ---------------------------------------------------------------------------
+-- ALT steps (every usable trainer...): keep the step pointing at the cheapest alternative for this character
+-- ---------------------------------------------------------------------------
+-- Runs when a guide loads and whenever the player's continent changes.  The same place often appears in many steps
+-- (one trainer per rank), so each location is priced once per pass.  A place the graph cannot reach is left out; when
+-- nothing can be priced at all (no position yet) the step keeps its current choice.
+function P.ResolveAlts()
+    P.hasAlts = false
+    if not (P.steps and NS.Router) then return end
+    local _, _, _, inst = U.PlayerPos()
+    local price, changed = {}, false
+    for _, s in ipairs(P.steps) do
+        if s.alts then
+            P.hasAlts = true
+            local best, bestCost
+            for _, a in ipairs(s.alts) do
+                local key = a.map .. ":" .. a.x .. ":" .. a.y
+                local cost = price[key]
+                if cost == nil then
+                    local ok, secs = pcall(NS.Router.TravelSecondsFromPlayer, { coords = { { x = a.x, y = a.y } }, zone = a.map })
+                    cost = (ok and secs) or false
+                    price[key] = cost
+                end
+                if cost and (not bestCost or cost < bestCost) then best, bestCost = a, cost end
+            end
+            if best and best ~= s.altChosen then
+                s.altChosen, s.altName = best, best.name
+                s.coords = { { x = best.x, y = best.y } }
+                s.zone, s.zoneName, s.zoneInherited = best.map, U.MapName(best.map), nil
+                s._wx, s._wy, s._winst, s._zwx, s._zwy, s._zwinst, s._locSource, s._entrance = nil
+                if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end   -- kept travel costs moved with it
+                if s == P.current then changed = true end
+            end
+        end
+    end
+    if inst then P.altInst = inst end
+    if changed then
+        if NS.Router.Invalidate then NS.Router.Invalidate() end
+        NS:Fire("STEP_CHANGED", P.current)
+    end
+end
+
+-- ---------------------------------------------------------------------------
 -- Ordering / current step
 -- ---------------------------------------------------------------------------
 -- pending = applicable, not done steps in guide order
@@ -289,6 +351,96 @@ function P.Pending(limit)
     return out
 end
 
+-- ---------------------------------------------------------------------------
+-- Parked guides: steps held back by a level gate
+-- ---------------------------------------------------------------------------
+-- A wide-band guide (the spine's "Darnassus Quests 1-50") holds quests from level 10 to 54.  Early on, most of them
+-- are behind their |LVL| gate, the pending list runs dry and the chain moves on, and nothing ever came back for the
+-- rest.  Now such a guide is PARKED with the lowest level that opens one of its remaining steps.  It comes back only
+-- at a natural transition: when the guide in progress has finished (or a level-up finds the player with nothing to
+-- do).  It never pulls the player off a guide being played, so two guides cannot bounce.  When the detour ends, the
+-- chain continues from where it was going (char.parkReturn), not from the parked guide's own `next`.
+-- A step that needs a level above the client's cap can never open and does not park anything.
+local function levelCap()
+    local Rec = NS.Recommend
+    if Rec and Rec.LevelCap then
+        local ok, v = pcall(Rec.LevelCap)
+        if ok and v then return v end
+    end
+    return math.huge
+end
+local function parkedSet()
+    NS.db.char.parked = NS.db.char.parked or {}
+    return NS.db.char.parked
+end
+-- The lowest level above the character's at which a not-done step of the loaded guide would open, and how many open there.
+function P.NextGate()
+    if not P.steps then return nil end
+    local lvl, cap, best, count = U.PlayerLevel(), levelCap(), nil, 0
+    for _, s in ipairs(P.steps) do
+        local gate = s.minlevel
+        if gate and s.action ~= "L" and gate > lvl and gate <= cap and not P.IsDone(s) and Cond.StepApplies(s, gate) then
+            if not best or gate < best then best, count = gate, 1
+            elseif gate == best then count = count + 1 end
+        end
+    end
+    return best, count
+end
+-- Parked and the gate is still above us: nothing in it is doable yet.
+function P.ParkedWaiting(id)
+    local rec = NS.db.char.parked and NS.db.char.parked[id]
+    return rec ~= nil and U.PlayerLevel() < rec.level
+end
+function P.ParkedRecord(id) return NS.db.char.parked and NS.db.char.parked[id] end
+-- The parked guide to go back to now, if any: lowest gate first, then guide id, so the choice is stable.
+local function parkedReady(exceptId)
+    local set = NS.db.char.parked
+    if not set then return nil end
+    local lvl, best, bestRec = U.PlayerLevel(), nil, nil
+    local keys = {}
+    for id in pairs(set) do keys[#keys + 1] = id end
+    table.sort(keys)
+    for _, id in ipairs(keys) do
+        -- a guide not registered yet keeps its record: the WoW-Pro import runs seconds after this can first be asked
+        local rec, g = set[id], G.registry[id]
+        if g and id ~= exceptId and lvl >= rec.level and (not bestRec or rec.level < bestRec.level) then
+            best, bestRec = g, rec
+        end
+    end
+    return best, bestRec
+end
+-- Load a guide because the chain says so (as opposed to the player picking it).
+local function chainLoad(id)
+    P.chainDepth = (P.chainDepth or 0) + 1
+    P.chainLoading = true
+    local ok, err = pcall(P.Load, id)
+    P.chainLoading = nil
+    P.chainDepth = P.chainDepth - 1     -- counts nesting only, so a pass that hit the limit resumes on the next refresh
+    if not ok then error(err, 0) end
+end
+-- Bring a parked guide back now (used by the end-of-guide path below and by tools/vplayer.lua).
+function P.ResumeParked(id)
+    local rec = NS.db.char.parked and NS.db.char.parked[id]
+    if not (rec and G.registry[id]) then return false end
+    chainLoad(id)
+    return true
+end
+-- A guide ran dry: park it if a level gate still holds steps back, otherwise forget it.
+local function parkGuide(g)
+    local gate, n = P.NextGate()
+    if not gate then
+        if NS.db.char.parked then NS.db.char.parked[g.id] = nil end
+        return nil
+    end
+    local set = parkedSet()
+    if not (set[g.id] and set[g.id].level == gate) then
+        NS:Print(("%s parked: %d more step%s at level %d. It comes back when you get there."):format(g.name or g.id, n, n == 1 and "" or "s", gate))
+    end
+    set[g.id] = { level = gate }
+    return gate
+end
+local function fitsLevel(g) return not (g.maxlevel and U.PlayerLevel() > g.maxlevel + 0.9) end
+
 function P.Refresh(force)
     if not P.guide then return end
     -- Pending's cursor assumes a step never un-completes without one of the paths below clearing it.
@@ -297,6 +449,10 @@ function P.Refresh(force)
     local scope, acc = NS.db.profile.scope, NS.db.profile.accountWide
     if P.scopeSeen ~= scope or P.accSeen ~= acc then
         P.scopeSeen, P.accSeen, P.cursor = scope, acc, nil
+    end
+    if P.hasAlts then
+        local _, _, _, inst = U.PlayerPos()
+        if inst and inst ~= P.altInst then P.ResolveAlts() end
     end
     -- 1) auto-complete anything already satisfied (scan a window ahead so obsolete steps vanish)
     local changed, passes, wp = false, 0, 0
@@ -341,16 +497,51 @@ function P.Refresh(force)
         return
     end
     if not newcur and P.guide then
+        -- Gold and profession guides are chosen on purpose: never drop into one automatically, and never pull
+        -- the player out of one into a leveling guide when it ends
+        if G.IsSideGuide(P.guide) then
+            if P.finishedNotice ~= P.guide.id then
+                P.finishedNotice = P.guide.id
+                NS:Print("Guide finished: " .. (P.guide.name or P.guide.id) .. ". Pick the next one with /cr guides.")
+            end
+            return
+        end
+        -- a chain of guides that are all finished must not recurse forever (each Load refreshes)
+        if (P.chainDepth or 0) > 40 then return end
+        local me = P.guide
+        parkGuide(me)
         -- pick what to run next: the authored chain if it still fits our level,
         -- else the most optimal leveling guide for our level + position
-        local nxt = P.guide.next and G.registry[P.guide.next]
-        if nxt and nxt.maxlevel and U.PlayerLevel() > nxt.maxlevel + 0.9 then nxt = nil end
+        local nxt = me.next and G.registry[me.next]
+        if nxt and G.IsSideGuide(nxt) then nxt = nil end
+        -- a chain guide we have outleveled is passed over; the chain goes on from the next one that fits
+        local hops = 0
+        while nxt and not fitsLevel(nxt) and hops < 1000 do
+            hops = hops + 1
+            nxt = nxt.next and G.registry[nxt.next] or nil
+            if nxt and G.IsSideGuide(nxt) then nxt = nil end
+        end
+        -- A detour back to a parked guide returns to where the chain was going, never to that guide's own `next`.
+        local ret = NS.db.char.parkReturn
+        local retGuide = ret and ret ~= me.id and G.registry[ret]
+        -- a parked guide whose level has come goes first; the chain target waits for it
+        local back, rec = parkedReady(me.id)
+        if back and back.id ~= (nxt and nxt.id) then
+            if not ret and nxt then NS.db.char.parkReturn = nxt.id end
+            NS:Print(("Back to %s: level %d reached."):format(back.name or back.id, rec.level))
+            chainLoad(back.id)
+            return
+        end
+        if ret then
+            NS.db.char.parkReturn = nil
+            if retGuide and not G.IsSideGuide(retGuide) and fitsLevel(retGuide) then nxt = retGuide end
+        end
         local eta
-        if not nxt then nxt, eta = G.SuggestNext(P.guide.id) end
-        if nxt and nxt.id ~= P.guide.id then
+        if not nxt then nxt, eta = G.SuggestNext(me.id) end
+        if nxt and nxt.id ~= me.id then
             local where = eta and (" (~%dm away)"):format(math.max(1, math.floor(eta / 60 + 0.5))) or ""
             NS:Print("Guide finished. Loading next: " .. nxt.name .. where)
-            P.Load(nxt.id)
+            chainLoad(nxt.id)
         end
     end
 end
@@ -417,6 +608,7 @@ for _, e in ipairs({ "QUEST_LOG_UPDATE", "QUEST_ACCEPTED", "QUEST_TURNED_IN", "Q
     "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED_INDOORS", "PLAYER_LEVEL_UP", "PLAYER_ENTERING_WORLD", "PLAYER_CONTROL_GAINED", "MERCHANT_SHOW", "PLAYER_REGEN_ENABLED" }) do
     NS:RegisterEvent(e, refreshSoon)
 end
+NS:On("PROFESSIONS_CHANGED", refreshSoon)   -- Core/Professions.lua: a skill went up, or a recipe or rank was learned
 NS:RegisterEvent("HEARTHSTONE_BOUND", function()
     for _, s in ipairs(P.Pending(15)) do if s.action == "h" then s.bindDone = true break end end
     refreshSoon()
@@ -448,13 +640,19 @@ end)
 local function autoload(attempt)
     local ok, err = pcall(function()
         local id = NS.db.char.guide
-        if id and G.registry[id] then P.Load(id) return end
+        if id and G.registry[id] then
+            P.chainLoading = true
+            P.Load(id)
+            P.chainLoading = nil
+            return
+        end
         local s = G.SuggestNext(nil) or G.Suggest()  -- location-aware pick at login too
         if s then P.Load(s.id)
         elseif attempt < 3 then NS:After(6, function() autoload(attempt + 1) end)  -- adapters may still be importing
         else NS:Print("No guide matched your level/faction. /or guides") end
     end)
     if not ok then
+        P.chainLoading = nil     -- the failed Load never reached the line that clears it
         NS.db.char.lastAutoloadError = tostring(err)
         NS:Error("autoload failed: " .. tostring(err))
         if attempt < 3 then NS:After(6, function() autoload(attempt + 1) end) end

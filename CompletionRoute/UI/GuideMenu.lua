@@ -2,13 +2,15 @@
 -- Guide browser: collapsible tree of Category (type) -> area/sub-folder -> guide.
 -- Imported guides use their original folder paths (from the title); WoW-Pro guides group by zone.
 -- Typing in the filter box switches to a flat search across all guides.
+-- The level box under the search field drives Core/Recommend.lua: the "For level N" section, the "Only guides for this
+-- level" filter and the "Group by level" tree all read the same cached per-level ranking, which never parses guide steps.
 local ADDON, NS = ...
-local U, G, P = NS.Util, NS.Guide, NS.Progress
+local U, G, P, Rec = NS.Util, NS.Guide, NS.Progress, NS.Recommend
 local M = {}
 NS.GuideMenu = M
 
 local f = CreateFrame("Frame", "CompletionRouteGuideMenu", UIParent, "BackdropTemplate")
-f:SetSize(460, 480)
+f:SetSize(460, 524)
 f:SetPoint("CENTER")
 f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
 f:SetBackdropColor(0.05, 0.05, 0.08, 0.95)
@@ -94,14 +96,105 @@ search:SetScript("OnTextChanged", function() M.Refresh() end)
 local searchLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 searchLabel:SetPoint("LEFT", search, "RIGHT", 6, 0); searchLabel:SetText("search")
 
+-- ---------------------------------------------------------------------------
+-- Level control: the level the whole list is about.  Follows your own level until you pick another; profile.guideList.
+-- ---------------------------------------------------------------------------
+local function listPrefs()
+    local p = NS.db.profile
+    p.guideList = p.guideList or { onlyLevel = false, groupByLevel = false }
+    return p.guideList
+end
+local function myLevel() return math.floor(UnitLevel("player") or 1) end
+-- the level being viewed: the typed/stepped one, or your own
+function M.ViewLevel()
+    local v = tonumber(listPrefs().level)
+    return Rec.ClampLevel(v or myLevel())
+end
+-- nil (or your own level) = follow the character as it levels up
+function M.SetViewLevel(v)
+    local p = listPrefs()
+    v = tonumber(v)
+    if v then v = Rec.ClampLevel(v) end
+    p.level = (v and v ~= myLevel()) and v or nil
+    M.UpdateLevelControls()
+    M.Refresh()
+end
+
+local levelLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+levelLabel:SetPoint("TOPLEFT", 18, -100); levelLabel:SetText("Level")
+local function levelStep(delta) M.SetViewLevel(M.ViewLevel() + delta) end
+local function smallButton(text, width, x, onClick, tip)
+    local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    b:SetSize(width, 20); b:SetPoint("TOPLEFT", x, -95); b:SetText(text)
+    b:SetScript("OnClick", onClick)
+    if tip then
+        b:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT") GameTooltip:SetText(tip, 1, 1, 1, 1, true) GameTooltip:Show()
+        end)
+        b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    end
+    return b
+end
+smallButton("-", 22, 54, function() levelStep(-1) end, "One level lower")
+local levelBox = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+levelBox:SetSize(32, 20); levelBox:SetPoint("TOPLEFT", 84, -95); levelBox:SetAutoFocus(false)
+levelBox:SetMaxLetters(3)
+if levelBox.SetNumeric then levelBox:SetNumeric(true) end
+levelBox:SetScript("OnTextChanged", function(self, userInput)
+    if not userInput then return end
+    local n = tonumber(self:GetText())
+    if n and n >= 1 then M.SetViewLevel(n) end
+end)
+levelBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+levelBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+levelBox:SetScript("OnEditFocusLost", function() M.UpdateLevelControls() end)
+smallButton("+", 22, 122, function() levelStep(1) end, "One level higher")
+smallButton("Mine", 46, 148, function() M.SetViewLevel(nil) end, "Back to your character's own level")
+local levelHint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+levelHint:SetPoint("LEFT", levelBox, "RIGHT", 112, 0); levelHint:SetTextColor(0.6, 0.6, 0.6)
+
+local function viewCheck(name, x, label, tip, getKey)
+    local cb = CreateFrame("CheckButton", name, f, "UICheckButtonTemplate")
+    cb:SetSize(22, 22); cb:SetPoint("TOPLEFT", x, -116)
+    local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    fs:SetPoint("LEFT", cb, "RIGHT", 2, 0); fs:SetText(label)
+    cb:SetScript("OnClick", function(self)
+        listPrefs()[getKey] = self:GetChecked() and true or false
+        M.Refresh()
+    end)
+    cb:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT") GameTooltip:SetText(tip, 1, 1, 1, 1, true) GameTooltip:Show()
+    end)
+    cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    return cb
+end
+local onlyLevel = viewCheck("CompletionRouteGuideMenuOnlyLevel", 14, "Only guides for this level",
+    "Hide every guide that does not fit the level in the box: its bracket contains that level, or (professions) its skill band contains your skill. Guides with no level data are hidden too.", "onlyLevel")
+local groupLevel = viewCheck("CompletionRouteGuideMenuGroupLevel", 230, "Group by level",
+    "Show the list as level bands, then category, then guide. Guides with no level data go under Any level.", "groupByLevel")
+
+function M.UpdateLevelControls()
+    if not NS.db then return end
+    local v = M.ViewLevel()
+    if not (levelBox.HasFocus and levelBox:HasFocus()) then levelBox:SetText(tostring(v)) end
+    levelHint:SetText(v == myLevel() and "yours" or ("yours: " .. myLevel()))
+    local prefs = listPrefs()
+    onlyLevel:SetChecked(prefs.onlyLevel and true or false)
+    groupLevel:SetChecked(prefs.groupByLevel and true or false)
+end
+
 local scroll = CreateFrame("ScrollFrame", "CompletionRouteGuideMenuScroll", f, "UIPanelScrollFrameTemplate")
-scroll:SetPoint("TOPLEFT", 12, -98); scroll:SetPoint("BOTTOMRIGHT", -30, 12)
+scroll:SetPoint("TOPLEFT", 12, -142); scroll:SetPoint("BOTTOMRIGHT", -30, 12)
 local content = CreateFrame("Frame", nil, scroll)
 content:SetSize(400, 10)
 scroll:SetScrollChild(content)
 
 local buttons = {}
 local expanded = {}   -- [nodePath] = true
+-- the "For level N" section starts open with its Leveling picks showing
+local FOR_LEVEL_PATH = "\\For level"
+expanded[FOR_LEVEL_PATH] = true
+expanded[FOR_LEVEL_PATH .. "\\Leveling"] = true
 
 local function srcColor(src)
     if src == "CompletionRoute" then return "|cff3ec6ff" end
@@ -111,7 +204,7 @@ end
 
 -- Normalize a category segment: "LEVELING" / "Leveling Guides" -> "Leveling"; merge singular/plural
 local CAT_ALIAS = { Quest = "Quests", Dungeon = "Dungeons", Reputations = "Reputation", Daily = "Dailies",
-    Professions = "Profession", Title = "Titles", Event = "Events", Achievement = "Achievements" }
+    Profession = "Professions", Title = "Titles", Event = "Events", Achievement = "Achievements" }
 local function normCat(s)
     s = (s or "Other"):gsub("%s+Guides$", "")
     s = s:lower():gsub("^%l", string.upper):gsub("%s%l", string.upper)
@@ -119,7 +212,7 @@ local function normCat(s)
 end
 
 -- Category display order; anything else lands after, alphabetical
-local NEXT_CAT = "Next Step"
+local NEXT_CAT = "For level"      -- style key; the row itself reads "For level N"
 local CAT_ORDER = { [NEXT_CAT] = 0, Leveling = 1, Quests = 2, Dungeons = 3, Dailies = 4, Daily = 4, Gold = 5, Professions = 6, Profession = 6,
     Reputation = 7, Reputations = 7, Achievements = 8, Achievement = 8, Titles = 9, ["Pets & Mounts"] = 10, Events = 11 }
 
@@ -131,12 +224,13 @@ local CAT_STYLE = {
     Dungeons   = { icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01",   color = "ff6a5a" },
     Dailies    = { icon = "Interface\\Icons\\INV_Misc_Note_01",          color = "6ac9ff" },
     Gold       = { icon = "Interface\\Icons\\INV_Misc_Coin_02",          color = "ffe14d" },
-    Profession = { icon = "Interface\\Icons\\Trade_BlackSmithing",       color = "ff9e3d" },
+    Professions = { icon = "Interface\\Icons\\Trade_BlackSmithing",       color = "ff9e3d" },
     Reputation = { icon = "Interface\\Icons\\INV_BannerPVP_02",          color = "b48cff" },
     Achievements = { icon = "Interface\\Icons\\INV_Crown_02",            color = "ffc94d" },
     Titles     = { icon = "Interface\\Icons\\INV_Crown_02",              color = "ffc94d" },
     ["Pets & Mounts"] = { icon = "Interface\\Icons\\Ability_Mount_RidingHorse", color = "7ddf8f" },
     Events     = { icon = "Interface\\Icons\\INV_Misc_Gift_01",          color = "5ad9c9" },
+    Band       = { icon = "Interface\\Icons\\INV_Misc_Map_01",           color = "cfe3ff" },
 }
 local DEFAULT_STYLE = { icon = "Interface\\Icons\\INV_Misc_QuestionMark", color = "cccccc" }
 local FOLDER_ICON = "Interface\\Icons\\INV_Misc_Bag_08"
@@ -147,111 +241,120 @@ local function tex(path, size) return ("|T%s:%d:%d:0:-1|t"):format(path, size or
 local function guidePath(g)
     local cat = normCat(g.type)
     -- g.folder overrides the zone folder (the generated leveling spine lists its guides under "Leveling (generated)")
-    local area = g.folder or g.zone
+    local area = g.folder or g.goldKind or g.prof or g.zone
     if type(area) == "number" then local mi = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(area) area = mi and mi.name end
     return { cat, tostring(area or (g.source == "CompletionRoute" and "CompletionRoute" or "Other")) }
 end
 
 -- ---------------------------------------------------------------------------
--- "Next Step": everything you could do RIGHT NOW at exactly your current level.
--- A guide qualifies when its level bracket contains your level (not merely overlaps a range you
--- have outgrown), it is not already finished, and its faction/class conditions pass.  Sorted by
--- how long it takes to get there, so the top entry is the cheapest thing to do next.
+-- "For level N": the best picks per category for the level in the box (Core/Recommend.lua ranks them).  The Leveling
+-- picks get one extra step: they are ordered by how long it takes to get there.  That parses the guides it prices, so
+-- it is capped and cached; the rest of the list never touches guide steps.
 -- ---------------------------------------------------------------------------
-local nextCache, nextCacheLevel, nextCacheAt = nil, nil, 0
-function M.NextStepGuides(force)
-    local lvl = U.PlayerLevel()
+local PRICED = 6
+local etaOf, etaLevel, etaAt = {}, nil, 0
+local function orderByTravel(entries, level, force)
     local now = GetTime and GetTime() or 0
-    if not force and nextCache and nextCacheLevel == math.floor(lvl) and (now - nextCacheAt) < 30 then
-        return nextCache
-    end
-    local out = {}
-    for _, g in ipairs(G.Available()) do
-        local mn, mx = g.minlevel, g.maxlevel
-        -- Exact level match only: the guide must declare a bracket and that bracket must contain
-        -- us. Level-agnostic guides (professions, most dungeon/reputation entries) are things you
-        -- "could do" at any level, which would drown the bucket - they stay in their own category.
-        -- circuits never finish, so they would sit in "Next Step" forever: they live in Gold
-        local fits = not g.loop and (mn or mx) and (not mn or lvl >= mn) and (not mx or lvl <= mx + 0.99)
-        if fits then
-            local total = g.steps and #g.steps or nil
-            local pct = 0
-            if total and total > 0 and NS.Account and NS.Account.me then
-                _, pct = NS.Account.GuideProgress(g.id, total, NS.Account.Scope())
-            end
-            if pct < 100 then out[#out + 1] = { g = g, pct = pct } end
+    if force or etaLevel ~= level or (now - etaAt) >= 30 then
+        etaOf, etaLevel, etaAt = {}, level, now
+        for i = 1, math.min(PRICED, #entries) do
+            local g = entries[i].g
+            local ok, eta = pcall(G.GuideETA, g)
+            etaOf[g.id] = ok and eta or nil
+            g.__nextETA = etaOf[g.id]
         end
     end
-    -- Cheap ordering first: tightest bracket that contains us, least-finished, our own guides
-    -- first.  Only then price the top slice by travel time - G.GuideETA parses the guide, and the
-    -- quest DB has thousands of them.
-    local function tightness(g)
-        if g.minlevel and g.maxlevel then return g.maxlevel - g.minlevel end
-        return 100
-    end
-    table.sort(out, function(a, b)
-        local ta, tb = tightness(a.g), tightness(b.g)
-        if ta ~= tb then return ta < tb end
-        if a.pct ~= b.pct then return a.pct > b.pct end            -- finish what you started
-        local sa = a.g.source == "CompletionRoute" and 0 or 1
-        local sb = b.g.source == "CompletionRoute" and 0 or 1
-        if sa ~= sb then return sa < sb end
-        return (a.g.name or a.g.id) < (b.g.name or b.g.id)
-    end)
-    local PRICED = 12
-    for i = 1, math.min(PRICED, #out) do
-        local ok, eta = pcall(G.GuideETA, out[i].g)
-        out[i].eta = ok and eta or nil
-    end
-    -- re-sort only the priced head, so the cheapest thing to reach floats to the top
-    local head = {}
-    for i = 1, math.min(PRICED, #out) do head[i] = table.remove(out, 1) end
+    local head, guides = {}, {}
+    for i = 1, math.min(PRICED, #entries) do head[i] = entries[i] end
     table.sort(head, function(a, b)
-        if (a.eta or math.huge) ~= (b.eta or math.huge) then return (a.eta or math.huge) < (b.eta or math.huge) end
-        return (a.g.name or a.g.id) < (b.g.name or b.g.id)
+        local ea, eb = etaOf[a.g.id] or math.huge, etaOf[b.g.id] or math.huge
+        if ea ~= eb then return ea < eb end
+        return a.score > b.score
     end)
-    for i = #head, 1, -1 do table.insert(out, 1, head[i]) end
-    local guides = {}
-    for i, e in ipairs(out) do guides[i] = e.g e.g.__nextETA = e.eta end
-    nextCache, nextCacheLevel, nextCacheAt = guides, math.floor(lvl), now
+    for i, e in ipairs(head) do guides[i] = e.g end
+    for i = #head + 1, #entries do guides[i] = entries[i].g end
     return guides
+end
+
+-- { { cat = "Leveling", guides = { ... } }, ... }, in section order
+function M.ForLevelSections(level, force)
+    local out = {}
+    for _, sec in ipairs(Rec.Picks(level)) do
+        local guides
+        if sec.cat == "Leveling" then guides = orderByTravel(sec.entries, level, force)
+        else
+            guides = {}
+            for i, e in ipairs(sec.entries) do guides[i] = e.g end
+        end
+        out[#out + 1] = { cat = sec.cat, guides = guides }
+    end
+    return out
+end
+-- every pick of the section as one flat list, for the old callers and the tests
+function M.NextStepGuides(force)
+    local out = {}
+    for _, sec in ipairs(M.ForLevelSections(M.ViewLevel(), force)) do
+        for _, g in ipairs(sec.guides) do out[#out + 1] = g end
+    end
+    return out
 end
 
 -- Build tree: node = { name, path, kids = {ordered}, kidByName = {}, guides = {}, count }
 local function buildTree()
     local root = { kids = {}, kidByName = {}, guides = {}, count = 0 }
-    -- synthetic first category, level-matched to right now
+    local level, prefs = M.ViewLevel(), listPrefs()
+    local fit = prefs.onlyLevel and Rec.FitSet(level) or nil
+    -- synthetic first category: the picks for the level in the box
     do
-        local matched = M.NextStepGuides()
-        if #matched > 0 then
-            local node = { name = NEXT_CAT, path = "\\" .. NEXT_CAT, kids = {}, kidByName = {},
-                           guides = matched, count = #matched, synthetic = true }
-            root.kidByName[NEXT_CAT] = node
+        local sections = M.ForLevelSections(level)
+        if #sections > 0 then
+            local label = NEXT_CAT .. " " .. level
+            local node = { name = label, path = FOR_LEVEL_PATH, kids = {}, kidByName = {}, guides = {}, count = 0,
+                           synthetic = true, forLevel = true, styleKey = NEXT_CAT, order = -1 }
+            for i, sec in ipairs(sections) do
+                local kid = { name = sec.cat, path = node.path .. "\\" .. sec.cat, kids = {}, kidByName = {}, guides = sec.guides,
+                              count = #sec.guides, synthetic = true, order = i, styleKey = sec.cat }
+                node.kids[i] = kid
+                node.kidByName[sec.cat] = kid
+                node.count = node.count + #sec.guides
+            end
+            root.kidByName[label] = node
             root.kids[#root.kids + 1] = node
-            root.count = root.count + #matched
+            root.count = root.count + node.count
         end
     end
+    local grouped = prefs.groupByLevel
     for _, g in ipairs(G.Available()) do
-        local segs = guidePath(g)
-        local node = root
-        local path = ""
-        for _, seg in ipairs(segs) do
-            path = path .. "\\" .. seg
-            local kid = node.kidByName[seg]
-            if not kid then
-                kid = { name = seg, path = path, kids = {}, kidByName = {}, guides = {}, count = 0 }
-                node.kidByName[seg] = kid
-                node.kids[#node.kids + 1] = kid
+        if not fit or fit[g.id] then
+            local segs, order
+            if grouped then
+                -- band, then category, then the guide itself (no zone folder: the band is what you came for)
+                local low, _, label = Rec.BandFor(g, level)
+                segs, order = { label or "Any level", normCat(g.type) }, { low or 100000 }
+            else
+                segs = guidePath(g)
             end
-            node = kid
-            node.count = node.count + 1
+            local node = root
+            local path = grouped and "\\Bands" or ""
+            for i, seg in ipairs(segs) do
+                path = path .. "\\" .. seg
+                local kid = node.kidByName[seg]
+                if not kid then
+                    kid = { name = seg, path = path, kids = {}, kidByName = {}, guides = {}, count = 0,
+                            order = order and order[i], styleKey = grouped and (i == 1 and "Band" or seg) or nil }
+                    node.kidByName[seg] = kid
+                    node.kids[#node.kids + 1] = kid
+                end
+                node = kid
+                node.count = node.count + 1
+            end
+            node.guides[#node.guides + 1] = g
+            root.count = root.count + 1
         end
-        node.guides[#node.guides + 1] = g
-        root.count = root.count + 1
     end
     local function sortNode(n)
         table.sort(n.kids, function(a, b)
-            local oa, ob = CAT_ORDER[a.name], CAT_ORDER[b.name]
+            local oa, ob = a.order or CAT_ORDER[a.name], b.order or CAT_ORDER[b.name]
             if oa or ob then return (oa or 99) < (ob or 99) end
             -- sort "X (10-20)" style folders by their level, else alphabetically
             local la = tonumber(a.name:match("%((%d+)%-")) local lb = tonumber(b.name:match("%((%d+)%-"))
@@ -318,7 +421,10 @@ scanFrame:SetScript("OnUpdate", function(self)
         scanDirty = false
         NS:Throttle("guidemenu-scan", 0.25, function() if f:IsShown() then M.Refresh() end end)
     end
-    if finished then self:Hide() end
+    if finished then
+        self:Hide()
+        Rec.Invalidate()   -- finished guides rank last, and the ranking reads the answers this scan just produced
+    end
 end)
 scanFrame:Hide()
 
@@ -359,9 +465,11 @@ end
 
 local function guideLabel(g, inNext)
     local eta = inNext and g.__nextETA and ("  |cff6ac9ff~%dm|r"):format(math.max(1, math.floor(g.__nextETA / 60 + 0.5))) or ""
-    return ("%s%s|r%s%s%s"):format(srcColor(g.source), g.name or g.id,
-        g.minlevel and ("  |cff888888[%d-%d]|r"):format(g.minlevel, g.maxlevel or g.minlevel) or "",
-        pctBadge(g), eta)
+    local band = Rec.GuideLabel(g)
+    local entry = Rec.EntryFor(M.ViewLevel(), g.id)
+    local needs = (entry and entry.missing) and ("  |cffff9900needs %s|r"):format(entry.missing) or ""
+    return ("%s%s|r%s%s%s%s"):format(srcColor(g.source), g.name or g.id,
+        band ~= "" and ("  |cff888888%s|r"):format(band) or "", needs, pctBadge(g), eta)
 end
 
 -- Flatten visible tree into rows: { kind = "node"|"guide", depth, node|guide }
@@ -382,9 +490,12 @@ end
 
 local function searchRows(filter)
     local rows = {}
+    local fit = listPrefs().onlyLevel and Rec.FitSet(M.ViewLevel()) or nil
     for _, g in ipairs(G.Available()) do
-        local hay = ((g.name or g.id) .. " " .. (g.type or "") .. " " .. tostring(g.zone or "") .. " " .. (g.source or "")):lower()
-        if hay:find(filter, 1, true) then rows[#rows + 1] = { kind = "guide", depth = 0, guide = g } end
+        if not fit or fit[g.id] then
+            local hay = ((g.name or g.id) .. " " .. (g.type or "") .. " " .. tostring(g.zone or "") .. " " .. (g.source or "")):lower()
+            if hay:find(filter, 1, true) then rows[#rows + 1] = { kind = "guide", depth = 0, guide = g } end
+        end
     end
     table.sort(rows, function(a, b)
         if (a.guide.minlevel or 999) ~= (b.guide.minlevel or 999) then return (a.guide.minlevel or 999) < (b.guide.minlevel or 999) end
@@ -405,6 +516,7 @@ function M.Refresh()
             b:SetHeight(20); b:SetPoint("LEFT", 0, 0); b:SetPoint("RIGHT", 0, 0)
             b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             b.text:SetPoint("LEFT", 4, 0); b.text:SetJustifyH("LEFT")
+            b.text:SetWordWrap(false)   -- a long name plus its band and "needs" tags must not wrap onto the next 20 px row
             -- right-hand completion column: "12 completed" on a category, a tick or % on a guide
             b.right = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
             b.right:SetPoint("RIGHT", -6, 0); b.right:SetJustifyH("RIGHT")
@@ -422,6 +534,7 @@ function M.Refresh()
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
                 GameTooltip:SetText(gg.name or gg.id)
                 GameTooltip:AddLine("Source: " .. (gg.source or "?") .. "   Author: " .. (gg.author or "?"), 1, 1, 1)
+                for _, line in ipairs(Rec.Describe(gg, M.ViewLevel())) do GameTooltip:AddLine(line, 1, 0.82, 0, true) end
                 if gg.zone then GameTooltip:AddLine("Zone: " .. tostring(gg.zone), 1, 1, 1) end
                 if gg.faction then GameTooltip:AddLine("Faction: " .. gg.faction, 1, 1, 1) end
                 if gg.next then GameTooltip:AddLine("Next: " .. gg.next, 0.7, 0.7, 0.7) end
@@ -449,8 +562,8 @@ function M.Refresh()
         if row.kind == "node" then
             b.nodePath, b.gid = row.node.path, nil
             local mark = expanded[row.node.path] and "|cffaaaaaa[-]|r " or "|cffaaaaaa[+]|r "
-            if row.depth == 0 then
-                local st = catStyle(row.node.name)
+            if row.depth == 0 or row.node.styleKey then
+                local st = catStyle(row.node.styleKey or row.node.name)
                 b.text:SetText(("%s%s |cff%s%s|r  |cff666666(%d)|r"):format(mark, tex(st.icon, 16), st.color, row.node.name, row.node.count))
             else
                 b.text:SetText(("%s%s |cffffffff%s|r  |cff666666(%d)|r"):format(mark, tex(FOLDER_ICON, 14), row.node.name, row.node.count))
@@ -494,6 +607,7 @@ function M.Refresh()
 end
 local function openMenu()
     M.UpdateScopeLabel()
+    M.UpdateLevelControls()
     M.Refresh()
     f:Show()
     scanFrame:Show()   -- fills in the completion column in the background
@@ -502,4 +616,5 @@ function M.Toggle() if f:IsShown() then f:Hide() else openMenu() end end
 function M.Show() openMenu() end
 -- exposed for tools/test_offline.lua (headless tree checks); not used in-game
 M._test = { buildTree = buildTree, guidePath = guidePath, visibleRows = visibleRows, searchRows = searchRows, expanded = expanded,
-            nodeCompletion = nodeCompletion, scanSlice = scanSlice, scanned = function() return scanned end }
+            nodeCompletion = nodeCompletion, scanSlice = scanSlice, scanned = function() return scanned end,
+            prefs = listPrefs, levelBox = levelBox, onlyLevel = onlyLevel, groupLevel = groupLevel, FOR_LEVEL_PATH = FOR_LEVEL_PATH }

@@ -1,3 +1,66 @@
+# Status / handoff (2026-11-09, gold guides, secondary professions, guides by level)
+
+Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** Installed on all five clients. All 13 harnesses pass
+(`test_offline`, `test_farm`, `test_access`, `test_load_all`, `validate_toc`, `test_wiki`, `test_route_order`, `test_level_list`,
+`test_professions_engine`, `test_live_route`, `test_parked`, `test_professions`, `test_gold`).
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Gold guides | 165 | 204 | 258 | 335 | 168 |
+| Profession guides | 24 | 30 | 64 | 78 | 24 |
+| Quest guides with a baked route | 234 of 234 | 356 of 356 | 294 of 771 | 296 of 1,021 | 241 of 241 |
+
+* **Gold** (`tools/wiki/gen_gold.py`, [GOLD_ROUTES.md](GOLD_ROUTES.md)): realm-independent, no prices shipped. Gathering circuits are still labelled
+  coarse because no shippable node database exists; they sharpen as the player records nodes.
+* **Professions** (`tools/wiki/gen_professions.py`, `Core/Archaeology.lua`, [PROFESSIONS.md](PROFESSIONS.md)). Weakest area: retail Cooking
+  tiers (Pandaria stops at 22 of 75, Cataclysm at 36 of 75; Outland and Shadowlands have no guide).
+* **Guides by level** (`Core/Recommend.lua`, `UI/GuideMenu.lua`, `/cr list`, `/cr gold`, `/cr prof`).
+* **Map fix.** On era, tbc and forever, wiki points in Badlands, Arathi Highlands, Swamp of Sorrows, Felwood and Teldrassil are Classic-map numbers and
+  must not go through the retail-map conversion (`wikimaps.KEEP_NUMBERS`). Blasted Lands still shows a 5.5 unit offset with no clear cause.
+* **Achievements** (`tools/gen_completion_guides.py`): point locations mop 202 to 305, retail 803 to 1,521; zone-only mop 1,062, retail 2,375; marked non-geographic
+  (`|NOGEO|reason|`) mop 1,108, retail 3,001; still unlocated mop 631, retail 5,127. Plan target of 80% not met.
+* **Optimizer stopped at the 2026-11-09 deadline.** Changed guides were redone on era, mop and retail, then spine guides on mop and retail until time ran out.
+  Guides touched by the map fix on tbc and forever were not re-optimized. Finish with `tools/cost_matrix.lua` + `tools/optimize_routes.py --merge` on the rest.
+* **Public release held.** The rule is that GitHub releases are bug free, and no client has loaded this yet. Companion app is 2.0.0-beta in /Applications.
+* **Next:** beta reports from Daniel; finish mop and retail optimizer; achievements; retail Cooking tiers; a bake gate that drops guides vplayer finds slower;
+  outleveled parked guides currently return once at the next guide change (kept for completionists, easy to gate on level in `parkedReady`).
+
+# Status / handoff (2026-11-09, routing finish: live window, level-gate revisit, subzone map fixes)
+
+Offline only. Nothing here ran in a client.
+
+* **Level gates.** A guide that runs dry behind `|LVL|` gates is parked and comes back at its level, at the next guide
+  transition, then the chain continues from where it was heading (`docs/ROUTING.md`, `tools/test_parked.lua`).
+* **Live window (tier B).** The baked order is the baseline, a repair must save `max(15 s, 5%)`, the plan is what the next
+  refresh must beat, window 24 steps (was 12), 3 ms budget per call with kept costs. A saved profile on the old 12 moves
+  to 24. See the table below; the bake's *relative* gain shrank because the larger window also speeds up unbaked guides.
+* **Wiki points.** A subzone map a client lacks lands on its parent zone (Valley of Trials no longer lands in The
+  Barrens). A subzone row contradicted by its own parent-zone row is moved onto the parent's point (46 rows). A zone only
+  one client has is read on that client's maps (Zephras Isle: 0 -> 64 steps with a wiki point). 163 guides changed, so
+  their baked orders are stale until `tools/optimize_routes.py` is re-run.
+* **Coverage.** Missions are non-geographic, no_route rows are classified in `noroute_class`. Era/TBC/Forever routable
+  no_route = 0; mop 27 and retail 62 remain. Nothing else was closed this round.
+* `tools/status_report.py`: the one-table summary per flavor.
+
+  vplayer travel seconds, same sampled guides each column (pre-regeneration guides, so the bake still describes them):
+
+  | | era | tbc | mop | retail | forever |
+  |---|---|---|---|---|---|
+  | Guides | 150 | 150 | 100 | 40 | 150 |
+  | Old author + live | 748,877 | 586,180 | 345,514 | 78,523 | 671,412 |
+  | Old baked + live | 700,796 | 532,711 | 303,127 | 72,036 | 638,046 |
+  | New author + live | 683,251 | 533,791 | 291,476 | 76,869 | 618,301 |
+  | **New baked + live** | **656,777** | **509,104** | **264,477** | **72,122** | **600,842** |
+  | New vs old (baked + live) | 6.3% faster | 4.4% | 12.8% | 0.1% slower | 5.8% |
+  | Bake gain over author, old / new | 6.4 / 3.9% | 9.1 / 4.6% | 12.3 / 9.3% | 8.3 / 6.2% | 5.0 / 2.8% |
+  | Guides >1% slower than author, old / new | 22 / 16 | 7 / 11 | 13 / 18 | 6 / 9 | 16 / 23 |
+  | Gain over baked with live off | 26.8% | 20.6% | 33.1% | 28.4% | 23.8% |
+  | Guides >1% slower than baked with live off | 1 | 3 | 0 | 0 | 2 |
+
+  Honest read: the player is faster on every flavor but retail (flat), and the window no longer undoes the bake (0-3 guides
+  slower than baked with live off). The bake's own edge over author order shrank, and more guides sit >1% behind
+  author + live on tbc, mop, retail and forever. A bake gate that drops a guide whose vplayer time is worse would zero that.
+
 # Status / handoff (2026-11-08, Forever flavor, generated leveling spine, offline route optimizer)
 
 Built by a 4-agent run (Forever ‖ spine → optimizer → independent verifier); verifier re-ran everything and fixed 4 bugs.

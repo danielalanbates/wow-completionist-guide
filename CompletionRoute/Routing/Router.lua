@@ -135,14 +135,36 @@ function R.TravelSecondsFromPlayer(b)
     return p and p.cost or nil
 end
 
--- Reorder the upcoming window.  Only steps with a location participate; the rest are anchors.
+-- The quest log's size now and its capacity, for the repair's log check (nil when the client will not say).
+local QUEST_LOG_CAP = { era = 20, tbc = 25, mop = 25, retail = 35 }
+local function questLog()
+    local entries, quests
+    if C_QuestLog and C_QuestLog.GetNumQuestLogEntries then
+        entries, quests = C_QuestLog.GetNumQuestLogEntries()
+    elseif GetNumQuestLogEntries then
+        entries, quests = GetNumQuestLogEntries()
+    end
+    local cap
+    if C_QuestLog and C_QuestLog.GetMaxNumQuestsCanAccept then
+        local ok, v = pcall(C_QuestLog.GetMaxNumQuestsCanAccept)
+        if ok then cap = v end
+    end
+    return quests or entries or 0, cap or QUEST_LOG_CAP[NS.isForever and "era" or NS.flavor]
+end
+
+-- Reorder the upcoming window (Routing/StepOrder.lua): the baked order unless a repair wins by a real margin.
 function R.OrderSteps(steps)
     if not steps or #steps < 3 or not NS.StepOrder then return steps end
-    local window = math.min(#steps, NS.db.profile.routing.window or 10)
+    local r = NS.db.profile.routing
+    local window = math.min(#steps, r.window or 10)
     local head = {}
     for i = 1, window do head[i] = steps[i] end
-    local ok, ordered = pcall(NS.StepOrder.Order, head, R)
+    local logStart, logCap = questLog()
+    local ok, ordered = pcall(NS.StepOrder.Plan, head, R, { after = steps[window + 1], budget = r.liveBudgetMs or NS.StepOrder.FRAME_MS,
+                                                             logStart = logStart, logCap = logCap })
     if not ok then NS:Debug("StepOrder error: " .. tostring(ordered)) return steps end
+    -- out of budget this frame: the baseline stands for now and the kept costs make the retry cheaper
+    if NS.StepOrder.needsMore then NS:Throttle("route-repair", 0.2, function() if NS.Progress and NS.Progress.guide then NS.Progress.Refresh() end end) end
     local out = {}
     for i = 1, #ordered do out[i] = ordered[i] end
     for i = window + 1, #steps do out[#out + 1] = steps[i] end

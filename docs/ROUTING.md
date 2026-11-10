@@ -17,11 +17,35 @@
 * **Output**: `{cost, legs[{mode, from, to, cost, title, data}]}`; consecutive walk legs merged.
   `TravelGraph.Describe(path)` → "Walk 457 yd to Darkshire; Fly … ; Take the boat … (~10m)".
 
-## Step-order optimizer (`Routing/StepOrder.lua`)
-Given the next `window` (10) pending steps: build precedence (`A<C<T` per quest, `PRE` turn-in before accept,
-non-routable/sticky steps as anchors keeping author order around them), greedy nearest-feasible-neighbour from the
-player using `Router.TravelSeconds` (walk-only under 700 yd, else Dijkstra without hearth), then Or-opt improvement.
-Author order breaks ties. Toggle with the `Route` button or `/or options`.
+## Live window over the baked order (`Routing/StepOrder.lua`, tier B)
+The next `window` (24) pending steps arrive in baked order (`Data/RouteOrder_<flavor>.lua`, or author order when there is
+no bake), and that order is the **baseline**. Hard rules (never traded for time): `A < C < T` per quest, `PRE` turn-in
+before the accept, non-routable and sticky steps as anchors with everything before them staying before them, a step with
+no place at all staying on the block before it, and a quest log that a repair may not push above the cap or the
+baseline's own peak.
+
+A repair runs segment Or-opt (1-3 blocks) and precedence-safe 2-opt from the baseline and from a greedy
+nearest-feasible route seeded at the player. It replaces the baseline only when it saves more than the margin
+(`SO.MIN_GAIN`, `SO.GAIN_FRAC`). A repair that wins becomes the plan, and the plan is what the next refresh has to beat,
+so the route does not flip as the player walks. The cost includes the leg from the end of the window to the step after
+it, so a repair cannot win by stranding the rest of the route. An off-route player shows up as a long first leg, and the
+greedy start picks the near block.
+
+CPU: pair costs are kept between refreshes (dropped when the guide, the speed or the path cache changes), from-player
+searches are limited to `SO.FIRST_LEGS`, and a call stops at `routing.liveBudgetMs` (3 ms) and returns the baseline; the
+caller retries 0.2 s later and the kept costs make the retry cheaper. A single router call is not interruptible, so a
+call can overrun its budget by one Dijkstra. Author order breaks ties. Toggle with the `Route` button or `/or options`.
+
+Tests: `tools/test_live_route.lua` (margins, plan stability, 400 random windows for precedence and the log cap, budget,
+off-route). `tools/vplayer.lua` takes `CR_SO`, `CR_WINDOW`, `CR_LIVE_BUDGET_MS` for experiments and prints repair times.
+
+## Parked guides (`Core/Progress.lua`)
+A guide that runs dry while a `|LVL|` gate still holds steps back is parked (`char.parked[id] = { level = n }`), lowest
+gate first; a gate above the client's level cap does not count. It comes back only at a transition: when the guide in
+progress has finished. It never pulls the player off a guide being played, and the chain then continues from where it
+was heading (`char.parkReturn`), not from the parked guide's own `next`. `G.SuggestNext` passes over a guide still
+waiting. A guide the player picks ends any detour. `tools/vplayer.lua --chain Alliance|Horde` plays a whole spine with this
+logic and fails on a bounce; `tools/test_parked.lua` and `tools/test_live_route.lua` cover it in stubs.
 
 ## Arrow recommendation (`Routing/Router.lua`)
 1. step has `|U|item` in bags and you're within 40 yd (or step has no location) → **item button**

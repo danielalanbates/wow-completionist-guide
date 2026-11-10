@@ -4,7 +4,7 @@
 
 Community-driven guides for **every** quest, with optimal travel routing,
 progress tracked **across all your characters**, and a marker over the head of whatever the current
-step wants you to find. One addon, every version of the game — Era, TBC Anniversary, Mists, retail.
+step wants you to find. One addon, every version of the game — Era, TBC Anniversary, Mists, retail, WoW Forever.
 
 **Status: beta.** v1.0.0 was withdrawn on 2026-11-07 (it bundled third-party guide content). v2.0 — Warcraft Wiki as the source of truth — is in progress; see [docs/FINISH_PLAN.md](docs/FINISH_PLAN.md).
 Built as a comprehensive replacement for proprietary subscription guide addons that keeps the *one thing* no free addon has:
@@ -24,11 +24,13 @@ smart arrow — while the guide content is community-driven and open.
 | Optimal quest routing for the chosen guide | ✅ `Routing/StepOrder.lua` — precedence-constrained reordering of the next N steps (accept → complete → turn-in kept, anchors like *run to zone* respected) |
 | Guide library | ✅ native guides in `Guides/` (WoW-Pro line syntax, CC BY-SA) + a **runtime adapter** that reads your installed **WoW-Pro** guides (interop only, nothing copied) |
 | Every quest in the game, covered | ✅ generated zone guides: Classic flavors from a local **Questie** checkout, **retail from Blizzard's own quest POI client data** (`tools/gen_quest_guides_retail.py` — 379 zone guides, 17,161 quests, 56,843 steps). No subscription required.
-| Gold guides | ✅ **circuits, not click-throughs**: `G` waypoints that complete by proximity, endless laps, shortest-loop solver (`Routing/Loop.lua`), node recorder + GatherMate2/Routes import, measured gold/hour — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
+| Gold guides | ✅ realm-independent money guides by level, on every client: gathering, mob farming and fishing **circuits** you walk with nothing to click, plus daily gold, instance runs and step-by-step methods. No prices are shipped; laps are priced in game from Auctionator if present, else vendor value — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
+| Secondary professions | ✅ Cooking, Fishing, First Aid and Archaeology by client, with nearest trainer, a computed recipe path, skill targets that tick themselves, and live Archaeology dig-site circuits — [docs/PROFESSIONS.md](docs/PROFESSIONS.md) |
+| Guides listed by level | ✅ `Core/Recommend.lua`: a *For level N* section, *Only guides for this level* filter, *Group by level* tree, and profession guides matched to your real skill |
 | Dungeon guides | ✅ steps inside an instance route to the **entrance** (learned door + retail encounter journal), `Core/Instances.lua` |
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
 
-Not yet: profession guide engine (craft/vendor steps have no location by nature), talent advisor, gear finder, model viewer, guide editor UI, retail-specific hearth toys, indoor/dungeon-aware walking, per-zone "wall" data.
+Not yet: primary profession guides, talent advisor, gear finder, model viewer, guide editor UI, retail-specific hearth toys, indoor/dungeon-aware walking, per-zone "wall" data.
 
 ## Where the guides come from
 
@@ -81,6 +83,7 @@ To rebuild and deploy:
 * `/or` — toggle guide window · `/or guides` — pick a guide · `/or route` — explain the current route
 * `/or order` — show the optimizer's order for the upcoming steps · `/or taxi` — flight paths learned · `/or hearth`
 * `/cr farm` — farm circuits: status, `build`, `record`, `import`, `export`, `stats`, `radius`
+* `/cr list [level] [category]` — best guides for a level · `/cr gold [level]` — gold guides · `/cr prof` — profession guides for your current skill
 * `/or test` — routing self-test from your position to major cities · `/or import` — re-scan WoW-Pro guides
 * Checkbox / Shift-click a step = complete · right-click = skip · `<` undo · `>` skip · `Route` toggles reordering
 

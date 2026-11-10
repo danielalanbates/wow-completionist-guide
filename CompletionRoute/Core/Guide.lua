@@ -20,7 +20,7 @@ local ACTION_ALIAS = { P = "N", ["*"] = "N", d = "N", s = "N" }
 G.ACTIONS = ACTIONS
 G.ACTION_LABEL = { A="Accept", a="Accept", C="Complete", T="Turn in", t="Turn in", K="Kill", R="Run to", H="Hearth to", h="Set hearth",
     F="Fly to", f="Get flight path", N="Note", B="Buy", b="Boat/Zeppelin", U="Use", L="Level", l="Loot", r="Repair/Sell", D="Dungeon",
-    J="Portal/Jump", M="Misc", ["!"]="Daily", ["$"]="Treasure", ["="]="Misc", G="Farm" }
+    J="Portal/Jump", M="Make", ["!"]="Daily", ["$"]="Treasure", ["="]="Train", G="Farm" }
 G.ACTION_ICON = { A="Interface\\GossipFrame\\AvailableQuestIcon", a="Interface\\GossipFrame\\AvailableQuestIcon",
     C="Interface\\Icons\\Ability_DualWield", T="Interface\\GossipFrame\\ActiveQuestIcon", t="Interface\\GossipFrame\\ActiveQuestIcon",
     K="Interface\\Icons\\Ability_Creature_Cursed_02", R="Interface\\Icons\\Ability_Tracking", H="Interface\\Icons\\INV_Misc_Rune_01",
@@ -28,8 +28,8 @@ G.ACTION_ICON = { A="Interface\\GossipFrame\\AvailableQuestIcon", a="Interface\\
     N="Interface\\Icons\\INV_Misc_Note_01", B="Interface\\Icons\\INV_Misc_Coin_01", b="Interface\\Icons\\Spell_Frost_SummonWaterElemental",
     U="Interface\\Icons\\INV_Misc_Bag_08", L="Interface\\Icons\\Spell_ChargePositive", l="Interface\\Icons\\INV_Misc_Bag_08",
     r="Interface\\Icons\\Ability_Repair", D="Interface\\TAXIFRAME\\UI-Taxi-Icon-Green", J="Interface\\Icons\\spell_arcane_teleportironforge",
-    M="Interface\\Icons\\INV_Misc_QuestionMark", ["!"]="Interface\\GossipFrame\\DailyQuestIcon", ["$"]="Interface\\Icons\\INV_Misc_Bag_10",
-    ["="]="Interface\\Icons\\INV_Misc_QuestionMark", G="Interface\\Icons\\INV_Misc_Herb_07" }
+    M="Interface\\Icons\\Trade_BlackSmithing", ["!"]="Interface\\GossipFrame\\DailyQuestIcon", ["$"]="Interface\\Icons\\INV_Misc_Bag_10",
+    ["="]="Interface\\Icons\\INV_Misc_Book_09", G="Interface\\Icons\\INV_Misc_Herb_07" }
 -- Steps whose position is location-driven and may be reordered by the optimizer
 local ROUTABLE = { A=true, C=true, T=true, K=true, r=true, B=true, ["$"]=true, l=true, ["!"]=true }
 
@@ -52,6 +52,19 @@ local function coords(v)
     for pair in v:gmatch("[^;]+") do
         local x, y = pair:match("([%d%.%-]+)%s*,%s*([%d%.%-]+)")
         if x then out[#out + 1] = { x = tonumber(x) / 100, y = tonumber(y) / 100 } end
+    end
+    return #out > 0 and out or nil
+end
+
+-- Parse "|ALT|1453,63.7,73.3,Name;1455,60.1,36.4,Name|" -> list of { map, x, y (0..1), name } ("Same uiMapID convention as Z").
+-- A place this client has no map for is dropped; the step keeps the others.
+local function altList(v)
+    if not v then return nil end
+    local out = {}
+    for entry in v:gmatch("[^;]+") do
+        local mid, x, y, name = entry:match("^%s*(%d+)%s*,%s*([%d%.]+)%s*,%s*([%d%.]+)%s*,?%s*(.-)%s*$")
+        local map = mid and U.MapIDByIDOrName(tonumber(mid), nil)
+        if map then out[#out + 1] = { map = map, x = tonumber(x) / 100, y = tonumber(y) / 100, name = name } end
     end
     return #out > 0 and out or nil
 end
@@ -113,6 +126,13 @@ function G.ParseLine(text, lineno, defaultZone)
         elseif tag == "MISSION" then step.mission = tonumber(val and val:match("%d+"))
         elseif tag == "RAD" then step.radius = tonumber(val)
         elseif tag == "KIND" then step.kind = val
+        elseif tag == "SKILL" then
+            -- "Cooking;75" or "Cooking;75;2545" (retail expansion tier skill line)
+            local pname, target, tier = (val or ""):match("^%s*([^;]-)%s*;%s*(%d+)%s*;?%s*(%d*)")
+            if pname and pname ~= "" then step.skill = { name = pname, target = tonumber(target), tier = tonumber(tier) } end
+        elseif tag == "RECIPE" then step.recipe = tonumber(val and val:match("%d+"))
+        elseif tag == "COUNT" then step.count = tonumber(val and val:match("%d+"))
+        elseif tag == "ALT" then step.alts = altList(val)
         elseif tag == "ROUTE" then step.route = true consumed = 1
         elseif tag == "FIXED" then step.route = false consumed = 1
         elseif tag == "RUNE" or tag == "ELITE" or tag == "RARE" or tag == "DUNGEON" or tag == "CHAT" or tag == "H" or tag == "I" or tag == "V" or tag == "FAIL" or tag == "AP" or tag == "CT" or tag == "MS" or tag == "TOF" or tag == "EAB" or tag == "NOCACHE" then step[tag:lower()] = true consumed = 1
@@ -122,6 +142,11 @@ function G.ParseLine(text, lineno, defaultZone)
             if val == nil or val == "" or (parts[i + 2] == nil and val:find("[^%w%s;,%.%-]")) then step.extra[tag] = true consumed = 1 else step.extra[tag] = val end
         end
         i = i + consumed
+    end
+    -- ALT: located from the start at its first alternative; Progress.ResolveAlts moves it to the cheapest one for this character
+    if step.alts and not step.coords then
+        local a = step.alts[1]
+        step.coords, step.zone, step.zoneName, step.altChosen, step.altName = { { x = a.x, y = a.y } }, a.map, U.MapName(a.map), a, a.name
     end
     if not step.zone and defaultZone then step.zone = U.MapIDByName(defaultZone) step.zoneName = defaultZone end
     if step.route == nil then step.route = ROUTABLE[action] or false end
@@ -134,6 +159,20 @@ end
 -- Generated quest guides (tools/gen_quest_guides_retail.py) cannot know quest names: Blizzard keeps
 -- quest text on the server, so the client data only gives ids and coordinates.  The title is written
 -- as "Quest 12345" and swapped for the real one the moment the client can answer for that id.
+-- How many to make, which trainer the engine chose (ALT), and the skill so far: part of the title, not of step.title.
+local function titleExtras(step)
+    if not (step.count or step.altName or step.skill) then return "" end
+    local out = ""
+    if step.count then out = out .. " x" .. step.count end
+    if step.altName and step.altName ~= "" then out = out .. " - " .. step.altName end
+    if step.skill and NS.Professions then
+        local rank = NS.Professions.Skill(step.skill.name, step.skill.tier)
+        if rank then out = out .. (" (%d/%d)"):format(rank, step.skill.target)
+        else out = out .. (" (open %s so the addon can read this skill)"):format(step.skill.name) end
+    end
+    return out
+end
+
 function G.StepTitle(step)
     if not step then return "" end
     local t = step.title or ""
@@ -143,10 +182,10 @@ function G.StepTitle(step)
         if live then
             local suffix = t:match("^Quest %d+(.*)$") or ""
             step.title = live .. suffix          -- cache it: the client answers the same way next time
-            return step.title
+            t = step.title
         end
     end
-    return t
+    return t .. titleExtras(step)
 end
 
 -- Imported sources spell their categories differently (e.g. "GOLD", WoW-Pro "Professions",
@@ -161,7 +200,15 @@ function G.NormalizeType(t)
     return TYPE_CANON[tostring(t):lower()] or t
 end
 
+-- Gold and profession guides are always picked by the player, never as the "next" guide (see Progress.Refresh).
+function G.IsSideGuide(g) return g ~= nil and (g.type == "Gold" or g.type == "Professions") end
+
+-- Cached unfiltered G.Available(): the guide list asks on every keystroke and it is a full sort.
+local availableAll
+function G.InvalidateAvailable() availableAll = nil end
+
 -- Register a guide.  def = { id, name, type ('Leveling'), zone, faction, minlevel, maxlevel, next, author, source, text (string) or fn () -> string }
+-- Optional: prof, skillMin, skillMax, tier, requires ("Herbalism;75"), goldKind, folder, loop, farm (see docs/GUIDE_FORMAT.md).
 function G.Register(def)
     if not def or not def.id then return end
     if G.registry[def.id] then return G.registry[def.id] end
@@ -175,6 +222,7 @@ function G.Register(def)
     def.source = def.source or "CompletionRoute"
     G.registry[def.id] = def
     tinsert(G.list, def.id)
+    G.InvalidateAvailable()
     NS:Fire("GUIDE_REGISTERED", def)
     return def
 end
@@ -241,6 +289,7 @@ function G.Steps(id)
         -- behind a lazy function so Register cannot see it). Hide it instead of offering a
         -- guide that loads zero steps.
         g.steps, g.empty = {}, true
+        G.InvalidateAvailable()
         return g.steps
     end
     local steps, errors = {}, 0
@@ -250,14 +299,21 @@ function G.Steps(id)
         n = n + 1
         local s, err = G.ParseLine(line, n, g.zone)
         if s then
-            -- Guide semantics: a zone stays in force until the guide names another one
-            if s.zone then lastZone, lastZoneName = s.zone, s.zoneName
+            -- Guide semantics: a zone stays in force until the guide names another one (an ALT step's zone is
+            -- only its current choice among several, so it does not carry over to the lines after it)
+            if s.alts then -- located by its own alternatives
+            elseif s.zone then lastZone, lastZoneName = s.zone, s.zoneName
             elseif lastZone then s.zone, s.zoneName, s.zoneInherited = lastZone, lastZoneName, true end
             if NS.QuestCoordFixes then G.ApplyCoordFix(s) end
             -- Forever: every guide except the Forever-native files (def.forever) is written on Era maps
             if NS.isForever and not g.forever and s.coords and s.zone and NS.ForeverMapFix and NS.ForeverMapFix[s.zone] then
                 for _, c in ipairs(s.coords) do c.x, c.y = U.EraToForever(s.zone, c.x, c.y) end
                 s.eraMapFixed = true
+            end
+            if NS.isForever and not g.forever and s.alts and NS.ForeverMapFix then
+                for _, a in ipairs(s.alts) do
+                    if NS.ForeverMapFix[a.map] then a.x, a.y = U.EraToForever(a.map, a.x, a.y) end
+                end
             end
             s.index = #steps + 1 s.guide = id steps[#steps + 1] = s
         elseif err then errors = errors + 1 NS:Debug("guide " .. id .. " line " .. n .. ": " .. err) end
@@ -279,6 +335,7 @@ end
 
 -- Guides applicable to this character (faction), sorted by minlevel
 function G.Available(filterType)
+    if not filterType and availableAll then return availableAll end
     local out = {}
     for _, id in ipairs(G.list) do
         local g = G.registry[id]
@@ -288,6 +345,7 @@ function G.Available(filterType)
         if (a.minlevel or 0) ~= (b.minlevel or 0) then return (a.minlevel or 0) < (b.minlevel or 0) end
         return (a.name or a.id) < (b.name or b.id)
     end)
+    if not filterType then availableAll = out end
     return out
 end
 
@@ -331,8 +389,12 @@ end
 function G.SuggestNext(excludeId)
     local lvl = U.PlayerLevel()
     local cands = {}
+    -- a guide parked on a level gate has nothing to offer until the gate opens (Core/Progress.lua); offering it
+    -- anyway makes the chain load it, find it empty and move on
+    local Prog = NS.Progress
+    local function waiting(g) return Prog and Prog.ParkedWaiting and Prog.ParkedWaiting(g.id) end
     for _, g in ipairs(G.Available("Leveling")) do
-        if g.id ~= excludeId and (g.minlevel or 0) <= lvl + 0.5 and (g.maxlevel or 999) >= lvl then
+        if g.id ~= excludeId and (g.minlevel or 0) <= lvl + 0.5 and (g.maxlevel or 999) >= lvl and not waiting(g) then
             cands[#cands + 1] = g
         end
     end
@@ -340,11 +402,11 @@ function G.SuggestNext(excludeId)
         -- nothing spans our level (just dinged out of a bracket): take the nearest bracket above
         local bestMin
         for _, g in ipairs(G.Available("Leveling")) do
-            if g.id ~= excludeId and (g.minlevel or 0) > lvl and (not bestMin or g.minlevel < bestMin) then bestMin = g.minlevel end
+            if g.id ~= excludeId and (g.minlevel or 0) > lvl and (not bestMin or g.minlevel < bestMin) and not waiting(g) then bestMin = g.minlevel end
         end
         if not bestMin then return nil end
         for _, g in ipairs(G.Available("Leveling")) do
-            if g.id ~= excludeId and g.minlevel == bestMin then cands[#cands + 1] = g end
+            if g.id ~= excludeId and g.minlevel == bestMin and not waiting(g) then cands[#cands + 1] = g end
         end
     end
     -- level-fit score, used both to shortlist and as the travel tiebreak base

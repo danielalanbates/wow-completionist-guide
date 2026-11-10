@@ -20,9 +20,12 @@ Core\Util.lua
 Core\Conditions.lua
 Core\Guide.lua
 Core\Account.lua
+Core\Professions.lua
 Core\Progress.lua
 Core\Farm.lua
 Core\Instances.lua
+Core\Recommend.lua
+Core\Archaeology.lua
 Data\Taxi_era.lua
 Data\Taxi_tbc.lua
 Data\Taxi_mop.lua
@@ -53,6 +56,8 @@ Adapters\DynamicQuests.lua
 Guides\Imported_WoWPro_retail.lua
 Guides\Imported_Wiki_retail.lua
 Guides\Imported_Spine_retail.lua
+Guides\Imported_Professions_retail.lua
+Guides\Imported_Gold_retail.lua
 Guides\Imported_Quests_retail_gaps.lua
 Guides\Imported_Achievements_retail.lua
 Guides\Imported_Storylines_retail.lua

@@ -257,6 +257,8 @@ class Gen:
                 self.qobj[int(r["QuestID"])] += 1
         self.conflicts = []
         self.place_cache = {}
+        self.clean_pts = {}
+        self.subzone_dropped = []
 
     # ---- locations ---------------------------------------------------------------------------------
     def era_to_forever(self, mid, pts):
@@ -308,9 +310,31 @@ class Gen:
         same = [p for p in placed if p[0] == mid][:4]
         return mid, ";".join(fmt_xy(p[1], p[2]) for p in same)
 
+    def page_rows(self, title):
+        """the page's coordinate rows, with a subzone row that its own parent-zone row contradicts (same expansion badge,
+        same page version; wikimaps.Atlas.subzone_conflict) moved onto the parent row's point.  The row stays, under the
+        subzone's name, because the choice between rows prefers the guide's own zone: dropping it would let a later
+        expansion's row win (Gornek in Spires of Arak for a Valley of Trials quest).  Off the subzone map, it goes."""
+        if title in self.clean_pts:
+            return self.clean_pts[title]
+        pts = self.npc_pts.get(title) or []
+        out = []
+        for a in pts:
+            row = a
+            for b in pts:
+                if a is not b and a[4] == b[4] and a[5] == b[5] and self.atlas.subzone_conflict(a[:3], b[:3], bool(a[5])):
+                    moved = self.atlas.parent_point_on_sub(a[0], b[:3], bool(a[5]))
+                    row = (a[0], moved[0], moved[1]) + a[3:] if moved else None
+                    self.subzone_dropped.append((title,) + a[:3])
+                    break
+            if row:
+                out.append(row)
+        self.clean_pts[title] = out
+        return out
+
     def page_points(self, title, fl, home_name):
         """best coordinates on an NPC/object/place page for this client"""
-        pts = self.npc_pts.get(title)
+        pts = self.page_rows(title)
         if not pts:
             return [], False
         e = EXP[fl][0]
@@ -318,6 +342,11 @@ class Gen:
         def score(p):
             zone, x, y, src, badge, classic = p
             s = 0
+            # A point on a map this client does not have (a retail subzone map such as Valley of Trials on Classic, or a
+            # retail-only zone) ranks after a point on a map it does have.  A subzone point is only usable through
+            # world-coordinate conversion, so an entry for the zone itself is better.
+            if self.atlas.sets[fl].resolve(zone) is None:
+                s += 1.5
             if fl in CLASSICISH:
                 s += 0 if classic else 2
                 if fl == "tbc" and "(burning crusade)" in zone.lower():
@@ -738,6 +767,7 @@ def main():
             gen_spine.build_spine(fl, flavor_gate(fl))
     c = g.write_conflicts(flavors)
     print("conflicts logged (docs/verification.sqlite wiki_db2_conflict):", dict(c))
+    print(f"subzone rows corrected (a parent-zone row on the same page disagrees): {len(g.subzone_dropped)}; first: {g.subzone_dropped[:8]}")
 
 
 if __name__ == "__main__":

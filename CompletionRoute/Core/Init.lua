@@ -35,7 +35,7 @@ NS.defaults = {
         arrow = { enabled = true, scale = 1.0, alpha = 1.0, lock = false, x = 0, y = -180, point = "TOP",
                   style = "hand" },   -- "hand": pointing hand in your class colour; "arrow": the old chevron
         frame = { scale = 1.0, alpha = 0.95, width = 320, height = 300, showSteps = 6, lock = false, x = 0, y = 0, point = "CENTER" },
-        routing = { enabled = true, reorder = true, baked = true, hearth = true, taxi = true, transit = true, window = 12,
+        routing = { enabled = true, reorder = true, baked = true, hearth = true, taxi = true, transit = true, window = 24,
                     runSpeed = 7, mountSpeed = nil, terrainFactor = 1.25, taxiSpeed = 32,
                     taxiPolicy = "faction",   -- "faction": any flight master your faction can use; "known": learned only
                     preferTaxi = false,       -- comfort mode: favors flight paths when available
@@ -51,6 +51,8 @@ NS.defaults = {
                  radius = 40,            -- yards: how close counts as "reached this waypoint"
                  seeds = true,           -- register the shipped coarse circuits (Data/Farm_routes.lua)
                  circuitizeGold = true }, -- fold imported gold guides into a loop instead of a click-through list
+        -- guide list (UI/GuideMenu.lua): level is nil while the list follows your own level
+        guideList = { onlyLevel = false, groupByLevel = false },
         autoAccept = false, autoTurnin = false, autoAdvance = true, minimapButton = true, debug = false,
     },
     char = {
@@ -120,6 +122,13 @@ NS:RegisterEvent("ADDON_LOADED", function(_, name)
     CompletionRouteDB = CompletionRouteDB or {}
     CompletionRouteCharDB = CompletionRouteCharDB or {}
     fill(CompletionRouteDB, { profile = deepcopy(NS.defaults.profile) })
+    -- the live window grew from 12 to 24 steps (routing tier B); a saved profile still on the old default follows it,
+    -- once, so a player who later sets 12 on the Options slider keeps it
+    local routing = CompletionRouteDB.profile.routing
+    if routing and not routing.window24 then
+        if routing.window == 12 then routing.window = 24 end
+        routing.window24 = true
+    end
     CompletionRouteDB.knownTaxi = CompletionRouteDB.knownTaxi or {}
     CompletionRouteCharDB.knownTaxi = CompletionRouteCharDB.knownTaxi or {}
     for id in pairs(CompletionRouteDB.knownTaxi) do CompletionRouteCharDB.knownTaxi[id] = true end

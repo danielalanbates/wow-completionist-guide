@@ -10,7 +10,7 @@ local t = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 t:SetPoint("TOPLEFT", 16, -16); t:SetText("CompletionRoute")
 local d = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 d:SetPoint("TOPLEFT", t, "BOTTOMLEFT", 0, -6); d:SetWidth(560); d:SetJustifyH("LEFT")
-d:SetText("The completionist's guide: community-driven guides for every quest, with open travel routing.\nSlash: /cr   Guides: /cr guides   What can I do now: /cr guides -> Next Step   Debug route: /cr route")
+d:SetText("The completionist's guide: community-driven guides for every quest, with open travel routing.\nSlash: /cr   Guides: /cr guides   What can I do now: /cr guides -> For level N   Debug route: /cr route")
 
 local y = -70
 local function check(label, get, set, tip)
@@ -66,7 +66,7 @@ check("Target beacon: one-click target button on the arrow", function() return P
 check("Account-wide progress: count steps ANY of my characters finished (finer control: the up/down scope selector at the top of the guide list)", function() return P().accountWide end, function(v) NS.Account.SetScope(v and "account" or "char") NS.Progress.Refresh() NS.GuideMenu.UpdateScopeLabel() NS.GuideMenu.RescanCompletion() NS.GuideMenu.Refresh() end, "Completionists: leave this OFF to do every guide on every character. Turn it ON to skip content the account has already cleared.")
 check("Account-wide: also match by quest ID across different guides", function() return P().accountQuests end, function(v) P().accountQuests = v NS.Progress.Refresh() end, "A quest an alt turned in clears the matching step in any guide that covers it, not just the same guide.")
 check("Debug messages", function() return P().debug end, function(v) P().debug = v end)
-slider("Reorder window (steps)", 3, 15, 1, function() return P().routing.window end, function(v) P().routing.window = v NS.Progress.Refresh() end)
+slider("Reorder window (steps)", 3, 24, 1, function() return P().routing.window end, function(v) P().routing.window = v NS.Progress.Refresh() end)
 slider("Terrain detour factor x100", 100, 200, 5, function() return math.floor((P().routing.terrainFactor or 1.25) * 100 + 0.5) end, function(v) P().routing.terrainFactor = v / 100 NS.Router.Invalidate() end)
 slider("Hearth base cost (seconds)", 10, 300, 10, function() return P().routing.hearthCost or 60 end, function(v) P().routing.hearthCost = v NS.Router.Invalidate() end)
 slider("Beacon scale x100", 50, 200, 5, function() return math.floor((P().beacon.scale or 1) * 100 + 0.5) end, function(v) P().beacon.scale = v / 100 NS.Beacon.RescanPlates() end)

@@ -50,34 +50,26 @@ function C.LevelMatch(minl, maxl)
     if maxl and l > maxl then return false end
     return true
 end
--- Profession check: "Herbalism;75" means skill >= 75 (best-effort; classic API is limited)
+-- Profession check (Core/Professions.lua): "Herbalism;75" means skill >= 75.  When the client cannot say, the step
+-- stays visible; hiding it on a guess would drop real steps.
 function C.ProfMatch(spec)
     if not spec or spec == "" then return true end
-    local name, need = spec:match("^([^;]+);?(%d*)")
-    need = tonumber(need) or 1
-    if GetSkillLineInfo then
-        for i = 1, GetNumSkillLines() do
-            local sname, isHeader, _, rank = GetSkillLineInfo(i)
-            if not isHeader and sname and norm(sname) == norm(name) then return rank >= need end
-        end
-        return false
-    end
-    if GetProfessions then
-        for _, idx in ipairs({ GetProfessions() }) do
-            if idx then local pname, _, rank = GetProfessionInfo(idx) if pname and norm(pname) == norm(name) then return rank >= need end end
-        end
-        return false
-    end
-    return true
+    local Prof = NS.Professions
+    if not Prof then return true end
+    local name, need = Prof.ParseSpec(spec)
+    local rank = Prof.Skill(name)
+    if rank == nil then return true end
+    return rank >= need
 end
 
 -- Whether a step should be shown at all for this character
-function C.StepApplies(step)
+-- `atLevel` asks the question for another level (Core/Progress.lua: would this step open at its level gate?)
+function C.StepApplies(step, atLevel)
     if step.class and not C.ClassMatch(step.class) then return false end
     if step.race and not C.RaceMatch(step.race) then return false end
     if step.faction and not C.FactionMatch(step.faction) then return false end
     if step.prof and not C.ProfMatch(step.prof) then return false end
-    if step.minlevel and U.PlayerLevel() < step.minlevel and step.action ~= "L" then return false end
+    if step.minlevel and (atLevel or U.PlayerLevel()) < step.minlevel and step.action ~= "L" then return false end
     -- PRE: prerequisite quest(s) must be complete (or on quest) — WoWPro semantic: hide until pre done
     -- PRE: prerequisite quest(s).  A list built from Questie's preQuestSingle is an OR set (any one of them
     -- opens the quest); a "&" list (preQuestGroup) needs all of them.  Requiring all of an OR set hid steps

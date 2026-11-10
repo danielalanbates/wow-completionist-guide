@@ -41,12 +41,36 @@ print("G waypoint parse OK")
 -- 2) seed circuits register and are loop guides
 local n = F.RegisterSeeds()
 assert(n >= 4, "expected the seed rings to register, got " .. n)  -- only the stub map table resolves offline
-local seed = G.registry["CR_Farm_Seed_" .. 1429]
+local seed = G.registry["CR_Farm_Seed_1429_Herbalism"]
 assert(seed and seed.loop and seed.type == "Gold", "Elwynn seed ring missing")
+assert(G.registry["CR_Farm_Seed_1429_Mining"], "a combined seed must become one ring per profession")
+assert(seed.requires == "Herbalism;1" and seed.goldKind == "Gathering", "seed ring fields")
 local steps = G.Steps(seed.id)
 assert(#steps == 14, "ring should be 14 waypoints, got " .. #steps)
 for _, st in ipairs(steps) do assert(st.action == "G" and st.coords and st.zone == 1429, "bad ring step") end
+-- a generated Gathering guide for the same zone and profession suppresses the seed
+do
+    NS.Guide.Register({ id = "t:gen_gather_1436", name = "gen", type = "Gold", goldKind = "Gathering", loop = true, zone = 1436,
+        minlevel = 10, maxlevel = 20, requires = "Herbalism;1", text = "G x|M|50,50|Z|1436; Westfall|RAD|60|", farm = { map = 1436, kind = "Herbalism", nodes = 1 } })
+    G.registry["CR_Farm_Seed_1436_Herbalism"] = nil
+    for i = #G.list, 1, -1 do if G.list[i] == "CR_Farm_Seed_1436_Herbalism" then table.remove(G.list, i) end end
+    F.RegisterSeeds()
+    assert(not G.registry["CR_Farm_Seed_1436_Herbalism"], "seed registered despite a generated guide for the zone and profession")
+    assert(G.registry["CR_Farm_Seed_1436_Mining"], "the other profession's seed for the zone should stay")
+end
 print(("seed circuits OK: %d rings, Elwynn ring = %d waypoints"):format(n, #steps))
+
+-- a generated Gathering circuit replaces the fallback rings
+do
+    local saved = {}
+    for _, id in ipairs(G.list) do saved[id] = G.registry[id] end
+    G.Register({ id = "t:generated_gather", name = "Generated", type = "Gold", goldKind = "Gathering", loop = true, source = "t",
+        text = "G x|M|50,50|Z|1429; Elwynn Forest|" })
+    assert(F.RegisterSeeds() == 0, "seed rings registered although generated circuits exist")
+    G.registry["t:generated_gather"] = nil
+    for i = #G.list, 1, -1 do if G.list[i] == "t:generated_gather" then table.remove(G.list, i) end end
+end
+print("generated circuits replace the fallback rings OK")
 
 -- 3) loading a circuit enters it at the NEAREST waypoint, not waypoint 1
 P.Load(seed.id)
