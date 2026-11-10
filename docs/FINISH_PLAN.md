@@ -28,6 +28,9 @@ Rewritten 2026-11-07 from Daniel's decisions. Status of each milestone is in [ST
 | W8 | SQL charting | `docs/verification.sqlite` schema doc + `status_report.py` headline table per flavor | Own | the report itself |
 | W9 | Release v2.0 | Release bakes only shippable data (own guides, wiki/DB2-generated guides, RouteOrder); .app generates Classic fallback at install; load-on-demand per flavor; prior builds archived | as above | release file list audited against `data_provenance` |
 | W10 | Docs for future AIs | Newest-first STATUS.md, LICENSING.md, ROUTING.md for tier A/B, reproduce-everything runbook | n/a | n/a |
+| W11 | Gold guides | `tools/wiki/gen_gold.py` → `Imported_Gold_<fl>.lua`: gathering, mob farming, fishing, daily gold, instances, methods, every level band, both factions | Wiki, DB2 | `gold_guides`, `tools/test_gold.lua` |
+| W12 | Secondary professions | `tools/wiki/gen_professions.py` → `Imported_Professions_<fl>.lua`, `Core/Archaeology.lua` | Wiki, DB2 | `prof_guides`, `tools/test_professions.lua` |
+| W13 | Guides by level | `Core/Recommend.lua`, `UI/GuideMenu.lua`, `/cr list`, `/cr gold`, `/cr prof` | Own | `tools/test_level_list.lua` |
 
 ## Milestones
 
@@ -38,10 +41,10 @@ Rewritten 2026-11-07 from Daniel's decisions. Status of each milestone is in [ST
 | M2 | W7 Forever | Forever TOC loads in stub test; installed on the Forever client — **done 2026-11-08 (offline; not yet loaded in client)** |
 | M3 | W2 spine | generated leveling order for every zone with wiki quests — **done 2026-11-08** (0 PRE violations; level-gate revisit open) |
 | M4 | W5 + W3 | `route_compare` filled; quest guides ≥30% faster than author order; 0 violations — **partial 2026-11-08**: 0 violations, model 21–29% median, in-game +5–13% over live window; mop/retail sampled only |
-| M5 | W4 | CPU p95 ≤ 3 ms; recovery within 10% of re-solved optimum |
-| M6 | W6 | routable `no_route` = 0; achievements located ≥80% |
+| M5 | W4 | CPU p95 ≤ 3 ms; recovery within 10% of re-solved optimum — **partial 2026-11-09**: baked order is the baseline, 24-step window, hysteresis; p95 6 ms on era, not 3 |
+| M6 | W6 | routable `no_route` = 0; achievements located ≥80% — **open 2026-11-09**: era, tbc, forever no_route 0; mop 27, retail 62 remain; achievement figures are in docs/STATUS.md |
 | M7 | Daniel beta | beta .app installed; Daniel's reports triaged into `beta_reports` |
-| M8 | W9 + W10 | v2.0 GitHub release; .app updated; old builds archived |
+| M8 | W9 + W10 | v2.0 GitHub release; .app updated; old builds archived — **.app 2.0.0-beta built and old build archived 2026-11-09; public release held until Daniel's beta passes (public releases must be bug free, and nothing has run in a real client)** |
 
 ## Risks and fallbacks
 
