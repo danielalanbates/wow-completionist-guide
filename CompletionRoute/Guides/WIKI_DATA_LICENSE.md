@@ -18,6 +18,16 @@ class and level requirements, and map coordinates.
   a compatible licence) and keep this attribution.
 * **No endorsement:** Warcraft Wiki and its contributors do not endorse this project.
 
+## Profession guides
+
+`Imported_Professions_era.lua`, `Imported_Professions_tbc.lua`, `Imported_Professions_mop.lua`, `Imported_Professions_retail.lua` and
+`Imported_Professions_forever.lua` hold data derived from the same source under the same licence: profession trainers and their locations, how each
+recipe is learned, where reagents come from, skill books and rank quests, and fishing locations, placed on each client's maps by
+`tools/wiki/gen_professions.py`. Pages used include *Cooking trainers*, *Fishing trainers*, *First Aid trainers*, *Archaeology trainers*, *Fishing locations*,
+*First Aid recipes*, the *List of ... Cooking Recipes* pages, and individual NPC, recipe, item and quest pages; their authors are in each page's history.
+Which recipes exist on a client, their skill thresholds and reagents, and the Archaeology dig sites come from Blizzard's client tables via wago.tools
+(facts only). See `docs/PROFESSIONS.md`.
+
 ## What this licence does not cover
 
 The rest of the add-on is *not* under CC BY-SA. That includes all Lua code, the routing engine, the tools and the
