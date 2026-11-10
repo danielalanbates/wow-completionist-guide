@@ -1200,11 +1200,13 @@ def methods(world, fl, faction, ah, bank, vendor, stats):
 # ---------------------------------------------------------------------------------------------------------------
 INSTANCE_SECTIONS = {"WORLD OF WARCRAFT": 1, "CLASSIC": 1, "THE BURNING CRUSADE": 2, "BURNING CRUSADE": 2, "WRATH OF THE LICH KING": 3, "CATACLYSM": 4,
                      "MISTS OF PANDARIA": 5, "WARLORDS OF DRAENOR": 6, "LEGION": 7, "BATTLE FOR AZEROTH": 8, "SHADOWLANDS": 9,
-                     "DRAGONFLIGHT": 10, "WAR WITHIN": 11, "THE WAR WITHIN": 11, "MIDNIGHT": 12}
+                     "DRAGONFLIGHT": 10, "WAR WITHIN": 11, "THE WAR WITHIN": 11, "MIDNIGHT": 12,
+                     # Template:Level merges the oldest expansions into these two, and its levels are retail-scaled, so nothing in it splits them further
+                     "PRE-CATACLYSM": 13, "CATACLYSM & PANDARIA": 14}
 INSTANCE_LABEL = {1: "Classic", 2: "Burning Crusade", 3: "Wrath of the Lich King", 4: "Cataclysm", 5: "Mists of Pandaria", 6: "Warlords of Draenor",
-                  7: "Legion", 8: "Battle for Azeroth", 9: "Shadowlands"}
-# which expansions' instances count as "old content" on a client whose cap is well above them
-OLD_SECTIONS = {"tbc": (1,), "mop": (1, 2, 3), "retail": (1, 2, 3, 4, 5, 6, 7, 8, 9)}
+                  7: "Legion", 8: "Battle for Azeroth", 9: "Shadowlands", 13: "Pre-Cataclysm", 14: "Cataclysm and Pandaria"}
+# which expansions' instances count as "old content" on a client whose cap is well above them.  13 is not old on tbc: it holds that client's own dungeons too.
+OLD_SECTIONS = {"tbc": (1,), "mop": (1, 2, 3, 13), "retail": (1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14)}
 RE_INST_CO = re.compile(r"\{\{\s*co(?:ords)?\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*([^}|]+?)\s*(?:\|[^}]*)?\}\}", re.I)
 
 
@@ -1218,6 +1220,9 @@ def instance_table():
         head = ln.strip()
         if head in INSTANCE_SECTIONS:
             exp = INSTANCE_SECTIONS[head]
+            continue
+        if head and head == head.upper() and "-->" not in head:     # an unknown section must not inherit the one above it
+            exp = None
             continue
         if "+" in ln.split("=")[0]:
             continue

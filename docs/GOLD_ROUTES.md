@@ -106,7 +106,7 @@ written into a guide.** What a lap is worth is measured in game (*What a lap is 
 | `Methods` | Short step lists in original wording for every band 1-9, 10-19, ... to the cap, plus any-level Auction House, flipping and bank-alt guides; per faction. `ALT` points at the nearest Auction House, bank or vendor. | wiki auctioneer, banker, vendor and innkeeper coordinates | the band |
 | `Instances` | Old-expansion instances at or near the cap, an `R` to each entrance then a `D`. | wiki instance pages for entrances; *Template:Level* for which expansion an instance belongs to | cap-10 to cap |
 
-Era and Forever have no Instances guides: no older content exists there. Only instances whose wiki page gives an entrance coordinate this client can place are listed.
+Era and Forever have no Instances guides: no older content exists there. Burning Crusade has none either: *Template:Level* merges Classic, Burning Crusade and Wrath into one *Pre-Cataclysm* section, and its levels are retail-scaled, so that client's old instances cannot be told from its own. Mists gets *Pre-Cataclysm*; retail also gets *Cataclysm and Pandaria* and one group per later expansion. Only instances whose wiki page gives an entrance coordinate this client can place are listed, and a group with fewer than two is dropped.
 
 **Other projects' data.** Steps whose location came from Questie are never used for a ring or a daily point (`World._read_wiki_guides` drops them and counts them; a daily
 whose giver point came from there keeps only its quest id and the wiki's zone). `Data/Imported_Entrances.lua` is not read by the generator because that file is built from
