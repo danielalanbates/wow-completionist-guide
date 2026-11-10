@@ -103,7 +103,14 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
     let wowBasePath = "/Volumes/x10/Video Games/Mac/World of Warcraft"
     var repoPath: String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return "\(home)/Library/CloudStorage/GoogleDrive-danielalanbates@gmail.com/My Drive/Code/Completionist's Guide"
+        // Find the project in whichever Google Drive account holds it (no account name in the source).
+        let cloud = "\(home)/Library/CloudStorage"
+        let accounts = (try? FileManager.default.contentsOfDirectory(atPath: cloud)) ?? []
+        for account in accounts where account.hasPrefix("GoogleDrive-") {
+            let candidate = "\(cloud)/\(account)/My Drive/Code/Completionist's Guide"
+            if FileManager.default.fileExists(atPath: "\(candidate)/tools/install.sh") { return candidate }
+        }
+        return "\(home)/Downloads/CompletionistGuide-work/repo"
     }
 
     override func loadView() {
