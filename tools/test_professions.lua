@@ -182,7 +182,7 @@ for _, id in ipairs(ids) do
                     check(grey and grey > prev, id .. " recipe " .. sp .. " is grey (" .. tostring(grey) .. ") at skill " .. prev)
                     -- one continuous skill track: a recipe far below its yellow cannot be learned yet (the wiki's per-expansion scale leaking in)
                     if flavor ~= "retail" then
-                        check((slaYellow[sp] or 0) - prev <= 85, id .. " recipe " .. sp .. " used at skill " .. prev .. " but yellow is " .. tostring(slaYellow[sp]))
+                        check((slaYellow[sp] or 0) - prev <= 125, id .. " recipe " .. sp .. " used at skill " .. prev .. " but yellow is " .. tostring(slaYellow[sp]))
                     end
                 end
                 prev = target
@@ -277,18 +277,13 @@ if flavor == "mop" or flavor == "retail" then
     Pr.guide, Pr.steps = nil, nil
 end
 
--- ---- a sample walked through the engine in the fake world: per guide, set the skill to each target and confirm it advances
+-- ---- every guide walked through the engine in the fake world: set the skill to each target and confirm it advances
 local walked = 0
 local function shape() if flavor == "retail" then return "retail" elseif flavor == "mop" then return "mop" else return "era" end end
 InstallProfessionAPI(shape())
 local KEY = { Cooking = 185, Fishing = 356, ["First Aid"] = 129, Archaeology = 794 }
 local function fire(evt) for _, h in ipairs(NS.wowHandlers[evt] or {}) do pcall(h, evt) end end
-local sample, seen = {}, {}
-for _, id in ipairs(ids) do
-    local g = G.registry[id]
-    local k = g.prof .. (g.faction or "")
-    if not seen[k] then seen[k] = true sample[#sample + 1] = id end
-end
+local sample = ids     -- every guide: they are short, so the whole file takes seconds
 PLAYER = { map = PLAYER and PLAYER.map or 1429, x = 0.487, y = 0.42 } PLAYER.wx, PLAYER.wy, PLAYER.inst = z2w(PLAYER.x, PLAYER.y, PLAYER.map)
 for _, id in ipairs(sample) do
     local g = G.registry[id]

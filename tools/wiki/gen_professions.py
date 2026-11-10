@@ -340,6 +340,9 @@ def parse_first_aid():
         learn = num(re.sub(r"style=\"[^\"]*\"\s*\|", "", cells[2]))
         if ln and learn is not None:
             out.setdefault(ln[0][0], (learn, cells[6]))
+    # the 'First Aid' page's skill guide also covers the Pandaria bandages, which the recipe list (patch 4.2) predates
+    for m in re.finditer(r"^\|\s*(\d+)\s*\|\|\s*(Trainer)\s*\|\|\s*(?:\{\{[^}]*\}\}\s*)?\[\[([^\]|]+)", W.page("First Aid"), re.M):
+        out.setdefault(WT.norm_title(m.group(3)), (int(m.group(1)), m.group(2)))
     return out
 
 
@@ -372,7 +375,8 @@ def source_sentence(body):
     return clean(pick)[:150]
 
 
-MAX_ORANGE_BAND = 80     # the widest learn-to-yellow gap in the wiki's single-track recipe lists is about 65
+# Real orange bands reach about 100 (Pandaria); the wrong-scale values this guards against are off by 225 or more.
+MAX_ORANGE_BAND = 120
 
 
 class Recipe:
