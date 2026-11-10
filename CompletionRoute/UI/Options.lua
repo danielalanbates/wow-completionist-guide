@@ -10,7 +10,7 @@ local t = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 t:SetPoint("TOPLEFT", 16, -16); t:SetText("CompletionRoute")
 local d = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 d:SetPoint("TOPLEFT", t, "BOTTOMLEFT", 0, -6); d:SetWidth(560); d:SetJustifyH("LEFT")
-d:SetText("The completionist's guide: community-driven guides for every quest, with open travel routing.\nSlash: /cr   Guides: /cr guides   What can I do now: /cr guides -> Next Step   Debug route: /cr route")
+d:SetText("The completionist's guide: community-driven guides for every quest, with open travel routing.\nSlash: /cr   Guides: /cr guides   What can I do now: /cr guides -> For level N   Debug route: /cr route")
 
 local y = -70
 local function check(label, get, set, tip)

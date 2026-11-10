@@ -3,9 +3,12 @@
 -- Globals exported: MAPS, z2w(x01,y01,mapID) -> wx, wy, inst, PLAYER (set by caller), HBD_STUB, all WoW API stubs.
 -- ---- WoW API stubs ----
 local frames = {}
-function CreateFrame() local f = { scripts = {} } function f:RegisterEvent() end function f:SetScript(k, v) self.scripts[k] = v end
+-- UNKNOWN_EVENTS: events this fake client does not have; RegisterEvent raises for them exactly like the real Frame does
+UNKNOWN_EVENTS = {}
+function CreateFrame() local f = { scripts = {} } function f:RegisterEvent(evt) if UNKNOWN_EVENTS[evt] then error("Frame:RegisterEvent(): Attempt to register unknown event \"" .. tostring(evt) .. "\"") end end function f:SetScript(k, v) self.scripts[k] = v end
     function f:Show() self.__shown = true end function f:Hide() self.__shown = false end
-    for _, m in ipairs({"SetSize","SetPoint","SetMovable","EnableMouse","SetClampedToScreen","RegisterForDrag","SetFrameStrata","SetScale","SetAlpha","ClearAllPoints","SetBackdrop","SetBackdropColor","SetBackdropBorderColor","SetResizable","SetResizeBounds","SetText","SetAttribute","SetHighlightTexture","RegisterForClicks","SetAllPoints","SetTexCoord","SetTexture","SetJustifyH","SetWidth","SetWordWrap","SetMaxLines","SetTextColor","SetHeight","SetAutoFocus","SetScrollChild","SetColorTexture","SetRotation","SetCooldown","SetMinMaxValues","SetValueStep","SetObeyStepOnDrag","SetValue","SetBlendMode","SetLooping","SetOffset","SetDuration","SetSmoothing","Play","Stop","IsPlaying","SetVertexColor","SetFrameLevel","SetParent","SetShown","SetDrawLayer","SetNormalTexture","SetPushedTexture","SetDisabledTexture","EnableMouseWheel","SetEnabled","Disable","Enable","SetJustifyV","SetIgnoreParentScale"}) do f[m] = function() end end
+    for _, m in ipairs({"SetSize","SetPoint","SetMovable","EnableMouse","SetClampedToScreen","RegisterForDrag","SetFrameStrata","SetScale","SetAlpha","ClearAllPoints","SetBackdrop","SetBackdropColor","SetBackdropBorderColor","SetResizable","SetResizeBounds","SetText","SetAttribute","SetHighlightTexture","RegisterForClicks","SetAllPoints","SetTexCoord","SetTexture","SetJustifyH","SetWidth","SetWordWrap","SetMaxLines","SetTextColor","SetHeight","SetAutoFocus","SetScrollChild","SetColorTexture","SetRotation","SetCooldown","SetMinMaxValues","SetValueStep","SetObeyStepOnDrag","SetValue","SetBlendMode","SetLooping","SetOffset","SetDuration","SetSmoothing","Play","Stop","IsPlaying","SetVertexColor","SetFrameLevel","SetParent","SetShown","SetDrawLayer","SetNormalTexture","SetPushedTexture","SetDisabledTexture","EnableMouseWheel","SetEnabled","Disable","Enable","SetJustifyV","SetIgnoreParentScale","SetMaxLetters","SetNumeric","ClearFocus","SetFocus","SetOwner","AddLine"}) do f[m] = function() end end
+    function f:SetText(t) self.__text = t end function f:GetText() return self.__text or "" end function f:HasFocus() return false end
     function f:SetChecked(v) self.__checked = v and true or false end function f:GetChecked() return self.__checked end
     function f:CreateTexture() return CreateFrame() end function f:CreateAnimationGroup() local g = CreateFrame() g.__playing = false function g:Play() self.__playing = true end function g:Stop() self.__playing = false end function g:IsPlaying() return self.__playing end return g end function f:CreateAnimation() return CreateFrame() end function f:CreateFontString() return CreateFrame() end function f:IsShown() return false end function f:GetPoint() return "CENTER",nil,nil,0,0 end
     f.Text = CreateFrame and { SetText = function() end } or nil
@@ -68,3 +71,64 @@ HBD_STUB = { GetAllMapIDs = function() local t = {} for id in pairs(MAPS) do t[#
   GetPlayerWorldPosition = function() return PLAYER.wx, PLAYER.wy, PLAYER.inst end,
   GetPlayerZonePosition = function() return PLAYER.x, PLAYER.y, PLAYER.map end }
 LibStub = function(name) if name == "HereBeDragons-2.0" then return HBD_STUB end return { Fire = function() end, RemoveAllMinimapIcons = function() end, RemoveAllWorldMapIcons = function() end, AddMinimapIconMap = function() end, AddWorldMapIconMap = function() end } end
+
+-- Fake professions for tools/test_professions_engine.lua and tools/test_level_list.lua.  Installs one client API shape:
+--   "era"    GetNumSkillLines / GetSkillLineInfo (localized names, headers)
+--   "mop"    GetProfessions / GetProfessionInfo (skillLine id, nil holes), six tabs
+--   "retail" as mop, five tabs, plus C_TradeSkillUI tiers (tier readings exist only after OPEN_PROFESSION_WINDOW())
+--   "none"   no skill API at all
+-- PROFS = { { name=, key=skill line id, rank=, max=, lang= localized name } }, SPELLS_KNOWN[id] = true, SPELL_NAMES[id] = "name".
+PROFS, SPELLS_KNOWN, SPELL_NAMES, TIERS, SKILL_HEADERS_COLLAPSED = {}, {}, {}, {}, false
+local WINDOW_OPENED = false
+function OPEN_PROFESSION_WINDOW() WINDOW_OPENED = true end
+function InstallProfessionAPI(shape)
+    GetNumSkillLines, GetSkillLineInfo, GetProfessions, GetProfessionInfo, IsPlayerSpell, GetSpellInfo = nil, nil, nil, nil, nil, nil
+    GetNumTradeSkills, GetTradeSkillInfo, GetNumCrafts, GetCraftInfo = nil, nil, nil, nil
+    if C_TradeSkillUI then C_TradeSkillUI = nil end
+    WINDOW_OPENED = false
+    IsSpellKnown = function(id) return SPELLS_KNOWN[id] or false end
+    GetSpellInfo = function(id) return SPELL_NAMES[id] end
+    if shape == "none" then IsSpellKnown = nil GetSpellInfo = nil return end
+    if shape == "era" then
+        GetNumSkillLines = function()
+            if SKILL_HEADERS_COLLAPSED then return 1 end
+            return #PROFS + 1
+        end
+        GetSkillLineInfo = function(i)
+            if i == 1 then return "Professions", 1, (not SKILL_HEADERS_COLLAPSED) and 1 or nil, 0, 0, 0, 0 end
+            local p = PROFS[i - 1]
+            if not p then return nil end
+            return p.lang or p.name, nil, nil, p.rank, 0, 0, p.max
+        end
+        return
+    end
+    local tabs = {}
+    GetProfessions = function()
+        for i = 1, 6 do tabs[i] = PROFS[i] and i or nil end
+        -- a character with one profession: slot 1 is nil, the first entry lives in a later slot (this is why ipairs is wrong)
+        local a, b, c, d, e, f = nil, tabs[1], tabs[2], tabs[3], tabs[4], tabs[5]
+        return a, b, c, d, e, f
+    end
+    GetProfessionInfo = function(i)
+        local p = PROFS[i]
+        if not p then return nil end
+        return p.lang or p.name, 0, p.rank, p.max, 0, 0, p.key
+    end
+    if shape == "retail" then
+        C_TradeSkillUI = {
+            GetProfessionInfoBySkillLineID = function(tier)
+                if not WINDOW_OPENED then return { skillLevel = 0, maxSkillLevel = 0, professionID = tier } end
+                local t = TIERS[tier]
+                if not t then return nil end
+                return { skillLevel = t.rank, maxSkillLevel = t.max, professionID = tier }
+            end,
+            GetChildProfessionInfos = function()
+                if not WINDOW_OPENED then return {} end
+                local out = {}
+                for tier, t in pairs(TIERS) do out[#out + 1] = { skillLevel = t.rank, maxSkillLevel = t.max, professionID = tier, parentProfessionID = 185 } end
+                return out
+            end,
+            GetRecipeInfo = function(id) return { learned = SPELLS_KNOWN[id] or false } end,
+        }
+    end
+end
