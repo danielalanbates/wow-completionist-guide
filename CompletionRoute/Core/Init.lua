@@ -35,7 +35,7 @@ NS.defaults = {
         arrow = { enabled = true, scale = 1.0, alpha = 1.0, lock = false, x = 0, y = -180, point = "TOP",
                   style = "hand" },   -- "hand": pointing hand in your class colour; "arrow": the old chevron
         frame = { scale = 1.0, alpha = 0.95, width = 320, height = 300, showSteps = 6, lock = false, x = 0, y = 0, point = "CENTER" },
-        routing = { enabled = true, reorder = true, baked = true, hearth = true, taxi = true, transit = true, window = 12,
+        routing = { enabled = true, reorder = true, baked = true, hearth = true, taxi = true, transit = true, window = 24,
                     runSpeed = 7, mountSpeed = nil, terrainFactor = 1.25, taxiSpeed = 32,
                     taxiPolicy = "faction",   -- "faction": any flight master your faction can use; "known": learned only
                     preferTaxi = false,       -- comfort mode: favors flight paths when available
@@ -122,6 +122,8 @@ NS:RegisterEvent("ADDON_LOADED", function(_, name)
     CompletionRouteDB = CompletionRouteDB or {}
     CompletionRouteCharDB = CompletionRouteCharDB or {}
     fill(CompletionRouteDB, { profile = deepcopy(NS.defaults.profile) })
+    -- the live window grew from 12 to 24 steps (routing tier B); a saved profile still on the old default follows it
+    if CompletionRouteDB.profile.routing and CompletionRouteDB.profile.routing.window == 12 then CompletionRouteDB.profile.routing.window = 24 end
     CompletionRouteDB.knownTaxi = CompletionRouteDB.knownTaxi or {}
     CompletionRouteCharDB.knownTaxi = CompletionRouteCharDB.knownTaxi or {}
     for id in pairs(CompletionRouteDB.knownTaxi) do CompletionRouteCharDB.knownTaxi[id] = true end

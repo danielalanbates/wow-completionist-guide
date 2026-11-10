@@ -18,7 +18,7 @@
   `TravelGraph.Describe(path)` → "Walk 457 yd to Darkshire; Fly … ; Take the boat … (~10m)".
 
 ## Live window over the baked order (`Routing/StepOrder.lua`, tier B)
-The next `window` (12) pending steps arrive in baked order (`Data/RouteOrder_<flavor>.lua`, or author order when there is
+The next `window` (24) pending steps arrive in baked order (`Data/RouteOrder_<flavor>.lua`, or author order when there is
 no bake), and that order is the **baseline**. Hard rules (never traded for time): `A < C < T` per quest, `PRE` turn-in
 before the accept, non-routable and sticky steps as anchors with everything before them staying before them, a step with
 no place at all staying on the block before it, and a quest log that a repair may not push above the cap or the

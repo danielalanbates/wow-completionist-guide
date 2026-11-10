@@ -311,19 +311,24 @@ class Gen:
         return mid, ";".join(fmt_xy(p[1], p[2]) for p in same)
 
     def page_rows(self, title):
-        """the page's coordinate rows, minus a subzone row that its own parent-zone row contradicts (same expansion
-        badge, same page version; wikimaps.Atlas.subzone_conflict)"""
+        """the page's coordinate rows, with a subzone row that its own parent-zone row contradicts (same expansion badge,
+        same page version; wikimaps.Atlas.subzone_conflict) moved onto the parent row's point.  The row stays, under the
+        subzone's name, because the choice between rows prefers the guide's own zone: dropping it would let a later
+        expansion's row win (Gornek in Spires of Arak for a Valley of Trials quest).  Off the subzone map, it goes."""
         if title in self.clean_pts:
             return self.clean_pts[title]
         pts = self.npc_pts.get(title) or []
-        drop = set()
-        for i, a in enumerate(pts):
+        out = []
+        for a in pts:
+            row = a
             for b in pts:
                 if a is not b and a[4] == b[4] and a[5] == b[5] and self.atlas.subzone_conflict(a[:3], b[:3], bool(a[5])):
-                    drop.add(i)
+                    moved = self.atlas.parent_point_on_sub(a[0], b[:3], bool(a[5]))
+                    row = (a[0], moved[0], moved[1]) + a[3:] if moved else None
+                    self.subzone_dropped.append((title,) + a[:3])
                     break
-        out = [p for i, p in enumerate(pts) if i not in drop]
-        self.subzone_dropped.extend((title,) + pts[i][:3] for i in sorted(drop))
+            if row:
+                out.append(row)
         self.clean_pts[title] = out
         return out
 
@@ -762,7 +767,7 @@ def main():
             gen_spine.build_spine(fl, flavor_gate(fl))
     c = g.write_conflicts(flavors)
     print("conflicts logged (docs/verification.sqlite wiki_db2_conflict):", dict(c))
-    print(f"subzone rows dropped (a parent-zone row on the same page disagrees): {len(g.subzone_dropped)}; first: {g.subzone_dropped[:8]}")
+    print(f"subzone rows corrected (a parent-zone row on the same page disagrees): {len(g.subzone_dropped)}; first: {g.subzone_dropped[:8]}")
 
 
 if __name__ == "__main__":

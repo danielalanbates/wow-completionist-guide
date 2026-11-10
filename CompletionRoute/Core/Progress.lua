@@ -120,6 +120,8 @@ function P.Undo()
     if not best then return end
     charReopened()[best] = true
     P.cursor = nil
+    -- the live plan does not know the reopened step: back to the baked order, where it is the earliest pending step
+    if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
     d[best] = nil s[best] = nil
     if NS.Account and NS.Account.me and P.guide then
         local ad, as = NS.Account.Done(P.guide.id), NS.Account.Skipped(P.guide.id)

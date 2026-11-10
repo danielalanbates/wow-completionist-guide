@@ -235,6 +235,16 @@ NS.db.char.parkReturn = "p:c"
 P.Load("p:b")
 t("a guide the player picks ends any detour", NS.db.char.parkReturn == nil)
 
+-- Back reopens a step the live plan has already dropped: it must become current again, not go to the end of the plan
+G.Register({ id = "p:u", name = "U", type = "Leveling", zone = 1429, text = "A U1|QID|501|M|40,40|Z|1429; Elwynn Forest|\nA U2|QID|502|M|40.2,40|Z|1429; Elwynn Forest|\nA U3|QID|503|M|40.4,40|Z|1429; Elwynn Forest|\nA U4|QID|504|M|40.6,40|Z|1429; Elwynn Forest|" })
+LEVEL, DONE, ONLOG = 5, {}, {}
+P.Load("p:u")
+ONLOG[501] = true
+P.Refresh()
+t("the plan moved past the first step", P.current and P.current.qid[1] == 502, P.current and P.current.qid[1])
+P.Undo()
+t("Back makes the reopened step current", P.current and P.current.qid[1] == 501, P.current and P.current.qid[1])
+
 -- two finished guides naming each other must not recurse forever
 G.Register({ id = "p:x", name = "X", type = "Leveling", zone = 1429, next = "p:y", text = "A X|QID|401|M|44,44|Z|1429; Elwynn Forest|" })
 G.Register({ id = "p:y", name = "Y", type = "Leveling", zone = 1429, next = "p:x", text = "A Y|QID|402|M|45,45|Z|1429; Elwynn Forest|" })
