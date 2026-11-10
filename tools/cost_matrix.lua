@@ -19,12 +19,13 @@
 -- Router.TravelSeconds and records the largest difference in the row (`verify_maxdiff`).
 --
 -- Usage: luajit tools/cost_matrix.lua <era|tbc|mop|retail|forever> [--out PATH] [--guide ID] [--guides-file F]
---                                     [--prefix wiki:,qdb:,qpoi:] [--sample K] [--limit N] [--exact] [--verify 200]
+--                                     [--prefix wiki:,qdb:,qpoi:] [--sample K] [--limit N] [--exact] [--verify 200] [--list]
 -- Output (default): /Users/daniel/.claude/jobs/ff3c728a/tmp/costmx/<flavor>.jsonl  (never the repo)
 package.path = "./?.lua;" .. package.path
 
 local flavor = arg[1] or "era"
 local outPath, onlyGuide, guideSet, prefixes, sampleK, limit, exact, nverify = nil, nil, nil, nil, 1, math.huge, false, 200
+local listOnly = false   -- --list: one {"id","n","sum"} row per quest guide, no matrices (finds unbaked/stale guides)
 for i = 2, #arg do
     local a = arg[i]
     if a == "--out" then outPath = arg[i + 1]
@@ -34,6 +35,7 @@ for i = 2, #arg do
     elseif a == "--sample" then sampleK = tonumber(arg[i + 1])
     elseif a == "--limit" then limit = tonumber(arg[i + 1])
     elseif a == "--exact" then exact = true
+    elseif a == "--list" then listOnly = true
     elseif a == "--verify" then nverify = tonumber(arg[i + 1]) end
 end
 prefixes = prefixes or { "wiki:", "qdb:", "qpoi:" }   -- the quest guides: wiki zone guides + the _gaps guides
@@ -265,7 +267,11 @@ for _, id in ipairs(G.list) do
         seen = seen + 1
         if (seen - 1) % sampleK == 0 then
             local steps = G.Steps(id)
-            if steps and #steps > 0 and not g.empty then
+            if listOnly and steps and #steps > 0 and not g.empty then
+                out:write(("{\"id\":%s,\"n\":%d,\"sum\":%d}\n"):format(jstr(id), #steps, checksum(steps)))
+                n = n + 1
+                g.steps = nil
+            elseif steps and #steps > 0 and not g.empty then
                 local tg0 = os.clock()
                 FACTION = (g.faction == "Horde") and "Horde" or "Alliance"
                 NS.player.faction = FACTION
