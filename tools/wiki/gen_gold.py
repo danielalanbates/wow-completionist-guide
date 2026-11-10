@@ -859,8 +859,7 @@ def money_copper(args):
     return nums[0] * 10000 + nums[1] * 100 + nums[2]
 
 
-RE_EVENT_PAGE = re.compile(r"\{\{\s*WorldEvent/\s*(?:Love is in the Air|Lunar Festival|Noblegarden|Children's Week|Midsummer|Brewfest|Hallow's End|"
-                           r"Pilgrim's Bounty|Feast of Winter Veil|Harvest Festival|Day of the Dead|Pirates|Darkmoon)|\{\{\s*level\s*\|\s*holiday", re.I)
+RE_EVENT_PAGE = re.compile(r"\{\{\s*WorldEvent/\s*(?!Quel'Danas)|\{\{\s*level\s*\|\s*holiday", re.I)    # every WorldEvent page but the Shattered Sun dailies
 RE_EVENT_CATEGORY = re.compile(r"love is in the air|lunar festival|noblegarden|children's week|midsummer|brewfest|hallow's end|"
                                r"pilgrim's bounty|feast of winter veil|winter veil|harvest festival|day of the dead|pirates' day|darkmoon", re.I)
 
