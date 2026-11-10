@@ -187,7 +187,9 @@ local function evaluate(g, inf, level)
     if not e.finished then s = s + 1000000 end
     s = s + (e.reqRank == 2 and 400000 or e.reqRank == 1 and 200000 or 0)
     if e.started then s = s + 100000 end
-    s = s + (1000 - math.min(e.width or 1000, 1000)) * 20
+    -- Level brackets: tighter is more specific.  Profession bands: a band cut short by missing data is the worse offer, so wider wins.
+    if inf.prof then s = s + math.min(e.width or 0, 1000) * 20
+    else s = s + (1000 - math.min(e.width or 1000, 1000)) * 20 end
     if inf.min then s = s + math.max(0, 900 - (level - inf.min) * 9) end
     if g.source == "CompletionRoute" then s = s + 5 end
     e.score = s
