@@ -401,9 +401,9 @@ local function parkedReady(exceptId)
     for id in pairs(set) do keys[#keys + 1] = id end
     table.sort(keys)
     for _, id in ipairs(keys) do
+        -- a guide not registered yet keeps its record: the WoW-Pro import runs seconds after this can first be asked
         local rec, g = set[id], G.registry[id]
-        if not g then set[id] = nil
-        elseif id ~= exceptId and lvl >= rec.level and (not bestRec or rec.level < bestRec.level) then
+        if g and id ~= exceptId and lvl >= rec.level and (not bestRec or rec.level < bestRec.level) then
             best, bestRec = g, rec
         end
     end
@@ -652,6 +652,7 @@ local function autoload(attempt)
         else NS:Print("No guide matched your level/faction. /or guides") end
     end)
     if not ok then
+        P.chainLoading = nil     -- the failed Load never reached the line that clears it
         NS.db.char.lastAutoloadError = tostring(err)
         NS:Error("autoload failed: " .. tostring(err))
         if attempt < 3 then NS:After(6, function() autoload(attempt + 1) end) end
