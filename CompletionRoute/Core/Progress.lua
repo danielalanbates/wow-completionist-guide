@@ -45,6 +45,9 @@ function P.Load(id)
         else g.noCircuit = true NS:Debug("circuitize " .. id .. ": " .. tostring(res or n)) end
     end
     P.steps = G.Steps(id)
+    P.finishedNotice = nil
+    P.altInst = nil
+    P.ResolveAlts()
     -- Behind a locked access chain (Siren Isle, Argus, Zereth Mortis...)? Put the unlock steps first, the way
     -- comprehensive zone guides open with the zone intro. Negative indices keep the guide's own progress keys intact.
     local prefix = NS.Access and NS.Access.PrefixFor(P.steps, id)
@@ -169,8 +172,19 @@ local function inZone(step)
     return info and info.parentMapID == step.zone
 end
 
+-- SKILL|Cooking;75| reached?  An unknown skill (Core/Professions.lua returns nil) is never "reached".
+function P.SkillMet(sk)
+    local Prof = NS.Professions
+    if not Prof then return false end
+    local rank = Prof.Skill(sk.name, sk.tier)
+    return rank ~= nil and rank >= sk.target
+end
+
 -- returns true if step is (now) complete or obsolete
 function P.CheckStep(step)
+    -- Profession steps finish on what the character can do, whatever their action letter (either tag is enough)
+    if step.skill and P.SkillMet(step.skill) then return true end
+    if step.recipe and NS.Professions and NS.Professions.KnowsSpell(step.recipe) then return true end
     local a = step.action
     if a == "A" or a == "a" or a == "!" then
         if step.qid and anyQuestDone(step.qid, function(q) return U.IsOnQuest(q) or U.IsQuestComplete(q) end) then return true end
@@ -265,6 +279,47 @@ function P.CheckStep(step)
 end
 
 -- ---------------------------------------------------------------------------
+-- ALT steps (every usable trainer...): keep the step pointing at the cheapest alternative for this character
+-- ---------------------------------------------------------------------------
+-- Runs when a guide loads and whenever the player's continent changes.  The same place often appears in many steps
+-- (one trainer per rank), so each location is priced once per pass.  A place the graph cannot reach is left out; when
+-- nothing can be priced at all (no position yet) the step keeps its current choice.
+function P.ResolveAlts()
+    P.hasAlts = false
+    if not (P.steps and NS.Router) then return end
+    local _, _, _, inst = U.PlayerPos()
+    local price, changed = {}, false
+    for _, s in ipairs(P.steps) do
+        if s.alts then
+            P.hasAlts = true
+            local best, bestCost
+            for _, a in ipairs(s.alts) do
+                local key = a.map .. ":" .. a.x .. ":" .. a.y
+                local cost = price[key]
+                if cost == nil then
+                    local ok, secs = pcall(NS.Router.TravelSecondsFromPlayer, { coords = { { x = a.x, y = a.y } }, zone = a.map })
+                    cost = (ok and secs) or false
+                    price[key] = cost
+                end
+                if cost and (not bestCost or cost < bestCost) then best, bestCost = a, cost end
+            end
+            if best and best ~= s.altChosen then
+                s.altChosen, s.altName = best, best.name
+                s.coords = { { x = best.x, y = best.y } }
+                s.zone, s.zoneName, s.zoneInherited = best.map, U.MapName(best.map), nil
+                s._wx, s._wy, s._winst, s._zwx, s._zwy, s._zwinst, s._locSource, s._entrance = nil
+                if s == P.current then changed = true end
+            end
+        end
+    end
+    if inst then P.altInst = inst end
+    if changed then
+        if NS.Router.Invalidate then NS.Router.Invalidate() end
+        NS:Fire("STEP_CHANGED", P.current)
+    end
+end
+
+-- ---------------------------------------------------------------------------
 -- Ordering / current step
 -- ---------------------------------------------------------------------------
 -- pending = applicable, not done steps in guide order
@@ -297,6 +352,10 @@ function P.Refresh(force)
     local scope, acc = NS.db.profile.scope, NS.db.profile.accountWide
     if P.scopeSeen ~= scope or P.accSeen ~= acc then
         P.scopeSeen, P.accSeen, P.cursor = scope, acc, nil
+    end
+    if P.hasAlts then
+        local _, _, _, inst = U.PlayerPos()
+        if inst and inst ~= P.altInst then P.ResolveAlts() end
     end
     -- 1) auto-complete anything already satisfied (scan a window ahead so obsolete steps vanish)
     local changed, passes, wp = false, 0, 0
@@ -341,9 +400,19 @@ function P.Refresh(force)
         return
     end
     if not newcur and P.guide then
+        -- Gold and profession guides are chosen on purpose: never drop into one automatically, and never pull
+        -- the player out of one into a leveling guide when it ends
+        if G.IsSideGuide(P.guide) then
+            if P.finishedNotice ~= P.guide.id then
+                P.finishedNotice = P.guide.id
+                NS:Print("Guide finished: " .. (P.guide.name or P.guide.id) .. ". Pick the next one with /cr guides.")
+            end
+            return
+        end
         -- pick what to run next: the authored chain if it still fits our level,
         -- else the most optimal leveling guide for our level + position
         local nxt = P.guide.next and G.registry[P.guide.next]
+        if nxt and G.IsSideGuide(nxt) then nxt = nil end
         if nxt and nxt.maxlevel and U.PlayerLevel() > nxt.maxlevel + 0.9 then nxt = nil end
         local eta
         if not nxt then nxt, eta = G.SuggestNext(P.guide.id) end
@@ -417,6 +486,7 @@ for _, e in ipairs({ "QUEST_LOG_UPDATE", "QUEST_ACCEPTED", "QUEST_TURNED_IN", "Q
     "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "ZONE_CHANGED_INDOORS", "PLAYER_LEVEL_UP", "PLAYER_ENTERING_WORLD", "PLAYER_CONTROL_GAINED", "MERCHANT_SHOW", "PLAYER_REGEN_ENABLED" }) do
     NS:RegisterEvent(e, refreshSoon)
 end
+NS:On("PROFESSIONS_CHANGED", refreshSoon)   -- Core/Professions.lua: a skill went up, or a recipe or rank was learned
 NS:RegisterEvent("HEARTHSTONE_BOUND", function()
     for _, s in ipairs(P.Pending(15)) do if s.action == "h" then s.bindDone = true break end end
     refreshSoon()

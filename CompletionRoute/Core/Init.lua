@@ -51,6 +51,8 @@ NS.defaults = {
                  radius = 40,            -- yards: how close counts as "reached this waypoint"
                  seeds = true,           -- register the shipped coarse circuits (Data/Farm_routes.lua)
                  circuitizeGold = true }, -- fold imported gold guides into a loop instead of a click-through list
+        -- guide list (UI/GuideMenu.lua): level is nil while the list follows your own level
+        guideList = { onlyLevel = false, groupByLevel = false },
         autoAccept = false, autoTurnin = false, autoAdvance = true, minimapButton = true, debug = false,
     },
     char = {

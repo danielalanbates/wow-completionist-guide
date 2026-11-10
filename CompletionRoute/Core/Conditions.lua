@@ -50,25 +50,16 @@ function C.LevelMatch(minl, maxl)
     if maxl and l > maxl then return false end
     return true
 end
--- Profession check: "Herbalism;75" means skill >= 75 (best-effort; classic API is limited)
+-- Profession check (Core/Professions.lua): "Herbalism;75" means skill >= 75.  When the client cannot say, the step
+-- stays visible; hiding it on a guess would drop real steps.
 function C.ProfMatch(spec)
     if not spec or spec == "" then return true end
-    local name, need = spec:match("^([^;]+);?(%d*)")
-    need = tonumber(need) or 1
-    if GetSkillLineInfo then
-        for i = 1, GetNumSkillLines() do
-            local sname, isHeader, _, rank = GetSkillLineInfo(i)
-            if not isHeader and sname and norm(sname) == norm(name) then return rank >= need end
-        end
-        return false
-    end
-    if GetProfessions then
-        for _, idx in ipairs({ GetProfessions() }) do
-            if idx then local pname, _, rank = GetProfessionInfo(idx) if pname and norm(pname) == norm(name) then return rank >= need end end
-        end
-        return false
-    end
-    return true
+    local Prof = NS.Professions
+    if not Prof then return true end
+    local name, need = Prof.ParseSpec(spec)
+    local rank = Prof.Skill(name)
+    if rank == nil then return true end
+    return rank >= need
 end
 
 -- Whether a step should be shown at all for this character

@@ -12,6 +12,9 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     cmd = (cmd or ""):lower()
     if cmd == "" or cmd == "show" or cmd == "toggle" then NS.GuideFrame.Toggle()
     elseif cmd == "guides" or cmd == "menu" then NS.GuideMenu.Toggle()
+    elseif cmd == "list" then NS.Recommend.PrintList(rest)
+    elseif cmd == "gold" then NS.Recommend.PrintGold(rest)
+    elseif cmd == "prof" or cmd == "profs" or cmd == "professions" then NS.Recommend.PrintProf()
     elseif cmd == "load" then
         for _, id in ipairs(G.list) do
             local g = G.registry[id]
@@ -262,7 +265,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | load <name> | next | skip | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | hearth | import | farm | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | hearth | import | farm | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 
