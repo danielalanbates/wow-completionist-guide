@@ -17,6 +17,7 @@
 -- Usage:  luajit tools/vplayer.lua <era|tbc|mop|retail|forever> [--limit N] [--shard i/n] [--type Leveling] [--guides-file F] [--spine]
 --                                  [--guide ID] [--faction Horde] [--guidecap 20] [--out PATH]
 --                                  [--order author|baked] [--live on|off]   (baked = Data/RouteOrder_<fl>.lua; live = 12-step window)
+--                                  [--chain Alliance|Horde] [--questsperlevel 25]   (play the whole spine with the real chain logic)
 -- Then:   python3 tools/collect_vplayer.py   (folds the TSVs into docs/verification.sqlite)
 package.path = "./?.lua;" .. package.path
 
@@ -26,6 +27,7 @@ local verbose = false
 local withSpine = false
 local guideSet = nil
 orderMode, liveWindow = "author", true
+local chainFaction, questsPerLevel
 for i = 2, #arg do
     local a = arg[i]
     if a == "--limit" then limit = tonumber(arg[i + 1])
@@ -39,6 +41,8 @@ for i = 2, #arg do
     elseif a == "--guidecap" then guideCap = tonumber(arg[i + 1])
     elseif a == "--out" then outPath = arg[i + 1]
     elseif a == "--spine" then withSpine = true   -- also load Guides/Imported_Spine_<fl>.lua (the generated leveling chain)
+    elseif a == "--chain" then chainFaction = arg[i + 1] withSpine = true   -- play the whole spine for Alliance|Horde with the real chain logic
+    elseif a == "--questsperlevel" then questsPerLevel = tonumber(arg[i + 1])
     elseif a == "--order" then orderMode = arg[i + 1]      -- author | baked (Data/RouteOrder_<fl>.lua, tools/optimize_routes.py)
     elseif a == "--live" then liveWindow = arg[i + 1] ~= "off" -- the 12-step live reorder window on top (default on)
     elseif a == "--verbose" then verbose = true end
@@ -117,16 +121,23 @@ place(next(MAPS), 0.5, 0.5)
 -- ---------------------------------------------------------------------------
 -- Load the addon exactly as route_sweep does
 -- ---------------------------------------------------------------------------
+-- CR_OVERRIDE="Core/Progress.lua=/tmp/old/Progress.lua,..." loads those addon files from elsewhere (before/after runs)
+local OVERRIDE = {}
+for pair in (os.getenv("CR_OVERRIDE") or ""):gmatch("[^,]+") do
+    local k, v = pair:match("^(.-)=(.+)$")
+    if k then OVERRIDE[k] = v end
+end
 local function load(path)
-    local f = io.open("CompletionRoute/" .. path, "r")
+    local full = OVERRIDE[path] or ("CompletionRoute/" .. path)
+    local f = io.open(full, "r")
     if not f then io.stderr:write("skip " .. path .. "\n") return end
     f:close()
-    assert(loadfile("CompletionRoute/" .. path))(ADDON, NS)
+    assert(loadfile(full))(ADDON, NS)
 end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], EXTRA[flavor] or TAXI[flavor], "Data/Transit.lua", "Data/Imported_Entrances.lua", "Data/Access.lua",
     "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
     "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
-    "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
+    "Core/Account.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
     "Adapters/WoWPro.lua",
     ("Guides/Imported_WoWPro_" .. (WOWPRO[flavor] or flavor) .. ".lua"),
     -- quest guides exactly as the flavor TOC loads them: wiki guides + the older generated guides' gaps
@@ -147,11 +158,28 @@ for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "Completion
 NS.db.profile.debug = false
 NS.db.profile.routing.baked = (orderMode == "baked")
 NS.db.profile.routing.reorder = liveWindow
+NS.db.profile.routing.liveBudgetMs = 1e9   -- the simulation has no frames: let each live repair finish (the 3 ms slice is unit-tested)
 NS.Print, NS.Debug, NS.Error = function() end, function() end, function() end
 pcall(NS.Adapters.WoWPro.ImportStatic)
 NS.TravelGraph.Build()
 
 local G, P, R, U, Cond = NS.Guide, NS.Progress, NS.Router, NS.Util, NS.Cond
+
+-- wall-clock cost of every live repair (cold router caches included); CR_LIVE_BUDGET_MS plays the real per-call budget
+local planMs = {}
+if NS.StepOrder.Plan then
+    local plan = NS.StepOrder.Plan
+    NS.StepOrder.Plan = function(...)
+        local t0 = os.clock()
+        local a, b = plan(...)
+        planMs[#planMs + 1] = (os.clock() - t0) * 1000
+        return a, b
+    end
+end
+if os.getenv("CR_LIVE_BUDGET_MS") then NS.db.profile.routing.liveBudgetMs = tonumber(os.getenv("CR_LIVE_BUDGET_MS")) end
+-- CR_SO="MIN_GAIN=0,GAIN_FRAC=0" overrides StepOrder's tuning constants for an experiment; CR_WINDOW sets the window
+for k, v in (os.getenv("CR_SO") or ""):gmatch("([%w_]+)=([%d%.]+)") do NS.StepOrder[k] = tonumber(v) end
+if os.getenv("CR_WINDOW") then NS.db.profile.routing.window = tonumber(os.getenv("CR_WINDOW")) end
 
 -- Progress.Refresh chains into the next guide when one finishes.  For a per-guide run that would
 -- parse a second guide and confuse the row, so the chain is disabled and the switch is what tells
@@ -288,6 +316,7 @@ end
 -- Play one guide
 -- ---------------------------------------------------------------------------
 local stallOut, noRouteOut
+local traceOut = os.getenv("CR_TRACE") and assert(io.open(os.getenv("CR_TRACE"), "w"))
 local function playGuide(g)
     local id = g.id
     local steps = G.Steps(id)
@@ -297,6 +326,7 @@ local function playGuide(g)
     NS.player.faction, NS.player.class, NS.player.race = FACTION, CLASS, RACE
     wipeWorld(math.max(1, tonumber(g.minlevel) or 1))
     NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened, NS.db.char.laps, NS.db.char.guide = {}, {}, {}, {}, nil
+    NS.db.char.parked, NS.db.char.parkReturn = {}, nil
     R.Invalidate()
     NS.TravelGraph.Build()
 
@@ -306,7 +336,7 @@ local function playGuide(g)
     local placed = zone and MAPS[zone] and place(zone, 0.5, 0.5) or false
 
     local row = { steps = #steps, sim = 0, auto = 0, manual = 0, stalls = 0, forced = 0, laps = 0,
-                  yards = 0, seconds = 0, noroute = 0, finished = 0, err = "", reasons = {} }
+                  yards = 0, seconds = 0, noroute = 0, finished = 0, err = "", reasons = {}, resumes = 0 }
     local laps = 0
     local lapHook = function() laps = laps + 1 end
     NS:On("LAP_COMPLETE", lapHook)
@@ -319,9 +349,22 @@ local function playGuide(g)
         while guard < cap do
             guard = guard + 1
             if os.clock() - t0 > guideCap then row.err = "guide time cap" break end
-            if P.guide == nil or P.guide.id ~= id then                    -- chained away = finished
-                if P.guide and g.next and P.guide.id == g.next then row.finished = 1 end   -- spine: loaded its `next`
-                break
+            if P.guide == nil or P.guide.id ~= id then
+                -- Chained away. A guide parked on a level gate (Core/Progress.lua) is not finished: the character
+                -- reaches the gate and the real resume path brings the guide back.
+                local rec = P.ParkedRecord and P.ParkedRecord(id)
+                if rec and row.resumes < 200 then
+                    row.resumes = row.resumes + 1
+                    W.level = math.max(W.level, rec.level)
+                    if not P.ResumeParked(id) then row.err = "resume failed" break end
+                else
+                    if P.ParkedRecord then
+                        if not rec then row.finished = 1 end    -- moved on with nothing left behind
+                    elseif P.guide and g.next and P.guide.id == g.next then
+                        row.finished = 1                        -- (old Progress.lua) only a direct move to `next` counted
+                    end
+                    break
+                end
             end
             if g.loop and laps >= 2 then row.finished = 1 break end       -- circuits never end: two laps is a pass
             local step = P.current
@@ -333,6 +376,8 @@ local function playGuide(g)
 
             local fromMap = PLAYER.map
             local y, s, routed, hasDest = walkTo(step)
+            if traceOut then traceOut:write(("%d\t%s\t%s\t%s\t%s\t%.0f\t%s\n"):format(step.index, step.action, tostring(step.qid and step.qid[1] or ""),
+                tostring(step.zone or ""), step.coords and "xy" or "-", s or -1, (step.title or ""):sub(1, 40))) end
             row.yards = row.yards + (y or 0)
             row.seconds = row.seconds + (s or 0)
             -- only a step that HAS a destination the router failed to path to is a routing gap;
@@ -382,6 +427,87 @@ local function playGuide(g)
 end
 
 -- ---------------------------------------------------------------------------
+-- --chain: play a whole spine the way a character does, with the real end-of-guide logic
+-- ---------------------------------------------------------------------------
+-- Starts at the faction's first spine guide and follows Progress's own chain (`next`, parked guides coming
+-- back at their level, the return to where the chain was going).  The level comes from the XP model: one level
+-- per --questsperlevel turn-ins (default 25, a slow character; 4 is what the per-guide mode uses).  SuggestNext
+-- stays disabled, so the only way to load a guide is the chain logic under test.  The run fails on a bounce:
+-- a guide loaded and left with no step done, repeatedly.
+if chainFaction then
+    FACTION, RACE = chainFaction, (chainFaction == "Horde") and "Orc" or "Human"
+    NS.player.faction, NS.player.class, NS.player.race = FACTION, CLASS, RACE
+    W.xpmax = 100
+    local cap = NS.Recommend.LevelCap()
+    wipeWorld(1)
+    W.xpmax = 25 * (questsPerLevel or 25)   -- a turn-in is worth 25 xp (see act)
+    NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened, NS.db.char.laps, NS.db.char.guide = {}, {}, {}, {}, nil
+    NS.db.char.parked, NS.db.char.parkReturn = {}, nil
+    local prefix = ("spine:%s:%s:"):format(flavor, chainFaction:sub(1, 1))
+    local first
+    for _, id in ipairs(G.list) do
+        if id:sub(1, #prefix) == prefix and (not first or id < first) then first = id end
+    end
+    if not first then error("no spine guides for " .. chainFaction .. " (load them with --spine)") end
+    place(G.registry[first].zone, 0.5, 0.5)
+    R.Invalidate()
+    NS.TravelGraph.Build()
+    if not P.Load(first) then error("could not load " .. first) end
+    local loads, tenureSteps, lastGuide, bounces, order, stepsDone = {}, 0, nil, 0, {}, 0
+    local secs, stalls, noroute = 0, 0, 0
+    loads[first] = 1
+    order[1] = first
+    lastGuide = first
+    local capSteps = 400000
+    local t0 = os.clock()
+    while capSteps > 0 and os.clock() - t0 < (guideCap > 90 and guideCap or 900) do
+        capSteps = capSteps - 1
+        local step = P.current
+        if not step then
+            -- out of steps at this level: the character levels up (real time passes), the level-up event refreshes
+            while W.level < cap and not P.current do
+                W.level = W.level + 1
+                W.xp = 0
+                P.Refresh()
+            end
+            step = P.current
+            if not step then break end
+        end
+        if P.guide.id ~= lastGuide then
+            -- a guide change: count how many steps the previous tenure completed
+            if tenureSteps == 0 and loads[lastGuide] and loads[lastGuide] > 1 then bounces = bounces + 1 end
+            tenureSteps = 0
+            lastGuide = P.guide.id
+            loads[lastGuide] = (loads[lastGuide] or 0) + 1
+            order[#order + 1] = lastGuide
+        end
+        local _, s, routed, hasDest = walkTo(step)
+        secs = secs + (s or 0)
+        if not routed and hasDest then noroute = noroute + 1 end
+        act(step)
+        if W.level > cap then W.level, W.xp = cap, 0 end
+        P.Refresh()
+        stepsDone = stepsDone + 1
+        tenureSteps = tenureSteps + 1
+        if P.current == step then
+            stalls = stalls + 1
+            P.MarkDone(step)
+        end
+    end
+    local parkedLeft, reloaded, maxLoads = 0, 0, 0
+    for _ in pairs(NS.db.char.parked or {}) do parkedLeft = parkedLeft + 1 end
+    for _, c in pairs(loads) do
+        if c > 1 then reloaded = reloaded + 1 end
+        if c > maxLoads then maxLoads = c end
+    end
+    print(("CHAIN %s %s: %d guides loaded, %d distinct, %d resumed at least once (max %d loads of one guide), bounces %d, steps done %d, level %d, parked left %d, stalls %d, no_route %d, %.0f s travel, cap_left %d"):format(
+        flavor, chainFaction, #order, (function() local n = 0 for _ in pairs(loads) do n = n + 1 end return n end)(),
+        reloaded, maxLoads, bounces, stepsDone, W.level, parkedLeft, stalls, noroute, secs, capSteps))
+    if bounces > 0 then os.exit(1) end
+    os.exit(0)
+end
+
+-- ---------------------------------------------------------------------------
 -- Run
 -- ---------------------------------------------------------------------------
 local out = assert(io.open(outPath, "w"))
@@ -423,5 +549,10 @@ for gi, id in ipairs(G.list) do
     end
 end
 out:close() stallOut:close() noRouteOut:close()
+if #planMs > 0 then
+    table.sort(planMs)
+    local pct = function(p) return planMs[math.max(1, math.ceil(#planMs * p))] end
+    io.stderr:write(("LIVE %s: %d repairs, ms p50 %.2f p95 %.2f p99 %.2f max %.1f\n"):format(flavor, #planMs, pct(0.5), pct(0.95), pct(0.99), planMs[#planMs]))
+end
 io.stderr:write(("DONE %s shard %d/%d: %d guides in %.0fs -> %s | finished=%d stalled-guides=%d errors=%d\n")
     :format(flavor, shardI, shardN, n, os.clock() - t0, outPath, finished, stalled, errored))
