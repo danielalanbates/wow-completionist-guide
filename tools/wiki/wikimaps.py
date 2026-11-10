@@ -208,6 +208,13 @@ class MapSet:
         return mid
 
 
+# Zones whose wiki coordinates are still Classic-map numbers although the wiki is retail-first: converting them through
+# the retail map moves the point 3-9 map units.  Found by comparing wiki points with each client's own quest data per
+# zone (median error converted vs unconverted, 2026-11-09): Badlands 8.7 / 0.6, Arathi Highlands 4.7 / 1.0, Swamp of
+# Sorrows 3.3 / 0.3, Felwood 1.5 / 0.2; Teldrassil from individual NPC pages.  MoP and retail share the retail maps.
+KEEP_NUMBERS = {fl: {"badlands", "arathihighlands", "swampofsorrows", "felwood", "teldrassil"} for fl in ("era", "tbc", "forever")}
+
+
 class Atlas:
     """all four clients' map sets + the conversion between them"""
 
@@ -246,8 +253,12 @@ class Atlas:
         T = self.sets[target]
         if src == target:
             return smid, x, y
-        w = S.to_world(smid, x, y)
         sname = S.maps[smid]["name"]
+        if src == "retail" and norm(sname) in KEEP_NUMBERS.get(target, ()):
+            tmid = T.resolve(sname)
+            if tmid is not None:
+                return tmid, x, y
+        w = S.to_world(smid, x, y)
         if w is None:
             tmid = T.resolve(sname)
             return (tmid, x, y) if tmid is not None else None
@@ -310,6 +321,9 @@ def _selfcheck():
     r = A.place("Valley of Trials", 43.0, 62.6, "era")   # Galgar: the same place as the wiki's own Durotar row
     check(abs(r[1] - 42.8) < 0.5 and abs(r[2] - 67.2) < 0.5, f"Galgar on era {r}")
     check(A.place("Valley of Trials", 43.0, 62.6, "retail") == (461, 43.0, 62.6), "retail keeps its own subzone map")
+    for fl in ("era", "tbc", "forever"):
+        check(A.place("Teldrassil", 55.3, 56.8, fl)[1:] == (55.3, 56.8), "Classic-map wiki numbers stay as written on " + fl)
+    check(A.place("Badlands", 42.0, 52.0, "era")[1:] == (42.0, 52.0), "Badlands keeps its Classic-map numbers")
     # the other starting zones, near each subzone map's edge as well as its centre
     for name, parent in (("Northshire", "Elwynn Forest"), ("Deathknell", "Tirisfal Glades"), ("Camp Narache", "Mulgore"),
                          ("Coldridge Valley", "Dun Morogh"), ("Shadowglen", "Teldrassil")):
