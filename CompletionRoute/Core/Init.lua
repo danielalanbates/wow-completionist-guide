@@ -122,8 +122,13 @@ NS:RegisterEvent("ADDON_LOADED", function(_, name)
     CompletionRouteDB = CompletionRouteDB or {}
     CompletionRouteCharDB = CompletionRouteCharDB or {}
     fill(CompletionRouteDB, { profile = deepcopy(NS.defaults.profile) })
-    -- the live window grew from 12 to 24 steps (routing tier B); a saved profile still on the old default follows it
-    if CompletionRouteDB.profile.routing and CompletionRouteDB.profile.routing.window == 12 then CompletionRouteDB.profile.routing.window = 24 end
+    -- the live window grew from 12 to 24 steps (routing tier B); a saved profile still on the old default follows it,
+    -- once, so a player who later sets 12 on the Options slider keeps it
+    local routing = CompletionRouteDB.profile.routing
+    if routing and not routing.window24 then
+        if routing.window == 12 then routing.window = 24 end
+        routing.window24 = true
+    end
     CompletionRouteDB.knownTaxi = CompletionRouteDB.knownTaxi or {}
     CompletionRouteCharDB.knownTaxi = CompletionRouteCharDB.knownTaxi or {}
     for id in pairs(CompletionRouteDB.knownTaxi) do CompletionRouteCharDB.knownTaxi[id] = true end
