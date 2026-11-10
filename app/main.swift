@@ -87,7 +87,8 @@ let WOW_FLAVORS: [WoWFlavor] = [
     WoWFlavor(name: "Classic Era", dirName: "_classic_era_", shortName: "era", expacTitle: "1.15.x Vanilla", tocFile: "CompletionRoute_Vanilla.toc"),
     WoWFlavor(name: "TBC Anniversary", dirName: "_anniversary_", shortName: "tbc", expacTitle: "2.5.x Burning Crusade", tocFile: "CompletionRoute_TBC.toc"),
     WoWFlavor(name: "Mists Classic", dirName: "_classic_", shortName: "mop", expacTitle: "5.5.x Pandaria", tocFile: "CompletionRoute_Mists.toc"),
-    WoWFlavor(name: "Retail", dirName: "_retail_", shortName: "retail", expacTitle: "12.x The War Within / Midnight", tocFile: "CompletionRoute.toc")
+    WoWFlavor(name: "Retail", dirName: "_retail_", shortName: "retail", expacTitle: "12.x The War Within / Midnight", tocFile: "CompletionRoute.toc"),
+    WoWFlavor(name: "WoW Forever", dirName: "_forever_", shortName: "forever", expacTitle: "1.60.x Forever", tocFile: "CompletionRoute_Forever.toc")
 ]
 
 // MARK: - Main View Controller
@@ -102,7 +103,7 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
     let wowBasePath = "/Volumes/x10/Video Games/Mac/World of Warcraft"
     var repoPath: String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return "\(home)/Library/CloudStorage/GoogleDrive-ACCOUNT/My Drive/Code/OpenRoute"
+        return "\(home)/Library/CloudStorage/GoogleDrive-ACCOUNT/My Drive/Code/Completionist's Guide"
     }
 
     override func loadView() {
@@ -280,7 +281,7 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
         actionStack.spacing = 12
         container.addSubview(actionStack)
 
-        let syncButton = NSButton(title: "⚡ Sync & Bake AddOn to All 4 Clients", target: self, action: #selector(runSyncAll))
+        let syncButton = NSButton(title: "⚡ Sync & Bake AddOn to All 5 Clients", target: self, action: #selector(runSyncAll))
         syncButton.bezelStyle = .rounded
         syncButton.controlSize = .regular
         syncButton.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
@@ -416,7 +417,7 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
         title.font = NSFont.systemFont(ofSize: 15, weight: .bold)
         container.addSubview(title)
 
-        let desc = NSTextField(labelWithString: "Audited across 15,865 guides and 771,737 steps using tools/vplayer.lua against a mutable simulated world.\nEvery step tested for Dijkstra travel routing, auto-advancement, and precedence constraints:")
+        let desc = NSTextField(labelWithString: "Measured offline with tools/vplayer.lua against a simulated world. Figures come from the latest docs/verification.sqlite.")
         desc.translatesAutoresizingMaskIntoConstraints = false
         desc.font = NSFont.systemFont(ofSize: 12)
         desc.textColor = NSColor.secondaryLabelColor
@@ -425,26 +426,13 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
         // Matrix Box
         let box = NSBox()
         box.translatesAutoresizingMaskIntoConstraints = false
-        box.title = "SQLite Verification Data (vplayer_guides table)"
+        box.title = "SQLite Verification Data (docs/verification.sqlite)"
         container.addSubview(box)
 
-        let matrixText = """
-        ┌───────────────────┬──────────────┬───────────────┬─────────────────┬───────────────┬────────────┬────────────┬──────────────┐
-        │ Game Flavor       │ Client Dir   │ Guides Tested │ Total Steps     │ Steps Played  │ Auto-Ticked│ Stalls     │ Success Rate │
-        ├───────────────────┼──────────────┼───────────────┼─────────────────┼───────────────┼────────────┼────────────┼──────────────┤
-        │ Classic Era       │ _classic_era_│ 1,111         │ 56,461          │ 46,701        │ 35,764     │ 0          │ 100.0%       │
-        │ TBC Anniversary   │ _anniversary_│ 1,061         │ 82,994          │ 72,553        │ 59,773     │ 0          │ 100.0%       │
-        │ MoP Classic       │ _classic_    │ 3,775         │ 212,043         │ 186,422       │ 137,122    │ 0          │ 99.99%       │
-        │ Retail            │ _retail_     │ 9,918         │ 420,239         │ 360,533       │ 234,354    │ 0          │ 100.0%       │
-        ├───────────────────┼──────────────┼───────────────┼─────────────────┼───────────────┼────────────┼────────────┼──────────────┤
-        │ TOTAL / SUMMARY   │ 4 Clients    │ 15,865 Guides │ 771,737 Steps   │ 666,209 Steps │ 467,013    │ 0 Stalls   │ 99.99% PASS  │
-        └───────────────────┴──────────────┴───────────────┴─────────────────┴───────────────┴────────────┴────────────┴──────────────┘
-        
-        • Precedence Constraints: 0 violations across all 15,865 guides.
-        • Pre-computed Path Cache: Hearth-free Dijkstra routes cached (175s → 6.5s per 200-step zone guide).
-        • Taxi Learning Policies: Known vs Faction taxi policies dynamically invalidate path cache on road authoring.
-        • Zero Subscription Dependency: Built entirely on community-driven WoW-Pro, Questie DB, and Blizzard client POIs.
-        """
+        // Written by tools/status_report.py from docs/verification.sqlite, so this tab can never show stale figures.
+        let statusFile = "\(repoPath)/docs/status_table.txt"
+        let matrixText = (try? String(contentsOfFile: statusFile, encoding: .utf8))
+            ?? "No status table yet. Run: python3 tools/status_report.py > docs/status_table.txt"
 
         let matrixLabel = NSTextField(labelWithString: matrixText)
         matrixLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -557,7 +545,7 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
         logTextView.backgroundColor = NSColor.black
         logTextView.textColor = NSColor.systemGreen
         logTextView.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        logTextView.string = "[Completionist's Guide Manager Ready]\nClick 'Sync & Bake AddOn to All 4 Clients' to install or update."
+        logTextView.string = "[Completionist's Guide Manager Ready]\nClick 'Sync & Bake AddOn to All 5 Clients' to install or update."
         scroll.documentView = logTextView
 
         NSLayoutConstraint.activate([
@@ -574,8 +562,8 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
 
     @objc private func runSyncAll() {
         tabView.selectTabViewItem(at: 3) // switch to log view
-        appendLog("\n>>> Starting Sync & Bake across all 4 World of Warcraft clients...")
-        runShellCommand("tools/install.sh _anniversary_ _classic_era_ _classic_ _retail_") { [weak self] success in
+        appendLog("\n>>> Starting Sync & Bake across all 5 World of Warcraft clients...")
+        runShellCommand("tools/install.sh _anniversary_ _classic_era_ _classic_ _retail_ _forever_") { [weak self] success in
             self?.appendLog(success ? ">>> All AddOns installed and synchronized successfully!" : ">>> Sync encountered an error.")
             DispatchQueue.main.async { self?.refreshClientCards() }
             self?.updateDiskStatus()
@@ -596,7 +584,7 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
     @objc private func runTests() {
         tabView.selectTabViewItem(at: 3)
         appendLog("\n>>> Running Offline Test Suite (Parser, TravelGraph Dijkstra, StepOrder, Farm, Access)...")
-        runShellCommand("luajit tools/validate_toc.lua && luajit tools/test_offline.lua && luajit tools/test_farm.lua && luajit tools/test_access.lua") { [weak self] success in
+        runShellCommand("luajit tools/validate_toc.lua && luajit tools/test_offline.lua && luajit tools/test_farm.lua && luajit tools/test_access.lua && luajit tools/test_professions_engine.lua && luajit tools/test_level_list.lua") { [weak self] success in
             self?.appendLog(success ? "\n>>> ALL TEST SUITES PASSED CLEANLY!" : "\n>>> Tests failed.")
             self?.updateDiskStatus()
         }
