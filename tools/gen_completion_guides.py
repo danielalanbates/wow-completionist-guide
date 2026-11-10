@@ -5,13 +5,21 @@
 # https://batesai.org  help@batesai.org
 """Generate the "completionist" guide sets from Blizzard client data (wago.tools DB2 exports):
 
-    python3 tools/gen_completion_guides.py [retail] [mop]
+    python3 tools/gen_completion_guides.py [retail] [mop] [--achievements-only]
 
   Guides/Imported_Achievements_<fl>.lua   one guide per achievement category (retail, mop).  Every
       achievement that is not a statistic becomes a block of steps: one per criterion (cap 60), then a
-      FIXED "earn it" step.  A criterion that is "complete quest N" gets that quest's map location from
-      the flavor's Imported_Quests_<fl>.lua, so the router can order those steps by travel time; the
-      rest carry |ACH|<achievement>;<criteria-tree id>| and tick from GetAchievementCriteriaInfoByID.
+      FIXED "earn it" step.  Criteria carry |ACH|<achievement>;<criteria-tree id>| and tick from
+      GetAchievementCriteriaInfoByID.  Locations come only from Warcraft Wiki data and Blizzard tables, never
+      from WoW-Pro or Questie (Places below):
+        point (|M|..|Z|..)  a criterion "complete quest N" (the quest's step in Imported_Wiki_<fl>, skipping rows
+                            whose note says the position came from Questie) or "kill creature N" (wiki NPC point).
+        zone  (|Z|.. only)  the same criterion when the wiki only names its zone, an achievement Blizzard ties to a
+                            dungeon/raid/scenario (Achievement.Instance_ID -> Map), "Explore <zone>", "... quests in
+                            <zone>".  The router heads for the zone (Routing/Router.lua); no coordinate is written.
+        |NOGEO|<reason>|    on the FIXED step of an achievement with no location that has no place at all: battleground
+                            or arena, PvP/reputation/feat/guild/general categories, purely counter criteria (level,
+                            skill, reputation, currency).  Read by tools/coverage.py; the client keeps it as a raw tag.
   Guides/Imported_Storylines_retail.lua   one guide per QuestLine, quests in the client's OrderIndex
       order.  Each accept carries |PRE|<previous quest>| so the optimizer can interleave travel but can
       never break the story order.  Step lines (with locations) are reused from Imported_Quests_retail.
@@ -20,22 +28,38 @@
       note step per GarrMission row (|MISSION|id|) with followers, duration and cost.  Mission
       completion has no persistent client flag, so those steps are manual clicks.
 
-Inputs: tools/db2/<fl>/{Achievement,Achievement_Category,Criteria,CriteriaTree}.csv,
-tools/db2/retail/{QuestLine,QuestLineXQuest,GarrMission}.csv, tools/db2/questie_index.tsv (names).
-Everything written is Blizzard/Questie-derived data: gitignored (Imported_*.lua); only this script ships.
+Inputs: tools/db2/<fl>/{Achievement,Achievement_Category,Criteria,CriteriaTree,Map}.csv (fetched through
+tools/wiki/db2_fetch.py when absent), tools/wiki/wiki.sqlite, Guides/Imported_Wiki_<fl>.lua,
+tools/db2/retail/{QuestLine,QuestLineXQuest,GarrMission}.csv, tools/db2/questie_index.tsv (storyline names only).
+Everything written is gitignored (Imported_*.lua); only this script ships.
 """
-import csv, re, sys, collections
+import csv, re, sqlite3, sys, collections
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DB2 = ROOT / "tools" / "db2"
 GUIDES = ROOT / "CompletionRoute" / "Guides"
 MAX_CRIT = 60
-
+WIKI_DB = ROOT / "tools" / "wiki" / "wiki.sqlite"
+sys.path.insert(0, str(ROOT / "tools" / "wiki"))
+csv.field_size_limit(1 << 28)
+ZONE_TYPES = (3, 4, 5, 6)   # uiMap types a step may head for: zone, dungeon, micro, orphan (never continent / world)
+# Map.InstanceType: 1 party, 2 raid, 5 scenario are places; 3 battleground and 4 arena are a queue
+PLACE_INSTANCES = ("1", "2", "5")
+QUEUE_INSTANCES = ("3", "4")
+# root category -> reason, applied only to an achievement that found no location at all
+NOGEO_ROOTS = {"Player vs. Player": "pvp", "Reputation": "reputation", "Statistics": "statistic",
+               "Feats of Strength": "feat", "Characters": "character", "Collections": "collection",
+               "General": "general", "Guild": "guild"}
+# Criteria.Type with no place: reach level, skill, total quests, dailies, currency, title rank, bank slots, reputation
+NOGEO_TYPES = {"5", "7", "9", "10", "12", "14", "40", "44", "45", "46", "47"}
 
 def rows(fl, table):
     p = DB2 / fl / f"{table}.csv"
-    return list(csv.DictReader(p.open(encoding="utf-8"))) if p.exists() else []
+    if not p.exists():
+        import db2_fetch
+        return db2_fetch.rows(fl, table)
+    return list(csv.DictReader(p.open(encoding="utf-8")))
 
 
 def clean(s):
@@ -79,13 +103,130 @@ def located(lines, action_pref=("T", "A", "C")):
     return None
 
 
+def wiki_quest_lines(fl):
+    """qid -> step lines from Imported_Wiki_<fl>.lua, leaving out rows whose position the note credits to Questie"""
+    p = GUIDES / f"Imported_Wiki_{fl}.lua"
+    out = collections.defaultdict(list)
+    if not p.exists():
+        return out
+    for line in p.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^[ACT] .*?\|QID\|(\d+)\|", line)
+        if m and "location: Questie" not in line:
+            out[int(m.group(1))].append(line)
+    return out
+
+
+class Places:
+    """where a criterion or achievement happens, on one client's maps: 'M|x,y|Z|id; name|' or 'Z|id; name|' or ''"""
+
+    def __init__(self, fl):
+        import wikimaps
+        self.fl = fl
+        self.atlas = wikimaps.Atlas()
+        self.maps = self.atlas.sets[fl]
+        self.qlines = wiki_quest_lines(fl)
+        self.instance = {}
+        for r in rows(fl, "Map"):
+            self.instance[int(r["ID"])] = (clean(r["MapName_lang"]), r["InstanceType"])
+        con = sqlite3.connect(WIKI_DB)
+        self.quest = {int(i): (n, z) for i, n, z in con.execute("select id, name, zone from quests")}
+        coords = collections.defaultdict(list)
+        for t, z, x, y, c in con.execute("select title, zone, x, y, classic from npc_coords where x is not null order by title, idx"):
+            coords[t].append((z, x, y, c))
+        self.npc_by_id, self.npc_by_title = {}, {}
+        for t, ids, z, x, y, pc in con.execute("select title, npc_id, zone, x, y, page_classic from npcs"):
+            pts = coords.get(t) or ([(z, x, y, pc)] if x is not None and z else [])
+            rec = (pts, z, bool(pc))
+            self.npc_by_title[t] = rec
+            for i in re.findall(r"\d+", ids or ""):
+                self.npc_by_id.setdefault(int(i), rec)
+        self.crit = collections.defaultdict(dict)
+        for a, text, link, q in con.execute("select ach_id, text, link_title, quest_id from achievement_criteria"):
+            self.crit[a][wikimaps.norm(text)] = (link, q)
+        self.norm = wikimaps.norm
+        con.close()
+
+    def _zone(self, mid):
+        return f"Z|{mid}; {self.maps.maps[mid]['name']}|"
+
+    def _zone_tag(self, name):
+        """a zone step only for a name that resolves to a zone or instance map (never a continent)"""
+        if not name:
+            return ""
+        mid = self.maps.resolve(name)
+        return self._zone(mid) if mid is not None and self.maps.maps[mid]["type"] in ZONE_TYPES else ""
+
+    def named_zone(self, name):
+        return self._zone_tag(name)
+
+    def quest_place(self, q):
+        loc = located(self.qlines.get(q, []))
+        if loc:
+            return f"M|{loc[0]}|Z|{loc[1]}|"
+        return self._zone_tag(self.quest.get(q, (None, None))[1])
+
+    def _npc_place(self, rec):
+        pts, zone, classic = rec
+        for z, x, y, c in pts:
+            hit = self.atlas.place(z, x, y, self.fl, bool(c) or classic)
+            if hit and self.maps.maps[hit[0]]["type"] in ZONE_TYPES:
+                return f"M|{hit[1]:.1f},{hit[2]:.1f}|{self._zone(hit[0])}"
+        return self._zone_tag(zone)
+
+    def creature_place(self, npc):
+        rec = self.npc_by_id.get(npc)
+        return self._npc_place(rec) if rec else ""
+
+    def wiki_criterion_place(self, aid, desc):
+        """the wiki's own criterion list: a linked quest, or a linked NPC article"""
+        hit = self.crit.get(aid, {}).get(self.norm(desc))
+        if not hit:
+            return ""
+        link, q = hit
+        if q:
+            return self.quest_place(int(q))
+        if link:
+            rec = self.npc_by_title.get(link) or self.npc_by_title.get(re.sub(r"\s*\(.*\)$", "", link))
+            return self._npc_place(rec) if rec else ""
+        return ""
+
+    def achievement_zone(self, a):
+        """(zone tag, why) when the whole achievement plainly belongs to one place, else ('', None)"""
+        inst = self.instance.get(int(a["Instance_ID"] or -1))
+        if inst and inst[1] in PLACE_INSTANCES:
+            z = self._zone_tag(inst[0])
+            if z:
+                return z, "instance"
+        title, desc = clean(a["Title_lang"]), clean(a["Description_lang"])
+        m = re.match(r"^Explore (.+?)$", title) or re.match(r"^Explore (.+?), revealing", desc)
+        if m:
+            z = self._zone_tag(m.group(1))
+            if z:
+                return z, "explore"
+        m = re.search(r"\bquests? in (?:the )?([A-Z][^.,]+?)\.?$", desc) or re.match(r"^(.+?) Quests$", title)
+        if m:
+            z = self._zone_tag(m.group(1))
+            if z:
+                return z, "quests-in-zone"
+        return "", None
+
+    def contradicts(self, where, az):
+        """a criterion's map that is neither the achievement's own place nor a parent/child of it (a wrong-page match)"""
+        a, b = (int(re.search(r"Z\|(\d+);", t).group(1)) for t in (where, az))
+        return a != b and not self.maps.is_ancestor(a, b) and not self.maps.is_ancestor(b, a)
+
+    def queue_only(self, a):
+        inst = self.instance.get(int(a["Instance_ID"] or -1))
+        return bool(inst and inst[1] in QUEUE_INSTANCES)
+
+
 def header(fl, what):
     return [f"-- AUTO-GENERATED by tools/gen_completion_guides.py ({what}) from Blizzard client data",
             "-- (wago.tools DB2 exports).  Local use only - gitignored, do not redistribute.",
             "local _, NS = ...", f'if NS.flavor ~= "{fl}" then return end', "local R = NS.Guide.Register"]
 
 
-def gen_achievements(fl, qnames):
+def gen_achievements(fl):
     ach = [r for r in rows(fl, "Achievement") if not (int(r["Flags"] or 0) & 0x1)]
     if not ach:
         print(f"{fl}: no Achievement.csv - skipped")
@@ -100,7 +241,17 @@ def gen_achievements(fl, qnames):
     for k in kids:
         kids[k].sort(key=lambda r: (int(r["OrderIndex"] or 0), int(r["ID"])))
     achname = {int(r["ID"]): clean(r["Title_lang"]) for r in ach}
-    qlines = quest_lines(fl)
+    place = Places(fl)
+
+    def rootcat(cid):
+        seen = set()
+        while cid in cats and cid not in seen:
+            seen.add(cid)
+            parent = int(cats[cid]["Parent"])
+            if parent == -1 or parent not in cats:
+                return clean(cats[cid]["Name_lang"])
+            cid = parent
+        return ""
 
     def catpath(cid):
         parts, seen = [], set()
@@ -124,30 +275,71 @@ def gen_achievements(fl, qnames):
         return out
 
     guides = collections.defaultdict(list)
-    nsteps = nloc = 0
+    nsteps = 0
+    st = collections.Counter()   # step counts by how the location was found
+    achs = collections.Counter()  # achievements by best outcome
+    gained = collections.Counter()  # zone-level achievements by reason
+    nogeo_why = collections.Counter()
     for a in sorted(ach, key=lambda r: (int(r["Category"] or 0), int(r["Ui_order"] or 0), int(r["ID"]))):
         aid = int(a["ID"])
         title = achname[aid] or f"Achievement {aid}"
         fac = {"0": "Horde", "1": "Alliance"}.get(a["Faction"], "")
         ftag = f"FACTION|{fac}|" if fac else ""
         body = []
+        az, azwhy = place.achievement_zone(a)
+        any_point = any_zone = False
+        types = set()
         for leaf in leaves(int(a["Criteria_tree"] or 0)):
             c = crit.get(int(leaf["CriteriaID"]))
             ctid = int(leaf["ID"])
             desc = clean(leaf["Description_lang"])
-            if c and c["Type"] == "27" and int(c["Asset"] or 0):
-                q = int(c["Asset"])
-                name = qnames.get(q, (None,))[0] or desc or f"Quest {q}"
-                loc = located(qlines.get(q, []))
-                where = f"M|{loc[0]}|Z|{loc[1]}|" if loc else ""
-                nloc += bool(loc)
-                body.append(f"C {clean(name)}|QID|{q}|ACH|{aid};{ctid}|{where}{ftag}N|{lua_str(title)}: complete this quest.|")
-            elif c and c["Type"] == "8" and int(c["Asset"] or 0):
-                sub = int(c["Asset"])
+            ctype = c["Type"] if c else ""
+            types.add(ctype)
+            asset = int(c["Asset"] or 0) if c else 0
+            where, why = "", None
+            if ctype == "27" and asset:
+                where, why = place.quest_place(asset), "quest"
+            elif ctype == "0" and asset:
+                where, why = place.creature_place(asset), "creature"
+            if not where and ctype != "8":
+                where, why = place.wiki_criterion_place(aid, desc), "wiki-criterion"
+            if not where and ctype != "8":
+                where, why = az, azwhy or "achievement-zone"
+            if where and az and place.contradicts(where, az):
+                where, why = az, "criterion contradicted achievement place"
+                st["contradicted"] += 1
+            if ctype == "8" and asset:
+                sub = asset
                 body.append(f"C {achname.get(sub) or desc or 'Achievement %d' % sub}|ACH|{sub}|{ftag}N|Needed for {lua_str(title)}.|")
+                continue
+            if where:
+                st[("point" if where.startswith("M|") else "zone") + " " + why] += 1
+                any_point |= where.startswith("M|")
+                any_zone |= not where.startswith("M|")
+            if ctype == "27" and asset:
+                name = place.quest.get(asset, (None, None))[0] or desc or f"Quest {asset}"
+                body.append(f"C {clean(name)}|QID|{asset}|ACH|{aid};{ctid}|{where}{ftag}N|{lua_str(title)}: complete this quest.|")
             else:
-                body.append(f"C {desc or title}|ACH|{aid};{ctid}|{ftag}N|{lua_str(title)} criterion.|")
-        body.append(f"C {title}|ACH|{aid}|FIXED|{ftag}N|{lua_str(clean(a['Description_lang']))} ({a['Points']} pts)|")
+                body.append(f"C {desc or title}|ACH|{aid};{ctid}|{where}{ftag}N|{lua_str(title)} criterion.|")
+        if az:
+            any_zone = True
+        nogeo = ""
+        if not (any_point or any_zone):
+            reason = None
+            root = rootcat(int(a["Category"] or 0))
+            if place.queue_only(a):
+                reason = "battleground"
+            elif root in NOGEO_ROOTS:
+                reason = NOGEO_ROOTS[root]
+            elif types and types <= NOGEO_TYPES:
+                reason = "counter"
+            if reason:
+                nogeo = f"NOGEO|{reason}|"
+                nogeo_why[reason] += 1
+        achs["point" if any_point else "zone" if any_zone else "non-geographic" if nogeo else "unlocated"] += 1
+        if any_zone and not any_point:
+            gained[azwhy or "criterion-zone"] += 1
+        body.append(f"C {title}|ACH|{aid}|FIXED|{az}{nogeo}{ftag}N|{lua_str(clean(a['Description_lang']))} ({a['Points']} pts)|")
         guides[catpath(int(a["Category"] or 0))].extend(body)
         nsteps += len(body)
     lines = header(fl, "achievements")
@@ -159,8 +351,11 @@ def gen_achievements(fl, qnames):
         lines.append("]==] })")
     out = GUIDES / f"Imported_Achievements_{fl}.lua"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"{fl}: {len(ach)} achievements -> {len(guides)} category guides, {nsteps} steps "
-          f"({nloc} quest criteria located) -> {out.relative_to(ROOT)}")
+    print(f"{fl}: {len(ach)} achievements -> {len(guides)} category guides, {nsteps} steps -> {out.relative_to(ROOT)}")
+    print(f"  achievements by best location: {dict(achs)}")
+    print(f"  zone-only achievements by reason: {dict(gained)}")
+    print(f"  non-geographic by reason: {dict(nogeo_why)}")
+    print(f"  located steps: {dict(st)}")
 
 
 def gen_storylines(qnames):
@@ -242,11 +437,13 @@ def gen_missions():
 
 
 def main():
-    fls = sys.argv[1:] or ["retail", "mop"]
-    qn = questie_names()
+    args = [a for a in sys.argv[1:] if a != "--achievements-only"]
+    only_ach = len(args) != len(sys.argv) - 1
+    fls = args or ["retail", "mop"]
+    qn = questie_names() if not only_ach else {}
     for fl in fls:
-        gen_achievements(fl, qn)
-        if fl == "retail":
+        gen_achievements(fl)
+        if fl == "retail" and not only_ach:
             gen_storylines(qn)
             gen_missions()
 

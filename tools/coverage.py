@@ -19,6 +19,9 @@ Universe (the "total" column), per flavor, from wago.tools DB2 exports cached in
 has map coordinates, i.e. the router can actually take you there.  Both are reported because an id in a
 guide with no location is a checklist line, not a route.  Missions are started from a table, not a place, so their
 located column is NULL (non-geographic), never a failure.  Statistics are not in the achievement universe at all.
+Achievements also report two extra categories, kept apart from located (point only, comparable across runs):
+  achievement-zone    no point, but a step names the zone or instance (|Z| without |M|): routes to the zone, no coordinate
+  achievement-nongeo  carries |NOGEO|<reason|> (battleground, PvP total, reputation count, level milestone...): no place at all
 
 Also folds docs/vplayer_<fl>_noroute.tsv into table `noroute_class`: a step the router could not reach is
 "battleground" (a queue, no travel edge exists by design), "instance" (an instance map: the guide walks you in, or the
@@ -55,7 +58,7 @@ RE_MIS = re.compile(r"\|MISSION\|(\d+)")
 
 def scan(path):
     """-> dict kind -> {id: located_bool}"""
-    found = {"quest": {}, "achievement": {}, "mission": {}}
+    found = {"quest": {}, "achievement": {}, "mission": {}, "achievement-zone": {}, "achievement-nongeo": {}}
     txt = path.read_text(encoding="utf-8", errors="replace")
     for line in txt.splitlines():
         if "|" not in line:
@@ -69,6 +72,10 @@ def scan(path):
                     found["quest"][q] = found["quest"].get(q, False) or loc
         for a in RE_ACH.findall(line):
             found["achievement"][int(a)] = found["achievement"].get(int(a), False) or loc
+            if "|Z|" in line and not loc:
+                found["achievement-zone"][int(a)] = True
+            if "|NOGEO|" in line:
+                found["achievement-nongeo"][int(a)] = True
         for a in RE_MIS.findall(line):
             found["mission"][int(a)] = found["mission"].get(int(a), False) or loc
     return found
@@ -152,7 +159,7 @@ def main():
     con.execute("create table if not exists coverage_missing (flavor text, category text, id int)")
     con.execute("delete from coverage_missing")
     for fl in FLAVORS:
-        have = {"quest": {}, "achievement": {}, "mission": {}}
+        have = {"quest": {}, "achievement": {}, "mission": {}, "achievement-zone": {}, "achievement-nongeo": {}}
         for f in guide_files(gdir, fl):
             for k, d in scan(f).items():
                 for i, loc in d.items():
@@ -174,6 +181,15 @@ def main():
                         "values (?,?,?,?,?,?,?,datetime('now'))",
                         (fl, cat, label, total, len(cov), total - len(cov), len(loc) if geo else None))
             con.executemany("insert into coverage_missing values (?,?,?)", [(fl, cat, i) for i in miss])
+            if cat == "achievement":
+                zone = sum(1 for i in have["achievement-zone"] if i in uni and not have["achievement"].get(i))
+                nongeo = sum(1 for i in have["achievement-nongeo"] if i in uni and not have["achievement"].get(i)
+                             and i not in have["achievement-zone"])
+                for extra, n in (("achievement-zone", zone), ("achievement-nongeo", nongeo)):
+                    con.execute("insert or replace into coverage (flavor, category, label, total, covered, missing, located, measured) "
+                                "values (?,?,?,?,?,?,?,datetime('now'))", (fl, extra, label, total, n, total - n, None))
+                print(f"{label:7} {fl:6} {'achievement':11} point {len(loc):6}  zone-only {zone:6}  non-geographic {nongeo:6}"
+                      f"  neither {total - len(loc) - zone - nongeo:6}  (of {total})")
             print(f"{label:7} {fl:6} {cat:11} total {total:6}  covered {len(cov):6} ({100*len(cov)/max(total,1):5.1f}%)"
                   f"  located {len(loc) if geo else 'non-geographic':>6}")
     classify_noroute(con)
