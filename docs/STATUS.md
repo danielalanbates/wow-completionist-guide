@@ -1,3 +1,30 @@
+# Status / handoff (2026-11-09, gold guides, secondary professions, guides by level)
+
+Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** Installed on all five clients. All 13 harnesses pass
+(`test_offline`, `test_farm`, `test_access`, `test_load_all`, `validate_toc`, `test_wiki`, `test_route_order`, `test_level_list`,
+`test_professions_engine`, `test_live_route`, `test_parked`, `test_professions`, `test_gold`).
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Gold guides | 165 | 204 | 258 | 335 | 168 |
+| Profession guides | 24 | 30 | 64 | 78 | 24 |
+| Quest guides with a baked route | 234 of 234 | 356 of 356 | 294 of 771 | 296 of 1,021 | 241 of 241 |
+
+* **Gold** (`tools/wiki/gen_gold.py`, [GOLD_ROUTES.md](GOLD_ROUTES.md)): realm-independent, no prices shipped. Gathering circuits are still labelled
+  coarse because no shippable node database exists; they sharpen as the player records nodes.
+* **Professions** (`tools/wiki/gen_professions.py`, `Core/Archaeology.lua`, [PROFESSIONS.md](PROFESSIONS.md)). Weakest area: retail Cooking
+  tiers (Pandaria stops at 22 of 75, Cataclysm at 36 of 75; Outland and Shadowlands have no guide).
+* **Guides by level** (`Core/Recommend.lua`, `UI/GuideMenu.lua`, `/cr list`, `/cr gold`, `/cr prof`).
+* **Map fix.** On era, tbc and forever, wiki points in Badlands, Arathi Highlands, Swamp of Sorrows, Felwood and Teldrassil are Classic-map numbers and
+  must not go through the retail-map conversion (`wikimaps.KEEP_NUMBERS`). Blasted Lands still shows a 5.5 unit offset with no clear cause.
+* **Achievements** (`tools/gen_completion_guides.py`): point locations mop 202 to 305, retail 803 to 1,521; zone-only mop 1,062, retail 2,375; marked non-geographic
+  (`|NOGEO|reason|`) mop 1,108, retail 3,001; still unlocated mop 631, retail 5,127. Plan target of 80% not met.
+* **Optimizer stopped at the 2026-11-09 deadline.** Changed guides were redone on era, mop and retail, then spine guides on mop and retail until time ran out.
+  Guides touched by the map fix on tbc and forever were not re-optimized. Finish with `tools/cost_matrix.lua` + `tools/optimize_routes.py --merge` on the rest.
+* **Public release held.** The rule is that GitHub releases are bug free, and no client has loaded this yet. Companion app is 2.0.0-beta in /Applications.
+* **Next:** beta reports from Daniel; finish mop and retail optimizer; achievements; retail Cooking tiers; a bake gate that drops guides vplayer finds slower;
+  outleveled parked guides currently return once at the next guide change (kept for completionists, easy to gate on level in `parkedReady`).
+
 # Status / handoff (2026-11-09, routing finish: live window, level-gate revisit, subzone map fixes)
 
 Offline only. Nothing here ran in a client.
