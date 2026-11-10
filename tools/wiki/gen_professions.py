@@ -350,6 +350,24 @@ STALE_SENTENCE = re.compile(r"prior to|kosh'harg|during the|formerly|previously|
 SOURCE_WORD = re.compile(r"\b(sold by|drops? from|dropped by|drops|reward|taught|contained|fished|found|gathered|sliced|looted|created|purchased|vendors?)\b", re.I)
 
 
+def display_source(raw):
+    """text of a wiki source sentence that reads properly in a guide note; the planner keeps using the raw sentence.
+    Drops a stripped {{cost}} price, a list-introduction with its list gone, table markup, and a cut-off word."""
+    if not raw:
+        return ""
+    s = raw
+    if re.search(r"/-\s*/|//", s):                 # table cells that survived as text
+        return ""
+    s = re.sub(r"\s*,?\s*(?:usually\s+)?for\s+around\s+\d+(?:\s+or)?\s*\.?\s*$", ".", s, flags=re.I)     # a price, the {{cost}} amount lost
+    s = re.sub(r"\s+from expansion\.", ".", s, flags=re.I)                                      # a stripped {{exp}} template
+    s = re.sub(r"\bthe following\s+", "", s, flags=re.I)                                       # "sold by the following vendors," with the list gone
+    if re.search(r"(?:\bdrops?|\bfrom|\bby)\s*\.?$", s, re.I) and len(s) < 60:                  # "Buzzard Meat drops": nothing left to say
+        return ""
+    if len(raw) >= 150 and not re.search(r"[.!?)]$", s):                                       # cut mid-sentence by the 150-character limit
+        s = s.rsplit(" ", 1)[0] + "..."
+    return s.rstrip(" ,;:").strip()
+
+
 def source_sentence(body):
     """the sentence that says where something comes from today.  Historic and festival-only sentences are skipped, and a
     money figure is dropped because the page's {{cost}} template does not survive as text."""
@@ -637,7 +655,7 @@ def recipe_steps(gen, prof, fl, faction, runs, tier, trainer_alt, taught, item_n
                 lines.append("N Learn %s from a trainer|RECIPE|%d|N|The wiki lists no %s trainer for this client and faction.|" % (clean(r.name), r.spell, prof))
             elif r.kind == "item":
                 rname = r.source or ("Recipe: " + r.name)
-                src = reagent_src.get(r.source) or r.source
+                src = display_source(reagent_src.get(r.source)) or r.source
                 it = r.item
                 lines.append(("B %s|L|%d 1|RECIPE|%d|N|%s|" % (clean(rname), it, r.spell, clean(src))) if it else
                              ("N Get %s|RECIPE|%d|N|%s|" % (clean(rname), r.spell, clean(src))))
@@ -647,12 +665,13 @@ def recipe_steps(gen, prof, fl, faction, runs, tier, trainer_alt, taught, item_n
         notes = []
         for item, qty in r.reagents:
             nm = item_name.get(item) or ("item %d" % item)
-            src = reagent_src.get(nm, "")
-            if not src:
+            raw = reagent_src.get(nm, "")
+            src = display_source(raw)
+            if not raw:
                 missing += 1
             notes.append("%d %s%s" % (qty * n, clean(nm), " (%s)" % src if src else ""))
-            if src and VENDOR.search(src) and not re.search(r"\balso\b", src, re.I):
-                lines.append("B %s|L|%d %d|COUNT|%d|N|%s|" % (clean(nm), item, qty * n, qty * n, src))
+            if raw and VENDOR.search(raw) and not re.search(r"\balso\b", raw, re.I):
+                lines.append("B %s|L|%d %d|COUNT|%d|%s" % (clean(nm), item, qty * n, qty * n, "N|%s|" % src if src else ""))
         if not r.reagents:
             missing += 1
             notes.append("The client tables list no fixed reagents for this recipe; open the recipe in game to see them.")

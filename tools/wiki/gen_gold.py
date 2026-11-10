@@ -482,8 +482,13 @@ class World:
         lv = self.levels.get(self.fl, name)[0]
         if lv:
             band = lv
-        elif mid in self.guide_band:
-            band = self.guide_band[mid]
+        else:
+            # a zone Midnight reworked (Eversong Woods) keeps its old range on its "(Burning Crusade)" page, not on Template:Level
+            m = re.search(r"previous zone level:\s*(\d+)\s*-\s*(\d+)", self.levels.page(f"{name} (Burning Crusade)") or "", re.I) if self.fl != "retail" else None
+            if m:
+                band = (int(m.group(1)), int(m.group(2)))
+            elif mid in self.guide_band:
+                band = self.guide_band[mid]
         if band is None:
             return None
         lo, hi = band
@@ -686,6 +691,7 @@ def gather_guides(world, fl, kind, node_zones, node_skill, node_exp, beast_zones
             stats["gather_too_few_points"] += 1
             continue
         low = 1
+        unknown = []
         if kind == "Skinning":
             what = ", ".join(n for n in nodes[:5])
             skill_note = "Tougher beasts need more Skinning; the corpse tooltip shows whether you can skin it."
@@ -697,12 +703,19 @@ def gather_guides(world, fl, kind, node_zones, node_skill, node_exp, beast_zones
                 # the lowest node a character can use here; a node with no number on its page takes its expansion's
                 # lower bound, and the guide says so
                 known = [node_skill.get(n) for n in nodes if node_skill.get(n) is not None]
-                floors = [SKILL_FLOOR.get(node_exp.get(n, 1), 1) for n in nodes if node_skill.get(n) is None]
+                unknown = [n for n in nodes if node_skill.get(n) is None]
+                floors = [SKILL_FLOOR.get(node_exp.get(n, 1), 1) for n in unknown]
                 vals = known + floors
                 low = min(vals) if vals else 1
                 high = max(vals) if len(vals) > 1 else None
+                if unknown:
+                    # the wiki gives no number for these on this client: an expansion floor is a lower bound, not a fact to state
+                    high = None
             what = ", ".join(sorted(set(nodes), key=lambda n: (node_skill.get(n) or 0))[:6])
-            skill_note = f"Needs {kind} {low}" + (f"; the higher-skill nodes here want {high}" if high and high != low else "") + "."
+            if fl != "retail" and unknown:
+                skill_note = f"The wiki gives no skill for some of these, so check each node's tooltip for what your {kind} can gather."
+            else:
+                skill_note = f"Needs {kind} {low}" + (f"; the higher-skill nodes here want {high}" if high and high != low else "") + "."
             req = f"{kind};{low}"
         fac = world.zone_faction(mid)
         name = f"{zone_name(world, mid)} {kind}{f' {low}+' if low > 1 else ''} circuit (coarse)"
@@ -729,6 +742,9 @@ MOB_YIELD = {"Beast": "Skin them if you can and sell the leather; the meat and o
              "Humanoid": "They drop cloth and coin; check every corpse, and keep the cloth for the auction house."}
 
 
+RE_PROPER_NAME = re.compile(r"[A-Z][\w'-]+ the [A-Z][\w'-]+")  # "Vorsha the Lasher": one named creature, usually a quest spawn, not a farmable population
+
+
 def mob_guides(world, fl, stats):
     """clusters of real mob locations, one circuit per zone and creature type, for the zone's level band"""
     per = collections.defaultdict(list)
@@ -743,7 +759,7 @@ def mob_guides(world, fl, stats):
         zlo, zhi = band
         for mob, pts in mobs.items():
             facts = world.box.get(mob)
-            if not facts or not is_killable(facts) or not on_client(facts, fl):
+            if not facts or not is_killable(facts) or not on_client(facts, fl) or RE_PROPER_NAME.fullmatch(mob):
                 continue
             kind = creature_kind(facts)
             if not kind:
@@ -784,6 +800,9 @@ def mob_guides(world, fl, stats):
     return out
 
 
+FISH_SKILL_CAP = {"era": 300, "forever": 300, "tbc": 375, "mop": 600}   # the client's Fishing rank cap; wiki 'Fishing', rank table
+
+
 def fishing_guides(world, fl, rows, stats):
     out = []
     seen = set()
@@ -798,6 +817,11 @@ def fishing_guides(world, fl, rows, stats):
             continue
         lo, hi = band
         req_skill = None if fl == "retail" or not skill else skill
+        # the wiki's 100% catch skill can sit above what this client's skill can reach: never list a guide as needing the impossible
+        skill_cap = FISH_SKILL_CAP.get(fl)
+        over_cap = bool(req_skill and skill_cap and req_skill > skill_cap)
+        if over_cap:
+            req_skill = skill_cap
         fishes = list(dict.fromkeys(fish))[:8]
         zname = zone_name(world, mid)
         name = f"Fishing: {zname}" + (f", {loc}" if loc and len(loc) <= 32 else "")
@@ -806,7 +830,8 @@ def fishing_guides(world, fl, rows, stats):
         seen.add(name)
         fac = world.zone_faction(mid)
         where = f"Fish at {loc}" if loc else "Fish any open water or pool in the zone"
-        skill_text = f"Skill {req_skill} or better keeps the catch from being mostly junk here." if req_skill else "Any fishing skill works; pools are the best casts."
+        skill_text = (f"The wiki's 100% catch skill here is {skill}, above this client's cap of {skill_cap}: cast with a lure and expect some junk." if over_cap else
+                      f"Skill {req_skill} or better keeps the catch from being mostly junk here." if req_skill else "Any fishing skill works; pools are the best casts.")
         lines = [
             f"R Travel to {zname}|Z|{ztag(world, mid)}|N|{'Bring a fishing pole. ' if lo < 30 else ''}{skill_text}|",
             f"N {where}|Z|{ztag(world, mid)}|N|Likely catches: {', '.join(fishes)}. Fish pools when you see them; they rarely give junk.|",
@@ -834,6 +859,12 @@ def money_copper(args):
     return nums[0] * 10000 + nums[1] * 100 + nums[2]
 
 
+RE_EVENT_PAGE = re.compile(r"\{\{\s*WorldEvent/\s*(?:Love is in the Air|Lunar Festival|Noblegarden|Children's Week|Midsummer|Brewfest|Hallow's End|"
+                           r"Pilgrim's Bounty|Feast of Winter Veil|Harvest Festival|Day of the Dead|Pirates|Darkmoon)|\{\{\s*level\s*\|\s*holiday", re.I)
+RE_EVENT_CATEGORY = re.compile(r"love is in the air|lunar festival|noblegarden|children's week|midsummer|brewfest|hallow's end|"
+                               r"pilgrim's bounty|feast of winter veil|winter veil|harvest festival|day of the dead|pirates' day|darkmoon", re.I)
+
+
 def daily_guides(world, fl, stats):
     db = sqlite3.connect(f"file:{WIKIDB}?mode=ro", uri=True)
     raw = sqlite3.connect(f"file:{RAW}?mode=ro", uri=True)
@@ -851,6 +882,9 @@ def daily_guides(world, fl, stats):
             continue
         r = raw.execute("select wikitext from pages where title=? limit 1", (page,)).fetchone()
         w = r[0] if r and r[0] else ""
+        if RE_EVENT_PAGE.search(w) or RE_EVENT_CATEGORY.search(category or ""):     # a seasonal quest is not a daily you can run all year
+            stats["daily_skip_event"] += 1
+            continue
         m = RE_MONEY.search(w)
         if not m:
             stats["daily_no_money"] += 1
@@ -875,6 +909,15 @@ def daily_guides(world, fl, stats):
         mz = re.match(r"(\d+)", a_tags.get("Z", ""))
         amid = int(mz.group(1)) if mz else None
         hubzone = amid
+        mi = world.ms.maps.get(amid) if amid else None
+        if mi and mi.get("type") == 4 and zone:
+            # the point is an instance map: the page's boss/encounter location, not where the quest is given (Sun Tenderheart)
+            qz = world.ms.resolve(zone)
+            if qz and qz != amid and qz in world.ms.maps and world.ms.maps[qz].get("type") != 4:
+                hubzone = qz
+                a_tags = {k: v for k, v in a_tags.items() if k != "M"}
+                a_tags["Z"] = ztag(world, qz)
+                stats["daily_instance_point_dropped"] += 1
         if a_q:
             # the point came from another project's data; only the wiki's own zone name is usable
             hubzone = world.ms.resolve(zone) if zone else None
@@ -1074,8 +1117,17 @@ def method_bands(cap):
     return bands
 
 
-def step_ah(altstr, title="Go to the Auction House", note=""):
-    return f"R {title}|ALT|{altstr}|N|{note or 'Any auctioneer works; all the Auction Houses on a realm share the same listings.'}|"
+def ah_listing_note(fl, short=False):
+    """wiki 'Auction House': a realm's Houses are connected today; earlier versions had separate Alliance, Horde and Neutral Houses."""
+    if fl == "retail":
+        return "Pick the closest one; all of a realm's Auction Houses share listings." if short else \
+            "Any auctioneer works; all the Auction Houses on a realm share the same listings."
+    return "Pick the closest one in your faction's cities; those share listings, but the neutral Auction Houses are a separate market." if short else \
+        "Any auctioneer in your faction's cities works; those Auction Houses share listings, but the neutral ones (Booty Bay, Gadgetzan, Everlook) are a separate market."
+
+
+def step_ah(altstr, fl, title="Go to the Auction House", note=""):
+    return f"R {title}|ALT|{altstr}|N|{note or ah_listing_note(fl)}|"
 
 
 def step_bank(altstr, note):
@@ -1105,7 +1157,7 @@ def methods(world, fl, faction, ah, bank, vendor, stats):
         return f"N {title}|N|{note}|"
 
     bands = method_bands(world.cap)
-    AH = step_ah(ah_alt) if ah_alt else None
+    AH = step_ah(ah_alt, fl) if ah_alt else None
     VENDOR = step_vendor(v_alt, "Grey items have no other use; dump them on any vendor before your bags overflow.") if v_alt else None
     BANK = step_bank(bank_alt, "Stow profession materials you are saving and anything you want to sell later. Keep your bags empty for loot.") if bank_alt else None
 
@@ -1173,14 +1225,14 @@ def methods(world, fl, faction, ah, bank, vendor, stats):
     # any-level guides
     if ah_alt:
         add(1, world.cap, "Auction House Basics", [
-            step_ah(ah_alt, "Find an auctioneer", "Pick the closest one; all of a realm's Auction Houses share listings."),
+            step_ah(ah_alt, fl, "Find an auctioneer", ah_listing_note(fl, short=True)),
             n("Search before you post", "Look up what you are selling and note the lowest buyouts. Price just under the cheapest listing, or match it if it is already fair."),
             n("Always set a buyout", "Many buyers only look at buyout prices. An auction without one is easy to skip."),
             n("Mind the deposit", "A listing costs a small deposit, lost if the auction fails. Do not spam items that will not sell."),
             n("Never gamble your rent", "Do not spend your training or repair money on speculation. Keep a reserve."),
         ])
         add(1, world.cap, "Flipping and patience", [
-            step_ah(ah_alt, "Check the market"),
+            step_ah(ah_alt, fl, "Check the market"),
             n("Learn a small niche", "Pick one kind of item (a herb, a cloth type, a recipe) and watch it for a few days before you buy anything to resell."),
             n("Buy under the usual price", "Only buy when you are confident it will resell higher after the fee. Your realm's normal price is the only one that matters."),
             n("Cut your losses", "If something does not sell after a few tries, vendor or use it. Do not relist forever."),
