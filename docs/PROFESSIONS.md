@@ -67,6 +67,7 @@ current skill and below its grey threshold.
   used, because a recipe is always learned at or below its yellow. That can only delay a recipe, never use it too early.
 * On era, tbc and forever, a recipe the wiki calls trainer-taught today becomes a buy step when this client has a recipe item for it.
   The wiki describes retail, and most of those recipes moved to trainers in later patches.
+* The wiki writes expansion recipes on the retail per-expansion scale, so on the one-track clients a learn value more than 120 below the client's yellow is discarded and yellow is used.
 * A band the recipes cannot reach is cut short: `skillMax` and the guide name show where it really stops, and the gap is counted.
 
 ## Step grammar actually emitted
@@ -95,7 +96,7 @@ current skill and below its grey threshold.
 |---|---:|---:|---:|---:|---:|
 | era | 24 | 173 | 96 | 48 | 14 |
 | tbc | 30 | 235 | 158 | 66 | 16 |
-| mop | 64 | 306 | 1128 | 100 | 14 |
+| mop | 64 | 314 | 1128 | 104 | 12 |
 | retail | 78 | 394 | 501 | 112 | 90 |
 | forever | 24 | 203 | 96 | 52 | 12 |
 
@@ -111,4 +112,5 @@ current skill and below its grey threshold.
 * Skill-up chances and craft counts are estimates. Reagent amounts follow from them.
 * `Fishing locations` has no rows after Cataclysm. Retail tiers from Pandaria on point at the expansion's continent map, not a specific lake.
 * `Cooking trainers` is marked out of date on the wiki and lists no trainers for most tiers after Pandaria. Those guides say so and carry no ALT.
+* "Way of" Pandaria recipes sit in their own skill lines and are not planned; mop Zen Master Cooking therefore leans on the expensive banquet recipes.
 * Forever's own higher rank spells (1240945 and siblings) are not used; Forever guides stop at 300 like era.
