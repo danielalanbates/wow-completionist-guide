@@ -29,6 +29,14 @@ local function harness(flavor)
     return NS, load
 end
 
+-- map resolution regressions (tools/wiki/wikimaps.py, tools/maps_*.lua): runs on a fresh clone too.  A subzone map the
+-- client lacks lands on its parent zone (Valley of Trials used to land in The Barrens), a zone only one client has is
+-- read on that client's maps (Zephras Isle), a subzone row contradicted by its parent-zone row is seen as such (Gornek)
+do
+    local rc = os.execute("python3 tools/wiki/wikimaps.py")
+    check(rc == 0 or rc == true, "tools/wiki/wikimaps.py regression checks failed")
+end
+
 local ran = 0
 for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
     local path = "Guides/Imported_Wiki_" .. flavor .. ".lua"
@@ -84,6 +92,40 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
             if seen.C then check(seen.C.target == "Kobold Vermin", "era quest 7 C target: " .. tostring(seen.C.target)) end
             print("era    quest 7 Kobold Camp Cleanup: A/C/T with coords OK")
         end
+        -- Gornek's quests, in the Valley of Trials: on the clients without that map they belong on Durotar near 43,68
+        -- (the point used to land in The Barrens); with the map, on it, at the spot his Durotar row names, never at his
+        -- later location in Spires of Arak
+        if flavor == "era" or flavor == "tbc" or flavor == "forever" then
+            local ok = 0
+            for _, st in ipairs(byQ[787] or {}) do
+                if st.action == "T" and st.coords then
+                    ok = ok + 1
+                    local c = st.coords[1]
+                    check(st.zone == 1411, ("%s quest 787 turn-in on map %s, want Durotar 1411"):format(flavor, tostring(st.zone)))
+                    check(math.abs(c.x * 100 - 43.2) < 2 and math.abs(c.y * 100 - 68.2) < 2,
+                        ("%s quest 787 turn-in at %.1f,%.1f, want near 43.2,68.2"):format(flavor, c.x * 100, c.y * 100))
+                end
+            end
+            check(ok >= 1, flavor .. ": quest 787 has no located turn-in")
+            for _, q in ipairs({ 787, 804, 3065, 3082, 3083, 3084, 3085, 3086, 3087, 3089 }) do
+                for _, st in ipairs(byQ[q] or {}) do
+                    check(st.zone ~= 1413, ("%s starter quest %d %s is on The Barrens"):format(flavor, q, st.action))
+                end
+            end
+        end
+        if flavor == "retail" then
+            local ok = 0
+            for _, st in ipairs(byQ[25172] or {}) do
+                if st.coords then
+                    ok = ok + 1
+                    local c = st.coords[1]
+                    check(st.zone == 461, ("retail quest 25172 %s on map %s, want Valley of Trials 461"):format(st.action, tostring(st.zone)))
+                    check(math.abs(c.x * 100 - 44.8) < 1 and math.abs(c.y * 100 - 66.2) < 1,
+                        ("retail quest 25172 %s at %.1f,%.1f, want near 44.8,66.2"):format(st.action, c.x * 100, c.y * 100))
+                end
+            end
+            check(ok >= 1, "retail: quest 25172 has no located step")
+        end
         if flavor == "forever" then
             local zeph = 0
             for _, id in ipairs(NS.Guide.list) do
@@ -92,6 +134,21 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
                 check(not id:find("^wiki:forever:") or g.forever == true, "forever guide " .. id .. " lacks forever=true")
             end
             check(zeph > 0, "forever: no Zephras Isle guide")
+            -- Zephras Isle's points come from the wiki now: count steps there not tagged as coming from another source
+            local onIsle, fromWiki = 0, 0
+            for _, id in ipairs(NS.Guide.list) do
+                local g = NS.Guide.registry[id]
+                if id:find("^wiki:forever:") then
+                    for ln in g.text:gmatch("[^\n]+") do
+                        if ln:find("|Z|2521", 1, true) or ln:find("|Z|2665", 1, true) then
+                            onIsle = onIsle + 1
+                            if ln:find("|M|", 1, true) and not ln:find("(location:", 1, true) then fromWiki = fromWiki + 1 end
+                        end
+                    end
+                end
+            end
+            check(fromWiki >= 50, ("forever: only %d of %d Zephras Isle steps have a wiki coordinate"):format(fromWiki, onIsle))
+            print(("forever Zephras Isle: %d steps, %d with a wiki coordinate"):format(onIsle, fromWiki))
             -- quest 697 Malin's Request turn-in: Era map 39.8,81.5 on Stormwind City (1453) = the same spot on Forever's
             -- larger Stormwind map (Data/MapFix_forever.lua); the generator converts it (fallback point)
             local t

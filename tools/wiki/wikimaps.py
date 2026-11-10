@@ -269,9 +269,9 @@ class Atlas:
 
     def subzone_conflict(self, sub, parent, page_classic=False, tolerance=60.0):
         """sub, parent = (zone, x, y) rows from one wiki page.  True when `sub` is on a subzone map of `parent`'s zone
-        and the two rows are more than `tolerance` yards apart: the same NPC cannot be in both, and the subzone row is
-        the one read off a floor or cave map (Gornek: 'Valley of Trials 63.4, 83.0' inside the Den against 'Durotar
-        43.2, 68.2'; carried through world coordinates the first is 300 yd from the second)."""
+        and the two rows are more than `tolerance` yards apart: one of them is wrong, and the zone map is the one the
+        routing uses, so the subzone row goes (Gornek: 'Valley of Trials 63.4, 83.0' is about 290 yd from his 'Durotar
+        43.2, 68.2' in world coordinates, while Galgar's two rows on the same two maps agree within a few yards)."""
         src = self.source_set(sub[0], page_classic)
         if src != self.source_set(parent[0], page_classic):
             return False
@@ -283,6 +283,17 @@ class Atlas:
         if not wa or not wb or wa[0] != wb[0]:
             return False
         return ((wa[1] - wb[1]) ** 2 + (wa[2] - wb[2]) ** 2) ** 0.5 > tolerance
+
+    def parent_point_on_sub(self, sub_zone, parent, page_classic=False):
+        """the parent-zone row (zone, x, y) expressed in percent on the subzone map, or None when it lies off that map"""
+        S = self.sets[self.source_set(sub_zone, page_classic)]
+        a, b = S.resolve(sub_zone), S.resolve(parent[0])
+        wb = S.to_world(b, parent[1], parent[2]) if b is not None else None
+        m = S.maps.get(a)
+        if not wb or not m or not m["w"] or not m["h"]:
+            return None
+        x, y = (m["leftY"] - wb[2]) / m["w"] * 100.0, (m["topX"] - wb[1]) / m["h"] * 100.0
+        return (round(x, 1), round(y, 1)) if 0.0 <= x <= 100.0 and 0.0 <= y <= 100.0 else None
 
 
 def _selfcheck():
@@ -315,6 +326,9 @@ def _selfcheck():
     check(A.subzone_conflict(("Valley of Trials", 63.4, 83.0), ("Durotar", 43.2, 68.2)) is True, "Gornek conflict not seen")
     check(A.subzone_conflict(("Valley of Trials", 43.0, 62.6), ("Durotar", 42.8, 67.2)) is False, "Galgar is not a conflict")
     check(A.subzone_conflict(("Durotar", 43.2, 68.2), ("Valley of Trials", 63.4, 83.0)) is False, "a parent is never the conflict")
+    p = A.parent_point_on_sub("Valley of Trials", ("Durotar", 43.2, 68.2))
+    check(p is not None and abs(p[0] - 44.8) < 0.2 and abs(p[1] - 66.2) < 0.2, f"Gornek's Durotar row on the Valley of Trials map {p}")
+    check(A.parent_point_on_sub("Valley of Trials", ("Durotar", 80.0, 20.0)) is None, "a point off the subzone map must give None")
     print("wikimaps regression checks passed")
 
 

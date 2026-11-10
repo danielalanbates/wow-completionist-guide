@@ -17,7 +17,12 @@ Universe (the "total" column), per flavor, from wago.tools DB2 exports cached in
                                                  list intersected with retail QuestV2)
 "covered" = the id appears in a guide the flavor's client loads.  "located" = at least one of those steps
 has map coordinates, i.e. the router can actually take you there.  Both are reported because an id in a
-guide with no location is a checklist line, not a route.
+guide with no location is a checklist line, not a route.  Missions are started from a table, not a place, so their
+located column is NULL (non-geographic), never a failure.  Statistics are not in the achievement universe at all.
+
+Also folds docs/vplayer_<fl>_noroute.tsv into table `noroute_class`: a step the router could not reach is
+"battleground" (a queue, no travel edge exists by design), "instance" (an instance map: the guide walks you in, or the
+door is not in Data/Imported_Entrances), or "routable" (two open-world maps: a real gap in the travel graph).
 
 Writes tables `coverage` (flavor, category, label, total, covered, missing, located) and `coverage_missing`
 (flavor, category, id) into docs/verification.sqlite; `coverage_missing` holds the latest run only.
@@ -104,6 +109,35 @@ def universes(fl):
     return u
 
 
+NON_GEOGRAPHIC = {"mission"}
+BATTLEGROUNDS = {"alteracvalley", "warsonggulch", "arathibasin", "eyeofthestorm", "strandoftheancients", "isleofconquest",
+                 "twinpeaks", "thebattleforgilneas", "templeofkotmogu", "silvershardmines", "deepwindgorge"}
+
+
+def classify_noroute(con, verbose=True):
+    sys.path.insert(0, str(ROOT / "tools" / "wiki"))
+    import wikimaps
+    con.execute("create table if not exists noroute_class (flavor text, kind text, steps int, measured text, primary key (flavor, kind))")
+    for fl in FLAVORS:
+        p = ROOT / "docs" / f"vplayer_{fl}_noroute.tsv"
+        if not p.exists():
+            continue
+        maps = wikimaps.load_maps(fl)
+        counts = collections.Counter()
+        for r in csv.DictReader(p.open(encoding="utf-8"), delimiter="\t"):
+            ends = [maps.get(int(v)) for v in (r["from_map"], r["to_map"]) if v.isdigit()]
+            if any(m and re.sub(r"[^0-9a-z]", "", m["name"].lower()) in BATTLEGROUNDS for m in ends):
+                counts["battleground"] += 1
+            elif any(m and m["type"] in (4, 5, 6) for m in ends):
+                counts["instance"] += 1
+            else:
+                counts["routable"] += 1
+        con.execute("delete from noroute_class where flavor = ?", (fl,))
+        con.executemany("insert into noroute_class values (?,?,?,datetime('now'))", [(fl, k, v) for k, v in counts.items()])
+        if verbose:
+            print(f"no_route {fl:7} " + "  ".join(f"{k} {counts[k]}" for k in ("battleground", "instance", "routable")))
+
+
 def main():
     label = "current"
     gdir = ROOT / "CompletionRoute" / "Guides"
@@ -135,12 +169,14 @@ def main():
                 cov = [i for i in uni if i in have[key]]
                 loc = [i for i in cov if have[key][i]]
                 miss = sorted(uni - set(cov))
+            geo = cat not in NON_GEOGRAPHIC
             con.execute("insert or replace into coverage (flavor, category, label, total, covered, missing, located, measured) "
                         "values (?,?,?,?,?,?,?,datetime('now'))",
-                        (fl, cat, label, total, len(cov), total - len(cov), len(loc)))
+                        (fl, cat, label, total, len(cov), total - len(cov), len(loc) if geo else None))
             con.executemany("insert into coverage_missing values (?,?,?)", [(fl, cat, i) for i in miss])
             print(f"{label:7} {fl:6} {cat:11} total {total:6}  covered {len(cov):6} ({100*len(cov)/max(total,1):5.1f}%)"
-                  f"  located {len(loc):6}")
+                  f"  located {len(loc) if geo else 'non-geographic':>6}")
+    classify_noroute(con)
     con.commit()
 
 
