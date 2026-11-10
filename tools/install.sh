@@ -40,7 +40,7 @@ wowpro_of() { case "$1" in forever) echo era;; *) echo "$1";; esac; }
 # (Daniel, 2026-11-07). Anything else in Guides/ or Adapters/ stops the install.
 for f in "$SRC"/Guides/Imported_*; do
   case "$(basename "$f")" in
-    Imported_Wiki_*|Imported_Spine_*|Imported_Quests_*|Imported_WoWPro_*|Imported_Achievements_*|Imported_Storylines_*|Imported_Missions_*|Imported_Entrances_*) ;;
+    Imported_Wiki_*|Imported_Spine_*|Imported_Professions_*|Imported_Gold_*|Imported_Quests_*|Imported_WoWPro_*|Imported_Achievements_*|Imported_Storylines_*|Imported_Missions_*|Imported_Entrances_*) ;;
     *) echo "install.sh: unknown generated guide $f is not on the allowlist - delete it first" >&2; exit 1;;
   esac
 done
@@ -63,7 +63,7 @@ for fl in "${@:-_anniversary_}"; do
   for other in era tbc mop retail forever; do
     [ "$other" = "$MINE" ] && continue
     [ "$other" != "$(wowpro_of "$MINE")" ] && EXCL+=(--exclude "Guides/Imported_WoWPro_$other.lua")
-    EXCL+=(--exclude "Guides/Imported_Wiki_$other.lua" --exclude "Guides/Imported_Spine_$other.lua" --exclude "Guides/Imported_Quests_${other}_gaps.lua"
+    EXCL+=(--exclude "Guides/Imported_Wiki_$other.lua" --exclude "Guides/Imported_Spine_$other.lua" --exclude "Guides/Imported_Professions_$other.lua" --exclude "Guides/Imported_Gold_$other.lua" --exclude "Guides/Imported_Quests_${other}_gaps.lua"
            --exclude "Guides/Imported_Achievements_$other.lua" --exclude "Guides/Imported_Storylines_$other.lua"
            --exclude "Guides/Imported_Missions_$other.lua" --exclude "Data/RouteOrder_$other.lua")
   done
