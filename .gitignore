@@ -56,3 +56,8 @@ docs/verification.sql
 
 # baked route orders (tools/optimize_routes.py from tools/cost_matrix.lua; regenerate, built on the generated guides)
 CompletionRoute/Data/RouteOrder_*.lua
+
+# profession/gold generator inputs (Blizzard client tables and wiki pages, regenerate: tools/wiki/db2_fetch.py, tools/wiki/wiki_fetch.py)
+tools/db2/*/*.csv
+tools/db2/*/*.csv.part
+tools/db2/*/*.missing
