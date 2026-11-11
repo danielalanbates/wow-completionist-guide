@@ -86,7 +86,8 @@ function NS.RunRouteSweep(zoneFilter, resume)
             local g = G.registry[id]
             local steps = G.Steps(id) or {}
             local err
-            NS.db.char.done[id], NS.db.char.skipped[id] = {}, {}
+            -- a fresh start for this guide inside the scratch store (never the character's real marks)
+            if NS.Account and NS.Account.me and NS.Account.scratch then NS.Account.ClearMarks(id) end
             local okL, e = pcall(P.Load, id)
             if not okL then err = "load: " .. tostring(e) res.loadFail = res.loadFail + 1
             else

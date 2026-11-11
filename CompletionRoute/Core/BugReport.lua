@@ -261,7 +261,7 @@ local function secGuide(r)
     r.guide = { id = g.id, name = g.name, type = g.type, source = g.source, zone = g.zone, faction = g.faction,
                 minlevel = num(g.minlevel), maxlevel = num(g.maxlevel), next = g.next, loop = g.loop and true or nil,
                 baked = g.baked and true or false, steps = #(P.steps or {}), authored = #authored,
-                sum = G.RouteChecksum(authored), parseErrors = g.parseErrors }
+                sum = G.RouteChecksum(authored), keySum = G.GuideSum and G.GuideSum(g.id) or nil, parseErrors = g.parseErrors }
 end
 local function secStep(r)
     local P, G = NS.Progress, NS.Guide
@@ -277,7 +277,7 @@ local function secStep(r)
             coords[i] = { num(c.x * 100, 2), num(c.y * 100, 2) }
         end
     end
-    r.step = { index = s.index, pos = pos, action = s.action, title = trunc(G.StepTitle and G.StepTitle(s) or s.title, 200),
+    r.step = { index = s.index, key = s.key, pos = pos, action = s.action, title = trunc(G.StepTitle and G.StepTitle(s) or s.title, 200),
                line = s.line, raw = (not s.access) and rawLine(P.guide, s.line) or nil, qid = qids(s), qo = s.qo,
                zone = s.zone, zoneName = s.zoneName, zoneInherited = s.zoneInherited or nil, coords = coords,
                locSource = s._locSource, access = s.access and true or nil, accessTitle = s.accessTitle,
@@ -299,7 +299,7 @@ local function secUpcoming(r)
             local ok, v = pcall(SO.KeptCost, prev, s)
             secs = ok and num(v, 1) or nil
         end
-        list[i] = { index = s.index, action = s.action, title = trunc(s.title, 120), qid = qids(s), zone = s.zone,
+        list[i] = { index = s.index, key = s.key, action = s.action, title = trunc(s.title, 120), qid = qids(s), zone = s.zone,
                     x = x, y = y, locSource = s._locSource, secs = secs }
         prev = s
     end
@@ -317,13 +317,14 @@ end
 local function secProgress(r)
     local P = NS.Progress
     if not (P.guide and P.steps) then return end
+    -- marks are stored by step key (Core/Guide.lua); the report lists them as author indices of the guide it names
+    -- (guide.sum / guide.keySum say which version), which keeps a long guide's lists short
     local done, skipped, reopened, closed = {}, {}, {}, {}
-    local sk = (NS.Account and NS.Account.me and NS.Account.Skipped(P.guide.id)) or (NS.db.char.skipped[P.guide.id] or {})
-    local ro = (NS.db.char.reopened and NS.db.char.reopened[P.guide.id]) or {}
+    local _, sk, ro = P.MarkSets()
     for _, s in ipairs(P.steps) do
-        if sk[s.index] then skipped[#skipped + 1] = s.index closed[s] = true
+        if s.key and sk[s.key] then skipped[#skipped + 1] = s.index closed[s] = true
         elseif P.IsDone(s) then done[#done + 1] = s.index closed[s] = true end
-        if ro[s.index] then reopened[#reopened + 1] = s.index end
+        if s.key and ro[s.key] then reopened[#reopened + 1] = s.index end
     end
     -- open: the steps the guide would show now (not done, and Conditions.StepApplies says yes).  The replay compares
     -- its own open set with this one, so a gate the report did not carry shows up as a difference, not as "order".

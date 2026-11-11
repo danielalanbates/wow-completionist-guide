@@ -173,7 +173,7 @@ function GF.Update()
     titleText:SetText(("|cff3ec6ff%s|r  |cff888888%s %d of %d|r%s"):format(P.guide.name or P.guide.id, label, math.min(pos, total), total,
         (NS.Replan and NS.Replan.running) and "  |cff6ac9ffre-planning...|r" or ""))
     end
-    bBack:SetEnabled(done > 0 or next(NS.db.char.skipped[P.guide.id] or {}) ~= nil)
+    bBack:SetEnabled(done > 0 or next((select(2, P.MarkSets()))) ~= nil)
     bFwd:SetEnabled(s ~= nil)
     if not s then
         card:Hide()

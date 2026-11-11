@@ -12,25 +12,63 @@ P.order = nil        -- array of step indices in display order (optimizer output
 P.current = nil      -- current step table
 local dirty = true
 
+-- Marks are sets keyed by the step's stable key, step.key (Core/Guide.lua "Stable step keys"; stored by
+-- Core/Account.lua, which also migrates the author-index tables of earlier releases).  Without the account store (a
+-- harness that does not load it) they live in the character file under the same names.
+local function localSet(field, id)
+    local c = NS.db.char
+    c[field] = c[field] or {}
+    c[field][id] = c[field][id] or {}
+    return c[field][id]
+end
 local function charDone()
     if NS.Account and NS.Account.me then return NS.Account.Done(P.guide.id) end
-    local c = NS.db.char
-    c.done[P.guide.id] = c.done[P.guide.id] or {}
-    return c.done[P.guide.id]
+    return localSet("stepDone", P.guide.id)
 end
 -- Steps the player manually stepped BACK to. Auto-completion must not immediately re-tick them,
 -- otherwise the Back arrow looks like it does nothing (the quest is still complete in the game).
 local function charReopened()
-    local c = NS.db.char
-    c.reopened = c.reopened or {}
-    c.reopened[P.guide.id] = c.reopened[P.guide.id] or {}
-    return c.reopened[P.guide.id]
+    if NS.Account and NS.Account.Reopened then return NS.Account.Reopened(P.guide.id) end
+    return localSet("stepReopened", P.guide.id)
 end
 local function charSkipped()
     if NS.Account and NS.Account.me then return NS.Account.Skipped(P.guide.id) end
-    local c = NS.db.char
-    c.skipped[P.guide.id] = c.skipped[P.guide.id] or {}
-    return c.skipped[P.guide.id]
+    return localSet("stepSkipped", P.guide.id)
+end
+-- The loaded guide's mark sets (read them, or write a step's key into them): done, skipped, reopened
+function P.MarkSets()
+    if not P.guide then return {}, {}, {} end
+    return charDone(), charSkipped(), charReopened()
+end
+-- /cr marks: how the loaded guide's progress is stored, in words (for a beta report after a data update)
+function P.MarksReport()
+    if not (P.guide and P.steps) then return { "No guide loaded." } end
+    local d, s, r = P.MarkSets()
+    local have = {}
+    for _, st in ipairs(P.baseSteps or P.steps) do if st.key then have[st.key] = true end end
+    local function split(set)
+        local n, gone = 0, 0
+        for k in pairs(set) do if have[k] then n = n + 1 else gone = gone + 1 end end
+        return n, gone
+    end
+    local nd, gd = split(d)
+    local ns, gs = split(s)
+    local nr = split(r)
+    local out = { ("%s: %d done, %d skipped, %d stepped back to, stored by step key (version %d)."):format(P.guide.name or P.guide.id, nd, ns, nr,
+        G.KEY_VERSION) }
+    if gd + gs > 0 then
+        out[#out + 1] = ("%d mark%s to steps this version of the guide no longer has; %s nowhere."):format(gd + gs,
+            gd + gs == 1 and " belongs" or "s belong", gd + gs == 1 and "it counts" or "they count")
+    end
+    local meta = NS.Account and NS.Account.me and NS.Account.me.stepMeta and NS.Account.me.stepMeta[P.guide.id]
+    if meta and (meta.mig or 0) > 0 then
+        out[#out + 1] = ("Carried over from the previous release (by step position): %d mark%s%s."):format(meta.mig, meta.mig == 1 and "" or "s",
+            (meta.lost or 0) > 0 and (", %d without a matching step"):format(meta.lost) or "")
+    elseif meta then
+        out[#out + 1] = "No marks from the previous release for this guide."
+    end
+    out[#out + 1] = "Guide version (step key checksum): " .. tostring(G.GuideSum(P.guide.id))
+    return out
 end
 
 function P.Load(id)
@@ -51,7 +89,7 @@ function P.Load(id)
     P.altInst = nil
     P.ResolveAlts()
     -- Behind a locked access chain (Siren Isle, Argus, Zereth Mortis...)? Put the unlock steps first, the way
-    -- comprehensive zone guides open with the zone intro. Negative indices keep the guide's own progress keys intact.
+    -- comprehensive zone guides open with the zone intro. Negative indices and "@chain/" step keys keep the guide's own apart.
     local prefix = NS.Access and NS.Access.PrefixFor(P.steps, id)
     if prefix and #prefix > 0 then
         local merged = {}
@@ -60,8 +98,10 @@ function P.Load(id)
         P.steps = merged
         NS:Print(("Access: %d steps to unlock %s first"):format(#prefix, prefix[1].accessTitle or "the area"))
     end
+    -- progress of earlier releases is keyed by author index: carry it over to step keys, once per guide (Core/Account.lua)
+    if NS.Account and NS.Account.me and NS.Account.Migrate then NS.Account.Migrate(id, P.steps, true) end
     -- Quests this character dropped (/cr skip, Core/Skip.lua) leave every guide: show the guide rebuilt without them.
-    -- P.baseSteps keeps the guide's own list; progress stays keyed by author index either way.
+    -- P.baseSteps keeps the guide's own list; progress stays keyed by step key either way.
     if NS.Replan then NS.Replan.Cancel() end
     P.baseSteps = P.steps
     local cut, key
@@ -150,25 +190,27 @@ function P.VisibleDone()
     if not (P.guide and P.steps) then return 0 end
     local d = charDone()
     local n = 0
-    for _, s in ipairs(P.steps) do if d[s.index] then n = n + 1 end end
+    for _, s in ipairs(P.steps) do if d[s.key] then n = n + 1 end end
     return n
 end
 
 function P.IsDone(step)
-    if charReopened()[step.index] then return false end
-    if charDone()[step.index] or charSkipped()[step.index] then return true end
+    local k = step.key
+    if k == nil then return false end   -- not a parsed guide step
+    if charReopened()[k] then return false end
+    if charDone()[k] or charSkipped()[k] then return true end
     -- opt-in: a step another character already finished counts as done for this one
     if NS.Account and NS.Account.Enabled() and P.guide then
-        if NS.Account.OtherDid(P.guide.id, step.index) then return true end
-        -- quest IDs line up across guides; step indices only line up inside one guide
+        if NS.Account.OtherDid(P.guide.id, k) then return true end
+        -- quest IDs line up across guides; step keys only line up inside one guide
         if step.qid and NS.Account.OtherDidQuest(step.qid) then return true end
     end
     return false
 end
 function P.MarkDone(step, manual)
-    if not step then return end
-    charReopened()[step.index] = nil
-    charDone()[step.index] = true
+    if not (step and step.key) then return end
+    charReopened()[step.key] = nil
+    charDone()[step.key] = true
     if (step.action == "T" or step.action == "t") and step.qid and NS.Account then
         for _, q in ipairs(step.qid) do NS.Account.RecordQuest(q) end
     end
@@ -177,27 +219,29 @@ function P.MarkDone(step, manual)
     NS:Fire("STEP_DONE", step)
     P.Refresh()
 end
-function P.Skip(step) if step then charReopened()[step.index] = nil charSkipped()[step.index] = true dirty = true P.Refresh() end end
+function P.Skip(step) if step and step.key then charReopened()[step.key] = nil charSkipped()[step.key] = true dirty = true P.Refresh() end end
 -- Back one step: reopen the newest done/skipped step that sits BEFORE the current one.  The look-ahead
 -- auto-completer ticks steps up to 40 ahead, so "the highest done index" is often a future step; using it
 -- made Back appear to do nothing.  Reopened steps are pinned (see charReopened) until ticked forward again.
 function P.Undo()
     local d, s = charDone(), charSkipped()
-    -- "before" = earlier in the displayed step list, which is not index order once a baked route order
-    -- (Data/RouteOrder_<flavor>.lua) has permuted the guide; indices only identify the step
+    -- "before" = earlier in the displayed step list, which is not author order once a baked route order
+    -- (Data/RouteOrder_<flavor>.lua) has permuted the guide; keys only identify the step.  A mark whose step is not on
+    -- screen (left out of a guide rebuilt without skipped quests, Core/Skip.lua, or gone from the guide in a data
+    -- update) is never reopened.
     local pos = {}
-    for k, st in ipairs(P.steps or {}) do pos[st.index] = k end
-    local function at(idx) return pos[idx] or idx end
-    -- a step left out of the rebuilt guide (its quest was skipped, Core/Skip.lua) is not on screen: never reopen it
-    local function shown(idx) return pos[idx] ~= nil or not (P.baseSteps and P.baseSteps ~= P.steps) end
-    local limit = P.current and at(P.current.index) or math.huge
-    local best
-    local function consider(idx) if shown(idx) and at(idx) < limit and (not best or at(idx) > at(best)) then best = idx end end
-    for idx in pairs(d) do consider(idx) end
-    for idx in pairs(s) do consider(idx) end
+    for k, st in ipairs(P.steps or {}) do if st.key then pos[st.key] = k end end
+    local limit = P.current and pos[P.current.key] or math.huge
+    local best, bestAt
+    local function consider(key, below)
+        local at = pos[key]
+        if at and (not below or at < limit) and (not bestAt or at > bestAt) then best, bestAt = key, at end
+    end
+    for key in pairs(d) do consider(key, true) end
+    for key in pairs(s) do consider(key, true) end
     if not best then   -- nothing before the current step: fall back to the newest done step anywhere
-        for idx in pairs(d) do if shown(idx) and (not best or at(idx) > at(best)) then best = idx end end
-        for idx in pairs(s) do if shown(idx) and (not best or at(idx) > at(best)) then best = idx end end
+        for key in pairs(d) do consider(key, false) end
+        for key in pairs(s) do consider(key, false) end
     end
     if not best then return end
     charReopened()[best] = true
@@ -205,25 +249,26 @@ function P.Undo()
     -- the live plan does not know the reopened step: back to the baked order, where it is the earliest pending step
     if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
     d[best] = nil s[best] = nil
-    if NS.Account and NS.Account.me and P.guide then
-        local ad, as = NS.Account.Done(P.guide.id), NS.Account.Skipped(P.guide.id)
-        if ad then ad[best] = nil end
-        if as then as[best] = nil end
-    end
     dirty = true
     P.Refresh()
 end
 -- Forward one step by hand (same as the arrow): tick the current step done.
 function P.Forward() if P.current then P.MarkDone(P.current, true) end end
+-- Forget one guide's marks, the old index-keyed tables included (a reset must not come back after a downgrade)
+local function clearMarks(id)
+    if NS.Account and NS.Account.me then NS.Account.ClearMarks(id, true)
+    else
+        local c = NS.db.char
+        for _, f in ipairs({ "stepDone", "stepSkipped", "stepReopened" }) do if c[f] then c[f][id] = nil end end
+        if c.done then c.done[id] = {} end
+        if c.skipped then c.skipped[id] = {} end
+        if c.reopened then c.reopened[id] = {} end
+    end
+end
+P.ClearMarks = clearMarks
 function P.Reset()
     if not P.guide then return end
-    if NS.Account and NS.Account.me then
-        NS.Account.me.done[P.guide.id] = {}
-        NS.Account.me.skipped[P.guide.id] = {}
-    end
-    NS.db.char.done[P.guide.id] = {}
-    NS.db.char.skipped[P.guide.id] = {}
-    if NS.db.char.reopened then NS.db.char.reopened[P.guide.id] = {} end
+    clearMarks(P.guide.id)
     if NS.db.char.parked then NS.db.char.parked[P.guide.id] = nil end
     dirty = true
     P.cursor = nil
@@ -546,8 +591,8 @@ function P.Refresh(force)
             -- per refresh: a circuit loops back on itself, so waypoints inside the radius would otherwise
             -- cascade and swallow the whole lap (leaving the player with no current step at all).
             local skip = (s.action == "G") and (i > 1 or wp > 0)
-            if not reopened[s.index] and not skip and P.CheckStep(s) then
-                charDone()[s.index] = true any = true
+            if not reopened[s.key] and not skip and P.CheckStep(s) then
+                charDone()[s.key] = true any = true
                 if s.action == "G" then wp = wp + 1 end
             end
         end
@@ -638,13 +683,7 @@ function P.NewLap()
     NS.db.char.laps = NS.db.char.laps or {}
     NS.db.char.laps[id] = (NS.db.char.laps[id] or 0) + 1
     if NS.Farm and NS.Farm.OnLapComplete then pcall(NS.Farm.OnLapComplete, P.guide) end
-    if NS.Account and NS.Account.me then
-        NS.Account.me.done[id] = {}
-        NS.Account.me.skipped[id] = {}
-    end
-    NS.db.char.done[id] = {}
-    NS.db.char.skipped[id] = {}
-    if NS.db.char.reopened then NS.db.char.reopened[id] = {} end
+    clearMarks(id)
     dirty = true
     P.cursor = nil
     NS:Fire("LAP_COMPLETE", P.guide, NS.db.char.laps[id])
@@ -672,7 +711,7 @@ function P.StartAtNearest()
     local radius = (P.steps[best].radius) or (NS.db.profile.farm and NS.db.profile.farm.radius) or 40
     if bestd <= radius then best = best % #P.steps + 1 end
     local done = charDone()
-    for i = 1, #P.steps do done[P.steps[i].index] = (i < best) or nil end
+    for i = 1, #P.steps do done[P.steps[i].key] = (i < best) or nil end
     dirty = true
     P.cursor = nil
     P.Refresh()
@@ -703,7 +742,7 @@ end)
 NS:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, _, spellID)
     if unit ~= "player" then return end
     if spellID == NS.HEARTH_SPELL or spellID == NS.ASTRAL_RECALL then
-        for _, s in ipairs(P.Pending(15)) do if s.action == "H" then charDone()[s.index] = true break end end
+        for _, s in ipairs(P.Pending(15)) do if s.action == "H" then charDone()[s.key] = true break end end
         refreshSoon()
     end
 end)
@@ -850,6 +889,8 @@ function Access.ParseSteps(a, guideId)
         s.index = i - #out - 1          -- -k .. -1
         s.guide, s.access, s.accessTitle = guideId, a.key, a.title
     end
+    -- progress keys (Core/Guide.lua "Stable step keys"): the chain's own, so they do not depend on what else is in front
+    NS.Guide.AssignKeys(out, "@" .. tostring(a.key) .. "/")
     return out
 end
 function Access.PrefixFor(steps, guideId)
@@ -860,6 +901,13 @@ function Access.PrefixFor(steps, guideId)
     if not chains or #chains == 0 then return nil end
     local out = {}
     for _, a in ipairs(chains) do for _, st in ipairs(Access.ParseSteps(a, guideId)) do out[#out + 1] = st end end
-    for i, st in ipairs(out) do st.index = i - #out - 1 end   -- renumber the whole prefix -k .. -1
+    local seen = {}
+    for i, st in ipairs(out) do
+        st.index = i - #out - 1     -- renumber the whole prefix -k .. -1
+        -- a chain named twice on one route would repeat its keys: number the repeats
+        local n = (seen[st.key] or 0) + 1
+        seen[st.key] = n
+        if n > 1 then st.key = st.key .. "#r" .. n end
+    end
     return out
 end

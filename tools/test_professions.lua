@@ -325,9 +325,8 @@ for _, id in ipairs(sample) do
                 if Pr.MarkDone then pcall(Pr.MarkDone, s) Pr.Refresh() end
             end
             if Pr.current == before then
-                local done = NS.db.char.done[id] or {}
-                NS.db.char.done[id] = done
-                done[s.index] = true
+                local done = Pr.MarkSets()   -- the guide's done set, by step key
+                done[s.key] = true
                 Pr.cursor = nil
                 Pr.Refresh()
             end

@@ -1,9 +1,12 @@
 -- Cross-game progress sync for CompletionRoute.
 -- WoW keeps SavedVariables per client folder (_retail_/WTF, _classic_/WTF, ...), so a guide finished on retail
 -- is invisible to Classic until something merges the files. This does that: it loads CompletionRouteDB from
--- every flavor, unions the per-character account records (chars[key].done / skipped / quests, newest scalars),
--- and writes the merged `chars` table back into each file. Idempotent; safe to run any time (a client that is
--- running will overwrite its file at logout with its own newer data, and the next run re-merges it).
+-- every flavor, unions the per-character account records (chars[key].stepDone / stepSkipped by step key, their
+-- stepMeta migration records, the index-keyed done / skipped of earlier releases, quests; newest scalars), and writes
+-- the merged `chars` table back into each file. Idempotent; safe to run any time (a client that is running will
+-- overwrite its file at logout with its own newer data, and the next run re-merges it).  A record's marks were written
+-- against its own client's guide data: each client migrates (Core/Account.lua A.Migrate) only records of its own game
+-- type, so copying records across clients never maps one client's step indices onto another client's guides.
 --   luajit tools/sync_progress.lua [--dry] [--wow "/path/to/World of Warcraft"]
 -- Backups: <file>.presync.bak (last pre-write copy). Run automatically by the launchd WatchPaths agent
 -- installed by tools/install_sync_agent.sh, and once by tools/install.sh.
@@ -80,8 +83,11 @@ local merged = {}
 for _, sv in ipairs(svs) do
     for key, c in pairs(sv.db.chars or {}) do
         local m = merged[key]
-        if not m then m = { done = {}, skipped = {}, quests = {} } merged[key] = m end
+        if not m then m = { done = {}, skipped = {}, quests = {}, stepDone = {}, stepSkipped = {}, stepMeta = {} } merged[key] = m end
         unionInto(m.done, c.done) unionInto(m.skipped, c.skipped) unionInto(m.quests, c.quests)
+        -- marks by step key, and the per-guide record that the old index-keyed marks were migrated (one copy having it is
+        -- enough: the old marks must never be imported a second time)
+        unionInto(m.stepDone, c.stepDone) unionInto(m.stepSkipped, c.stepSkipped) unionInto(m.stepMeta, c.stepMeta)
         local pick = newer(c, m)
         for f, v in pairs(c) do if type(v) ~= "table" and (pick == c or m[f] == nil) then m[f] = v end end
         -- quests the player dropped (Core/Skip.lua): a choice, not progress - the newest record's choice wins whole

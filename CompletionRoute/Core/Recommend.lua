@@ -136,9 +136,8 @@ local function finishedFromCache(g)
     return (dc and dc[g.id] == true) or false
 end
 local function started(g)
-    local me = NS.Account and NS.Account.me
-    local d = me and me.done and me.done[g.id]
-    return d ~= nil and next(d) ~= nil
+    local A = NS.Account
+    return (A and A.me and A.Started and A.Started(g.id)) or false
 end
 
 local function evaluate(g, inf, level)

@@ -225,18 +225,20 @@ NS.Progress.MarkDone(ast[1])
 local cn, cp = NS.Account.GuideProgress("t:acct", 4, "char")
 assert(cn == 1 and cp == 25, ("char progress %d/%d%%"):format(cn, cp))
 -- a second character on the account finished steps 2 and 3
-NS.db.global.chars["Alt-Test"] = { name = "Alt", realm = "Test", class = "MAGE", faction = "Alliance",
+-- (written in the layout of the release before step keys, by author index: Core/Account.lua migrates it on first read)
+NS.db.global.chars["Alt-Test"] = { name = "Alt", realm = "Test", class = "MAGE", faction = "Alliance", flavor = "tbc", gametype = "tbc",
     done = { ["t:acct"] = { [2] = true, [3] = true } }, skipped = {} }
 local an, ap = NS.Account.GuideProgress("t:acct", 4, "account")
 assert(an == 3 and ap == 75, ("account progress %d/%d%%"):format(an, ap))
 -- opt-in OFF: the alt's work must not affect this character
 NS.db.profile.accountWide = false
 assert(NS.Progress.IsDone(ast[2]) == false, "accountWide OFF leaked the alt's progress")
-assert(NS.Account.OtherDid("t:acct", 2) == false, "OtherDid must respect the opt-in")
+assert(NS.Account.OtherDid("t:acct", ast[2].key) == false, "OtherDid must respect the opt-in")
 -- opt-in ON: it does
 NS.db.profile.accountWide = true
 assert(NS.Progress.IsDone(ast[2]) == true, "accountWide ON did not honour the alt's progress")
-assert(NS.Account.OtherDid("t:acct", 2) == "Alt-Test")
+assert(NS.Account.OtherDid("t:acct", ast[2].key) == "Alt-Test")
+assert(NS.Account.OtherDid("t:acct", ast[4].key) == false, "OtherDid on a step the alt never did")
 assert(NS.Progress.IsDone(ast[4]) == false, "step nobody did came back done")
 -- pending list shrinks to the one step no character has done
 NS.Progress.Refresh()
@@ -264,17 +266,24 @@ NS.db.global.chars["Alt-Test"] = { name = "Alt", done = { ["t:acct"] = { [2] = t
 NS.db.profile.accountWide = false
 -- a bulk sweep must not write into the character's real progress
 do
-    local before = 0
+    local before, beforeK = 0, 0
     for _ in pairs(NS.Account.me.done) do before = before + 1 end
+    for _ in pairs(NS.Account.me.stepDone) do beforeK = beforeK + 1 end
+    local had2 = NS.Account.me.stepDone["t:acct"] and NS.Account.me.stepDone["t:acct"][NS.Guide.Steps("t:acct")[2].key]
     NS.Account.BeginScratch()
     NS.Progress.Load("t:acct")
     NS.Progress.MarkDone(NS.Guide.Steps("t:acct")[2])
     NS.Account.Done("t:sweep-noise")[99] = true
     NS.Account.EndScratch()
-    local after = 0
+    local after, afterK = 0, 0
     for _ in pairs(NS.Account.me.done) do after = after + 1 end
+    for _ in pairs(NS.Account.me.stepDone) do afterK = afterK + 1 end
     assert(after == before, ("sweep polluted progress: %d -> %d guides"):format(before, after))
+    assert(afterK == beforeK, ("sweep polluted keyed progress: %d -> %d guides"):format(beforeK, afterK))
     assert(NS.Account.me.done["t:sweep-noise"] == nil, "scratch write leaked")
+    assert(NS.Account.me.stepDone["t:sweep-noise"] == nil, "scratch write leaked into the keyed store")
+    assert((NS.Account.me.stepDone["t:acct"] and NS.Account.me.stepDone["t:acct"][NS.Guide.Steps("t:acct")[2].key]) == had2,
+        "a scratch tick leaked into the real keyed marks")
 end
 print("account-wide progression OK: char 25%, account 75%, opt-in gate honoured both ways")
 
@@ -649,7 +658,7 @@ do
                        "chars", "accountwide", "forget", "options", "route", "order", "taxi",
                        "hearth", "import", "switch", "scan", "verify", "verifyfeatures",
                        "verifyall", "autoverify", "log", "stats", "debug", "test", "list", "gold", "prof",
-                       "skipstep", "unskip", "skipped" }
+                       "skipstep", "unskip", "skipped", "marks" }
     local missing = {}
     for _, c in ipairs(required) do if not handled[c] then missing[#missing + 1] = c end end
     assert(#missing == 0, "slash commands not handled: " .. table.concat(missing, ", "))

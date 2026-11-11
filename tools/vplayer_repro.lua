@@ -289,15 +289,37 @@ function RP.Restore(r, ctx)
     else
         notes.posDelta = "no position in the report"
     end
-    -- progress
+    -- progress.  The report lists author indices of the guide it names; the addon stores marks by step key
+    -- (Core/Guide.lua "Stable step keys"), so they are put back under the keys of the offline parse.  Access-chain
+    -- steps (negative indices) only exist once P.Load has built the prefix: RP.Run marks those after loading.
     local gid = r.guide and r.guide.id
     if gid then
         local pr = r.progress or {}
-        local done, skipped, reopened = set(pr.done), set(pr.skipped), set(pr.reopened)
-        NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened = { [gid] = done }, { [gid] = skipped }, { [gid] = reopened }
+        local byIndex = {}
+        for _, s in ipairs(G.Steps(gid) or {}) do byIndex[s.index] = s end
+        local prefix = { done = {}, skipped = {}, reopened = {} }
+        local function keyed(list, kind)
+            local out = {}
+            for i in pairs(set(list)) do
+                if i < 0 then prefix[kind][i] = true
+                elseif byIndex[i] and byIndex[i].key then out[byIndex[i].key] = true end
+            end
+            return out
+        end
+        local done, skipped, reopened = keyed(pr.done, "done"), keyed(pr.skipped, "skipped"), keyed(pr.reopened, "reopened")
+        notes.prefixMarks = prefix
+        NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened = {}, {}, {}
+        NS.db.char.stepReopened = { [gid] = reopened }
         NS.db.char.laps, NS.db.char.parked, NS.db.char.parkReturn, NS.db.char.guide = {}, {}, nil, nil
         local A = NS.Account
-        if A and A.me then A.me.done, A.me.skipped = { [gid] = done }, { [gid] = skipped } end
+        if A and A.me then
+            A.me.done, A.me.skipped = NS.db.char.done, NS.db.char.skipped
+            A.me.stepDone, A.me.stepSkipped = { [gid] = done }, { [gid] = skipped }
+            -- the report's marks are already keys: nothing to migrate
+            A.me.stepMeta = { [gid] = { v = G.KEY_VERSION, sum = G.GuideSum(gid), mig = 0 } }
+        else
+            NS.db.char.stepDone, NS.db.char.stepSkipped = { [gid] = done }, { [gid] = skipped }
+        end
     end
     TG.built = false
     TG.Build()
@@ -351,7 +373,26 @@ function RP.Run(r, ctx, opts)
     out("  position: %s", type(notes.posDelta) == "number" and ("offline map puts the player %.1f yd from the client's world position"):format(notes.posDelta)
         or tostring(notes.posDelta))
     if notes.profs then out("  profession skill: as the client read it (%d skill(s) in the report)", (function() local n = 0 for _ in pairs(r.profs) do n = n + 1 end return n end)()) end
+    if r.guide.keySum then
+        local ks = G.GuideSum(gid)
+        out("  step keys: %s", ks == r.guide.keySum and ("same as the client (%s)"):format(tostring(ks))
+            or ("|DIFFERS| offline %s, client %s: the guide changed; the current step is matched by its key"):format(tostring(ks), tostring(r.guide.keySum)))
+    end
     if not P.Load(gid) then out("  P.Load(%s) failed", gid) return 2 end
+    -- done / skipped / reopened access-chain steps of the report, now that the prefix exists
+    local pm = notes.prefixMarks
+    if pm and (next(pm.done) or next(pm.skipped) or next(pm.reopened)) then
+        local d, sk, ro = P.MarkSets()
+        for _, s in ipairs(P.steps or {}) do
+            if (s.index or 0) < 0 and s.key then
+                if pm.done[s.index] then d[s.key] = true end
+                if pm.skipped[s.index] then sk[s.key] = true end
+                if pm.reopened[s.index] then ro[s.key] = true end
+            end
+        end
+        P.cursor = nil
+        P.Refresh()
+    end
     -- the live planner's kept plan from the client is the baseline of its next refresh: restore it and refresh once
     if r.plan and r.plan ~= "" and NS.StepOrder then
         local byIndex, list = {}, {}
@@ -359,9 +400,12 @@ function RP.Run(r, ctx, opts)
         for _, i in ipairs(RP.Expand(r.plan)) do if byIndex[i] then list[#list + 1] = byIndex[i] end end
         if #list > 0 then NS.StepOrder.plan = { guide = gid, steps = list } P.Refresh() end
     end
-    -- the client's own step: compare by index
+    -- the client's own step: compare by index (by its step key when the guide text changed since the report)
     local cur = P.current
     local want = r.step and r.step.index
+    if r.step and r.step.key and r.guide.keySum and r.guide.keySum ~= G.GuideSum(gid) then
+        for _, s in ipairs(P.steps or {}) do if s.key == r.step.key then want = s.index break end end
+    end
     local diffs = {}
     if cur then
         out("  current step: %s [%s] %s%s", tostring(cur.index), cur.action, tostring(G.StepTitle and G.StepTitle(cur) or cur.title),
@@ -453,7 +497,11 @@ local function playInto(ctx, gid, n, from)
     W.bags[NS.HEARTH_ITEM] = 1   -- a real character carries one; it puts the hearth leg in play
     NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened, NS.db.char.laps, NS.db.char.guide = {}, {}, {}, {}, nil
     NS.db.char.parked, NS.db.char.parkReturn = {}, nil
-    if NS.Account and NS.Account.me then NS.Account.me.done, NS.Account.me.skipped = {}, {} end
+    NS.db.char.stepDone, NS.db.char.stepSkipped, NS.db.char.stepReopened = {}, {}, {}
+    if NS.Account and NS.Account.me then
+        NS.Account.me.done, NS.Account.me.skipped = NS.db.char.done, NS.db.char.skipped
+        NS.Account.me.stepDone, NS.Account.me.stepSkipped, NS.Account.me.stepMeta = {}, {}, {}   -- marks by step key
+    end
     R.Invalidate()
     NS.TravelGraph.Build()
     local zone = g.zone

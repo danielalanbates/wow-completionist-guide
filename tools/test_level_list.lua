@@ -100,6 +100,18 @@ local st = R.ForLevel(8)
 t("a started guide ranks ahead of an untouched one of the same width", pos(st, "wide") < pos(st, "wide2"))
 NS.Account.me.done["wide"] = nil
 R.Invalidate()
+-- the same with a tick stored by step key (Core/Account.lua stepDone), and an index tick already migrated does not count
+NS.Account.me.stepDone["wide"] = { ["A101"] = true }
+R.Invalidate()
+st = R.ForLevel(8)
+t("a guide started under step keys ranks ahead too", pos(st, "wide") < pos(st, "wide2"))
+NS.Account.me.stepDone["wide"] = nil
+NS.Account.me.done["wide"] = { [1] = true }
+t("an old index tick not migrated yet counts as started", NS.Account.Started("wide") == true)
+NS.Account.me.stepMeta["wide"] = { v = 1, mig = 1 }
+t("an old tick that was migrated (its keyed copy since cleared) does not", NS.Account.Started("wide") == false)
+NS.Account.me.done["wide"], NS.Account.me.stepMeta["wide"] = nil, nil
+R.Invalidate()
 
 -- ---- other levels
 t("level 20: Wide fits, Tight outgrown", contains(R.ForLevel(20), "wide") and not contains(R.ForLevel(20), "tight"))

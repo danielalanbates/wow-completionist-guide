@@ -116,6 +116,11 @@ for _, id in ipairs(G.list) do
         NS.player.faction = FACTION
         LEVEL = math.max(1, tonumber(g.minlevel) or 1)
         NS.db.char.done, NS.db.char.skipped, NS.db.char.guide = {}, {}, nil
+        NS.db.char.stepDone, NS.db.char.stepSkipped, NS.db.char.stepReopened = {}, {}, {}
+        if NS.Account and NS.Account.me then   -- marks by step key (Core/Account.lua)
+            NS.Account.me.done, NS.Account.me.skipped = NS.db.char.done, NS.db.char.skipped
+            NS.Account.me.stepDone, NS.Account.me.stepSkipped, NS.Account.me.stepMeta = {}, {}, {}
+        end
         -- place the player at the centre of the guide's zone (first located step's zone if the guide has none)
         local zone = g.zone
         if not zone then for _, s in ipairs(steps) do if s.zone then zone = s.zone break end end end
