@@ -62,6 +62,8 @@ function C.ProfMatch(spec)
     return rank >= need
 end
 
+local function pre_ok(q) return U.IsQuestComplete(q) or U.IsOnQuest(q) end
+
 -- Whether a step should be shown at all for this character
 -- `atLevel` asks the question for another level (Core/Progress.lua: would this step open at its level gate?)
 function C.StepApplies(step, atLevel)
@@ -74,8 +76,12 @@ function C.StepApplies(step, atLevel)
     -- PRE: prerequisite quest(s).  A list built from Questie's preQuestSingle is an OR set (any one of them
     -- opens the quest); a "&" list (preQuestGroup) needs all of them.  Requiring all of an OR set hid steps
     -- the player could actually take.
-    if step.pre and #step.pre > 0 then
-        local function pre_ok(q) return U.IsQuestComplete(q) or U.IsOnQuest(q) end
+    -- A prerequisite the player skipped (/cr skip, Core/Skip.lua) is never done: the step then opens only if that
+    -- one was a soft lead-in (breadcrumb, optional), which no longer counts.
+    local skipped
+    if step.pre and #step.pre > 0 and NS.Skip then skipped = NS.Skip.PreOpen(step, pre_ok) end
+    if skipped == false then return false end
+    if skipped == nil and step.pre and #step.pre > 0 then
         if step.pre.andor == "and" then
             for _, q in ipairs(step.pre) do if not pre_ok(q) then return false end end
         else

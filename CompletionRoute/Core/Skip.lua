@@ -10,6 +10,9 @@
 --   * Before a quest with dependents goes, the player is warned with the quests that need it, transitively
 --     (Data/QuestDeps_<flavor>.lua from tools/gen_quest_deps.py; the loaded guide's own |PRE| tags where that file cannot
 --     speak).  Confirming drops them too ("locked": they can no longer be accepted); cancelling changes nothing.
+--   * A guide can also lose a quest on its own: when every accept step of it waits, through the guide's |PRE|, on a
+--     removed quest, that guide never offers it (it stays in other guides).  Soft predecessors (breadcrumbs, optional
+--     lead-ins) are never waited for once skipped (S.PreOpen, asked by Conditions.StepApplies).
 --   * After every change the loaded guide is rebuilt at once and then re-planned for travel time in the background
 --     (Routing/Replan.lua); other guides are rebuilt when they are opened.
 -- Stored per character (Core/Account.lua A.me.questSkip) and never shared with other characters, whatever the progress
@@ -69,11 +72,16 @@ function S.LockedBy(q) return q and store().locks[q] end
 -- Guide families tools/gen_quest_deps.py reads (wiki zone guides, the gaps guides, the spine that reuses them, retail
 -- storylines).  For any other guide (WoW-Pro, native) the loaded guide's own PRE tags fill in quests the file lacks.
 local INDEXED = { wiki = true, qdb = true, qpoi = true, spine = true, story = true }
+local function idSet(str)
+    local set = {}
+    if type(str) == "string" then for n in str:gmatch("%d+") do set[tonumber(n)] = true end end
+    return set
+end
 local fileIdx
 local function fileIndex()
     if fileIdx and fileIdx.src == NS.QuestDeps then return fileIdx end
     local D = NS.QuestDeps
-    fileIdx = { pre = {}, rev = {}, src = D, present = D ~= nil and type(D.pre) == "string" }
+    fileIdx = { pre = {}, rev = {}, free = {}, crumb = {}, never = {}, src = D, present = D ~= nil and type(D.pre) == "string" }
     if fileIdx.present then
         for q, rest in D.pre:gmatch("(%d+):([^\n]+)") do
             q = tonumber(q)
@@ -87,16 +95,53 @@ local function fileIndex()
                 end
             end
         end
+        if type(D.free) == "string" then
+            for q, rest in D.free:gmatch("(%d+):([^\n]+)") do fileIdx.free[tonumber(q)] = idSet(rest) end
+        end
+        fileIdx.crumb, fileIdx.never = idSet(D.crumb), idSet(D.never)
     end
     return fileIdx
 end
 S.FileIndex = fileIndex
 
+-- p is a soft predecessor of a step of quests qs: a breadcrumb, or an optional lead-in the wiki names for one of them
+-- (tools/gen_quest_deps.py drops those from the hard set).  Skipping it never blocks the step.
+local function soft(F, qs, p)
+    if F.crumb[p] then return true end
+    if qs then
+        for i = 1, #qs do local f = F.free[qs[i]] if f and f[p] then return true end end
+    end
+    return false
+end
+
+-- class / race / faction: a step that fails these is never shown to this character (level, quest state and profession
+-- can still change)
+local function everApplies(s)
+    local C = NS.Cond
+    if s.class and not C.ClassMatch(s.class) then return false end
+    if s.race and not C.RaceMatch(s.race) then return false end
+    if s.faction and not C.FactionMatch(s.faction) then return false end
+    return true
+end
+S.EverApplies = everApplies
+local function charSig()
+    local pl = NS.player or {}
+    return tostring(pl.class) .. "/" .. tostring(pl.race) .. "/" .. tostring(pl.faction)
+end
+
+-- Per guide (cached on its parsed steps):
+--   pre/rev  the PRE tags of every step, merged per quest (the fallback index for guides the file is not built from)
+--   acc[q]   the PRE lists of q's accept steps that this character can see: the guide only offers q once one of them
+--            opens, so a quest whose every accept waits on a removed quest is gone from this guide too (false when one
+--            of q's accepts has no PRE)
+--   accRev   p -> quests with an accept step that waits on p;  mine[q] / any[q]: q has an accept this character sees /
+--            has an accept at all
 local guideIdx = setmetatable({}, { __mode = "k" })
 local function guideIndex(steps)
+    local sig = charSig()
     local gi = guideIdx[steps]
-    if gi then return gi end
-    gi = { pre = {}, rev = {} }
+    if gi and gi.sig == sig then return gi end
+    gi = { pre = {}, rev = {}, acc = {}, accRev = {}, mine = {}, any = {}, sig = sig }
     for _, s in ipairs(steps) do
         if s.qid and s.pre and #s.pre > 0 then
             for _, q in ipairs(s.qid) do
@@ -114,28 +159,78 @@ local function guideIndex(steps)
                 end
             end
         end
+        if s.qid and ACCEPT[s.action] then
+            local seen = everApplies(s)
+            for _, q in ipairs(s.qid) do
+                gi.any[q] = true
+                if seen then
+                    gi.mine[q] = true
+                    if s.pre and #s.pre > 0 then
+                        local l = gi.acc[q]
+                        if l == nil then l = {} gi.acc[q] = l end
+                        if l then
+                            l[#l + 1] = s
+                            for _, p in ipairs(s.pre) do
+                                local r = gi.accRev[p]
+                                if not r then r = {} gi.accRev[p] = r end
+                                if r[#r] ~= q then r[#r + 1] = q end
+                            end
+                        end
+                    else
+                        gi.acc[q] = false
+                    end
+                end
+            end
+        end
     end
     guideIdx[steps] = gi
     return gi
 end
 
 -- The view one decision uses: the shipped index, plus the PRE tags of the given guides for quests the index cannot
--- speak for (no index file on this client, or a guide from a family the index is not built from).
--- guides = list of { id = guide id, steps = parsed steps }.
-function S.Index(guides)
+-- speak for (no index file on this client, or a guide from a family the index is not built from).  withAcc: the given
+-- guides' accept steps count too (idx.acc) - what one guide offers, so only for that guide's own rebuild (S.Project);
+-- the locks every guide shares follow the index.  guides = list of { id = guide id, steps = parsed steps }.
+function S.Index(guides, withAcc)
     local F = fileIndex()
-    local extra = {}
+    local extra, accs, seen = {}, {}, {}
     for _, g in ipairs(guides or {}) do
-        local fam = g.id and tostring(g.id):match("^(%a+):")
-        if g.steps and (not F.present or not (fam and INDEXED[fam])) then extra[#extra + 1] = guideIndex(g.steps) end
+        if g.steps then
+            local gi = guideIndex(g.steps)
+            seen[#seen + 1] = gi
+            if withAcc then accs[#accs + 1] = gi end
+            local fam = g.id and tostring(g.id):match("^(%a+):")
+            if not F.present or not (fam and INDEXED[fam]) then extra[#extra + 1] = gi end
+        end
     end
-    local idx = { file = F.present }
+    local idx = { file = F.present, F = F }
     function idx.pre(q)
         local p = F.pre[q]
         if p then return p end
         for i = 1, #extra do local x = extra[i].pre[q] if x then return x end end
     end
-    -- calls fn(q) for every quest that lists x as a prerequisite
+    -- the accept steps of q that this character sees in these guides (nil: no constraint - none of them carries a PRE,
+    -- or q has no accept here)
+    function idx.acc(q)
+        local out, copied = nil, false
+        for i = 1, #accs do
+            local l = accs[i].acc[q]
+            if l == false then return nil end
+            if l then
+                if not out then out = l
+                else
+                    if not copied then
+                        local m = {}
+                        for k = 1, #out do m[k] = out[k] end
+                        out, copied = m, true
+                    end
+                    for k = 1, #l do out[#out + 1] = l[k] end
+                end
+            end
+        end
+        return out
+    end
+    -- calls fn(q) for every quest that lists x as a prerequisite (a quest may be named twice)
     function idx.each(x, fn)
         local r = F.rev[x]
         if r then for i = 1, #r do fn(r[i]) end end
@@ -143,11 +238,24 @@ function S.Index(guides)
             local r2 = extra[i].rev[x]
             if r2 then for k = 1, #r2 do if not F.pre[r2[k]] then fn(r2[k]) end end end
         end
+        for i = 1, #accs do
+            local r3 = accs[i].accRev[x]
+            if r3 then for k = 1, #r3 do fn(r3[k]) end end
+        end
+    end
+    -- some accept step this character sees / any accept step at all, in these guides
+    function idx.seen(q)
+        local any = false
+        for i = 1, #seen do
+            if seen[i].mine[q] then return true end
+            if seen[i].any[q] then any = true end
+        end
+        return not any
     end
     return idx
 end
 
--- the guides whose own PRE tags take part: the loaded guide, plus the guides quests were dropped from
+-- the guides whose own steps take part: the loaded guide, plus the guides quests were dropped from
 local function decisionGuides()
     local out, seen = {}, {}
     local P = NS.Progress
@@ -162,39 +270,93 @@ local function decisionGuides()
     return out
 end
 
--- Quests that can no longer be accepted once the quests in `removed` are gone, found from `seeds` outward through
--- dependents.  A prerequisite list "p1;p2" (any one opens the quest) blocks only when every one is gone; "p1&p2" blocks
--- when any is.  A quest the character has done, or has on the log, is past its prerequisites and never blocked, and a
--- dropped quest that is already turned in blocks nothing.  `removed` gets the blocked quests added; `label` (optional)
--- maps each to the seed it came from.  Returns them nearest first.
-function S.Closure(idx, seeds, removed, label)
-    local out, queue, head = {}, {}, 1
-    for i = 1, #seeds do queue[i] = seeds[i] end
-    local function gone(p) return removed[p] and not U.IsQuestComplete(p) end
-    local x
-    local function visit(q)
-        if removed[q] or U.IsQuestComplete(q) or U.IsOnQuest(q) then return end
-        local list = idx.pre(q)
-        if not list or #list == 0 then return end
-        local blocked
-        if list.andor == "and" then
-            blocked = false
-            for i = 1, #list do if gone(list[i]) then blocked = true break end end
-        else
-            blocked = true
-            for i = 1, #list do if not gone(list[i]) then blocked = false break end end
+-- A PRE list once the quests in `gone` are out (qs = the quests of the step that carries it, for its soft
+-- predecessors).  have(p) says whether p can still be had.  "p1;p2": any one opens it, "p1&p2": all of them; a soft
+-- predecessor that is gone is not waited for, and a list of nothing but those is open.
+local function listOpen(list, qs, have, gone, F)
+    if list.andor == "and" then
+        for i = 1, #list do
+            local p = list[i]
+            if not have(p) and not (gone[p] and soft(F, qs, p)) then return false end
         end
-        if blocked then
-            removed[q] = true
-            if label then label[q] = label[x] or x end
-            out[#out + 1] = q
-            queue[#queue + 1] = q
+        return true
+    end
+    local counted = false
+    for i = 1, #list do
+        local p = list[i]
+        if not (gone[p] and not U.IsQuestComplete(p) and soft(F, qs, p)) then
+            if have(p) then return true end
+            counted = true
         end
     end
+    return not counted
+end
+
+-- Quests that can no longer be had once the quests in `removed` are gone.  A quest can be had when its prerequisites
+-- (the index, see S.Index) open and, where these guides offer it, one of its accept steps opens; a quest done or on the
+-- log is past all that.  Only the dependents of `seeds` can change: they are found first, then the ones that can still
+-- be had are grown from what lies outside them (least fixpoint, so a prerequisite cycle whose only way in was removed
+-- goes too).  A quest the data never made obtainable (QuestDeps never) is not this removal's doing.  `removed` gets the
+-- quests added; `label` (optional) maps each to the seed it came from.  Returns them nearest first.
+function S.Closure(idx, seeds, removed, label)
+    local F = idx.F or fileIndex()
+    local D, order, queue, head = {}, {}, {}, 1
+    for i = 1, #seeds do queue[i] = seeds[i] end
+    local function discover(q)
+        if D[q] or removed[q] or U.IsQuestComplete(q) or U.IsOnQuest(q) then return end
+        D[q] = true
+        order[#order + 1] = q
+        queue[#queue + 1] = q
+    end
     while head <= #queue do
-        x = queue[head]
+        idx.each(queue[head], discover)
         head = head + 1
-        idx.each(x, visit)
+    end
+    if #order == 0 then return order end
+    local ok = {}
+    local function have(p)
+        if D[p] then return ok[p] == true end
+        if removed[p] then return U.IsQuestComplete(p) end
+        return not F.never[p] or U.IsQuestComplete(p)
+    end
+    local function open(q)
+        local l = idx.pre(q)
+        if l and #l > 0 and not listOpen(l, { q }, have, removed, F) then return false end
+        local acc = idx.acc(q)
+        if not acc then return true end
+        for i = 1, #acc do if listOpen(acc[i].pre, acc[i].qid, have, removed, F) then return true end end
+        return false
+    end
+    local work, inWork, wh = {}, {}, 1
+    for i = 1, #order do work[i] = order[i] inWork[order[i]] = true end
+    local function requeue(r) if D[r] and not ok[r] and not inWork[r] then inWork[r] = true work[#work + 1] = r end end
+    while wh <= #work do
+        local q = work[wh]
+        wh = wh + 1
+        inWork[q] = nil
+        if not ok[q] and open(q) then
+            ok[q] = true
+            idx.each(q, requeue)
+        end
+    end
+    local out = {}
+    for _, q in ipairs(order) do
+        if not ok[q] and not F.never[q] then out[#out + 1] = q end
+    end
+    for _, q in ipairs(out) do removed[q] = true end
+    if label then
+        -- each lock is put down to a seed through locked quests (nearest first)
+        local lq, lh, lset = {}, 1, {}
+        for _, q in ipairs(out) do lset[q] = true end
+        for i = 1, #seeds do lq[i] = seeds[i] if label[seeds[i]] == nil then label[seeds[i]] = seeds[i] end end
+        while lh <= #lq do
+            local x = lq[lh]
+            lh = lh + 1
+            idx.each(x, function(q)
+                if lset[q] and label[q] == nil then label[q] = label[x] lq[#lq + 1] = q end
+            end)
+        end
+        for _, q in ipairs(out) do if label[q] == nil then label[q] = seeds[1] end end
     end
     return out
 end
@@ -221,57 +383,97 @@ function S.Recompute()
     return locked
 end
 
+-- Conditions.StepApplies asks this for a step with PRE: true / false once a predecessor was removed (a soft one -
+-- breadcrumb, optional lead-in - is then not waited for), nil when no predecessor is removed (the usual rule decides).
+-- preOk(p) is the usual test (done, or on the log).
+function S.PreOpen(step, preOk)
+    local removed = S.Removed()
+    local pre = step.pre
+    local hit = false
+    for i = 1, #pre do if removed[pre[i]] then hit = true break end end
+    if not hit then return nil end
+    local F = fileIndex()
+    if pre.andor == "and" then
+        for i = 1, #pre do
+            local p = pre[i]
+            if not preOk(p) and not (removed[p] and soft(F, step.qid, p)) then return false end
+        end
+        return true
+    end
+    local counted = false
+    for i = 1, #pre do
+        local p = pre[i]
+        if preOk(p) then return true end
+        if not (removed[p] and soft(F, step.qid, p)) then counted = true end
+    end
+    return not counted
+end
+
 -- ---------------------------------------------------------------------------
 -- Rebuilding a guide (a projection of its own steps)
 -- ---------------------------------------------------------------------------
 -- Steps that go with a dropped quest even though they carry no quest id of their own:
---   * RIDER: an unlocated note / use-item / kill / loot step rides with the located step before it (the optimizer's
---     block rule); when that step goes, so does the rider
 --   * TRAVEL: a run / fly / boat / portal / hearth / dungeon-entry step whose stretch of guide (up to the next travel
 --     step that stays) only had steps of removed quests in it
+--   * RIDER: an unlocated note / use-item / kill / loot step rides with the located step before it (the optimizer's
+--     block rule); when that step goes (a quest step or a travel step), so does the rider
 -- A step that still serves any remaining quest is always kept.  Flight paths (f) and hearth binds (h) always stay.
+-- Quests this guide alone would strand are out of it too: every accept step of the quest the character can see waits
+-- on a removed quest (a guide's own |PRE| the shipped index does not have), and what needs those in turn.
 local RIDER = { N = true, U = true, K = true, l = true, C = true }
 local TRAVEL = { R = true, F = true, b = true, J = true, H = true, D = true }
 local function located(s) return s.coords ~= nil and s.zone ~= nil end
 
--- steps: a guide's own steps in its baked order.  Returns the rebuilt list (or `steps` itself when nothing goes) and
--- how many steps were taken out.
-function S.Project(steps, removed)
+-- removed plus the quests this guide's own steps strand (nil when there are none)
+local function strands(steps, removed, gid)
+    local gi = guideIndex(steps)
+    local need = false
+    for q in pairs(removed) do if gi.accRev[q] or gi.rev[q] then need = true break end end
+    if not need then return nil end
+    local seeds, gone = {}, {}
+    for q in pairs(removed) do seeds[#seeds + 1] = q gone[q] = true end
+    table.sort(seeds)
+    local out = S.Closure(S.Index({ { id = gid, steps = steps } }, true), seeds, gone)
+    if #out == 0 then return nil end
+    return gone
+end
+
+-- a PRE list on a step that carries no quest of its own, once the quests in `gone` are out: can it never open?
+local function preBlocked(list, gone, F)
+    local function have(p) return not gone[p] or U.IsQuestComplete(p) end
+    return not listOpen(list, nil, have, gone, F)
+end
+
+-- steps: a guide's own steps in its baked order.  Returns the rebuilt list (or `steps` itself when nothing goes), how
+-- many steps were taken out, and the quests that are out of this guide (removed plus what it strands).
+function S.Project(steps, removed, gid)
     removed = removed or S.Removed()
-    if not steps or not next(removed) then return steps, 0 end
+    if not steps or not next(removed) then return steps, 0, removed end
+    local gone = strands(steps, removed, gid) or removed
+    local F = fileIndex()
+    local gi = guideIndex(steps)
     local n, drop, any = #steps, {}, false
     for i = 1, n do
         local s = steps[i]
         if (s.index or 0) > 0 then
+            -- a step of a removed quest goes unless it also serves a quest that stays (and that this character can
+            -- take: a quest whose every accept here is for another faction, class or race does not hold a step up)
             if s.qid then
-                local keep = false
-                for _, q in ipairs(s.qid) do if not removed[q] then keep = true break end end
-                if not keep then drop[i] = true any = true end
+                local keep, hit = false, false
+                for _, q in ipairs(s.qid) do
+                    if gone[q] then hit = true
+                    elseif gi.mine[q] or not gi.any[q] then keep = true break end
+                end
+                if hit and not keep then drop[i] = true any = true end
             end
             -- shown only while on a removed quest
-            if not drop[i] and s.active and s.active > 0 and removed[s.active] then drop[i] = true any = true end
+            if not drop[i] and s.active and s.active > 0 and gone[s.active] then drop[i] = true any = true end
             -- a quest-less step waiting for removed prerequisites never opens
-            if not drop[i] and not s.qid and s.pre and #s.pre > 0 then
-                local blocked
-                if s.pre.andor == "and" then
-                    blocked = false
-                    for _, p in ipairs(s.pre) do if removed[p] then blocked = true break end end
-                else
-                    blocked = true
-                    for _, p in ipairs(s.pre) do if not removed[p] then blocked = false break end end
-                end
-                if blocked then drop[i] = true any = true end
-            end
+            if not drop[i] and not s.qid and s.pre and #s.pre > 0 and preBlocked(s.pre, gone, F) then drop[i] = true any = true end
         end
     end
-    if not any then return steps, 0 end
-    -- riders belong to the nearest step before them that has a place or a quest of its own
-    local headGone = false
-    for i = 1, n do
-        local s = steps[i]
-        if located(s) or s.qid then headGone = drop[i] or false
-        elseif headGone and (s.index or 0) > 0 and RIDER[s.action] then drop[i] = true end
-    end
+    if not any then return steps, 0, gone end
+    -- travel first: a dropped travel step takes its riders with it below
     local nextKept = n + 1
     for i = n, 1, -1 do
         local s = steps[i]
@@ -287,15 +489,22 @@ function S.Project(steps, removed)
             nextKept = i
         end
     end
+    -- riders belong to the nearest step before them that has a place or a quest of its own
+    local headGone = false
+    for i = 1, n do
+        local s = steps[i]
+        if located(s) or s.qid then headGone = drop[i] or false
+        elseif headGone and (s.index or 0) > 0 and RIDER[s.action] then drop[i] = true end
+    end
     local out = {}
     for i = 1, n do if not drop[i] then out[#out + 1] = steps[i] end end
-    return out, n - #out
+    return out, n - #out, gone
 end
 
--- Rebuild key: the guide's own steps (count + route checksum) and which of its quests are gone.  A saved re-plan is
--- only applied under the key it was made for.
-function S.PlanKey(base, removed)
-    removed = removed or S.Removed()
+-- Rebuild key: the guide's own steps (count + route checksum) and which of its quests are gone (S.Project's third
+-- result; by default worked out here).  A saved re-plan is only applied under the key it was made for.
+function S.PlanKey(base, removed, gid)
+    if not removed then removed = select(3, S.Project(base, nil, gid)) end
     local qs, seen = {}, {}
     for _, s in ipairs(base) do
         if s.qid then
@@ -352,11 +561,10 @@ S.ApplyOrder = applyOrder
 -- exactly this set of removed quests (if one was saved).  Returns list, steps taken out, rebuild key.
 function S.Rebuild(base, guideId)
     if not base then return base, 0 end
-    local removed = S.Removed()
-    local list, cut = S.Project(base, removed)
+    local list, cut, gone = S.Project(base, S.Removed(), guideId)
     local plan = guideId and store().plans[guideId]
     local key
-    if plan or cut > 0 then key = S.PlanKey(base, removed) end
+    if plan or cut > 0 then key = S.PlanKey(base, gone) end
     if plan and plan.o and plan.k == key then
         local re = applyOrder(list, plan.o)
         if re then list = re end
@@ -377,7 +585,7 @@ function S.ViewOf(g)
     if not S.Any() then return #g.steps, nil end
     local c = viewCache[g.id]
     if c and c.v == S.version and c.steps == g.steps then return c.n, c.keep end
-    local list, cut = S.Project(g.steps)
+    local list, cut = S.Project(g.steps, nil, g.id)
     local keep
     if cut > 0 then
         keep = {}
@@ -434,30 +642,44 @@ local function afterChange()
 end
 
 -- What dropping q means, for the warning: the quests it locks (split this guide / other guides), how many steps leave
--- the loaded guide, and whether the loaded guide has level gates still ahead.
+-- the loaded guide, and whether the loaded guide has level gates still ahead.  Only what this character could take is
+-- named and counted: a dependent whose every accept step is for another class, race or faction is locked as well, but
+-- it was never in this character's guide.  info.all has every quest the drop locks.
 function S.Describe(q)
     local P = NS.Progress
-    local locked = S.Dependents(q)
-    local here = guideQuestSet(P and P.baseSteps)
-    local info = { q = q, name = S.QuestName(q), locked = locked, inGuide = {}, other = {}, steps = 0, gated = false }
-    for _, d in ipairs(locked) do
+    local all = S.Dependents(q)
+    local base = P and (P.baseSteps or P.steps)
+    local gid = P and P.guide and P.guide.id
+    local view = S.Index(decisionGuides())
+    local here = guideQuestSet(base)
+    local info = { q = q, name = S.QuestName(q), all = all, locked = {}, inGuide = {}, other = {}, guideOnly = {}, steps = 0, gated = false }
+    local function add(d)
+        info.locked[#info.locked + 1] = d
         if here[d] then info.inGuide[#info.inGuide + 1] = d else info.other[#info.other + 1] = d end
     end
-    info.quests = 1 + #locked
-    info.questsHere = (here[q] and 1 or 0) + #info.inGuide
-    if P and P.steps then
+    for _, d in ipairs(all) do if view.seen(d) then add(d) end end
+    if base then
+        local now, _, goneNow = S.Project(base, S.Removed(), gid)
         local removed = {}
-        for k in pairs(S.Removed()) do removed[k] = true end
+        for k in pairs(goneNow) do removed[k] = true end
         removed[q] = true
-        for _, d in ipairs(locked) do removed[d] = true end
-        local after = S.Project(P.baseSteps or P.steps, removed)
-        local nowCount = #P.steps
-        info.steps = math.max(0, nowCount - #after)
+        for _, d in ipairs(all) do removed[d] = true end
+        local after, _, goneAfter = S.Project(base, removed, gid)
+        -- quests this guide alone loses with it (its accepts for them wait on the dropped chain): in this guide only
+        local extra = {}
+        for d in pairs(goneAfter) do if not removed[d] and here[d] and view.seen(d) then extra[#extra + 1] = d end end
+        table.sort(extra)
+        for _, d in ipairs(extra) do add(d) info.guideOnly[#info.guideOnly + 1] = d end
+        local still = {}
+        for _, s in ipairs(after) do still[s] = true end
+        for _, s in ipairs(now) do if not still[s] and (s.index or 0) > 0 and everApplies(s) then info.steps = info.steps + 1 end end
         local lvl = U.PlayerLevel()
         for _, s in ipairs(after) do
-            if s.minlevel and s.minlevel > lvl and s.action ~= "L" and not (P.IsDone and P.IsDone(s)) then info.gated = true break end
+            if s.minlevel and s.minlevel > lvl and s.action ~= "L" and everApplies(s) and not (P.IsDone and P.IsDone(s)) then info.gated = true break end
         end
     end
+    info.quests = 1 + #info.locked
+    info.questsHere = ((here[q] and view.seen(q)) and 1 or 0) + #info.inGuide
     return info
 end
 
@@ -481,9 +703,14 @@ function S.WarningText(info, viaStep)
     lines[#lines + 1] = ("%d quest%s need%s it and can no longer be done: %s."):format(n, n == 1 and "" or "s", n == 1 and "s" or "",
         nameList(info.locked, 4))
     lines[#lines + 1] = ("(%d in this guide, %d in other guides)"):format(#info.inGuide, #info.other)
+    local g = #info.guideOnly
+    if g > 0 then
+        lines[#lines + 1] = ("%d of them only here: this guide offers %s after it (another guide may still have %s)."):format(g,
+            g == 1 and "it" or "them", g == 1 and "it" or "them")
+    end
     lines[#lines + 1] = ""
-    lines[#lines + 1] = ("Dropping the chain removes %d quest%s from this guide (%d step%s) and %d from other guides."):format(
-        info.questsHere, info.questsHere == 1 and "" or "s", info.steps, info.steps == 1 and "" or "s", #info.other)
+    lines[#lines + 1] = ("Dropping the chain removes %d of your quests from this guide (%d step%s) and %d from other guides."):format(
+        info.questsHere, info.steps, info.steps == 1 and "" or "s", #info.other)
     if info.gated then
         lines[#lines + 1] = "Fewer quests means less experience: level-gated steps later in the guide may open later."
     end
@@ -551,14 +778,18 @@ function S.SkipQuest(q, opts)
     return "asked", info
 end
 
--- The per-step Skip: an accept or turn-in of a quest that others need is a quest drop, so it gets the same warning.
+-- The per-step Skip.  Skipping the accept of a quest that is not in the quest log means not doing the quest (its
+-- objectives and turn-in would be left with nothing to work on), so it drops the quest: at once when nothing needs it,
+-- after the warning otherwise.  A turn-in of a quest that others need is a quest drop too and gets the same warning.
+-- Anything else is a plain step skip.
 function S.SkipStep(step, opts)
     local P = NS.Progress
     if not step then return nil end
     local q = step.qid and step.qid[1]
-    if q and (ACCEPT[step.action] or TURNIN[step.action]) and not S.IsRemoved(q) and not U.IsQuestComplete(q) then
-        local deps = S.Dependents(q)
-        if #deps > 0 then
+    if q and not S.IsRemoved(q) and not U.IsQuestComplete(q) then
+        local drop = ACCEPT[step.action] and not U.IsOnQuest(q)
+        if not drop and TURNIN[step.action] then drop = #S.Describe(q).locked > 0 end
+        if drop then
             opts = opts or {}
             opts.viaStep = step
             return S.SkipQuest(q, opts)
@@ -584,7 +815,10 @@ function S.Unskip(q)
     if not q then NS:Print("Usage: /cr unskip <questID|all>") return nil end
     if not t.roots[q] then
         local by = t.locks[q]
+        local P = NS.Progress
+        local here = P and P.baseSteps and select(3, S.Project(P.baseSteps, nil, P.guide and P.guide.id))
         if by then NS:Print(("%s (%d) is out because it needs %s (%d). /cr unskip %d brings both back."):format(S.QuestName(q), q, S.QuestName(by), by, by))
+        elseif here and here[q] then NS:Print(("%s (%d) is out of this guide: its accept here waits on a quest you skipped (/cr skipped)."):format(S.QuestName(q), q))
         else NS:Print(("Quest %d is not skipped."):format(q)) end
         return nil
     end

@@ -246,8 +246,9 @@ local function charFinished(ch, g, steps, qids, nq)
     if not ch or (ch.faction and g.faction and g.faction ~= "Both" and ch.faction ~= g.faction) then return false end
     if nq > 0 then
         if not ch.quests then return false end
-        -- quests this character dropped (Core/Skip.lua) are not part of its guide any more
-        local gone = (ch == A.me and NS.Skip and NS.Skip.Any()) and NS.Skip.Removed() or nil
+        -- quests this character dropped (Core/Skip.lua) are not part of its guide any more, nor what this guide then
+        -- can no longer offer
+        local gone = (ch == A.me and NS.Skip and NS.Skip.Any()) and select(3, NS.Skip.Project(steps, nil, g.id)) or nil
         for q in pairs(qids) do if not ch.quests[q] and not (gone and gone[q]) then return false end end
         return true
     end

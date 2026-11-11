@@ -187,25 +187,30 @@ Bakes, per quest guide (wiki zone guides `wiki:*` + gaps guides `qdb:*`/`qpoi:*`
 
 ## Skipping quests
 
-(2026-11-10.) `Core/Skip.lua`, `Routing/Replan.lua`, `Data/QuestDeps_<flavor>.lua`, `tools/gen_quest_deps.py`, `tools/test_skip.lua`.
+(2026-11-10.) `Core/Skip.lua`, `Routing/Replan.lua`, `Routing/TravelGraph.lua` (`FindPaths`), `Data/QuestDeps_<flavor>.lua`,
+`tools/gen_quest_deps.py`, `tools/test_skip.lua`.
 
 **What the player does.** "Skip quest" in the step details, the right-click menu on the step, or `/cr skip [questID]`
 (default: the current step's quest). A quest that nothing needs goes at once with one chat line. A quest other quests
 need opens a confirmation: it names the quest, lists the quests that can no longer be done (first four names, then
-"and N more", split *in this guide* / *in other guides*), and says what dropping the chain costs: quests and steps
-leaving this guide, quests leaving other guides, and, when the guide still has `|LVL|` gates ahead, that fewer quests
-means level-gated steps may open later (parking handles an under-level player; no filler quests are added). Confirm
-drops the quest and locks its dependents; cancel changes nothing. The old per-step Skip gives the same warning on an
-accept or turn-in that other quests need (`/cr skipstep` is the per-step command). `/cr unskip <questID|all>`,
-`/cr skipped`.
+"and N more", split *in this guide* / *in other guides*, plus how many of them only this guide loses), and says what
+dropping the chain costs: quests and steps leaving this guide, quests leaving other guides, and, when the guide still has
+`|LVL|` gates ahead, that fewer quests means level-gated steps may open later (parking handles an under-level player; no
+filler quests are added). Only quests this character could take are named and counted. Confirm drops the quest and
+locks its dependents; cancel changes nothing. The per-step Skip (`/cr skipstep`, the step's Skip button, the right-click
+item) on the accept of a quest that is not in the quest log drops the quest: skipping only the accept would leave its
+objectives and turn-in with nothing to work on. On a turn-in that other quests need it gives the same warning.
+`/cr unskip <questID|all>`, `/cr skipped`.
 
 **Data.** Quest ids are global, so a drop applies to every guide. The reverse index is built offline per client by
-`tools/gen_quest_deps.py` from the generated guides that client loads, in priority order wiki → gaps guides → retail
+`tools/gen_quest_deps.py` from the generated guides that client loads, in priority order wiki -> gaps guides -> retail
 storylines (a quest's prerequisites come from the first source that has the quest at all). WoW-Pro text is not read
-(its licence forbids derivatives). Output `Data/QuestDeps_<flavor>.lua` is gitignored, loaded by each TOC after its
-RouteOrder file, shipped per client by `tools/install.sh`, and parsed lazily on first use. When the file is missing, or
-the loaded guide comes from a family the index is not built from (WoW-Pro, native), that guide's own `|PRE|` tags are
-used for quests the index has no entry for.
+(its licence forbids derivatives). Fields: `pre` (hard prerequisites), `free` (predecessors a quest's guides list but
+that were dropped as soft), `crumb` (breadcrumb quests), `never` (quests the hard prerequisites make unobtainable: a cycle
+with no way in, and what needs it), `name`. Output `Data/QuestDeps_<flavor>.lua` is gitignored, loaded by each TOC after
+its RouteOrder file, shipped per client by `tools/install.sh`, and parsed on first use (about 12 ms on retail, once).
+When the file is missing, or a guide comes from a family the index is not built from (WoW-Pro, native), that guide's own
+`|PRE|` tags fill in quests the index has no entry for.
 
 | | era | tbc | mop | retail | forever |
 |---|---:|---:|---:|---:|---:|
@@ -214,62 +219,113 @@ used for quests the index has no entry for.
 | PRE edges | 2,410 | 3,552 | 11,737 | 21,959 | 2,504 |
 | Breadcrumb edges dropped | 20 | 22 | 63 | 130 | 21 |
 | "(optional)" edges dropped | 4 | 4 | 31 | 79 | 7 |
-| File size | 92 KB | 141 KB | 411 KB | 738 KB | 95 KB |
+| Quests with freed predecessors (`free`) | 15 | 15 | 81 | 193 | 19 |
+| Unobtainable by the data (`never`) | 0 | 0 | 0 | 179 | 0 |
+| File size | 93 KB | 142 KB | 413 KB | 743 KB | 96 KB |
 
 **Breadcrumbs.** The wiki has no breadcrumb field, so the generator trusts only explicit wording (raw wikitext in
 `tools/wiki/cache/wiki_raw.sqlite`, read-only): a quest page that calls itself a breadcrumb ("'''X''' is an optional
 breadcrumb...", "This quest is a breadcrumb...", "This breadcrumb quest..."), another quest's chain listing that marks it
 ("[[X]] (optional breadcrumb)", "Optional breadcrumb: [[X]]", "Breadcrumbs:" lists), and, per edge, "(optional)" after a
 link in a quest's own `previous=` field. 145 pages and 186 optional `previous` links match. A plain "(optional)" in a
-Progression list is not trusted: it also marks side quests whose own follow-ups need them. Examples on era: Deliveries to
-Sven (164) no longer blocks Sven's Revenge (95), Eagan Peltskinner (5261) no longer blocks Wolves Across the Border (33),
-and the three "A Call to Arms: The Plaguelands!" breadcrumbs no longer block Clear the Way (5092).
+Progression list is not trusted: it also marks side quests whose own follow-ups need them. Leaving a breadcrumb out of the
+index is not enough on its own: the guides still list it in the target's `|PRE|`, and `Conditions.StepApplies` hides a
+step until its PRE is done. So a PRE predecessor the player skipped that is soft for that step (`free` or `crumb`) is no
+longer waited for (`Skip.PreOpen`), and the target stays fully doable: accept, objectives and turn-in. On era, skipping
+Eagan Peltskinner (5261) leaves Wolves Across the Border (33) with its accept as the next step, Deliveries to Sven (164)
+no longer blocks Sven's Revenge (95), and the three "A Call to Arms: The Plaguelands!" breadcrumbs no longer block Clear
+the Way (5092). Gaps-guide and storyline edges have no breadcrumb information.
 
-**Lock rule.** BFS from the dropped quest over dependents. `p1;p2` (any one opens the quest) blocks only when every
-listed quest is gone; `p1&p2` blocks when any is. A quest the character has done or has on the log is never locked, and
-a dropped quest that was already turned in blocks nothing. Locks are recomputed from the remaining roots on every drop and
-unskip, so unskipping one quest frees exactly what only it blocked. Stored per character in `A.me.questSkip`
-(`roots`, `locks`, `plans`), never shared: like a step skip it is one character's choice, whatever the progress scope.
+**Lock rule.** First the dropped quest's dependents are found (index edges, transitively). Then the ones that can still
+be had are grown from what lies outside them (least fixpoint): `p1;p2` opens with any one, `p1&p2` needs all. Growing
+instead of cutting matters for prerequisite cycles with an any-one list: on retail, dropping 82863 now locks the 19
+quests that hang on it, where cutting outward from the dropped quest locked 1 (12 sit behind a cycle). A quest the
+character has done or has on the log is past its prerequisites and never locked; a dropped quest that was already turned
+in blocks nothing; a quest the data never made obtainable (`never`) is not this drop's doing. Locks are recomputed from
+the remaining roots on every drop and unskip, so unskipping one quest frees exactly what only it blocked. Checked against
+a whole-index reachability reference (reachable before minus reachable after) on about 60 roots per client: exact on all
+five. Stored per character in `A.me.questSkip` (`roots`, `locks`, `plans`), never shared: like a step skip it is one
+character's choice, whatever the progress scope. Quests for another class, race or faction are locked like any other but
+not named or counted in the warning (tbc, Blood Elf mage, Reclaiming Sunstrider Isle: 16 named instead of 21).
+
+**What one guide loses.** A guide only offers a quest once one of that quest's accept steps (that this character can see)
+opens. When every one of them waits, through the guide's own `|PRE|`, on a removed quest the index does not link
+(storylines order quests the wiki does not chain; WoW-Pro tags; the first-source rule), the quest is out of that guide,
+with every step and with what needs it there. This is per guide, not a shared lock, because another guide may still
+offer the quest. The loaded guide's losses are part of the warning ("N of them only here"); other guides work theirs out
+when opened, and `/cr unskip` on such a quest says why it is out. Measured by dropping every PRE predecessor of an accept,
+one at a time, on sample wiki, WoW-Pro and storyline guides (`tools/test_skip.lua`): no quest is left on screen whose
+accepts all wait on a removed quest, and none keeps its objectives or turn-in without its accept (era 89 drops on 13
+guides, tbc 105 on 13, mop 108 on 14, retail 132 on 18, forever 47 on 7). The cost is real: dropping one quest of a
+Blizzard storyline guide takes the rest of that storyline out of that guide (story:retail:546, 689 steps, loses 357 to one
+quest no other quest needs; the warning lists 116 quests "only here").
 
 **Rebuild.** The guide on screen is a projection of the guide's own steps (`P.baseSteps`, baked order). Out go: every
-step whose quests are all removed (a step serving any remaining quest stays), steps shown only while on a removed quest
-(`|ACTIVE|`), quest-less steps waiting for removed prerequisites, unlocated note / use / kill / loot steps riding with a
-removed step (the optimizer's block rule), and run / fly / boat / portal / hearth / dungeon steps whose stretch up to the
-next kept travel step only served removed quests. Flight-path and hearth-bind steps always stay. Ticks stay keyed by
-author index, so nothing is lost; step numbers, "step x of y", done counts, the guide list percentage and the "guide
-complete" check all follow the rebuilt list. The current step is re-chosen at once (the arrow re-targets). Other guides
-are rebuilt when opened. Unskip gives back the identical list.
+step whose quests are all removed or lost by this guide (a step serving any remaining quest this character can take
+stays), steps shown only while on a removed quest (`|ACTIVE|`), quest-less steps waiting for removed prerequisites, run /
+fly / boat / portal / hearth / dungeon steps whose stretch up to the next kept travel step only served removed quests,
+and then the unlocated note / use / kill / loot steps riding with any removed step, travel steps included (the
+optimizer's block rule). Flight-path and hearth-bind steps always stay. Ticks stay keyed by author index, so nothing is
+lost; step numbers, "step x of y", done counts, the guide list percentage and the "guide complete" check all follow the
+rebuilt list. The current step is re-chosen at once (the arrow re-targets). Other guides are rebuilt when opened. Unskip
+gives back the identical list.
 
 **Re-plan.** After a drop or unskip, and the first time another guide with removed steps is opened, the remaining guide
-is re-planned for travel time. Model = the offline bake's: only steps still to do, anchors fixed and cutting segments,
-blocks of one located step plus riders (and steps that never apply to the character), A < C < T per quest, PRE turn-in
+is re-planned for travel time. Model = the offline bake's: only steps still to do that this character can ever see
+(steps for another class, race, faction or profession keep their places and bind nothing), anchors fixed and cutting
+segments, blocks of one step with an `|M|` point plus the steps after it without one, A < C < T per quest, PRE turn-in
 before the dependent, quest log at most max(cap, the baseline's own peak) (removed quests free space), level gates as in
-the bake. Search per segment from the baseline: first-improvement Or-opt (1-3 blocks moved next to one of their 8
-nearest blocks) and 2-opt (up to 40 blocks), don't-look bits, pair costs from `Router.TravelSeconds` computed only when
-a move needs them. The new order is kept only if the whole remaining route from the player saves
-max(`StepOrder.MIN_GAIN`, `StepOrder.GAIN_FRAC` of it), the live window's margin, so it never costs more than "baked
-order minus removed steps". The decision is saved under the rebuild key (step count, route checksum, removed quests in
-the guide), so a reload shows the same order without re-planning. The live window keeps working on top.
+the bake. Every step the arrow can point at is priced: its `|M|` point, or without one the live quest objective or the
+zone centre, as `Router.StepWorld` and the live window see it; a leg runs from one block's last priced step to the next
+block's first.
 
-**CPU.** The re-plan is a coroutine resumed from an OnUpdate with `RP.FRAME_MS` = 1.0 ms; `TravelGraph.FindPath` takes an
-optional `opts.tick` and yields after every settled node, because one retail Dijkstra is ~37 ms in the interpreter
-(era ~4 ms). The title shows "re-planning..." while it runs. Applying the result is one normal `Progress.Refresh` in the
-next frame.
+* **One cost set per job.** Speed, walking factor, player position and the travel graph (`TravelGraph.Snapshot`: nodes,
+  roads, continent links, usable flight masters) are fixed when the job starts, so mounting, flying, a turn-in that
+  rebuilds the graph or a learned flight path mid-job cannot mix two cost sets. The review's case (mop 115, foot to
+  30 yd/s after 50 frames) used to accept an order 2.3% slower at the starting speed; it now reports the same numbers as
+  with no speed change and keeps the baseline.
+* **Rows, not pairs.** A block's costs to every block of its segment come from one Dijkstra with all of them as goals
+  (`TravelGraph.FindPaths` through `Router.TravelRow`). Equal to `FindPath` pair by pair (largest difference 0.000000 s
+  on 15,549 pairs over the five clients) and 13-23 times faster. Retail 122 (102 blocks): 14.4 s of CPU and about 4
+  minutes at 60 fps before, 3.3 s and 67 s now.
+* **Search** per segment from two starts, the baseline and a greedy nearest-feasible order, keeping the cheaper:
+  first-improvement Or-opt (1-3 blocks moved next to one of their nearest blocks by travel time, so other continents
+  count; every block when the segment has at most 60) and 2-opt (up to 40 blocks), with don't-look bits.
+* **Acceptance.** The new order must save max(`StepOrder.MIN_GAIN`, `StepOrder.GAIN_FRAC` of it), the live window's
+  margin, on the route the arrow walks, AND the route through the steps with their own `|M|` (the bake's measure) may not
+  get longer: a zone centre only stands in for an objective, and a saving must not come from the stand-in alone. When the
+  first search fails either test, a second search on the `|M|` steps alone gets its chance. So a kept re-plan never costs
+  more than "baked order minus removed steps" by either measure; the test checks both with the live router, pair by
+  pair. The decision is saved under the rebuild key (step count, route checksum, quests out of the guide), so a reload
+  shows the same order without re-planning. The live window keeps working on top.
 
-**Measured** (`luajit -joff tools/test_skip.lua`, `CR_SKIP_SAMPLES=6`, 30 real wiki guides, the quest with the most
-in-guide dependents dropped in each, stub maps and the real travel graph):
+**CPU.** The re-plan is a coroutine resumed from an OnUpdate with `RP.FRAME_MS` = 0.8 ms; the graph search yields after
+every settled node and every 64 walking links, and reuses its tables between searches (less work for the Lua
+collector). The title shows "re-planning...". Applying a kept order is one `Progress.Refresh` in the next frame that keeps
+the live window's travel costs (median 2.9 ms, max 3.1 ms over 7 applications; the live window inside it has its own
+3 ms budget, as after any step tick). The click itself (warning, locks, rebuild) costs 0.3-4 ms, plus about 12 ms the
+first time the retail index is parsed.
+
+**Measured** (`CR_SKIP_SAMPLES=6 luajit -joff tools/test_skip.lua`: 30 real wiki guides, the quest with the most in-guide
+dependents dropped in each, stub maps and the real travel graph, route orders as baked by 2026-11-10 22:17):
 
 | | era | tbc | mop | retail | forever |
 |---|---:|---:|---:|---:|---:|
-| Re-plans kept / guides | 1 / 6 | 1 / 6 | 2 / 6 | 3 / 6 | 1 / 6 |
-| Remaining route, baked minus removed | 40,782 s | 39,699 s | 30,642 s | 22,053 s | 36,609 s |
-| After re-plan | 40,701 s | 38,020 s | 28,504 s | 20,621 s | 34,770 s |
-| Saved | 0.2% | 4.2% | 7.0% | 6.5% | 5.0% |
+| Re-plans kept / guides | 2 / 6 | 0 / 6 | 4 / 6 | 0 / 6 | 1 / 6 |
+| Kept back: gain only at zone stand-ins | 0 | 3 | 0 | 2 | 1 |
+| Remaining route, baked minus removed | 48,032 s | 49,152 s | 33,511 s | 25,351 s | 43,312 s |
+| After re-plan | 47,483 s | 49,152 s | 29,839 s | 25,351 s | 42,248 s |
+| Saved | 1.1% | 0% | 11.0% | 0% | 2.5% |
 
-Single guides range from no gain to 20% (tbc 1418, forever 1418); the heaviest retail sample (172 steps) took 11.9 s of
-CPU over 11,436 frames (about 3 minutes at 60 fps). Per frame: collector paused, 13,691 frames, p99 1.12 ms, max 1.26 ms;
-collector running, 8,367 frames, p99 1.14 ms, max 2.11 ms (1 frame over 2 ms, a Lua collector pause inside the slice).
+Kept re-plans save 5.5% to 28% (mop 119, mop 108). Overall 7 of 30 kept and 2.7% saved. The heaviest sample
+(retail 1543, 189 steps) took 4.2 s of CPU over 5,267 frames (about 88 s at 60 fps). Per frame: collector paused, 6,803
+frames, p99 0.86 ms, max 1.20 ms; collector running, 11,993 frames, p99 0.90 ms, max 1.53 ms; none over 2 ms.
 
 **Limits.** Nothing here has run in a client (StaticPopup on retail 12.x is unverified; the popup falls back to a chat
-line and `/cr skip <id> confirm`). An any-one prerequisite whose other choice is closed to the character (other faction or
-class) does not block, so the warning can under-count. Gaps-guide and storyline edges have no breadcrumb information.
+line and `/cr skip <id> confirm`). A zone centre is a poor stand-in for an objective, and the plan cannot know where a
+quest's objective is before the quest is taken: the second acceptance test keeps that from lengthening the route through
+the known points, but savings on the arrow's measure are estimates. The live window recovers much of the same gain on its
+own: on retail 122, before the latest bake, a kept re-plan plus the live window ended 0.2% longer than the live window
+alone on the baked order (the review's simulation), so the table's savings are against the baked order, not against
+what the live window already does. The baked orders are still being rebuilt by the offline bake and these numbers move with them (the same run
+before the 22:17 bake kept 10 of 30 and saved 6.0%).

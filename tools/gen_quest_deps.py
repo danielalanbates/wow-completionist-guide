@@ -32,8 +32,13 @@ Soft predecessors are dropped from the prerequisite set; what is left keeps the 
 them opens the quest, "p1&p2" = all of them).  A quest whose prerequisites were all soft gets no entry.
 
 Format (lazy-parsed by Core/Skip.lua on first use, so loading the file costs one string per field):
-  pre  = "q:p1;p2\\n..."   hard prerequisites of q (any one) / "q:p1&p2" (all)
-  name = "q=Title\\n..."   names for quests in any edge (the wiki's / guide's title; the client's own name wins in game)
+  pre   = "q:p1;p2\\n..."  hard prerequisites of q (any one) / "q:p1&p2" (all)
+  free  = "q:p1,p2\\n..."  predecessors of q the guides list but that were dropped as soft (breadcrumb / optional): a
+                           guide step of q that waits on one of them stops waiting once the player skips it
+  crumb = "p1,p2,..."      breadcrumb quests (no quest hard-requires them), for guides this index is not built from
+  never = "q1,q2,..."      quests the hard prerequisites make unobtainable (a cycle with no way in, and what needs it);
+                           a skip cannot lock what was never obtainable
+  name  = "q=Title\\n..."  names for quests in any edge (the wiki's / guide's title; the client's own name wins in game)
 """
 import datetime
 import os
@@ -235,28 +240,66 @@ def build(fl, crumbs, soft_prev, titles, use_crumbs):
                     for p in titles.ids(t):
                         soft_edges.add((q, p))
     stats = {"quests": len(universe), "with_pre": 0, "edges": 0, "soft_crumb": 0, "soft_optional": 0, "freed": 0}
-    rows = []
+    rows, free_rows = [], []
     in_edges = set()
+    hard_of = {}
     for q in sorted(pre):
         ps, andor = pre[q]
-        hard = set()
+        hard, soft = set(), set()
         for p in ps:
             stats["edges"] += 1
             if p in crumb_ids:
                 stats["soft_crumb"] += 1
+                soft.add(p)
             elif (q, p) in soft_edges:
                 stats["soft_optional"] += 1
+                soft.add(p)
             else:
                 hard.add(p)
+        if soft:
+            free_rows.append(f"{q}:" + ",".join(str(p) for p in sorted(soft)))
         if not hard:
             stats["freed"] += 1
             continue
         stats["with_pre"] += 1
+        hard_of[q] = (hard, andor)
         rows.append(f"{q}:" + ("&" if andor == "and" else ";").join(str(p) for p in sorted(hard)))
         in_edges.add(q)
         in_edges |= hard
+    never = unobtainable(hard_of)
+    stats["never"] = len(never)
     name_rows = [f"{q}={names[q]}" for q in sorted(in_edges) if q in names]
-    return rows, name_rows, stats, crumb_ids & universe
+    return rows, free_rows, sorted(never), name_rows, stats, crumb_ids & universe
+
+
+def unobtainable(hard_of):
+    """quests no order of play can reach: least fixpoint forward from the quests with no hard prerequisite.
+    A quest opens when any one of its 'or' prerequisites (all of its 'and' ones) is open."""
+    deps = {}
+    for q, (ps, _) in hard_of.items():
+        for p in ps:
+            deps.setdefault(p, []).append(q)
+    opened = set()
+    work = [p for ps, _ in hard_of.values() for p in ps if p not in hard_of]
+    seen = set()
+    stack = []
+    for p in work:
+        if p not in seen:
+            seen.add(p)
+            stack.append(p)
+    # quests outside hard_of have no hard prerequisite: open
+    while stack:
+        p = stack.pop()
+        for q in deps.get(p, ()):
+            if q in opened:
+                continue
+            ps, andor = hard_of[q]
+            ok = all((x not in hard_of) or (x in opened) for x in ps) if andor == "and" else \
+                any((x not in hard_of) or (x in opened) for x in ps)
+            if ok:
+                opened.add(q)
+                stack.append(q)
+    return set(hard_of) - opened
 
 
 def main():
@@ -273,7 +316,7 @@ def main():
         if not (GUIDES / f"Imported_Wiki_{fl}.lua").exists():
             print(f"skip {fl}: Guides/Imported_Wiki_{fl}.lua missing")
             continue
-        rows, name_rows, st, crumb_q = build(fl, crumbs, soft_prev, titles, use_crumbs)
+        rows, free_rows, never, name_rows, st, crumb_q = build(fl, crumbs, soft_prev, titles, use_crumbs)
         out = OUT / f"QuestDeps_{fl}.lua"
         body = [
             f"-- Completionist's Guide :: QuestDeps_{fl}.lua - GENERATED {today} by tools/gen_quest_deps.py",
@@ -281,11 +324,15 @@ def main():
             f"-- generated guides this client loads: Imported_Wiki_{fl}.lua (Warcraft Wiki, https://warcraft.wiki.gg, CC BY-SA 4.0,",
             "-- see Guides/WIKI_DATA_LICENSE.md), then the gaps guides and Blizzard quest-line order for quests the wiki lacks.",
             "-- Breadcrumbs (the wiki's own wording) are dropped from every prerequisite set. Generated, gitignored.",
-            "-- pre: q:p1;p2 = any one of p1, p2 opens q; q:p1&p2 = all of them.  name: q=title.",
+            "-- pre: q:p1;p2 = any one of p1, p2 opens q; q:p1&p2 = all of them.  free: q:p1,p2 = soft predecessors of q the",
+            "-- guides list.  crumb: breadcrumb quests.  never: quests the hard prerequisites make unobtainable.  name: q=title.",
             "local _, NS = ...",
             f'if (NS.dataFlavor or NS.flavor) ~= "{fl}" then return end',
             f'NS.QuestDeps = {{ flavor = "{fl}", n = {len(rows)}, soft = {st["soft_crumb"] + st["soft_optional"]},',
             "pre = " + lua_long("\n".join(rows) + "\n") + ",",
+            "free = " + lua_long("\n".join(free_rows) + "\n") + ",",
+            'crumb = "' + ",".join(str(q) for q in sorted(crumb_q)) + '",',
+            'never = "' + ",".join(str(q) for q in never) + '",',
             "name = " + lua_long("\n".join(name_rows) + "\n") + " }",
             "",
         ]
@@ -295,6 +342,7 @@ def main():
         print(f"{fl}: {st['quests']} quests, {st['with_pre']} with hard prerequisites, {st['edges']} PRE edges, "
               f"{st['soft_crumb']} breadcrumb edges and {st['soft_optional']} optional edges dropped "
               f"({st['freed']} quests left with none), {len(crumb_q)} breadcrumb quests on this client, "
+              f"{len(free_rows)} quests with freed predecessors, {st['never']} unobtainable by the data, "
               f"{len(name_rows)} names -> {out.relative_to(ROOT)} ({out.stat().st_size // 1024} KB)")
 
 

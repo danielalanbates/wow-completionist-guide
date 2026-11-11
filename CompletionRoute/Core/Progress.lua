@@ -116,7 +116,7 @@ function P.Rebuild(noReplan)
     NS:Fire("GUIDE_REBUILT", g, cut)
     P.Refresh()
     if not noReplan and changed and P.guide == g and P.steps == list and not (g.loop or (NS.Skip and NS.Skip.HasPlan(g.id, key))) then
-        P.StartReplan(key or (NS.Skip and NS.Skip.PlanKey(P.baseSteps)))
+        P.StartReplan(key or (NS.Skip and NS.Skip.PlanKey(P.baseSteps, nil, g.id)))
     end
 end
 
@@ -137,7 +137,8 @@ function P.StartReplan(key)
             P.steps = res.list
             P.cursor = nil
             dirty = true
-            if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
+            -- the live window starts over from the new order; its kept travel costs (same steps) stay valid
+            if NS.StepOrder then NS.StepOrder.plan = nil end
             NS:Debug(("re-plan: %s %.0fs -> %.0fs"):format(g.id, res.baseCost, res.newCost))
             P.Refresh()
         end

@@ -5,13 +5,19 @@
 -- Offline tests of quest-level skipping (Core/Skip.lua, Routing/Replan.lua, docs/ROUTING.md "Skipping quests"):
 --   1. mechanics on a small synthetic guide (always runs): dependency closure with any-one / all-of prerequisites, a
 --      leaf skips at once, cancel changes nothing, confirm drops the chain, the rebuilt list (riders, travel, ACTIVE /
---      PRE-only steps out; a step serving a kept quest stays), counts, ticks kept, the per-step Skip warning,
---      breadcrumbs, the guide-only fallback, a second guide rebuilt on open, SavedVariables round trip, unskip
+--      PRE-only steps out; a step serving a kept quest stays), counts, ticks kept, the per-step Skip (warning; an accept
+--      drops its quest), breadcrumbs (the target stays fully doable), the guide-only fallback, a second guide rebuilt
+--      on open, SavedVariables round trip, unskip
+--   1b. regressions from the review: a guide's own PRE the index lacks (warning, nothing stranded, also in a guide opened
+--      later), another class's dependents not named, a dropped travel step's rider, prerequisite cycles, `never`
+--      quests, the re-plan model leaving out steps this character never sees
 --   2. every flavor's REAL generated guides (when Data/QuestDeps_<fl>.lua and the guides exist): closure equals a
---      brute-force fixpoint, known chains, then per sample guide: drop the quest with the most dependents, check the
---      rebuild, run the time-sliced re-plan frame by frame and check every rule and that it never costs more travel
---      time than "baked order minus removed steps", the spine entry sharing the quests rebuilds on open, a reload shows
---      the same guide, unskip gives back the identical list
+--      whole-index reachability reference, known chains, nothing stranded after single drops on wiki, WoW-Pro and
+--      storyline guides, a row from one search equals FindPath pair by pair, then per sample guide: drop the quest with
+--      the most dependents, check the rebuild, run the time-sliced re-plan frame by frame and check every rule and that
+--      it never costs more travel time than "baked order minus removed steps" (the arrow's route and the |M|-only route),
+--      a speed change mid-job changes nothing, the spine entry sharing the quests rebuilds on open, a reload shows the
+--      same guide, unskip gives back the identical list
 -- Per-frame CPU is measured on every re-plan frame; run under the interpreter to match the client:
 --   luajit -joff tools/test_skip.lua [era tbc mop retail forever]      (CR_SKIP_SAMPLES=n guides per flavor, default 3)
 package.path = "./?.lua;" .. package.path
@@ -27,7 +33,7 @@ local function t(name, cond, detail)
     return cond
 end
 local function exists(p) local f = io.open(p, "r") if f then f:close() return true end return false end
-local allFrames, pausedFrames, budgetMs = {}, {}, nil
+local allFrames, pausedFrames, budgetMs, applyMs = {}, {}, nil, {}
 
 -- ---------------------------------------------------------------------------
 -- Harness: the real addon on stubs, one flavor, optional saved variables
@@ -157,7 +163,9 @@ do
     G.Register({ id = "wiki:test:crumb", name = "Crumb", type = "Quests", zone = 1429, faction = "Alliance", text = table.concat({
         "A Breadcrumb|QID|107|M|40,41" .. Z, "T Breadcrumb|QID|107|M|41,41" .. Z, "A Target|QID|108|PRE|107|M|41,41" .. Z, "T Target|QID|108|M|41,42" .. Z }, "\n") })
     G.Register({ id = "owp:test:crumb", name = "Crumb (other source)", type = "Quests", zone = 1429, faction = "Alliance", text = G.registry["wiki:test:crumb"].text })
-    NS.QuestDeps = { flavor = "era", pre = "102:101\n103:102\n105:101;104\n106:101&104\n", name = "101=Root\n102=Child\n103=Grandchild\n106=Both\n" }
+    -- free: what tools/gen_quest_deps.py writes for a breadcrumb edge it dropped (108's guide PRE 107)
+    NS.QuestDeps = { flavor = "era", pre = "102:101\n103:102\n105:101;104\n106:101&104\n", free = "108:107\n", crumb = "", never = "",
+                     name = "101=Root\n102=Child\n103=Grandchild\n106=Both\n" }
     place(1429, 0.4, 0.4)
     W.level = 5
 
@@ -195,7 +203,7 @@ do
     t("chain: asks first", r == "asked" and #prompts == 1, r)
     t("warning names the quest and the blocked ones", prompts[1] and prompts[1]:find("Root") and prompts[1]:find("Child") and prompts[1]:find("Grandchild") and prompts[1]:find("Both"), prompts[1])
     t("warning splits this guide / other guides", prompts[1] and prompts[1]:find("3 in this guide, 0 in other guides", 1, true), prompts[1])
-    t("warning counts the cost", prompts[1] and prompts[1]:find("removes 4 quests from this guide (14 steps)", 1, true), prompts[1])
+    t("warning counts the cost", prompts[1] and prompts[1]:find("removes 4 of your quests from this guide (14 steps)", 1, true), prompts[1])
     t("cancel changes nothing", idx(P.steps) == before and S.version == ver and not S.IsRemoved(101))
     t("cancel does not touch the re-plan already running for the leaf skip", RP.Job() == job0 and job0 ~= nil)
 
@@ -236,10 +244,27 @@ do
     r = S.SkipStep(a104)
     t("per-step Skip on an accept with dependents warns", r == "asked" and #prompts == 1 and prompts[1]:find("Skipping this step", 1, true), r)
     t("...and cancel leaves the step alone", not NS.db.char.skipped["t:skip:a"][a104.index] and not S.IsRemoved(104))
+    -- per-step Skip on the accept of a quest nothing needs: that is not doing the quest, so the quest goes at once (its
+    -- turn-in would otherwise be the next step, with the quest never accepted)
     local a105
     for _, s in ipairs(P.steps) do if s.action == "A" and s.qid[1] == 105 then a105 = s end end
     r = S.SkipStep(a105)
-    t("per-step Skip on a leaf accept is a plain step skip", r == "step" and NS.db.char.skipped["t:skip:a"][a105.index] == true and #prompts == 1, r)
+    local left105 = false
+    for _, s in ipairs(P.steps) do if s.qid and s.qid[1] == 105 then left105 = true end end
+    t("per-step Skip on a leaf accept drops the quest at once (no warning)", r == "skipped" and S.IsRoot(105) and #prompts == 1, r)
+    t("...its turn-in left with it (nothing stranded)", not left105 and not NS.db.char.skipped["t:skip:a"][a105.index])
+    t("...and the current step is not a step of that quest", not (P.current and P.current.qid and P.current.qid[1] == 105), P.current and P.current.title)
+    S.Unskip(105)
+    t("...unskip brings the accept and the turn-in back", (function() local n = 0 for _, s in ipairs(P.steps) do if s.qid and s.qid[1] == 105 then n = n + 1 end end return n == 2 end)())
+    -- per-step Skip on an objective is a plain step skip
+    local c104
+    for _, s in ipairs(P.steps) do if s.qid and s.qid[1] == 104 and s.action == "A" then c104 = s end end
+    W.quests[104] = "log"
+    r = S.SkipStep(c104)
+    t("per-step Skip on an accept already in the log is a plain step skip", r == "step" and NS.db.char.skipped["t:skip:a"][c104.index] == true, r)
+    NS.db.char.skipped["t:skip:a"][c104.index] = nil
+    W.quests[104] = nil
+    while RP.Step(1e9) do end
 
     -- the second guide that shares the dropped quests is rebuilt when it is opened
     P.Load("t:skip:b")
@@ -249,15 +274,26 @@ do
     t("...and says so when it loads", said)
     while RP.Step(1e9) do end
 
-    -- breadcrumbs: the index has no 107 -> 108 edge, so skipping the breadcrumb blocks nothing
+    -- breadcrumbs: the index has no 107 -> 108 edge (it freed it), so skipping the breadcrumb blocks nothing, and the
+    -- target's own accept step (|PRE|107) stops waiting for it: the target stays fully doable
     P.Load("wiki:test:crumb")
     t("breadcrumb blocks nothing in a guide the index covers", deps(107) == "", deps(107))
+    r = S.SkipQuest(107)
+    local crumbSteps = {}
+    for _, s in ipairs(P.steps) do if s.qid and s.qid[1] == 108 then crumbSteps[#crumbSteps + 1] = s end end
+    t("breadcrumb skips at once", r == "skipped" and not S.IsRemoved(108), r)
+    t("...the target keeps its accept and turn-in", #crumbSteps == 2, #crumbSteps)
+    t("...and its accept opens without the breadcrumb", crumbSteps[1] and crumbSteps[1].action == "A" and NS.Cond.StepApplies(crumbSteps[1]))
+    t("...the current step is the target's accept", P.current and P.current.qid and P.current.qid[1] == 108 and P.current.action == "A", P.current and P.current.title)
+    S.Unskip(107)
+    t("before any skip the target still waits for the breadcrumb (the guide's own order)", not NS.Cond.StepApplies(crumbSteps[1]))
     local saved = NS.QuestDeps
     NS.QuestDeps = nil
     t("no index file: the loaded guide's PRE tags are used", deps(107) == "108", deps(107))
     NS.QuestDeps = saved
     P.Load("owp:test:crumb")
-    t("a guide from another source adds its own PRE edges", deps(107) == "108", deps(107))
+    t("a guide from another source: the freed edge is still soft (the index knows it)", deps(107) == "", deps(107))
+    while RP.Step(1e9) do end
 
     -- SavedVariables round trip: the same rebuilt (and re-planned) guide after a reload
     P.Load("t:skip:a")
@@ -308,20 +344,34 @@ local function parseDeps(D)
     end
     return pre, rev
 end
--- brute force: keep sweeping every quest until nothing more is blocked
-local function bruteClosure(pre, root)
-    local removed, out, changed = { [root] = true }, {}, true
-    while changed do
-        changed = false
-        for q, l in pairs(pre) do
-            if not removed[q] then
-                local b
-                if l.andor == "and" then b = false for _, p in ipairs(l) do if removed[p] then b = true end end
-                else b = true for _, p in ipairs(l) do if not removed[p] then b = false end end end
-                if b then removed[q] = true out[#out + 1] = q changed = true end
-            end
-        end
+-- reference: what can be had is grown forward from the quests with no prerequisite over the WHOLE index (any one of an
+-- "or" list, all of an "and" list); a drop locks what could be had before and cannot be had after.  Independent of the
+-- addon's dependents-first search, and exact on prerequisite cycles.
+local function obtainable(pre, rev, gone)
+    local ok, work = {}, {}
+    local function has(p) return not gone[p] and (pre[p] == nil or ok[p]) end
+    local function try(q)
+        if ok[q] or gone[q] then return end
+        local l = pre[q]
+        local b
+        if l.andor == "and" then b = true for _, p in ipairs(l) do if not has(p) then b = false break end end
+        else b = false for _, p in ipairs(l) do if has(p) then b = true break end end end
+        if b then ok[q] = true work[#work + 1] = q end
     end
+    for p, ds in pairs(rev) do if pre[p] == nil and not gone[p] then for _, q in ipairs(ds) do try(q) end end end
+    local h = 1
+    while h <= #work do
+        for _, q in ipairs(rev[work[h]] or {}) do try(q) end
+        h = h + 1
+    end
+    return ok
+end
+local okNone = setmetatable({}, { __mode = "k" })
+local function bruteClosure(pre, root, rev)
+    okNone[pre] = okNone[pre] or obtainable(pre, rev, {})
+    local before, after = okNone[pre], obtainable(pre, rev, { [root] = true })
+    local out = {}
+    for q in pairs(before) do if not after[q] and q ~= root then out[#out + 1] = q end end
     table.sort(out)
     return table.concat(out, ",")
 end
@@ -330,13 +380,14 @@ local KNOWN = {   -- hand-checked chains (quest -> quests that need it)
     tbc = { 10140, "10141,10142,10254" }, mop = { 29408, "29409,29410" }, retail = { 28757, "28769,28784" },
 }
 
--- what the re-planner calls "the remaining route": travel seconds from the player through every planned step with a place
-local function routeCost(NS, list, plannable)
+-- the remaining route as the arrow walks it: travel seconds from the player through every planned step it can point at
+-- (its |M| point, or the quest objective / zone without one), priced by the live router one pair at a time
+local function routeCost(NS, list, plannable, exact)
     local R = NS.Router
     local t, prev = 0, nil
     local cache = {}
     for _, s in ipairs(list) do
-        if plannable[s] and s.coords and s.zone and NS.Replan.EverApplies(s) and R.StepWorld(s) then
+        if plannable[s] and s.zone and (s.coords or not exact) and R.StepWorld(s) then
             local c
             if not prev then c = R.TravelSecondsFromPlayer(s) else
                 cache[prev] = cache[prev] or {}
@@ -476,6 +527,177 @@ local function checkRebuild(base, list, removed)
     return nil
 end
 
+-- ---------------------------------------------------------------------------
+-- 1b) Regressions from the 2026-11-10 review: stranded dependents, a dropped travel step's rider, quests for another
+--     class, prerequisite cycles, the per-step Skip on an accept
+-- ---------------------------------------------------------------------------
+do
+    local NS = harness("era")
+    local S, P, G, Cond = NS.Skip, NS.Progress, NS.Guide, NS.Cond
+    local Z, WF = "|Z|1429; Elwynn Forest|", "|Z|1436; Westfall|"
+    local prompts, accept = {}, true
+    S.Prompt = function(text, fn) prompts[#prompts + 1] = text if accept then fn() end return true end
+    NS.QuestDeps = { flavor = "era", pre = "302:301\n330:301\n202:201\n602:601;603\n603:602\n", free = "", crumb = "", never = "",
+                     name = "301=Root\n302=Linked\n330=Paladin only\n" }
+    place(1429, 0.4, 0.4)
+    W.level = 5
+    local own = {
+        "A Root|QID|301|M|40,40" .. Z, "T Root|QID|301|M|41,40" .. Z,
+        "A Linked|QID|302|PRE|301|M|42,40" .. Z,                 -- the index knows this one
+        "A Guide only|QID|310|PRE|301|M|43,40" .. Z,             -- only this guide says 310 needs 301
+        "C Guide only|QID|310|M|44,40" .. Z,
+        "T Guide only|QID|310|M|45,40" .. Z,
+        "A Needs guide only|QID|311|PRE|310|M|46,40" .. Z,       -- and 311 needs 310
+        "T Needs guide only|QID|311|M|47,40" .. Z,
+        "T Linked|QID|302|M|48,40" .. Z,
+        "A Paladin only|QID|330|PRE|301|C|Paladin|M|49,41" .. Z, -- never this warrior's
+        "T Paladin only|QID|330|C|Paladin|M|49,42" .. Z,
+        "A Free|QID|320|M|49,40" .. Z, "T Free|QID|320|M|50,40" .. Z,
+    }
+    G.Register({ id = "wiki:reg:own", name = "Own PRE", type = "Quests", zone = 1429, faction = "Alliance", minlevel = 1, maxlevel = 10, text = table.concat(own, "\n") })
+    G.Register({ id = "t:reg:other", name = "Other", type = "Quests", zone = 1429, faction = "Alliance", minlevel = 1, maxlevel = 10, text = table.concat({
+        "A Root|QID|301|M|40,40" .. Z, "T Root|QID|301|M|41,40" .. Z, "A Solo|QID|340|M|42,42" .. Z, "T Solo|QID|340|M|42,43" .. Z }, "\n") })
+    local function deps(q) local d = S.Dependents(q) table.sort(d) return table.concat(d, ",") end
+    local function questsShown() local o, seen = {}, {} for _, s in ipairs(P.steps) do local q = s.qid and s.qid[1] if q and not seen[q] then seen[q] = true o[#o + 1] = q end end table.sort(o) return table.concat(o, ",") end
+
+    -- (a) the loaded guide's own PRE edge the index does not have: this guide can never offer the dependent, so it is in
+    --     the warning (as "in this guide") and out of this guide's rebuild with every step, but the index - what all
+    --     guides share - does not lock it
+    P.Load("wiki:reg:own")
+    t("own PRE: the shared locks follow the index", deps(301) == "302,330", deps(301))
+    local info = S.Describe(301)
+    table.sort(info.locked)
+    t("own PRE: the warning adds what this guide alone would lose", table.concat(info.locked, ",") == "302,310,311", table.concat(info.locked, ","))
+    accept = false
+    S.SkipQuest(301)
+    local warn = prompts[#prompts] or ""
+    t("own PRE: the warning names the guide-only dependents", warn:find("Guide only", 1, true) and warn:find("Needs guide only", 1, true), warn)
+    t("another class's dependent is not named", not warn:find("Paladin only", 1, true), warn)
+    t("the warning says which ones only this guide loses", warn:find("2 of them only here", 1, true), warn)
+    t("...nor counted (3 quests need it, 3 in this guide)", warn:find("3 quests need it", 1, true) and warn:find("(3 in this guide, 0 in other guides)", 1, true), warn)
+    t("...and the cost counts only this character's quests and steps", warn:find("removes 4 of your quests from this guide (9 steps)", 1, true), warn)
+    accept = true
+    S.SkipQuest(301)
+    t("own PRE: the guide-only dependents are not locked in other guides", not S.IsRemoved(310) and not S.IsRemoved(311))
+    t("another class's dependent is locked all the same", S.LockedBy(330) == 301)
+    t("own PRE: nothing of a dependent stays in the rebuilt guide", questsShown() == "320", questsShown())
+    t("own PRE: the current step is the free quest", P.current and P.current.qid and P.current.qid[1] == 320, P.current and P.current.title)
+    local n0 = #NS.printed
+    S.Unskip(310)
+    t("own PRE: /cr unskip on one of them says why it is out", (NS.printed[n0 + 1] or ""):find("out of this guide", 1, true), NS.printed[n0 + 1])
+    S.Unskip("all")
+    t("unskip: the whole guide is back", #P.steps == #P.baseSteps and #P.steps == #own)
+
+    -- (b) the drop made from another guide: that guide's view does not know 310; opening this guide later rebuilds it
+    --     without 310 / 311 all the same (lazy, guide by guide)
+    P.Load("t:reg:other")
+    local r = S.SkipQuest(301, { confirm = true })
+    t("drop from another guide: the index-known dependent is locked", S.LockedBy(302) == 301 and not S.IsRemoved(310), r)
+    P.Load("wiki:reg:own")
+    t("opened later: what this guide alone would strand is out of it", questsShown() == "320", questsShown())
+    local base, gone = P.baseSteps, select(3, S.Project(P.baseSteps, nil, "wiki:reg:own"))
+    t("...and in its rebuild key", S.PlanKey(base, nil, "wiki:reg:own") == S.PlanKey(base, gone) and gone[310] and gone[311])
+    S.Unskip("all")
+    NS.Replan.Cancel()
+
+    -- (c) a travel step dropped by the travel rule takes its unlocated rider with it
+    G.Register({ id = "t:reg:travel", name = "Travel", type = "Quests", zone = 1429, faction = "Alliance", minlevel = 1, maxlevel = 10, text = table.concat({
+        "A Root|QID|201|M|40,40" .. Z, "T Root|QID|201|M|41,40" .. Z,
+        "F Fly to Westfall|M|50,50" .. Z, "N Talk to the flight master there|",
+        "A Child|QID|202|PRE|201|M|50,50" .. WF, "T Child|QID|202|M|51,51" .. WF,
+        "R Back to Elwynn|M|42,42" .. Z, "A Keep|QID|220|M|48,48" .. Z, "T Keep|QID|220|M|48,49" .. Z }, "\n") })
+    P.Load("t:reg:travel")
+    S.SkipQuest(201, { confirm = true })
+    local shown = {}
+    for _, s in ipairs(P.steps) do shown[s.index] = true end
+    t("travel step that served only dropped quests went", not shown[3])
+    t("...and so did the note riding on it", not shown[4])
+    t("travel step still serving a kept quest stays", shown[7] == true)
+    t("rebuild promise holds (no orphaned rider or travel step)", checkRebuild(P.baseSteps, P.steps, S.Removed()) == nil, checkRebuild(P.baseSteps, P.steps, S.Removed()))
+    S.Unskip("all")
+    NS.Replan.Cancel()
+
+    -- (d) a prerequisite cycle whose only way in is dropped goes with it (602 needs 601 or 603, 603 needs 602)
+    t("cycle: dropping its only way in locks the whole cycle", deps(601) == "602,603", deps(601))
+    W.quests[603] = "done"
+    t("cycle: a cycle quest already done keeps the rest open", deps(601) == "", deps(601))
+    W.quests[603] = nil
+    local D0 = NS.QuestDeps
+    NS.QuestDeps = { flavor = "era", pre = D0.pre .. "700:701\n701:700\n702:601;700\n", free = "", crumb = "", never = "700,701", name = D0.name }
+    t("a quest the data never made obtainable is not locked by a drop", deps(601) == "602,603,702", deps(601))
+
+    -- (e) a guide from another source adds its own PRE edges (one the index never freed)
+    G.Register({ id = "owp:test:own", name = "Own source", type = "Quests", zone = 1429, faction = "Alliance", text = table.concat({
+        "A Lead|QID|350|M|40,41" .. Z, "T Lead|QID|350|M|41,41" .. Z, "A After|QID|351|PRE|350|M|41,42" .. Z, "T After|QID|351|M|41,43" .. Z }, "\n") })
+    P.Load("owp:test:own")
+    t("a guide from another source adds its own PRE edges", deps(350) == "351", deps(350))
+    NS.Replan.Cancel()
+    -- (f) the re-plan model leaves out steps this character never sees (they would glue unrelated blocks together)
+    local mlist = NS.Guide.Steps("wiki:reg:own")
+    local M = NS.Replan.Build(mlist, { router = NS.Router, tick = function() end, isDone = function() return false end, level = 5 })
+    local inModel = {}
+    for _, s in ipairs(M.items) do inModel[s.index] = true end
+    t("re-plan model: another class's steps are not planned", not inModel[10] and not inModel[11] and inModel[12] == true)
+    print(("regressions: %d passed, %d failed so far"):format(passed, failed))
+end
+
+-- Nothing stranded in a rebuilt list: no quest keeps a step on screen while every accept of it this character can see
+-- waits, through its own |PRE|, on a quest that is out (removed everywhere, or out of this guide), and no quest keeps its
+-- objectives or turn-in while its accepts went.  Soft predecessors are read from the shipped index on their own here.
+local function softSet(D)
+    local free, crumb = {}, {}
+    for q, rest in (D.free or ""):gmatch("(%d+):([^\n]+)") do
+        free[tonumber(q)] = {}
+        for p in rest:gmatch("%d+") do free[tonumber(q)][tonumber(p)] = true end
+    end
+    for p in (D.crumb or ""):gmatch("%d+") do crumb[tonumber(p)] = true end
+    return function(qs, p)
+        if crumb[p] then return true end
+        for _, q in ipairs(qs or {}) do if free[q] and free[q][p] then return true end end
+        return false
+    end
+end
+local function stranded(NS, base, list, removed, isSoft)
+    local inGuide, shown = {}, {}
+    for _, s in ipairs(base) do if s.qid then for _, q in ipairs(s.qid) do inGuide[q] = true end end end
+    for _, s in ipairs(list) do if s.qid then for _, q in ipairs(s.qid) do shown[q] = true end end end
+    local function gone(p) return removed[p] or (inGuide[p] and not shown[p]) end
+    local function blocked(s)
+        local pre = s.pre
+        if not pre or #pre == 0 then return false end
+        if pre.andor == "and" then
+            for _, p in ipairs(pre) do if gone(p) and not isSoft(s.qid, p) then return true end end
+            return false
+        end
+        local counted = false
+        for _, p in ipairs(pre) do
+            if not (gone(p) and isSoft(s.qid, p)) then
+                counted = true
+                if not gone(p) then return false end
+            end
+        end
+        return counted
+    end
+    local hasAcc, openAcc, accIn = {}, {}, {}
+    for _, s in ipairs(base) do
+        if s.qid and ACCEPT[s.action] and NS.Skip.EverApplies(s) then hasAcc[s.qid[1]] = true end
+    end
+    for _, s in ipairs(list) do
+        if s.qid and ACCEPT[s.action] and NS.Skip.EverApplies(s) then
+            accIn[s.qid[1]] = true
+            if not blocked(s) then openAcc[s.qid[1]] = true end
+        end
+    end
+    for _, s in ipairs(list) do
+        local q = s.qid and s.qid[1]
+        if q and hasAcc[q] and NS.Skip.EverApplies(s) then
+            if not accIn[q] then return ("%s %d of quest %d kept, its accept went"):format(s.action, s.index, q) end
+            if not openAcc[q] then return ("quest %d kept, every accept waits on a removed quest (%s %d)"):format(q, s.action, s.index) end
+        end
+    end
+    return nil
+end
+
 local function realFlavor(fl)
     if not (exists("CompletionRoute/Data/QuestDeps_" .. fl .. ".lua") and exists("CompletionRoute/Guides/Imported_Wiki_" .. fl .. ".lua")) then
         print("skip " .. fl .. " (generated locally, gitignored: tools/gen_quest_deps.py, tools/wiki/gen_wiki_guides.py)")
@@ -499,9 +721,9 @@ local function realFlavor(fl)
         local d = S.Dependents(q)
         table.sort(d)
         n = n + 1
-        if table.concat(d, ",") ~= bruteClosure(pre, q) then bad = bad + 1 end
+        if table.concat(d, ",") ~= bruteClosure(pre, q, rev) then bad = bad + 1 if bad <= 3 then print("     closure differs for " .. q .. ": " .. table.concat(d, ",") .. " vs " .. bruteClosure(pre, q, rev)) end end
     end
-    t(fl .. ": closure equals the brute-force fixpoint on " .. n .. " roots", bad == 0, bad)
+    t(fl .. ": closure equals the whole-index reachability reference on " .. n .. " roots", bad == 0, bad)
     local k = KNOWN[fl]
     if k then
         local d = S.Dependents(k[1])
@@ -512,6 +734,59 @@ local function realFlavor(fl)
         if k[3] then table.sort(d) ok = ok and table.concat(d, ",") == k[2] end
         t(("%s: known chain %d -> %s%s"):format(fl, k[1], k[2], k[3] and " (exact)" or ""), ok, table.concat(d, ","))
     end
+    -- (a2) nothing stranded, on guides of every family this client loads (the index's own, plus WoW-Pro and Blizzard
+    --      storylines, whose |PRE| tags the index does not read): drop each quest an accept step waits on, one at a
+    --      time, as Skip.Recompute would from that guide, and check the rebuilt list
+    do
+        local isSoft = softSet(NS.QuestDeps)
+        for _, extra in ipairs({ "Guides/Imported_WoWPro_" .. fl .. ".lua", "Guides/Imported_Storylines_" .. fl .. ".lua" }) do
+            if exists("CompletionRoute/" .. extra) then assert(loadfile("CompletionRoute/" .. extra))("CompletionRoute", NS) end
+        end
+        if NS.ImportedWoWPro then
+            assert(loadfile("CompletionRoute/Adapters/WoWPro.lua"))("CompletionRoute", NS)
+            NS.Adapters.WoWPro.ImportStatic()
+        end
+        local fams = { wiki = {}, wowpro = {}, story = {} }
+        for _, id in ipairs(G.list) do
+            local fam = id:match("^(%a+):")
+            if fams[fam] then table.insert(fams[fam], id) end
+        end
+        local checked, drops, bad, firstBad, guideOnly = 0, 0, 0, nil, 0
+        for fam, ids in pairs(fams) do
+            table.sort(ids)
+            local stride = math.max(1, math.floor(#ids / 6))
+            for i = 1, #ids, stride do
+                local g = G.registry[ids[i]]
+                local ok, steps = pcall(G.Steps, g.id)
+                if ok and steps then
+                    NS.player.faction = (g.faction == "Horde") and "Horde" or "Alliance"
+                    local inGuide, ps, seenP = {}, {}, {}
+                    for _, st in ipairs(steps) do if st.qid then inGuide[st.qid[1]] = true end end
+                    for _, st in ipairs(steps) do
+                        if st.qid and ACCEPT[st.action] and st.pre then
+                            for _, p in ipairs(st.pre) do if inGuide[p] and not seenP[p] and #ps < 12 then seenP[p] = true ps[#ps + 1] = p end end
+                        end
+                    end
+                    checked = checked + 1
+                    for _, p in ipairs(ps) do
+                        local removed = { [p] = true }
+                        S.Closure(S.Index({ { id = g.id, steps = steps } }), { p }, removed)
+                        local list, _, gone = S.Project(steps, removed, g.id)
+                        for q in pairs(gone) do if not removed[q] then guideOnly = guideOnly + 1 end end
+                        drops = drops + 1
+                        local why = stranded(NS, steps, list, removed, isSoft)
+                        if why then bad = bad + 1 firstBad = firstBad or (g.id .. " drop " .. p .. ": " .. why) end
+                    end
+                    g.steps = nil
+                end
+                if checked >= 18 then break end
+            end
+        end
+        t(("%s: nothing stranded after %d single drops on %d guides (wiki, WoW-Pro, storylines; %d quests out of one guide only)"):format(fl, drops, checked, guideOnly),
+            bad == 0 and drops > 0, firstBad)
+        collectgarbage()
+    end
+
     -- (b) sample guides: wiki zone guides with an in-guide chain, spread over the list
     local cands = {}
     for _, id in ipairs(G.list) do
@@ -535,7 +810,31 @@ local function realFlavor(fl)
         g.steps = nil
     end
     t(fl .. ": found sample guides", #picked > 0, #picked)
-    local frames, saves, accepted, roundTripped = {}, {}, 0, false
+    -- (b1) one search for a whole row costs exactly what FindPath costs pair by pair (scratch tables reused throughout)
+    do
+        local g = G.registry[picked[1].id]
+        NS.player.faction = (g.faction == "Horde") and "Horde" or "Alliance"
+        W.level = math.max(1, tonumber(g.minlevel) or 1)
+        place(g.zone, 0.5, 0.5)
+        local pts, st = {}, {}
+        for _, s in ipairs(G.Steps(g.id)) do
+            if s.zone then local x, y, i = NS.Router.StepWorld(s) if x then pts[#pts + 1] = { wx = x, wy = y, inst = i } st[#st + 1] = s end end
+        end
+        local opts = { speed = NS.Util.TravelSpeed(), walkFactor = NS.TravelGraph.WalkFactor(), graph = NS.TravelGraph.Snapshot(), scratch = {} }
+        local maxd, np = 0, 0
+        for k = 1, math.min(6, #pts) do
+            local a = math.floor((k - 1) * #pts / 6) + 1
+            local row = NS.Router.TravelRow(pts[a], pts, opts)
+            for j = 1, #pts do
+                local v = NS.Router.TravelSeconds(st[a], st[j])
+                np = np + 1
+                if (v == nil) ~= (row[j] == nil) then maxd = math.huge elseif v then maxd = math.max(maxd, math.abs(v - row[j])) end
+            end
+        end
+        t(("%s: a row from one search equals FindPath pair by pair (%d pairs, max diff %.6f s)"):format(fl, np, maxd), np > 0 and maxd < 1e-6, maxd)
+        g.steps = nil
+    end
+    local frames, saves, accepted, roundTripped, speedTested = {}, {}, 0, false, false
     for _, pk in ipairs(picked) do
         local g = G.registry[pk.id]
         -- a fresh character for each guide
@@ -573,8 +872,9 @@ local function realFlavor(fl)
         for _, i in ipairs(ticks) do if not NS.db.char.done[pk.id][i] then ticksKept = false end end
         t(tag .. ": every tick survives the rebuild", ticksKept)
         -- re-plan, frame by frame, exactly as the client drives it
+        -- planned: still to do and ever shown to this character (steps for another class / race / faction stay put)
         local plannable = {}
-        for _, s in ipairs(B) do if (s.index or 0) > 0 and not P.IsDone(s) then plannable[s] = true end end
+        for _, s in ipairs(B) do if (s.index or 0) > 0 and not P.IsDone(s) and RP.EverApplies(s) then plannable[s] = true end end
         local logStart, logCap = NS.Router.QuestLog()
         local J = RP.Job()
         t(tag .. ": re-plan running ('re-planning...')", RP.running and J ~= nil)
@@ -596,14 +896,27 @@ local function realFlavor(fl)
         t(tag .. ": re-plan keeps every rule", why == nil, why)
         local cb, cn = routeCost(NS, B, plannable), routeCost(NS, N, plannable)
         t(tag .. (": never slower than baked minus removed (%.0f s -> %.0f s)"):format(cb, cn), cn <= cb + 0.01, cn - cb)
+        local xb, xn = routeCost(NS, B, plannable, true), routeCost(NS, N, plannable, true)
+        t(tag .. (": ...nor through the steps with their own point (%.0f s -> %.0f s)"):format(xb, xn), xn <= xb + 0.5, xn - xb)
         if last.accepted then
             accepted = accepted + 1
+            -- applying a new order is one Progress.Refresh in its own frame (the live window inside it keeps its own
+            -- 3 ms budget, as after any step tick): measured, not part of the re-plan's slices
+            local lb = NS.db.profile.routing.liveBudgetMs
+            NS.db.profile.routing.liveBudgetMs = nil
+            P.cursor = nil
+            NS.StepOrder.plan = nil
+            local a0 = debugprofilestop()
+            P.Refresh(true)
+            applyMs[#applyMs + 1] = debugprofilestop() - a0
+            NS.db.profile.routing.liveBudgetMs = lb
             t(tag .. ": an accepted re-plan beats the margin", (cb - cn) >= (last.margin or 0) - 0.01, cb - cn)
         else
             t(tag .. ": a re-plan that did not win leaves the order alone", N == B)
         end
         saves[#saves + 1] = { id = pk.id, base = cb, new = cn, accepted = last.accepted, steps = last.steps, frames = last.frames,
-                              cpu = last.cpu, moves = last.stats and (last.stats.moves + last.stats.rev) or 0, pairs = last.stats and last.stats.pairs or 0 }
+                              cpu = last.cpu, moves = last.stats and (last.stats.moves + last.stats.rev) or 0, pairs = last.stats and last.stats.pairs or 0,
+                              searches = last.stats and last.stats.searches or 0, proxy = last.exactWorse, pass = last.pass }
         -- the spine entry built on this guide shares its quests: rebuilt when opened
         local shown = idx(P.steps)
         local spine
@@ -641,6 +954,24 @@ local function realFlavor(fl)
         t(tag .. ": unskip restores the identical list", idx(P.steps) == baseIdx, idx(P.steps))
         t(tag .. ": unskip re-plans", RP.running)
         RP.Cancel()
+        -- the player mounts part-way through a job: the job keeps the cost set it started with (same numbers as above)
+        if not speedTested and (last.frames or 0) >= 10 then
+            speedTested = true
+            S.Store(true).plans = {}
+            S.SkipQuest(pk.root, { confirm = true })
+            local n2, J2 = 0, RP.Job()
+            while RP.Step(RP.FRAME_MS) do
+                n2 = n2 + 1
+                if n2 == 3 then GetUnitSpeed = function() return 30 end end
+            end
+            GetUnitSpeed = function() return 0 end
+            local l2 = RP.last or {}
+            t(tag .. (": mounting mid-job (frame 3 of %d) changes nothing: %.1f -> %.1f s as before"):format(n2, l2.baseCost or -1, l2.newCost or -1),
+                J2 ~= nil and n2 > 3 and math.abs((l2.baseCost or -1) - (last.baseCost or -2)) < 1e-6 and math.abs((l2.newCost or -1) - (last.newCost or -2)) < 1e-6
+                and l2.accepted == last.accepted, ("%s/%s vs %s/%s"):format(tostring(l2.baseCost), tostring(l2.newCost), tostring(last.baseCost), tostring(last.newCost)))
+            NS.Skip.Unskip(pk.root)
+            RP.Cancel()
+        end
     end
     table.sort(frames)
     if #frames > 0 then
@@ -648,8 +979,9 @@ local function realFlavor(fl)
             frames[math.ceil(#frames * 0.99)], frames[#frames]))
     end
     for _, sv in ipairs(saves) do
-        print(("     %s %-28s %4d steps  %6.0f s -> %6.0f s  (%s, %d moves, %d router pairs, %d frames, %.0f ms CPU)"):format(fl, sv.id, sv.steps or 0,
-            sv.base, sv.new, sv.accepted and "accepted" or "kept baseline", sv.moves, sv.pairs, sv.frames or 0, sv.cpu or 0))
+        print(("     %s %-28s %4d steps  %6.0f s -> %6.0f s  (%s, %d moves, %d pairs from %d searches, %d frames, %.0f ms CPU)"):format(fl, sv.id, sv.steps or 0,
+            sv.base, sv.new, sv.accepted and ("accepted" .. (sv.pass == 2 and ", |M|-only search" or "")) or (sv.proxy and "kept baseline: the gain was only at zone stand-ins" or "kept baseline"),
+            sv.moves, sv.pairs, sv.searches or 0, sv.frames or 0, sv.cpu or 0))
     end
     print(("     %s: %d guides, %d re-plans accepted, %.1f s"):format(fl, #picked, accepted, os.clock() - t0))
 end
@@ -673,7 +1005,12 @@ end
 if #allFrames > 0 then
     local mx, p99, over = frameStats(allFrames, "collector running")
     t("re-plan frames: p99 under " .. FRAME_LIMIT_MS .. " ms with the collector running", p99 <= FRAME_LIMIT_MS, p99)
-    t("re-plan frames over " .. FRAME_LIMIT_MS .. " ms (collector pauses) stay under 0.2%", over <= #allFrames * 0.002, over .. " of " .. #allFrames .. ", max " .. mx)
+    t("re-plan frames never take more than " .. FRAME_LIMIT_MS .. " ms, collector running", mx <= FRAME_LIMIT_MS, over .. " of " .. #allFrames .. ", max " .. mx)
+end
+if #applyMs > 0 then
+    table.sort(applyMs)
+    print(("applying an accepted re-plan (one Progress.Refresh, live window at its 3 ms budget): %d times, median %.2f ms, max %.2f ms"):format(#applyMs,
+        applyMs[math.ceil(#applyMs / 2)], applyMs[#applyMs]))
 end
 print(("%d passed, %d failed"):format(passed, failed))
 if failed > 0 then os.exit(1) end

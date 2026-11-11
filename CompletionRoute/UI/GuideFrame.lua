@@ -272,7 +272,7 @@ local dDone = smallButton("Complete", 76, "Mark this step done", function()
 end, detail)
 dDone:SetPoint("BOTTOMLEFT", 12, 10)
 -- Skip on an accept or turn-in of a quest that other quests need warns first (Core/Skip.lua SkipStep)
-local dSkip = smallButton("Skip", 50, "Skip this step", function()
+local dSkip = smallButton("Skip", 50, "Skip this step (on an accept: the whole quest, so its turn-in is not left behind)", function()
     if detail.step then local st = detail.step detail:Hide() NS.Skip.SkipStep(st) end
 end, detail)
 dSkip:SetPoint("LEFT", dDone, "RIGHT", 4, 0)
@@ -352,7 +352,7 @@ local function menuButton(text, tip, y, fn)
     b:SetPoint("TOP", menu, "TOP", 0, y)
     return b
 end
-menu.skipStep = menuButton("Skip this step", "Skip only this step (warns first on an accept or turn-in other quests need)", -8, function(st) NS.Skip.SkipStep(st) end)
+menu.skipStep = menuButton("Skip this step", "Skip this step. On the accept of a quest you do not have, that skips the quest (its objectives and turn-in go too); you are warned first when other quests need it", -8, function(st) NS.Skip.SkipStep(st) end)
 menu.skipQuest = menuButton("Skip this quest", "Drop the whole quest from every guide; quests that need it are listed before anything changes", -28, function(st)
     if st.qid then NS.Skip.SkipQuest(st.qid[1]) end
 end)
