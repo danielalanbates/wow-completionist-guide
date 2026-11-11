@@ -26,11 +26,18 @@ for that client wins.
 Step location priority (docs/WIKI_DATA_SPEC.md 3/4):
   1. {{co}} written in the questbox start/end or on the objective bullet itself
   2. the linked NPC / object / place page ({{Npcbox}} location, {{Npclocations}} row for the client's expansion,
-     lead sentence); an item objective follows the item page's drop sources to a page with coordinates
-  3. fallback, only when the wiki has nothing: the same step in Imported_Quests_<flavor>.lua.  Those steps say
+     lead sentence); an item objective follows the item page's drop sources to a page with coordinates.  A coordinate
+     that already stood on its page before patch 4.0.3 is a Classic-map number (tools/wiki/fetch_coord_history.py).
+  3. retail only: the client's own quest pin (QuestPOIBlob/QuestPOIPoint): the turn-in area for T (and for A when the
+     wiki names the same NPC for both), the objective area for C.  Note "(location: Blizzard quest POI, ...)".  Ships.
+  4. fallback, only when the wiki has nothing: the same step in Imported_Quests_<flavor>.lua.  Those steps say
      "(location: Blizzard data)" (retail quest POI) or "(location: Questie data)" (Classic, Questie-derived) in
-     their note.  --no-fallback writes a pure-wiki file (the shippable variant).
-  4. otherwise the step has no |M| and says so.
+     their note.  --no-fallback writes a file with no fallback point (the shippable variant).
+  5. the wiki page of the place an NPC/object page with no point names first in its location field ("[[Razor Hill]],
+     [[Durotar]]"), when that place is not a map itself.  Note "(location: the wiki's <place> page; ...)".  Ships.
+  6. otherwise the step names the quest's zone (|Z| without |M|, "No coordinates on the wiki; the quest is in <zone>"),
+     so the router still takes the player there; with no zone either it has no location and says so.
+Where every step's point came from is counted per client and build in docs/verification.sqlite wiki_point_sources.
 Chains: the questbox `previous` links become |PRE| (any one of them, ";"), and a `next` link adds the reverse edge.
 Only quests that exist on the same client are kept in PRE, so a chain never waits for a quest that cannot exist.
 World quests, callings and emissary quests are left out (time-limited, not completionist steps).
@@ -47,6 +54,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import wikimaps  # noqa: E402
+import wikitext as WT  # noqa: E402
 import gen_spine  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -227,6 +235,65 @@ class Fallback:
         return r["C"][min(r["C"])] if r["C"] and qo is None else None
 
 
+class QuestPOI:
+    """the client's own quest map pins (retail QuestPOIBlob + QuestPOIPoint, Blizzard data via wago.tools): the turn-in
+    area (ObjectiveIndex -1) and each objective's area (ObjectiveIndex n-1 for QO n).  Shippable, unlike the Questie
+    giver points that share the old fallback file.  Era, TBC and MoP Classic carry no quest pins (MoP's table holds only
+    Archaeology dig sites), so this is retail only."""
+
+    def __init__(self, fl, maps):
+        self.q = defaultdict(dict)
+        d = ROOT / "tools" / "db2" / fl
+        if not (d / "QuestPOIBlob.csv").exists() or not (d / "QuestPOIPoint.csv").exists():
+            return
+        blobs = [r for r in csv.DictReader((d / "QuestPOIBlob.csv").open(encoding="utf-8"))
+                 if int(r["QuestID"] or 0) > 0 and int(r["ObjectiveIndex"]) != 32]
+        want = {r["ID"] for r in blobs}
+        pts = defaultdict(list)
+        for r in csv.DictReader((d / "QuestPOIPoint.csv").open(encoding="utf-8")):
+            if r["QuestPOIBlobID"] in want:
+                pts[r["QuestPOIBlobID"]].append((float(r["X"]), float(r["Y"])))
+        for b in sorted(blobs, key=lambda r: int(r["ID"])):
+            m = maps.maps.get(int(b["UiMapID"]))
+            p = pts.get(b["ID"])
+            if not m or not p or not isinstance(m["w"], float) or not m["w"] or not m["h"]:
+                continue
+            wx, wy = sum(a for a, _ in p) / len(p), sum(c for _, c in p) / len(p)
+            y01, x01 = (m["topX"] - wx) / m["h"], (m["leftY"] - wy) / m["w"]
+            if not (-0.02 <= x01 <= 1.02 and -0.02 <= y01 <= 1.02):
+                continue
+            self.q[int(b["QuestID"])].setdefault(int(b["ObjectiveIndex"]), (int(b["UiMapID"]), fmt_xy(
+                min(max(x01, 0.0), 1.0) * 100.0, min(max(y01, 0.0), 1.0) * 100.0)))
+
+    def get(self, qid, oi):
+        return self.q.get(qid, {}).get(oi)
+
+
+class Places:
+    """an NPC or object page with no coordinates often names where it stands ("| location = [[Razor Hill]], [[Durotar]]").
+    The first linked place that is not itself a map (a town, camp or building, not the zone) and whose own wiki page
+    has a point stands in for it.  Read from the raw page cache (tools/wiki/fetch_wiki.py / fetch_titles.py)."""
+    RAW = ROOT / "tools" / "wiki" / "cache" / "wiki_raw.sqlite"
+
+    def __init__(self):
+        self.raw = sqlite3.connect(f"file:{self.RAW}?mode=ro", uri=True) if self.RAW.exists() else None
+        self.cache = {}
+
+    def links(self, page):
+        """the location field's links, most specific first"""
+        if page in self.cache:
+            return self.cache[page]
+        out = []
+        if self.raw is not None:
+            r = self.raw.execute("select wikitext from pages where title = ?", (page,)).fetchone()
+            text = r[0] if r else ""
+            box = next(WT.find_templates(text or "", re.compile(r"npcbox|objectbox", re.I)), None)
+            if box:
+                out = [t for t, _ in WT.links(WT.split_params(box[3])[1].get("location", ""))]
+        self.cache[page] = out
+        return out
+
+
 class Gen:
     def __init__(self, fallback=True):
         self.db = sqlite3.connect(WIKI)
@@ -235,8 +302,14 @@ class Gen:
         self.use_fallback = fallback
         self.titles = {r["title"]: (r["page_title"], r["kind"]) for r in self.db.execute("select * from titles")}
         self.npc_pts = defaultdict(list)
+        # coordinates that already stood on their page before patch 4.0.3 are Classic-map numbers
+        # (tools/wiki/fetch_coord_history.py, docs/WIKI_DATA_SPEC.md): they are read as "(Classic)" points
+        marks = wikimaps.history_marks()
+        self.history_marked = 0
         for r in self.db.execute("select title, zone, x, y, source, badge, classic from npc_coords order by title, idx"):
-            self.npc_pts[r["title"]].append((r["zone"], r["x"], r["y"], r["source"], r["badge"], r["classic"]))
+            zone, classic = wikimaps.mark_classic(marks, r["title"], r["zone"], r["x"], r["y"]) if r["x"] is not None else (r["zone"], None)
+            self.history_marked += classic is not None
+            self.npc_pts[r["title"]].append((zone, r["x"], r["y"], r["source"], r["badge"], classic if classic is not None else r["classic"]))
         self.npc_classic = {r["title"]: r["page_classic"] for r in self.db.execute("select title, page_classic from npcs")}
         self.items = {r["title"]: (r["item_id"], json.loads(r["sources_json"] or "[]"))
                       for r in self.db.execute("select * from items")}
@@ -259,6 +332,7 @@ class Gen:
         self.place_cache = {}
         self.clean_pts = {}
         self.subzone_dropped = []
+        self.places = Places()
 
     # ---- locations ---------------------------------------------------------------------------------
     def era_to_forever(self, mid, pts):
@@ -376,8 +450,9 @@ class Gen:
             return bool(classic) or (0 < (badge or 0) <= e)
         return (not classic) and 0 < (badge or 0) <= e
 
-    def entity_coords(self, title, fl, added, home_name, depth=0):
-        """(mapID, 'x,y', how) for a linked page; items follow their drop sources"""
+    def entity_coords(self, title, fl, added, home_name, depth=0, places=False):
+        """(mapID, 'x,y', page, exact, via) for a linked page; items follow their drop sources.  With places=True a page
+        with no point of its own takes the point of the place its location field names first (via = that place)."""
         page, kind = self.resolve_title(title)
         if not page:
             return None
@@ -386,18 +461,44 @@ class Gen:
             if pts:
                 r = self.coords_list(pts, fl, bool(self.npc_classic.get(page)), added, home_name)
                 if r:
-                    return r[0], r[1], page, ex
-        if depth == 0 and page in self.items:
-            for src in self.items[page][1]:
-                r = self.entity_coords(src, fl, added, home_name, 1)
+                    return r[0], r[1], page, ex, ""
+            elif places and kind in ("npc", "object"):
+                r = self.place_coords(page, fl, added, home_name)
                 if r:
                     return r
+        if depth == 0 and page in self.items:
+            for src in self.items[page][1]:
+                r = self.entity_coords(src, fl, added, home_name, 1, places)
+                if r:
+                    return r
+        return None
+
+    def place_coords(self, page, fl, added, home_name):
+        """the point of the first place named in an NPC/object page's location field that is not a map itself"""
+        maps = self.atlas.sets[fl]
+        links = self.places.links(page)
+        zone = links[-1] if len(links) > 1 else None
+        for ln in links[:-1] if zone else links:
+            pg, kind = self.resolve_title(ln)
+            if not pg or maps.resolve(pg) is not None or self.atlas.sets["retail"].resolve(pg) is not None:
+                continue    # a zone, city or subzone map: that is a zone-level answer, not a place
+            pts, ex = self.page_points(pg, fl, zone or home_name)
+            if not pts:
+                continue
+            if zone and wikimaps.norm(wikimaps.base_zone(pts[0][0])) != wikimaps.norm(zone) and \
+                    maps.resolve(pts[0][0]) != maps.resolve(zone):
+                continue    # the place page points into another zone than the NPC page names
+            r = self.coords_list(pts, fl, bool(self.npc_classic.get(pg)), added, zone or home_name)
+            if r:
+                return r[0], r[1], page, ex, pg
+            break
         return None
 
     # ---- one client ---------------------------------------------------------------------------------
     def run(self, fl):
         maps = self.atlas.sets[fl]
         fb = Fallback(fl, self.era_to_forever if fl == "forever" else None) if self.use_fallback else None
+        poi = QuestPOI(fl, maps) if fl == "retail" else None
         st = Counter()
         skip = []
         by_id = defaultdict(list)
@@ -462,6 +563,7 @@ class Gen:
                 gate += f"LVL|{lvl}|"
             lines = []
             first_map = None
+            seen_map = None     # the first map an objective step lands on (zone-level steps fall back to it)
 
             page_exact = self.exact(fl, classic_q, 0) or (
                 fl == "mop" and (r["variant"] or "").lower() in VARIANT_FOR and "mop" in VARIANT_FOR[(r["variant"] or "").lower()])
@@ -495,7 +597,8 @@ class Gen:
                 return (("Z", f), f" (location: {f[2]}; the wiki lists another version's position)", "fallback")
 
             def loc_tag(kind, ent_list, act, qo=None):
-                """-> (M/Z text, note suffix, source) for an A/T step"""
+                """-> (M/Z text, note suffix, source) for an A/T step.  Order: the wiki's own point, the client's quest
+                pin (retail), the local fallback file (dev builds only), the wiki page of the place the NPC stands in."""
                 nonlocal first_map
                 for e in ent_list:
                     if e.get("coords"):
@@ -507,11 +610,29 @@ class Gen:
                         c = self.entity_coords(e["title"], fl, added, home_name)
                         if c:
                             return versioned((c[0], c[1]), c[3], act, qo)
+                if poi:
+                    # the turn-in pin is the ender's area; it stands for the giver only when the wiki names the same NPC
+                    same = {e.get("title") for e in starts if e.get("title")} == {e.get("title") for e in ends if e.get("title")}
+                    pin = poi.get(qid, -1) if (act == "T" or same) else None
+                    if pin:
+                        return pin, " (location: Blizzard quest POI, the turn-in area)", "poi"
                 if fb:
                     f = fb.get(qid, act, qo)
                     if f:
                         return ("Z", f), f" (location: {f[2]})", "fallback"
+                for e in ent_list:
+                    if e.get("title"):
+                        c = self.entity_coords(e["title"], fl, added, home_name, places=True)
+                        if c and c[4]:
+                            return (c[0], c[1]), f" (location: the wiki's {clean(c[4], 60)} page; {clean(c[2], 60)}'s own page has no point)", "place"
                 return None, "", "none"
+
+            def zone_only(text_head, text_tail, mid):
+                """a step the wiki gives no point for still names the quest's zone (the router takes you there)"""
+                if mid is None or mid not in maps.maps:
+                    return None
+                zn = maps.maps[mid]["name"]
+                return f"{text_head}Z|{mid}; {zn}|{text_tail} No coordinates on the wiki; the quest is in {clean(zn, 60)}.|"
 
             def mz(c):
                 if c[0] == "Z":
@@ -543,7 +664,9 @@ class Gen:
                 if c[0] != "Z":
                     first_map = c[0]
             else:
-                lines.append(f"A {name}|QID|{qid}|{ptag}{gate}N|{note} No coordinates on the wiki.|")
+                zl = zone_only(f"A {name}|QID|{qid}|{ptag}", f"{gate}N|{note}", zmid)
+                src = "zone" if zl else "none"
+                lines.append(zl or f"A {name}|QID|{qid}|{ptag}{gate}N|{note} No coordinates on the wiki.|")
             st[f"steps_{src}"] += 1
             st["steps"] += 1
             # C per objective bullet
@@ -572,10 +695,18 @@ class Gen:
                     e = self.entity_coords(b["target_title"], fl, added, home_name)
                     if e:
                         cc = versioned((e[0], e[1]), e[3], "C", qo)
+                if not cc and poi and use_qo:
+                    pin = poi.get(qid, qo - 1)
+                    if pin:
+                        cc = (pin, " (location: Blizzard quest POI, the objective area)", "poi")
                 if not cc and fb:
                     f = fb.get(qid, "C", qo)
                     if f:
                         cc = (("Z", f), f" (location: {f[2]})", "fallback")
+                if not cc and b["target_title"]:
+                    e = self.entity_coords(b["target_title"], fl, added, home_name, places=True)
+                    if e and e[4]:
+                        cc = ((e[0], e[1]), f" (location: the wiki's {clean(e[4], 60)} page; {clean(e[2], 60)}'s own page has no point)", "place")
                 tags = f"QO|{qo}|" if use_qo else ""
                 if b["kind"] == "kill" and b["target_title"]:
                     tags += f"T|{clean(b['target_title'], 60)}|"
@@ -591,9 +722,12 @@ class Gen:
                 if cc:
                     lines.append(f"C {name}|QID|{qid}|{tags}{mz(cc[0])}{gate}N|{text}{cc[1]}|")
                     st[f"steps_{cc[2]}"] += 1
+                    if cc[0][0] != "Z" and seen_map is None:
+                        seen_map = cc[0][0]
                 else:
-                    lines.append(f"C {name}|QID|{qid}|{tags}{gate}N|{text} No coordinates on the wiki.|")
-                    st["steps_none"] += 1
+                    zl = zone_only(f"C {name}|QID|{qid}|{tags}", f"{gate}N|{text}", zmid if zmid is not None else (first_map or seen_map))
+                    lines.append(zl or f"C {name}|QID|{qid}|{tags}{gate}N|{text} No coordinates on the wiki.|")
+                    st["steps_zone" if zl else "steps_none"] += 1
                 st["steps"] += 1
             if not counted:
                 f = fb.get(qid, "C") if fb else None
@@ -623,7 +757,9 @@ class Gen:
                                 self.conflicts.append((fl, qid, "turnin_xy", f"{c[0]}:{c[1]}", f"{f[1]}:{f[0]}",
                                                        r["page_title"], r["revid"], f"{yd:.0f} yd apart"))
                 else:
-                    lines.append(f"T {name}|QID|{qid}|{gate}N|{note} No coordinates on the wiki.|")
+                    zl = zone_only(f"T {name}|QID|{qid}|", f"{gate}N|{note}", zmid if zmid is not None else (first_map or seen_map))
+                    src = "zone" if zl else "none"
+                    lines.append(zl or f"T {name}|QID|{qid}|{gate}N|{note} No coordinates on the wiki.|")
                 st[f"steps_{src}"] += 1
                 st["steps"] += 1
             # home zone: the quest-log category when it is a map, else where the steps are
@@ -739,6 +875,17 @@ class Gen:
         db.commit()
         return st
 
+    def point_sources(self, fl, st):
+        """where each step's point came from, per client and build, into docs/verification.sqlite wiki_point_sources"""
+        con = sqlite3.connect(VERIF)
+        con.execute("""create table if not exists wiki_point_sources(flavor text, build text, steps int, wiki int, poi int,
+                       place int, fallback int, zone int, none int, measured text, primary key (flavor, build))""")
+        con.execute("insert or replace into wiki_point_sources values (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                    (fl, "fallback" if self.use_fallback else "no-fallback", st["steps"], st["steps_wiki"], st["steps_poi"],
+                     st["steps_place"], st["steps_fallback"], st["steps_zone"], st["steps_none"]))
+        con.commit()
+        con.close()
+
     def write_conflicts(self, flavors):
         con = sqlite3.connect(VERIF)
         con.execute("""create table if not exists wiki_db2_conflict(flavor text, quest_id int, field text,
@@ -753,15 +900,18 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     flavors = args or FLAVORS
     g = Gen(fallback="--no-fallback" not in sys.argv)
-    print(f"{len(g.rows)} wiki quest rows, {len({r['id'] for r in g.rows})} ids")
+    print(f"{len(g.rows)} wiki quest rows, {len({r['id'] for r in g.rows})} ids; "
+          f"{g.history_marked} NPC coordinates read as Classic-map numbers (pre-4.0.3 page history)")
     for fl in flavors:
         st = g.run(fl)
         s = st["steps"] or 1
         print(f"{fl:6} wiki ids {st['wiki_quest_ids']}, assigned {st['assigned']}, guides {st['guides']}, "
-              f"steps {st['steps']}: wiki coords {st['steps_wiki']} ({100*st['steps_wiki']/s:.1f}%), fallback "
-              f"{st['steps_fallback']} ({100*st['steps_fallback']/s:.1f}%), none {st['steps_none']} "
+              f"steps {st['steps']}: wiki coords {st['steps_wiki']} ({100*st['steps_wiki']/s:.1f}%), client quest POI "
+              f"{st['steps_poi']}, wiki place page {st['steps_place']}, fallback "
+              f"{st['steps_fallback']} ({100*st['steps_fallback']/s:.1f}%), zone only {st['steps_zone']}, none {st['steps_none']} "
               f"({100*st['steps_none']/s:.1f}%); DB2-only gap {st['db2_only_gap']}; old guides: "
               f"{st['old_quests_now_wiki']} quests now from wiki, {st['gap_quests_kept']} kept in _gaps; {st['file_kb']} KB")
+        g.point_sources(fl, st)
         print(f"       zone guides {st['zone_guides']} -> {st['guides']} guides after splitting (gen_spine.MAX_STEPS)")
         if "--no-spine" not in sys.argv:
             gen_spine.build_spine(fl, flavor_gate(fl))

@@ -113,6 +113,51 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
                 end
             end
         end
+        -- 2026-11-11, where a step's point came from (tools/wiki/gen_wiki_guides.py): a zone-level step names the quest's
+        -- zone and has no point; a place-page or quest-POI step has one; retail no longer puts a wiki point on map 41 (a
+        -- Deadwind Pass micro map called "Dalaran" that the lowest-id rule used to pick for the city)
+        do
+            local zoneOnly, place, poi, bad41 = 0, 0, 0, 0
+            for _, id in ipairs(NS.Guide.list) do
+                if id:find("^wiki:" .. flavor .. ":") then
+                    for ln in NS.Guide.registry[id].text:gmatch("[^\n]+") do
+                        if ln:find("No coordinates on the wiki; the quest is in", 1, true) then
+                            zoneOnly = zoneOnly + 1
+                            check(ln:find("|Z|%d+") and not ln:find("|M|", 1, true), flavor .. ": zone-level step without a zone or with a point: " .. ln:sub(1, 90))
+                        end
+                        if ln:find("(location: the wiki's", 1, true) then
+                            place = place + 1
+                            check(ln:find("|M|[%d.]+,[%d.]+") and ln:find("|Z|%d+"), flavor .. ": place-page step without a point: " .. ln:sub(1, 90))
+                        end
+                        if ln:find("(location: Blizzard quest POI", 1, true) then
+                            poi = poi + 1
+                            check(flavor == "retail" and ln:find("|M|[%d.]+,[%d.]+|Z|%d+"), flavor .. ": quest-POI step off retail or without a point: " .. ln:sub(1, 90))
+                        end
+                        -- the client's own quest pins do use map 41 for a few Legion quests; only wiki points must not
+                        if flavor == "retail" and ln:find("|Z|41;", 1, true) and not ln:find("(location: Blizzard", 1, true) then bad41 = bad41 + 1 end
+                    end
+                end
+            end
+            check(bad41 == 0, ("retail: %d steps on map 41 (Deadwind Pass 'Dalaran')"):format(bad41))
+            print(("%-6s zone-level steps %d, wiki place-page points %d, client quest-POI points %d"):format(flavor, zoneOnly, place, poi))
+        end
+        -- Blasted Lands (2026-11-11): Daio the Decrepit's and Kum'isha's wiki numbers predate patch 4.0.3, so they are
+        -- Classic-map numbers and stay as written on the Classic clients (they used to move 5.5 units through the retail
+        -- map).  Needs the page history (tools/wiki/fetch_coord_history.py); skipped without it.
+        local hist = io.open("tools/wiki/cache/coord_history.sqlite", "rb")
+        if hist then hist:close() end
+        if hist and (flavor == "era" or flavor == "tbc") then
+            for q, want in pairs({ [7581] = { 34.0, 50.0 }, [2521] = { 52.0, 36.0 } }) do
+                local a
+                for _, st in ipairs(byQ[q] or {}) do if st.action == "A" then a = st end end
+                if a then
+                    local c = a.coords and a.coords[1]
+                    check(a.zone == 1419 and c and math.abs(c.x * 100 - want[1]) < 0.2 and math.abs(c.y * 100 - want[2]) < 0.2,
+                        ("%s quest %d accept at %s %s, want Blasted Lands %.1f,%.1f"):format(flavor, q, tostring(a.zone),
+                            c and ("%.1f,%.1f"):format(c.x * 100, c.y * 100) or "-", want[1], want[2]))
+                end
+            end
+        end
         if flavor == "retail" then
             local ok = 0
             for _, st in ipairs(byQ[25172] or {}) do
