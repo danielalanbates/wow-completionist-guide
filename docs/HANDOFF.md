@@ -119,6 +119,27 @@ own `docs/HANDOFF.md`, and the plan for the addon generators to read from it (no
     report says, **before** the full rebake.
 * `caffeinate -is -t 36000` holds off sleep until about 13:00.
 
+**Update 2026-11-11, 04:55.** `cost-model` (#9 then #1) is **done**: built, verified (1 major, 5 minor findings), fixed, and
+merged into `integration` (`7b92174`). That merge kept both the step keys and `CostModel.Locate`, and loads CostModel in
+test_progress_keys and test_quest_auto. Every harness passes **except `test_route_order`, which fails by design**:
+checksum v2 makes all 1,953 old RouteOrder entries stale, so until the rebake every guide plays in author order plus
+the live window.
+* **Full rebake: waits for phase 5.** Phase 5 regenerates most guides, so baking first would only be redone. Order:
+  1. merge `coverage-ach` and `coverage-prof` into `integration`;
+  2. `git worktree remove wt-int`, then check out `integration` in `repo/`;
+  3. re-run the generators in `repo/` as each phase-5 report says, and `tools/gen_quest_deps.py`;
+  4. `heavy.sh python3 tools/bake_resume.py --dry-run`, then run it without `--dry-run` (gate on; about 7 to 10 h; safe to
+     kill and re-run);
+  5. `test_route_order` must pass, then `test_cost_parity` and `unittest tools/test_bake_gate.py`;
+  6. install into clients that are not running, sync Drive, open the PR, and merge locally.
+* Free-AI second opinion, per the owner's rule to use free AIs where possible. Gemini 2.5 Flash on the free tier
+  (gemini-pro-latest hit its quota, 3.8-flash was overloaded) reviewed QuestAuto, Skip, CostModel, Replan and Teleports.
+  It reported 2 minor items, and both were rejected:
+  * "QuestIsDaily is Classic only": wrong. Retail's own quest frame uses the global.
+  * "store nil instead of true for a guide-less root": that would lose the skip, because nil means unskipped
+    (Skip.lua:846).
+  The script and its output are in the session scratchpad (`freeai/`). Nothing changed.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
