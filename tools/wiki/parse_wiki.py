@@ -27,6 +27,9 @@ Tables (one run rebuilds them all):
                                                          and location sections, in page order
   race_courses(course, zone, x, y, page_title)           every skyriding race course the race list pages ("Skyriding
                                                          races", "<Continent> Cup") give a {{co}} start point for
+  glyph_points(name, zone, x, y, page_title)             every dragon / skyriding glyph the glyph pages ("Dragon Glyph",
+                                                         "Skyriding Glyph", "<zone> Glyph Hunter") give a {{co}} or a
+                                                         {{Zone Map Note}} for
   titles(title, page_title, kind)                         resolution table: every fetched page by title
   parse_stats(metric, value)                              the parse rates printed at the end
 
@@ -66,6 +69,10 @@ ITEM_FROM = re.compile(r"\b(?:drops?|dropped|loot(?:s|ed)?|found|obtain(?:ed|s)?
 ITEM_SOURCE_SECTIONS = ("source", "sources", "location", "locations", "obtaining", "acquisition", "how to obtain")
 ACH_PLACE_SECTIONS = ("location", "locations", "criteria", "guide", "strategy", "overview")
 RACE_PAGE = re.compile(r"^(?:Skyriding races|Dragonriding races|[A-Z][\w' ]+ Cup)$")
+GLYPH_PAGE = re.compile(r"^(?:Dragon Glyph|Skyriding Glyph|[A-Z][\w' -]+ Glyph Hunter)$")
+# {{Zone Map|zone=<zone>|notes= ... {{Zone Map Note|x|y|icon|name}} ... }}: the zone a note's x,y belong to
+ZONE_MAP = re.compile(r"\{\{\s*Zone Map\s*\|[^{}]*?zone\s*=\s*([^|}\n]+)", re.I)
+ZONE_MAP_NOTE = re.compile(r"\{\{\s*Zone Map Note\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|[^|{}]*\|\s*([^|{}]+?)\s*\}\}", re.I)
 RE_ELINK = {
     "quest": re.compile(r"\{\{\s*elinks-quest\s*\|\s*(\d+)", re.I),
     "npc": re.compile(r"\{\{\s*elinks-npc\d?\s*\|([^{}]*)\}\}", re.I),
@@ -296,6 +303,7 @@ def main():
     create table achievement_criteria(ach_id int, idx int, text text, link_title text, quest_id int);
     create table achievement_links(ach_id int, idx int, link_title text, coords_json text);
     create table race_courses(course text, zone text, x real, y real, page_title text);
+    create table glyph_points(name text, zone text, x real, y real, page_title text);
     create table titles(title text primary key, page_title text, kind text);
     create table parse_stats(metric text primary key, value real);
     """)
@@ -458,6 +466,29 @@ def main():
                 if name and len(name) < 60:
                     db.execute("insert into race_courses values (?,?,?,?,?)", (name, cs[0][2], cs[0][0], cs[0][1], title))
                     st["race_courses"] += 1
+        if GLYPH_PAGE.match(title):
+            # "* Windsong Rise {{co|61.5|64.4|Ohn'ahran Plains}}" (the first {{co}} of the line), and the same glyphs as
+            # "{{Zone Map Note|61.5|64.4|OBJ353|Windsong Rise}}" inside "{{Zone Map|zone=Ohn'ahran Plains|notes=...}}"
+            got = set()
+            for ln in text.splitlines():
+                s_ = ln.strip()
+                cs = W.coords(ln)
+                if not s_.startswith("*") or not cs or not cs[0][2]:
+                    continue
+                name = W.plain(ln[:cs[0][3]]).strip(" *,:;-")
+                if name and len(name) < 60 and name not in got:
+                    got.add(name)
+                    db.execute("insert into glyph_points values (?,?,?,?,?)", (name, cs[0][2], cs[0][0], cs[0][1], title))
+                    st["glyph_points"] += 1
+            zones = [(m.start(), W.plain(m.group(1)).strip()) for m in ZONE_MAP.finditer(text)]
+            for m in ZONE_MAP_NOTE.finditer(text):
+                zone = next((z for pos, z in reversed(zones) if pos < m.start()), "")
+                name = W.plain(m.group(3)).strip()
+                if zone and name and len(name) < 60 and name not in got:
+                    got.add(name)
+                    db.execute("insert into glyph_points values (?,?,?,?,?)",
+                               (name, zone, float(m.group(1)), float(m.group(2)), title))
+                    st["glyph_points"] += 1
         if "Achievementtip" in kinds:
             title_kind.setdefault(title, "achievement")
             st["achievement_pages"] += 1

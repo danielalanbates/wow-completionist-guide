@@ -33,6 +33,7 @@ TOOLS = Path(__file__).resolve().parent
 ROOT = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
 import package_release as pr  # noqa: E402
+from gen_completion_guides import FALLBACK_BUILD  # noqa: E402
 
 GIT = pr.GIT
 TMPROOT = "/private/tmp/claude-501" if os.path.isdir("/private/tmp/claude-501") else None
@@ -304,6 +305,11 @@ def main():
                     "Guides/Imported_QuestLines_retail.lua",
                     lambda d, a: append(a / "Guides" / "Imported_QuestLines_retail.lua",
                                         "T Foo|QID|5|M|1,1|Z|1; X|N|To Foo. (location: Questie data)|\n"))
+        # achievements and quest lines made from the default (fallback) wiki build say so in their header
+        # (tools/gen_completion_guides.py FALLBACK_BUILD): the release needs the files made from the --no-fallback build
+        for rel, fl in (("Guides/Imported_QuestLines_retail.lua", "retail"), ("Guides/Imported_Achievements_mop.lua", "mop")):
+            expect_fail(env, f"{rel} made from the default (fallback) wiki build", "interop-derived", rel,
+                        lambda d, a, rel=rel, fl=fl: append(a / rel, FALLBACK_BUILD.format(fl=fl) + "\n"))
         def plant_old_story(d, a):
             toc = a / "CompletionRoute.toc"
             toc.write_text(toc.read_text().replace("Guides\\Imported_QuestLines_retail.lua", "Guides\\Imported_Storylines_retail.lua"))
