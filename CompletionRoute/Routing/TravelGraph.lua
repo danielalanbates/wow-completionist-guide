@@ -502,7 +502,7 @@ end)
 -- Roads: predetermined paths through zones (hand-authored Data/Roads_*.lua, image-traced via
 -- tools/trace_roads.py, or recorded from this account's own play by Routing/Roads.lua).
 -- A road is a polyline; every vertex is a graph node chained by "road" edges costed at
--- roadFactor (1.0) instead of the off-road terrainFactor (1.25), so Dijkstra prefers the road
+-- roadFactor (1.0) instead of the off-road terrainFactor (Routing/CostModel.lua TERRAIN), so Dijkstra prefers the road
 -- when it is not much longer than the straight line. Road nodes are bucketed on a grid so the
 -- lazy complete-walking graph only has to look at nearby road vertices.
 -- ---------------------------------------------------------------------------
@@ -726,7 +726,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             local function hnode(cdleft, k, i, label, toy)
                 if cdleft > 15 * 60 then return end
                 local hn = { id = "hearth" .. k, kind = "hearth", inst = hinst, wx = hx, wy = hy, name = hname or "Home", edges = {} }
-                local cost = (c.hearthCost or (NS.CostModel and NS.CostModel.HEARTH) or 60) + cdleft
+                local cost = (c.hearthCost or NS.CostModel.HEARTH) + cdleft
                 addEdge(start, hn, cost, "hearth", label .. " to " .. (hname or "your inn"), { kind = k, id = i, cd = cdleft, toy = toy })
                 hearthNodes[#hearthNodes + 1] = hn
             end
@@ -742,7 +742,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
         for _, a in ipairs(NS.Teleports.Available()) do
             if a.inst and a.cd <= 15 * 60 then
                 local tn = { id = "tele:" .. a.key, kind = "teleport", inst = a.inst, wx = a.wx, wy = a.wy, name = a.dest, edges = {} }
-                local cost = (c.hearthCost or (NS.CostModel and NS.CostModel.HEARTH) or 60) - 10 + (a.cast or 10) + a.cd
+                local cost = (c.hearthCost or NS.CostModel.HEARTH) - 10 + (a.cast or 10) + a.cd
                 addEdge(start, tn, cost, "teleport", a.title, { kind = (a.kind == "spell") and "spell" or "item", id = a.id,
                                                                toy = (a.kind == "toy"), cd = a.cd, key = a.key })
                 hearthNodes[#hearthNodes + 1] = tn
@@ -889,10 +889,8 @@ function TG.Snapshot()
 end
 -- the off-road walking factor FindPath uses (flying flattens the terrain; Routing/CostModel.lua)
 function TG.WalkFactor()
-    local CM = NS.CostModel
     local fly = (U.CanFly and U.CanFly()) and true or false
-    if CM then return CM.WalkFactor(fly, cfg().terrainFactor) end
-    return fly and 1.05 or (cfg().terrainFactor or 1.25)
+    return NS.CostModel.WalkFactor(fly, cfg().terrainFactor)
 end
 
 local function snapReachable(gr, a, b)

@@ -44,7 +44,8 @@ RP.FRAME_MS = 0.8       -- CPU per frame (the hard limit is 2 ms: a check runs e
 RP.NEIGHBORS = 8        -- nearest blocks (by travel time) a block may be moved next to...
 RP.ALL_BELOW = 60       -- ...or every block of a segment that has at most this many
 RP.REV_MAX = 40         -- longest 2-opt reversal, in blocks
-RP.NOROUTE = (NS.CostModel and NS.CostModel.NOROUTE) or 1800   -- a leg the router cannot path (Routing/CostModel.lua)
+local CM = assert(NS.CostModel, "Routing/CostModel.lua must load before Routing/Replan.lua")
+RP.NOROUTE = CM.NOROUTE  -- a leg the router cannot path (Routing/CostModel.lua)
 
 local ACCEPT = { A = true, a = true, ["!"] = true }
 local OBJECTIVE = { C = true, K = true, l = true, U = true }
@@ -111,13 +112,11 @@ local function build(list, ctx)
         if (s.index or 0) > 0 and not ctx.isDone(s) and everApplies(s) then items[#items + 1] = s slot[#slot + 1] = i end
     end
     local head, firm = {}, {}
-    local CM = NS.CostModel
     for k, s in ipairs(items) do
         local wx, wy, inst = R.StepWorld(s)
         if wx then
             pt[k] = { wx = wx, wy = wy, inst = inst }
-            if CM then head[k], firm[k] = CM.Located(s), CM.Firm(s)
-            else head[k], firm[k] = s.coords ~= nil, s.coords ~= nil end
+            head[k], firm[k] = CM.Located(s), CM.Firm(s)
         end
         if k % 32 == 0 then tick() end
     end

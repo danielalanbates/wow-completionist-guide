@@ -68,13 +68,13 @@ check("Account-wide progress: count steps ANY of my characters finished (finer c
 check("Account-wide: also match by quest ID across different guides", function() return P().accountQuests end, function(v) P().accountQuests = v NS.Progress.Refresh() end, "A quest an alt turned in clears the matching step in any guide that covers it, not just the same guide.")
 check("Debug messages", function() return P().debug end, function(v) P().debug = v end)
 slider("Reorder window (steps)", 3, 24, 1, function() return P().routing.window end, function(v) P().routing.window = v NS.Progress.Refresh() end)
-slider("Terrain detour factor x100", 100, 200, 5, function() return math.floor((P().routing.terrainFactor or 1.25) * 100 + 0.5) end, function(v)
+slider("Terrain detour factor x100", 100, 200, 5, function() return math.floor((P().routing.terrainFactor or NS.CostModel.TERRAIN) * 100 + 0.5) end, function(v)
     -- OnShow's SetValue lands here too: drop the cached paths only when the factor really changed
     if P().routing.terrainFactor ~= v / 100 then P().routing.terrainFactor = v / 100 NS.TravelGraph.PathCacheWipe() end
     NS.Router.Invalidate()
 end)
-slider("Hearth base cost (seconds)", 10, 300, 10, function() return P().routing.hearthCost or 60 end, function(v)
-    if (P().routing.hearthCost or 60) ~= v then P().routing.hearthCost = v NS.TravelGraph.OneShotChanged() end
+slider("Hearth base cost (seconds)", 10, 300, 10, function() return P().routing.hearthCost or NS.CostModel.HEARTH end, function(v)
+    if (P().routing.hearthCost or NS.CostModel.HEARTH) ~= v then P().routing.hearthCost = v NS.TravelGraph.OneShotChanged() end
 end)
 slider("Beacon scale x100", 50, 200, 5, function() return math.floor((P().beacon.scale or 1) * 100 + 0.5) end, function(v) P().beacon.scale = v / 100 NS.Beacon.RescanPlates() end)
 slider("Arrow scale x100", 50, 200, 5, function() return math.floor((P().arrow.scale or 1) * 100 + 0.5) end, function(v) P().arrow.scale = v / 100 NS.Arrow.ApplySettings() end)

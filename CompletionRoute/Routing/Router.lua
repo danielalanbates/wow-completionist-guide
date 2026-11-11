@@ -5,6 +5,7 @@
 --   Router.Recommendation()    -> what the arrow should do right now (walk / hearth / teleport / item / taxi / transit)
 local ADDON, NS = ...
 local U, HBD, TG = NS.Util, NS.HBD, NS.TravelGraph
+local CM = assert(NS.CostModel, "Routing/CostModel.lua must load before Routing/Router.lua")
 local R = {}
 NS.Router = R
 
@@ -77,18 +78,9 @@ function R.StepWorld(step)
     if qx then step._locSource = "quest" return qx, qy, qi end
     -- then the cost model's point (Routing/CostModel.lua): the NPC's point from elsewhere in the guide, the step it rides
     -- with (it is done where the player already is), or the centre of a zone the route is not in yet
-    local CM = NS.CostModel
-    if CM then
-        local wx, wy, inst, src = CM.World(step, R.OwnWorld)
-        step._locSource = wx and src or nil
-        return wx, wy, inst
-    end
-    if step.zone then
-        local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(0.5, 0.5, step.zone)
-        if wx then step._locSource = "zone" return wx, wy, inst end
-    end
-    step._locSource = nil
-    return nil
+    local wx, wy, inst, src = CM.World(step, R.OwnWorld)
+    step._locSource = wx and src or nil
+    return wx, wy, inst
 end
 
 -- Nearest coordinate of a multi-coord step to the player
@@ -107,7 +99,7 @@ function R.NearestCoord(step)
 end
 
 -- yards: below this, never bother with the full graph (Routing/CostModel.lua)
-local WALK_ONLY_BELOW = (NS.CostModel and NS.CostModel.WALK_ONLY_BELOW) or 700
+local WALK_ONLY_BELOW = CM.WALK_ONLY_BELOW
 -- the walking factor of a short walk: the graph's own (Routing/CostModel.lua: flying flattens the terrain)
 local function shortFactor() return TG.WalkFactor() end
 
@@ -316,7 +308,7 @@ function R.CorpseRecommendation()
     if wx and inst == cinst then
         rec.dist = math.sqrt((wx - cwx) ^ 2 + (wy - cwy) ^ 2)
         -- ghosts move faster than the living; do not promise a walking ETA off the live speed
-        rec.eta = rec.dist / ((NS.db.profile.routing.runSpeed or 7) * 1.5)
+        rec.eta = rec.dist / ((NS.db.profile.routing.runSpeed or CM.RUN_SPEED) * 1.5)
     end
     local delay = GetCorpseRecoveryDelay and GetCorpseRecoveryDelay() or 0
     if delay and delay > 0 then rec.why = ("resurrection sickness timer: %ds"):format(delay) end

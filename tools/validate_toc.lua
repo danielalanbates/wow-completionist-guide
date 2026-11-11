@@ -66,13 +66,13 @@ for _, toc in ipairs(tocs) do
             end
         end
         -- quest-level skipping: the module comes after Progress (it rebuilds P.steps), the re-planner after the Router;
-        -- the cost model (Routing/CostModel.lua) before the travel graph, the live window and the re-planner that read it
+        -- the cost model (Routing/CostModel.lua) before the travel graph, the live window, the re-planner and the router that read it
         local order = {}
         local k = 0
         for line in bodies[toc]:gmatch("[^\n]+") do k = k + 1 order[line:gsub("\\", "/")] = k end
         for _, pair in ipairs({ { "Core/Progress.lua", "Core/Skip.lua" }, { "Routing/Router.lua", "Routing/Replan.lua" },
                                 { "Routing/CostModel.lua", "Routing/TravelGraph.lua" }, { "Routing/CostModel.lua", "Routing/StepOrder.lua" },
-                                { "Routing/CostModel.lua", "Routing/Replan.lua" } }) do
+                                { "Routing/CostModel.lua", "Routing/Replan.lua" }, { "Routing/CostModel.lua", "Routing/Router.lua" } }) do
             if not (order[pair[1]] and order[pair[2]] and order[pair[1]] < order[pair[2]]) then
                 print("FAIL " .. toc .. ": " .. pair[2] .. " must load after " .. pair[1]); fail = fail + 1
             end

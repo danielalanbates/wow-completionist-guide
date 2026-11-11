@@ -37,7 +37,7 @@ NS.defaults = {
         frame = { scale = 1.0, alpha = 0.95, width = 320, height = 300, showSteps = 6, lock = false, x = 0, y = 0, point = "CENTER" },
         routing = { enabled = true, reorder = true, baked = true, hearth = true, taxi = true, transit = true, window = 24,
                     teleports = true,         -- class teleports, hearth toys, engineering transporters (Data/Teleports.lua)
-                    runSpeed = 7, mountSpeed = nil, terrainFactor = 1.25, taxiSpeed = 32,
+                    mountSpeed = nil, taxiSpeed = 32,   -- runSpeed, terrainFactor: Routing/CostModel.lua sets them
                     -- "known": fly only INTO flight paths this character has discovered (account-wide on retail and
                     -- WoW Forever, where the client shares them); walking to a new flight master to pick it up is fine.
                     -- "faction": every flight master your faction can use, discovered or not (the old default).
