@@ -31,6 +31,11 @@ Step location priority (docs/WIKI_DATA_SPEC.md 3/4):
      "(location: Blizzard data)" (retail quest POI) or "(location: Questie data)" (Classic, Questie-derived) in
      their note.  --no-fallback writes a pure-wiki file (the shippable variant).
   4. otherwise the step has no |M| and says so.
+Item-started quests (Blizzard ItemSparse.StartQuestID, tools/db2/<flavor>/ItemSparse.csv): the accept step is where the
+item is obtained.  Its point comes from the wiki item page (the {{Coords}} in its "found / fished / dropped" sentences,
+else the drop source pages), found through the questbox start link or, when the wiki starts the quest elsewhere or not
+at all, through the item id.  A source that is only a zone gives a zone-level accept (|Z| without |M|, "zone only" in the
+note).  The accept carries |U|<item>| so the arrow offers "Use <item>" once the item is in the bags.
 Chains: the questbox `previous` links become |PRE| (any one of them, ";"), and a `next` link adds the reverse edge.
 Only quests that exist on the same client are kept in PRE, so a chain never waits for a quest that cannot exist.
 World quests, callings and emissary quests are left out (time-limited, not completionist steps).
@@ -240,6 +245,13 @@ class Gen:
         self.npc_classic = {r["title"]: r["page_classic"] for r in self.db.execute("select title, page_classic from npcs")}
         self.items = {r["title"]: (r["item_id"], json.loads(r["sources_json"] or "[]"))
                       for r in self.db.execute("select * from items")}
+        cols = [c[1] for c in self.db.execute("pragma table_info(items)")]
+        self.item_pts = {r["title"]: json.loads(r["coords_json"] or "[]")
+                         for r in self.db.execute("select * from items")} if "coords_json" in cols else {}
+        self.item_by_id = {}
+        for t, (iid, _src) in self.items.items():
+            if iid and (iid not in self.item_by_id or "(item)" in t):
+                self.item_by_id[iid] = t
         self.objs = defaultdict(list)
         for r in self.db.execute("select * from quest_objectives order by quest_id, page_title, idx"):
             self.objs[(r["quest_id"], r["page_title"])].append(dict(r))
@@ -250,6 +262,16 @@ class Gen:
             if not p.exists():
                 sys.exit(f"missing {p} - run tools/wiki/fetch_db2.py")
             self.qv2[fl] = {int(r["ID"]) for r in csv.DictReader(p.open(encoding="utf-8"))}
+        # quest -> [(item id, item name)] that start it, per client (Blizzard ItemSparse.StartQuestID)
+        self.starter = {}
+        for fl in FLAVORS:
+            p = ROOT / "tools" / "db2" / fl / "ItemSparse.csv"
+            self.starter[fl] = defaultdict(list)
+            if p.exists():
+                for r in csv.DictReader(p.open(encoding="utf-8")):
+                    q = int(r.get("StartQuestID") or 0)
+                    if q:
+                        self.starter[fl][q].append((int(r["ID"]), r.get("Display_lang") or ""))
         self.qobj = Counter()
         p = ROOT / "tools" / "db2" / "retail" / "QuestObjective.csv"
         if p.exists():
@@ -388,10 +410,26 @@ class Gen:
                 if r:
                     return r[0], r[1], page, ex
         if depth == 0 and page in self.items:
+            pts = [(z, x, y) for x, y, z in self.item_pts.get(page, []) if z]
+            if pts:
+                r = self.coords_list(pts, fl, False, added, home_name)
+                if r:
+                    return r[0], r[1], page, fl == "retail"
             for src in self.items[page][1]:
                 r = self.entity_coords(src, fl, added, home_name, 1)
                 if r:
                     return r
+        return None
+
+    def item_zone(self, page, fl, added):
+        """a zone-only place for an item page whose sources name a zone but give no point: (mapID, zone name) or None"""
+        maps = self.atlas.sets[fl]
+        for src in self.items.get(page, (None, []))[1]:
+            t, kind = self.resolve_title(src)
+            for name in (t, src):
+                mid = maps.resolve(name, added) if name else None
+                if mid is not None and maps.maps[mid]["type"] in (3, 4, 5, 6):
+                    return mid
         return None
 
     # ---- one client ---------------------------------------------------------------------------------
@@ -530,8 +568,34 @@ class Gen:
             c, suf, src = loc_tag("start", starts, "A")
             who = next((clean(e.get("label") or e.get("title"), 60) for e in starts if e.get("title")), "")
             item = r["item_start"] if r["item_start"] and self.resolve_title(r["item_start"])[0] in self.items else None
+            # Blizzard says an item starts this quest: the accept is where that item is obtained
+            starters = self.starter.get(fl, {}).get(qid, [])
+            utag, zone_only, also = "", None, None
+            if starters:
+                st["item_quests"] += 1
+                utag = f"U|{starters[0][0]}|"
+                page = item and self.resolve_title(item)[0]
+                if not page:
+                    page = next((self.item_by_id[i] for i, _ in starters if i in self.item_by_id), None)
+                    if not who or not c:
+                        item = page or starters[0][1] or None
+                    else:
+                        # the wiki names a giver and has its point: keep it, and say the item starts it too
+                        also = re.sub(r"\s*\(item\)$", "", page or starters[0][1] or "") or None
+                if page and (not c or src == "fallback"):
+                    e = self.entity_coords(page, fl, added, home_name)
+                    if e:
+                        c, suf, src = versioned((e[0], e[1]), e[3], "A")
+                        item, also = item or page, None
+                    elif not c:
+                        zone_only = self.item_zone(page, fl, added)
+                st["item_quests_point"] += 1 if c else 0
+                st["item_quests_zone"] += 1 if zone_only is not None and not c else 0
             if item:
-                note = f"Starts from the item {clean(item, 60)}."
+                iname = re.sub(r"\s*\(item\)$", "", item)
+                note = f"Starts from the item {clean(iname, 60)}."
+            elif also and who:
+                note = f"From {who}; the item {clean(also, 60)} starts it too."
             elif auto:
                 note = "Accepted automatically when you reach the area."
             elif who:
@@ -539,11 +603,15 @@ class Gen:
             else:
                 note = "Quest giver not named on the wiki."
             if c:
-                lines.append(f"A {name}|QID|{qid}|{ptag}{mz(c)}{gate}N|{note}{suf}|")
+                lines.append(f"A {name}|QID|{qid}|{ptag}{utag}{mz(c)}{gate}N|{note}{suf}|")
                 if c[0] != "Z":
                     first_map = c[0]
+            elif zone_only is not None:
+                lines.append(f"A {name}|QID|{qid}|{ptag}{utag}Z|{zone_only}; {maps.maps[zone_only]['name']}|{gate}"
+                             f"N|{note} (zone only: the wiki names where it drops but gives no point)|")
+                src = "zone"
             else:
-                lines.append(f"A {name}|QID|{qid}|{ptag}{gate}N|{note} No coordinates on the wiki.|")
+                lines.append(f"A {name}|QID|{qid}|{ptag}{utag}{gate}N|{note} No coordinates on the wiki.|")
             st[f"steps_{src}"] += 1
             st["steps"] += 1
             # C per objective bullet
