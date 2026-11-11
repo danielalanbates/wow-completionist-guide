@@ -56,7 +56,7 @@ def opt_tmp():
     if os.environ.get("CR_TMP"):
         return os.environ["CR_TMP"]
     src = open(os.path.join(REPO, "tools", "optimize_routes.py"), encoding="utf-8").read()
-    return re.search(r'^TMP_DEFAULT = "([^"]+)"', src, re.M).group(1)
+    return os.path.expanduser(re.search(r'^TMP_DEFAULT = (?:os\.path\.expanduser\()?"([^"]+)"', src, re.M).group(1))
 
 
 def model_keeps(r):
