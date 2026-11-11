@@ -121,8 +121,9 @@ function TG.OnQuestTurnedIn(questID)
     local what = TG.unlockQuests[questID]
     if what == "access" then TG.accessDirty = true return true end
     if what then TG.built = false return true end     -- a transit `cond` reads it: full (lazy) rebuild
-    -- a one-shot (teleport) cond may read it: costs from the player are re-priced, nothing else
-    if NS.Teleports and NS.Teleports.QuestMatters and NS.Teleports.QuestMatters(questID) then TG.OneShotChanged() end
+    -- a one-shot (teleport) cond may read it: work out what is usable again now (no bag, spell or cooldown event follows
+    -- a turn-in); T.Recheck bumps oneShotGen when what is offered changed, so only the costs from the player are re-priced
+    if NS.Teleports and NS.Teleports.QuestMatters and NS.Teleports.QuestMatters(questID) then NS.Teleports.Recheck() end
     return false
 end
 if NS.RegisterEvent then NS:RegisterEvent("QUEST_TURNED_IN", function(_, questID) TG.OnQuestTurnedIn(questID) end) end

@@ -17,6 +17,8 @@
 --   flavors = { era, tbc, mop, retail } (NS.flavor: "era" covers WoW Forever), fac = "A" | "H", class = "MAGE" ...
 --   reagent = { [dataFlavor] = itemID }   the spell needs this item in the bags (Rune of Teleportation on Classic)
 --   equip = { [dataFlavor] = true }       a trinket that only works while worn (Classic engineering transporters)
+--   profession = SkillLine id the item needs (202 Engineering; ItemSparse RequiredSkill, whose retail tier lines such as
+--                2506 "Classic Engineering" have 202 as their SkillLine parent); a character known to lack it is skipped
 --   spell = the item's use spell (ItemEffect), cast = cast seconds, cd = cooldown seconds (informational: the live
 --   cooldown comes from the client), hearth = true: a Hearthstone stand-in (no `to`: it goes to the hearth),
 --   cond = same as Data/Transit.lua `cond` (Routing/TravelGraph.lua TG.CondOK), approx = landing point is approximate
@@ -131,16 +133,16 @@ NS.TeleportData = {
     -- Classic Era and TBC: trinkets (ItemSparse InventoryType 12) - they only work while worn.  Since patch 3.2.0 they are
     -- used from the bags (Forever and MoP Classic: InventoryType 0); toys on MoP Classic and retail (Toy table).
     { key = "eng_everlook", kind = "item", id = 18984, name = "Dimensional Ripper - Everlook", spell = 23442, flavors = CLASSIC,
-      equip = { era = true, tbc = true }, cast = 10, cd = 14400, to = { 1, 6751.9, -4632.5, "Everlook, Winterspring" },
+      profession = 202, equip = { era = true, tbc = true }, cast = 10, cd = 14400, to = { 1, 6751.9, -4632.5, "Everlook, Winterspring" },
       cite = { 83, 59.2, 49.8 }, src = "wiki Dimensional Ripper - Everlook (point: wiki Everlook); Goblin Engineering" },
     { key = "eng_gadgetzan", kind = "item", id = 18986, name = "Ultrasafe Transporter: Gadgetzan", spell = 23453, flavors = CLASSIC,
-      equip = { era = true, tbc = true }, cast = 10, cd = 14400, to = { 1, -7117.2, -3740.9, "Gadgetzan, Tanaris" },
+      profession = 202, equip = { era = true, tbc = true }, cast = 10, cd = 14400, to = { 1, -7117.2, -3740.9, "Gadgetzan, Tanaris" },
       cite = { 71, 51, 28 }, src = "wiki Ultrasafe Transporter: Gadgetzan (point: wiki Gadgetzan); Gnomish Engineering" },
     { key = "eng_area52", kind = "item", id = 30542, name = "Dimensional Ripper - Area 52", spell = 36890, flavors = TBC_ON,
-      equip = { tbc = true }, cast = 10, cd = 14400, to = { 530, 3077.6, 3643.6, "Area 52, Netherstorm" },
+      profession = 202, equip = { tbc = true }, cast = 10, cd = 14400, to = { 530, 3077.6, 3643.6, "Area 52, Netherstorm" },
       cite = { 109, 33, 64 }, src = "wiki Dimensional Ripper - Area 52 (point: wiki Area 52); Goblin Engineering" },
     { key = "eng_toshley", kind = "item", id = 30544, name = "Ultrasafe Transporter: Toshley's Station", spell = 36941, flavors = TBC_ON,
-      equip = { tbc = true }, cast = 10, cd = 14400, to = { 530, 1949.0, 5590.8, "Toshley's Station, Blade's Edge Mountains" },
+      profession = 202, equip = { tbc = true }, cast = 10, cd = 14400, to = { 530, 1949.0, 5590.8, "Toshley's Station, Blade's Edge Mountains" },
       cite = { 105, 60, 68 }, src = "wiki Ultrasafe Transporter: Toshley's Station (point: wiki Toshley's Station); Gnomish Engineering" },
     -- ===================== HUB HEARTHSTONES (own destination, own cooldown) =====================
     { key = "dalaran_hearthstone", kind = "item", id = 140192, name = "Dalaran Hearthstone", spell = 222695, flavors = RETAIL,

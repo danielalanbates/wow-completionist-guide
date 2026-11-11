@@ -241,14 +241,18 @@ path cache, and StepOrder then dropped every kept pair cost. Now each event drop
 | Turn-in of a quest a Transit `cond` reads | the whole graph (lazily, `TG.Ensure`) |
 | A spell learned, item looted, level gained that flips a Transit/Access `cond` | the whole graph (`TG.RecheckConds`) |
 | A flight path learned | path cache (`TG.TaxiChanged`); StepOrder's kept costs |
-| Hearth re-bound (moved > 30 yd), a teleport or hearth item becomes usable or unusable, a teleport quest `cond` turned in | only the costs from the player (`TG.oneShotGen`, `TG.OneShotChanged`) |
+| Hearth re-bound (moved > 30 yd), a teleport or hearth item becomes usable or unusable | only the costs from the player (`TG.oneShotGen`, `TG.OneShotChanged`) |
+| Turn-in of a quest a teleport `cond` reads (the Garrison Hearthstone's) | what is usable is worked out again at once (`T.Recheck`; no bag, toy or spell event follows a turn-in); the costs from the player only when that changed what is offered |
+| An Options switch or slider: flights, comfort mode, the flight rule, transit, roads, terrain factor | path cache, so StepOrder's kept costs |
+| An Options switch or slider: hearth, teleports, hearth base cost | only the costs from the player |
 | Any other turn-in | nothing |
 
 The unlock set is collected at build time (`TG.unlockQuests`). Quests turned in this session (`TG.turnedIn`) count as
 completed at once, because `IsQuestFlaggedCompleted` can lag the `QUEST_TURNED_IN` event. Tests: `tools/test_access.lua`
 (an ordinary turn-in keeps the graph and the path cache; the K'aresh unlock rebuilds only the access edges and matches
 a full rebuild), `tools/test_live_route.lua` (kept costs survive a turn-in; a one-shot change re-prices only the
-from-player costs).
+from-player costs; every cost-changing Options control drops what it makes stale - comfort mode and the terrain slider
+used to leave the path cache alone, and the hearth base cost slider left the kept from-player costs).
 
 Measured with `luajit -joff tools/vplayer.lua <fl> --guides-file F --turnins --guidecap 300` on 12 wiki guides per flavor
 (every 7th wiki guide id; the ids are in docs/STATUS.md, 2026-11-10), before = the branch base's `Init`, `Util`, `Progress`,
@@ -279,7 +283,11 @@ rebuilds the graph or recomputes the pair costs the window already had.
   Shattrath, Dalaran Northrend, Ancient Dalaran, Tol Barad, Vale of Eternal Blossoms, Stormshield, Warspear, Dalaran
   Broken Isles, Boralus, Dazar'alor, Oribos, Valdrakken, Dornogal), Teleport: Moonglade, Death Gate (MoP Classic only);
 * engineering transporters (Everlook, Gadgetzan, Area 52, Toshley's Station): trinkets that must be worn on Classic Era
-  and TBC (ItemSparse InventoryType 12), bag items on Forever and MoP Classic, toys on MoP Classic and retail;
+  and TBC (ItemSparse InventoryType 12), bag items on Forever and MoP Classic, toys on MoP Classic and retail. They carry
+  `profession = 202` (Engineering, from ItemSparse `RequiredSkill`; on retail that is a tier line whose SkillLine parent
+  is 202). A character the client says has no Engineering is skipped (`Core/Professions.lua` `Prof.Knows`); when the
+  skill list cannot tell (no API, a collapsed header) the client's `IsUsableItem` / `C_ToyBox.IsToyUsable` decides, and
+  that answer also covers the Gnomish / Goblin specialisation;
 * the Dalaran and Garrison hearthstones (the garrison one needs "Establish Your Garrison");
 * 36 Hearthstone stand-ins (toys and items that share the Hearthstone's destination and cooldown). One is used only
   when no Hearthstone is in the bags (`U.HearthReady`); its cast also counts for H steps and the bind recorder.
@@ -289,8 +297,9 @@ Forever and TBC, is in the bags) or the item or toy is owned and usable (`C_ToyB
 `cond` holds, and its cooldown has at most 15 minutes left. Cost = `hearthCost - 10 + cast + cooldown left`. Never on a
 pairwise (`hearth = false`) query, so step-order costs and the bake are unchanged. What is usable is recomputed on
 `SPELLS_CHANGED`, `BAG_UPDATE_DELAYED`, `PLAYER_EQUIPMENT_CHANGED`, `NEW_TOY_ADDED`, `TOYS_UPDATED`, cooldown events and
-level-up (1 s throttle); a change bumps `TG.oneShotGen`. Option: "suggest class teleports, transporters and hub
-hearthstones". `/cr teleports` lists every candidate and why it is or is not offered.
+level-up, profession changes (1 s throttle) and at once on the turn-in of a quest a `cond` reads; a change bumps
+`TG.oneShotGen`. Option: "suggest class teleports, transporters and hub hearthstones". `/cr teleports` lists every
+candidate and why it is or is not offered (including "needs Engineering").
 
 Landing points are world coordinates `{ instance, x, y }`, so one entry serves every client: a wiki `{{Co|x|y|map}}` on
 the modern map (`cite`, converted with `tools/maps_retail.lua`) or a TaxiNodes position. Darnassus and Undercity land
@@ -299,14 +308,21 @@ spot is the modern city's; on Classic Era and TBC it is approximate. After a tel
 within 500 yd of the data point is stored (`CompletionRouteDB.teleportFix`) and used from then on.
 
 Checks: `tools/test_teleports.lua` (every landing point recomputed from its citation; Era mage with and without rune,
-cooldown, Options, arrow, learned landing; worn trinket; retail hearth toy, Garrison Hearthstone quest), and
-`tools/check_teleports.py --fetch --wiki` (names in SpellName / ItemSparse per client, reagents in SpellReagents, use
-spells and cooldowns in ItemEffect, trinket slot, shared Hearthstone cooldown in SpellCategories, and every cited wiki
-page holding the id and coordinate). Last run: 134 entry-client checks and 73 wiki checks, 0 failures.
+cooldown, Options, arrow, learned landing; worn trinket; Engineering needed; retail hearth toy, Garrison Hearthstone
+quest, including the `QUEST_TURNED_IN` event alone making it usable), and `tools/check_teleports.py --fetch --wiki`
+(names in SpellName / ItemSparse per client, reagents in SpellReagents, use spells and cooldowns in ItemEffect, trinket
+slot, `profession` against ItemSparse `RequiredSkill` both ways, shared Hearthstone cooldown in SpellCategories, and
+every cited wiki page holding the id and coordinate). Last run (2026-11-10, after the fixes): 134 entry-client checks
+and 73 wiki checks, 0 failures; with one `profession` removed and one added where DB2 has none, 6 failures, exit 1.
 
 Not done: Zen Pilgrimage (the wiki gives no landing point, and the Peak of Serenity cannot be left on foot), retail
 Death Gate (which Acherus depends on Legion progress), Dreamwalk and class-hall teleports (the landing is a hub whose
 exits are not in the graph), Midnight's Teleport: Silvermoon City (no landing point on the wiki), Kirin Tor rings,
-Ruby Slippers (must be worn), random-destination wormholes. Nothing here has run in a client: the secure `toy` button
-type, `C_ToyBox.IsToyUsable`, the cooldown readings for toys and the landing spots all need Daniel's beta.
+Ruby Slippers (must be worn), random-destination wormholes, Ultrasafe Transporter: Mechagon (item 167075, use spell
+291981, a single fixed teleport in SpellEffect; not a toy and no `RequiredSkill` in retail DB2; a stack-of-100 consumable
+made with Junkyard Tinkering; the wiki says only "Rustbolt" and gives no coordinate, and the Rustbolt page has none
+either, so the landing point would need DB2 SpellTargetPosition, which the harness does not read yet).
+
+Nothing here has run in a client: the secure `toy` button type, `C_ToyBox.IsToyUsable`, the cooldown readings for
+toys, the Engineering check on each client's skill API and the landing spots all need Daniel's beta.
 

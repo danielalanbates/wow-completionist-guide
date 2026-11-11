@@ -36,10 +36,30 @@ installed. All 14 harnesses pass (the 13 below plus the new `tools/test_teleport
   Transit and Access entries.
 * **Fixed on the way:** a combat-queued arrow-button change is replayed with an explicit argument count (it relied on `#`
   of a table with a nil hole); toggling taxi, transit or the flight rule in Options left StepOrder's kept costs stale.
+* **Fixed after review (same day):**
+  * Turning in "Establish Your Garrison" bumped the one-shot generation but did not re-check what is usable, so the
+    Garrison Hearthstone stayed unused until some later bag, spell or toy event. The turn-in now re-checks at once
+    (`T.Recheck`), and bumps only when what is offered changed. Test: the `QUEST_TURNED_IN` event alone, with no
+    manual re-check, makes the next route to Frostwall use it.
+  * `test_live_route.lua` and `test_parked.lua` had silently picked up the new `known` default with no flight paths
+    known (walk-only routing). Both now pin the faction rule, as the other harnesses do.
+  * Options: comfort mode and the terrain detour slider now wipe the path cache (they changed costs without dropping
+    cached paths); the hearth base cost slider now re-prices the from-player costs. The two sliders act only when the
+    value really changes, because opening the panel re-sets them. New test drives every cost-changing Options control
+    (`test_live_route.lua` section 10); 4 of its checks fail on the old handlers.
+  * Engineering transporters carry `profession = 202`, checked against ItemSparse `RequiredSkill` by
+    `check_teleports.py`; a character the client says has no Engineering is not offered them.
+  * Harness counts now: test_teleports 42 (was 35), test_live_route 52 (was 40), test_parked 26; all 14 pass, and
+    `check_teleports.py --wiki` reports 134 entry-client and 73 wiki checks, 0 failures. None of these fixes is on the
+    code path of `vplayer.lua` or `cost_matrix.lua` (neither loads `Routing/Teleports.lua` or `UI/Options.lua`), so the
+    turn-in measurements above and the bake are unchanged.
 * **Not done / unverified:** everything in-game (secure `toy` action, `C_ToyBox.IsToyUsable`, toy cooldowns, Classic
   taxi harvest, landing spots); Zen Pilgrimage, retail Death Gate, Dreamwalk, class halls, Midnight's Teleport:
-  Silvermoon City; Orgrimmar's landing point on Classic Era and TBC is the modern city's; engineering malfunctions are
+  Silvermoon City, Ultrasafe Transporter: Mechagon (no landing coordinate on the wiki; DB2 SpellTargetPosition not read
+  yet); Orgrimmar's landing point on Classic Era and TBC is the modern city's; engineering malfunctions are
   not priced; the bake and the cost-model rework (IDEAS #9) still use the faction rule.
+  Noticed, older than this branch: the return leg of a two-way portal reuses the outbound title ("Take the Orgrimmar
+  Portal Room portal to Silithus" when going from Silithus to Orgrimmar).
 
 # Status / handoff (2026-11-09, gold guides, secondary professions, guides by level)
 

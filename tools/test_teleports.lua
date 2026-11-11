@@ -9,7 +9,9 @@
 --     cooldown is at most 15 minutes; never on a pairwise query; the arrow casts it; the learned landing spot sticks;
 --     an engineering trinket counts only while worn
 --   * Retail, a Horde character: a hearth toy stands in for a missing Hearthstone (secure "toy" use), the Garrison
---     Hearthstone needs its quest, and a turn-in of that quest re-prices only the from-player costs
+--     Hearthstone needs its quest, and a turn-in of that quest (the event alone: no bag, toy or spell event follows it)
+--     makes it usable at once and re-prices only the from-player costs; a turn-in that changes nothing offered bumps nothing
+--   * engineering transporters need Engineering: a character the client says lacks it is skipped
 -- DB2 ids and names are checked separately by tools/check_teleports.py (needs the tools/db2 tables).
 -- Run: luajit tools/test_teleports.lua   (from repo root)
 package.path = "./?.lua;" .. package.path
@@ -53,6 +55,8 @@ do
         if not why and e.class and not CLASS[e.class] then why = "class " .. tostring(e.class) end
         if not why and e.fac and e.fac ~= "A" and e.fac ~= "H" then why = "fac" end
         if not why and e.kind == "item" and type(e.spell) ~= "number" then why = "item without its use spell" end
+        if not why and e.profession ~= nil and e.profession ~= 202 then why = "profession " .. tostring(e.profession) .. " (only 202 Engineering is used)" end
+        if not why and e.key:find("^eng_") and e.profession ~= 202 then why = "engineering transporter without profession = 202" end
         if not why and e.hearth then
             if e.to or e.cite then why = "a hearth stand-in has its own destination" end
         elseif not why then
@@ -111,7 +115,7 @@ local function boot(flavor, toc, faction, class, race)
     end
     local function load(path) assert(loadfile("CompletionRoute/" .. path))("CompletionRoute", NS) end
     local taxi = { era = "Data/Taxi_era.lua", retail = "Data/Taxi_retail.lua" }
-    for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", taxi[flavor], "Data/Transit.lua",
+    for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Core/Professions.lua", taxi[flavor], "Data/Transit.lua",
         "Data/Teleports.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
         "Routing/TravelGraph.lua", "Routing/Teleports.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua",
         "Core/Account.lua", "Core/Progress.lua" }) do load(f) end
@@ -190,6 +194,28 @@ do
     T.Recheck()
     local rip = offered("eng_everlook")
     t("era: worn Dimensional Ripper - Everlook: offered as an item", rip and rip.kind == "item" and rip.id == 18984)
+    -- the client's skill list says this character has no Engineering: skipped, and /cr teleports says why
+    local isp = IsPlayerSpell
+    InstallProfessionAPI("era")              -- tools/stubs.lua: GetNumSkillLines / GetSkillLineInfo
+    IsPlayerSpell = isp
+    PROFS = { { name = "Tailoring", key = 197, rank = 300, max = 300 } }
+    NS.Professions.Invalidate()
+    T.Recheck()
+    local why
+    for _, l in ipairs(T.Report()) do if l:find("Everlook", 1, true) then why = l end end
+    t("era: a character without Engineering is not offered the Ripper", not offered("eng_everlook") and why and why:find("needs Engineering", 1, true), why)
+    PROFS = { { name = "Engineering", key = 202, rank = 300, max = 300 } }
+    NS.Professions.Invalidate()
+    T.Recheck()
+    t("era: with Engineering it is offered again", offered("eng_everlook") ~= nil)
+    SKILL_HEADERS_COLLAPSED = true            -- the skill list cannot tell: the client's IsUsableItem decides
+    PROFS = {}
+    NS.Professions.Invalidate()
+    T.Recheck()
+    t("era: a collapsed skill list (cannot tell) does not block it", offered("eng_everlook") ~= nil)
+    SKILL_HEADERS_COLLAPSED = false
+    GetNumSkillLines, GetSkillLineInfo = nil, nil   -- back to the stubbed client's default (no skill API) for the blocks below
+    NS.Professions.Invalidate()
     ITEM_CD[18984] = { 3 * 3600, 4 * 3600 }
     t("era: the Ripper's 4-hour cooldown with 3 hours left: not offered", not offered("eng_everlook"))
     -- class and faction filters
@@ -250,7 +276,7 @@ do
     local built = TG.stats.builds
     t("retail: its turn-in does not rebuild the graph", TG.OnQuestTurnedIn(34378) == false and TG.built and TG.stats.builds == built)
     t("retail: its turn-in re-prices the from-player costs", TG.oneShotGen > gen)
-    T.Recheck()
+    -- no T.Recheck here: the turn-in alone must make it usable (no bag, toy or spell event follows a turn-in)
     local g = offered("garrison_hearthstone_h")
     t("retail: after the turn-in the Garrison Hearthstone is offered as a toy, landing in Frostwall", g and g.kind == "toy" and g.inst == 1116, g and g.dest)
     -- the leg data the arrow reads for a toy teleport
@@ -259,6 +285,37 @@ do
     local gl = legOf(pg, "teleport")
     t("retail: a route to Frostwall uses the Garrison Hearthstone, as a toy", gl and gl.data.kind == "item" and gl.data.id == 110560 and gl.data.toy == true,
       pg and TG.Describe(pg))
+end
+
+-- ---------------------------------------------------------------------------
+-- 4) Retail, the QUEST_TURNED_IN event itself (what the client fires), no other event after it
+-- ---------------------------------------------------------------------------
+do
+    local NS = boot("retail", 120100, "Horde", "WARRIOR", "Orc")
+    local TG, T = NS.TravelGraph, NS.Teleports
+    local function fire(ev, ...) for _, h in ipairs(NS.wowHandlers[ev] or {}) do h(ev, ...) end end
+    local function offered(key) for _, a in ipairs(T.Available()) do if a.key == key then return a end end end
+    T.Recheck()
+    local gen = TG.oneShotGen
+    fire("QUEST_TURNED_IN", 34378, 0, 0)     -- no Garrison Hearthstone owned: nothing offered changes
+    t("retail event: the garrison turn-in without the hearthstone bumps nothing", TG.oneShotGen == gen, TG.oneShotGen - gen)
+    TOYS[110560] = true
+    T.Recheck()                               -- NEW_TOY_ADDED / TOYS_UPDATED in the client
+    t("retail event: the toy learned after the turn-in is offered", offered("garrison_hearthstone_h") ~= nil)
+    local NS2 = boot("retail", 120100, "Horde", "WARRIOR", "Orc")
+    TG, T = NS2.TravelGraph, NS2.Teleports
+    fire = function(ev, ...) for _, h in ipairs(NS2.wowHandlers[ev] or {}) do h(ev, ...) end end
+    TOYS[110560] = true
+    T.Recheck()
+    t("retail event: owned but no garrison yet: not offered", not offered("garrison_hearthstone_h"))
+    place(1, 0.5, 0.5)                        -- Durotar
+    local fx, fy, fi = z2w(0.5, 0.5, 590)     -- Frostwall
+    gen = TG.oneShotGen
+    fire("QUEST_TURNED_IN", 34378, 0, 0)
+    local p = TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, fx, fy, fi, {})
+    local gl = legOf(p, "teleport")
+    t("retail event: right after QUEST_TURNED_IN the route to Frostwall uses the Garrison Hearthstone",
+      TG.oneShotGen > gen and gl and gl.data.id == 110560, p and TG.Describe(p))
 end
 
 print(("%d passed, %d failed"):format(passed, failed))

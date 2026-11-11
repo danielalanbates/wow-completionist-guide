@@ -54,12 +54,25 @@ local function displayName(e)
     return n or (e.names and e.names[NS.flavor]) or e.name
 end
 
+-- `profession` = a SkillLine id (Core/Professions.lua Prof.SKILL_LINE, e.g. 202 Engineering).  Only a definite "this
+-- character does not have it" blocks the entry; "cannot tell" (no API, a collapsed skill header) leaves it to the
+-- client's own IsUsableItem / C_ToyBox.IsToyUsable answer, which also covers the Gnomish / Goblin specialisations.
+local function professionOK(e)
+    if not e.profession then return true end
+    local P = NS.Professions
+    local name = P and P.SKILL_LINE and P.SKILL_LINE[e.profession]
+    if not (name and P.Knows) then return true end
+    return P.Knows(name) ~= false
+end
+T.ProfessionOK = professionOK
+
 -- How this character can use an entry right now: "spell", "toy" or "item"; nil = it cannot.
 function T.Usable(e)
     if e.cond ~= nil then
         local TG = NS.TravelGraph
         if not (TG and TG.CondOK and TG.CondOK(e.cond)) then return nil end
     end
+    if not professionOK(e) then return nil end
     if e.kind == "spell" then
         if not U.SpellKnown(e.id) then return nil end
         local rg = e.reagent and e.reagent[dataFlavor()]
@@ -141,15 +154,19 @@ function T.IsHearthSpell(spellID)
     return (e and e.hearth) and true or false
 end
 
--- does a teleport's `cond` read this quest (its turn-in can change what is offered)?
+-- does a teleport's or hearth stand-in's `cond` read this quest (its turn-in can change what is offered)?
+-- TG.OnQuestTurnedIn then calls T.Recheck at once.
 function T.QuestMatters(q)
-    for _, e in ipairs(T.Candidates().move) do
-        local cd = type(e.cond) == "table" and e.cond or nil
-        if cd then
-            for _, k in ipairs({ "quest", "notQuest" }) do
-                local v = cd[k]
-                if v == q then return true end
-                if type(v) == "table" then for _, id in ipairs(v) do if id == q then return true end end end
+    local c = T.Candidates()
+    for _, list in ipairs({ c.move, c.hearth }) do
+        for _, e in ipairs(list) do
+            local cd = type(e.cond) == "table" and e.cond or nil
+            if cd then
+                for _, k in ipairs({ "quest", "notQuest" }) do
+                    local v = cd[k]
+                    if v == q then return true end
+                    if type(v) == "table" then for _, id in ipairs(v) do if id == q then return true end end end
+                end
             end
         end
     end
@@ -181,6 +198,8 @@ if NS.RegisterEvent then
                           "TOYS_UPDATED", "SPELL_UPDATE_COOLDOWN", "BAG_UPDATE_COOLDOWN", "PLAYER_LEVEL_UP", "SKILL_LINES_CHANGED" }) do
         NS:RegisterEvent(ev, soon)
     end
+    -- Core/Professions.lua fires this once its snapshot is fresh (a profession learned or dropped: `profession` entries)
+    if NS.On then NS:On("PROFESSIONS_CHANGED", soon) end
 end
 
 -- Learn where a teleport really lands: after the player casts one, the first big jump (Routing/TravelGraph.lua's jump
@@ -215,7 +234,10 @@ function T.Report()
     for _, e in ipairs(c.move) do
         local how = usable[e.key]
         local s
-        if not how then s = (e.kind == "spell") and "not known (or no reagent)" or "not owned / not usable"
+        if not how then
+            s = (e.kind == "spell") and "not known (or no reagent)"
+                or (not professionOK(e) and ("needs " .. tostring(NS.Professions.SKILL_LINE[e.profession])))
+                or "not owned / not usable"
         else
             local cd = T.Cooldown(e, how)
             s = how .. (cd > 0 and (", cooldown " .. U.FmtTime(cd)) or ", ready") .. (cd > T.MAX_COOLDOWN and " - not offered (over 15 min)" or "")

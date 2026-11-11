@@ -10,11 +10,12 @@
 Per entry and client (an `era` entry is checked on Classic Era AND WoW Forever, which share that code path):
   spell   SpellName[id] is the entry's name; the Rune of Teleportation reagent matches SpellReagents in both directions
   item    ItemSparse[id] is the entry's name; ItemEffect lists the entry's use spell; a 4-hour / 20-minute `cd` matches
-          ItemEffect CoolDownMSec; `equip` matches ItemSparse InventoryType 12 (trinket) exactly where it is set
+          ItemEffect CoolDownMSec; `equip` matches ItemSparse InventoryType 12 (trinket) exactly where it is set;
+          `profession` matches ItemSparse RequiredSkill (a retail tier line counts as its SkillLine parent) both ways
   hearth  a Hearthstone stand-in's use spell shares a cooldown with the Hearthstone (spell 8690): the same non-zero
           SpellCategories Category or ChargeCategory, or the same ItemEffect SpellCategoryID
   --wiki  every cited Warcraft Wiki page exists and holds the cited coordinate ({{Co|x|y|...}})
-SpellName / ItemSparse / SpellReagents come from tools/db2/<flavor>/ (read only, tools/wiki/db2_fetch.py makes them).
+SpellName / ItemSparse / SpellReagents / SkillLine come from tools/db2/<flavor>/ (read only, tools/wiki/db2_fetch.py makes them).
 ItemEffect, ItemXItemEffect, SpellCategories and Toy are not in that set: they are read from --cache (default
 tools/teleports_db2/, gitignored) and downloaded there with --fetch, pinned to tools/wiki/fetch_db2.py BUILDS, >= 1.2 s
 apart.  Without them the item and hearth checks are reported as skipped.  Exit status 1 on any mismatch.
@@ -130,6 +131,16 @@ def main():
         names = read_rows(DB2 / fl / "SpellName.csv", "ID", spells) or {}
         sparse = read_rows(DB2 / fl / "ItemSparse.csv", "ID", items) or {}
         reagents = read_rows(DB2 / fl / "SpellReagents.csv", "SpellID", spells) or {}
+        skill_parent = {k: int(rs[0].get("ParentSkillLineID") or 0)
+                        for k, rs in (read_rows(DB2 / fl / "SkillLine.csv", "ID", None) or {}).items()}
+
+        def skill_root(sk):
+            """retail tier lines (2506 Classic Engineering ...) up to their profession (202)"""
+            seen = set()
+            while skill_parent.get(sk) and sk not in seen:
+                seen.add(sk)
+                sk = skill_parent[sk]
+            return sk
         extra = {}
         for t in ("ItemEffect", "ItemXItemEffect", "SpellCategories", "Toy"):
             p = fetch(cache, fl, t) if do_fetch else cache / fl / f"{t}.csv"
@@ -193,6 +204,10 @@ def main():
                     worn = bool((e.get("equip") or {}).get(fl))
                     if trinket != worn:
                         bad.append(f"InventoryType {row.get('InventoryType')} but equip = {worn}")
+                    req = int(row.get("RequiredSkill") or 0)
+                    need_prof = int(e.get("profession") or 0)
+                    if (skill_root(req) if req else 0) != need_prof:
+                        bad.append(f"ItemSparse RequiredSkill {req} (profession {skill_root(req) if req else 0}), data says profession = {need_prof or None}")
                 if effects is None:
                     skipped.add(fl + " ItemEffect")
                 else:

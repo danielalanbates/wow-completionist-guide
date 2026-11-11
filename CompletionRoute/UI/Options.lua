@@ -52,7 +52,7 @@ check("Route optimizer: use the pre-computed fastest order for quest guides", fu
     if NS.Progress.guide then NS.Progress.Load(NS.Progress.guide.id) end
 end, "Data/RouteOrder: each quest guide's steps solved offline for the least travel time (A before C before T, prerequisites, quest log size and level kept). Off = the guide's own order.")
 check("Routing: use flight paths", function() return P().routing.taxi end, function(v) P().routing.taxi = v NS.TravelGraph.PathCacheWipe() NS.Router.Invalidate() end)
-check("Routing: prefer flight paths (comfort mode)", function() return P().routing.preferTaxi end, function(v) P().routing.preferTaxi = v NS.Router.Invalidate() end, "Favors comfortable automated flight paths over manual flying.")
+check("Routing: prefer flight paths (comfort mode)", function() return P().routing.preferTaxi end, function(v) P().routing.preferTaxi = v NS.TravelGraph.PathCacheWipe() NS.Router.Invalidate() end, "Favors comfortable automated flight paths over manual flying.")
 check("Routing: fly to every flight master your faction can use, discovered or not (off = only flight paths this character has discovered)", function() return NS.TravelGraph.TaxiPolicy() == "faction" end, function(v) P().routing.taxiPolicy = v and "faction" or "known" P().routing.assumeAllTaxi = nil NS.TravelGraph.TaxiChanged() end, "Off (default): a flight only lands at a flight master you have discovered - on Retail and WoW Forever any character of the account counts, on Classic only this one. The route may walk you to a new flight master to pick it up. On: the old rule; an undiscovered landing is labelled (new flight path).")
 check("Flight map: highlight destination when talking to a flight master", function() return P().beacon.highlightTaxi ~= false end, function(v) P().beacon.highlightTaxi = v end, "Shows a pulsing beacon and name over the exact destination pin/button on the flight master map.")
 check("Routing: follow roads through zones (authored + recorded paths)", function() return P().routing.roads ~= false end, function(v) P().routing.roads = v NS.TravelGraph.RebuildRoads() NS.Router.Invalidate() end)
@@ -68,8 +68,14 @@ check("Account-wide progress: count steps ANY of my characters finished (finer c
 check("Account-wide: also match by quest ID across different guides", function() return P().accountQuests end, function(v) P().accountQuests = v NS.Progress.Refresh() end, "A quest an alt turned in clears the matching step in any guide that covers it, not just the same guide.")
 check("Debug messages", function() return P().debug end, function(v) P().debug = v end)
 slider("Reorder window (steps)", 3, 24, 1, function() return P().routing.window end, function(v) P().routing.window = v NS.Progress.Refresh() end)
-slider("Terrain detour factor x100", 100, 200, 5, function() return math.floor((P().routing.terrainFactor or 1.25) * 100 + 0.5) end, function(v) P().routing.terrainFactor = v / 100 NS.Router.Invalidate() end)
-slider("Hearth base cost (seconds)", 10, 300, 10, function() return P().routing.hearthCost or 60 end, function(v) P().routing.hearthCost = v NS.Router.Invalidate() end)
+slider("Terrain detour factor x100", 100, 200, 5, function() return math.floor((P().routing.terrainFactor or 1.25) * 100 + 0.5) end, function(v)
+    -- OnShow's SetValue lands here too: drop the cached paths only when the factor really changed
+    if P().routing.terrainFactor ~= v / 100 then P().routing.terrainFactor = v / 100 NS.TravelGraph.PathCacheWipe() end
+    NS.Router.Invalidate()
+end)
+slider("Hearth base cost (seconds)", 10, 300, 10, function() return P().routing.hearthCost or 60 end, function(v)
+    if (P().routing.hearthCost or 60) ~= v then P().routing.hearthCost = v NS.TravelGraph.OneShotChanged() end
+end)
 slider("Beacon scale x100", 50, 200, 5, function() return math.floor((P().beacon.scale or 1) * 100 + 0.5) end, function(v) P().beacon.scale = v / 100 NS.Beacon.RescanPlates() end)
 slider("Arrow scale x100", 50, 200, 5, function() return math.floor((P().arrow.scale or 1) * 100 + 0.5) end, function(v) P().arrow.scale = v / 100 NS.Arrow.ApplySettings() end)
 slider("Guide window scale x100", 50, 200, 5, function() return math.floor((P().frame.scale or 1) * 100 + 0.5) end, function(v) P().frame.scale = v / 100 NS.GuideFrame.ApplySettings() end)
