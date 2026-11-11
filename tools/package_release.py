@@ -6,7 +6,8 @@
 """Release packager with a data-provenance gate (docs/RELEASE.md).
 
     python3 tools/package_release.py                  dry run (the default): assemble the add-on in a temp folder, run
-                                                      the gate, measure every zip layout, print the report. Writes nothing.
+                                                      the gate, measure every zip layout, print the report. Writes
+                                                      nothing (except the --db tables when --db is given).
     python3 tools/package_release.py --write [--version 2.0.0-beta1]
                                                       also write dist/<version>/: the assembled add-on, provenance.json,
                                                       gate.txt and, only when the gate passes, the zip(s). Older
@@ -14,8 +15,10 @@
 
 Options: --layout universal|per-client|both (default: universal, see docs/RELEASE.md for the measured sizes),
 --data-root DIR (generated data taken from DIR first, same relative paths), --wow-dir DIR (WoW folder whose
-WTF/Account names count as personal data), --personal-term TEXT (repeatable), --stage-dir DIR (keep the assembled
-add-on there, pass or fail), --repo DIR, --out DIR, --tmp DIR.
+WTF/Account account and character names count as personal data), --personal-term TEXT (repeatable), --stage-dir DIR
+(keep the assembled add-on there, pass or fail), --allow-checkout-links (a git worktree whose generated files are
+links into the main checkout: read through them), --db PATH (also write the data_provenance and release_gate tables
+into that SQLite file), --repo DIR, --out DIR, --tmp DIR.
 
 What ships: the git-tracked code under CompletionRoute/ plus the locally generated data (gitignored Imported_*.lua and
 RouteOrder_*.lua), limited to what the six TOCs load (plus their XML includes, Textures/ and licence files), plus
@@ -25,11 +28,12 @@ install-time interop only: they are never packaged and their lines are removed f
 stamped into the packaged TOCs only.
 
 The gate fails the build when a packaged file has no provenance (no rule, or a "tracked" file git does not track), is
-WoW-Pro- or Questie-derived (by rule or by content), says it must not be redistributed, mentions the commercial guide
-product this project replaced (file names and contents, case-insensitive), holds personal data (e-mail addresses other
-than help@batesai.org, home or volume paths, WoW account names), holds a secret or key pattern, would be packaged
-through a symlink that is not a generated-data link into a checkout, when a packaged TOC or XML lists a file that is not
-in the package, or when a licence notice is missing.
+WoW-Pro- or Questie-derived (by rule, by content, or a baked route order for a guide that is), says it must not be
+redistributed, mentions the commercial guide product this project replaced (file names and contents, case-insensitive),
+holds personal data (e-mail addresses other than help@batesai.org, home or volume paths, WoW account and character
+names), holds a secret or key pattern, would be packaged through a symlink (the one opt-in exception is
+--allow-checkout-links), when a packaged TOC or XML lists a file that is not in the package, or when a licence notice
+is missing.
 
 This tool never creates a git tag, never pushes and never creates a GitHub release: public releases wait for Daniel's
 beta. Exit code: 0 gate passed, 1 gate failed, 2 usage error.
@@ -42,6 +46,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -119,11 +124,14 @@ RULES = (
       "Questie-derived; Core/Instances.lua falls back to doors it learns and the retail encounter journal"),
     # ---- Warcraft Wiki data (CC BY-SA 4.0) --------------------------------------------------------------------------
     R("Guides/Imported_Wiki_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Warcraft Wiki quest pages; which quests a client has: "
-      "Blizzard QuestV2 table (facts). Built with fallback points it carries '(location: Questie data)' lines, which "
-      "fail the gate: ship the --no-fallback build", "tools/wiki/gen_wiki_guides.py (zone split and order: "
-      "tools/wiki/gen_spine.py)", "generated"),
+      "Blizzard QuestV2 table (facts). Only the --no-fallback build ships: the default build fills steps the wiki has "
+      "no point for from Imported_Quests_<flavor>.lua and says so ('(location: Questie data)', and on retail "
+      "'(location: Blizzard data)'), which fails the gate", "tools/wiki/gen_wiki_guides.py --no-fallback (zone split "
+      "and step order: tools/wiki/gen_spine.py)", "generated"),
     R("Guides/Imported_Spine_*.lua", "wiki-cc-by-sa", CC_BY_SA, "the wiki zone guides chained by level band and the "
-      "wiki's quest chains (retail: also Blizzard QuestLine/Campaign order, facts)", "tools/wiki/gen_spine.py", "generated"),
+      "wiki's quest chains (retail: also Blizzard QuestLine/Campaign order, facts); each entry points at a wiki guide "
+      "and copies no step text", "tools/wiki/gen_spine.py (run by gen_wiki_guides.py; build it from the --no-fallback "
+      "wiki file)", "generated"),
     R("Guides/Imported_Gold_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Warcraft Wiki herb, ore, fishing, NPC, quest and "
       "instance pages (points the wiki file credits to Questie are dropped); Blizzard tables for facts",
       "tools/wiki/gen_gold.py", "generated"),
@@ -134,8 +142,9 @@ RULES = (
       "criterion points from Imported_Wiki_<flavor>.lua (rows credited to Questie skipped) and wiki NPC pages",
       "tools/gen_completion_guides.py (achievements)", "generated"),
     # ---- Blizzard client data -------------------------------------------------------------------------------------
-    R("Guides/Imported_Missions_*.lua", "blizzard-client-data", BLIZZARD, "Blizzard GarrMission table",
-      "tools/gen_completion_guides.py (missions)", "generated"),
+    R("Guides/Imported_Missions_*.lua", "blizzard-client-data", BLIZZARD, "Blizzard GarrMission table; the travel "
+      "step to each mission table is written in the generator (own)", "tools/gen_completion_guides.py (missions)",
+      "generated"),
     R("Data/Taxi_*.lua", "blizzard-client-data", BLIZZARD, "Blizzard TaxiNodes, TaxiPath and TaxiPathNode tables",
       "tools/gen_taxi.py", "tracked"),
     R("Data/MapFix_forever.lua", "blizzard-client-data", BLIZZARD, "Blizzard UiMapAssignment table (era and Forever)",
@@ -143,8 +152,9 @@ RULES = (
     R("Data/ZoneAliases.lua", "blizzard-client-data", BLIZZARD, "Blizzard UiMap ids; English names edited by hand",
       "tools/gen_maps.py + hand edits", "tracked"),
     # ---- own data -------------------------------------------------------------------------------------------------
-    R("Data/RouteOrder_*.lua", "own-data", OWN, "baked step orders computed from the addon's own travel graph",
-      "tools/optimize_routes.py (costs: tools/cost_matrix.lua)", "generated"),
+    R("Data/RouteOrder_*.lua", "own-data", OWN, "baked step orders computed from the addon's own travel graph over "
+      "the shipped quest guides; a row for a guide that is Questie- or WoW-Pro-derived fails the gate",
+      "tools/optimize_routes.py (costs: tools/cost_matrix.lua --prefix wiki:)", "generated"),
     R("Data/Access.lua", "own-data", OWN, "hand-authored access chains (quest ids, NPCs, coordinates)", "hand-authored", "tracked"),
     R("Data/Transit.lua", "own-data", OWN, "hand-authored boats, zeppelins, trams and portals", "hand-authored", "tracked"),
     R("Data/Inns.lua", "own-data", OWN, "hand-authored innkeeper seed list", "hand-authored", "tracked"),
@@ -229,6 +239,9 @@ NO_REDISTRIBUTE = re.compile(r"(?i)do not (?:redistribute|commit)|not for redist
 TOC_FILE_LINE = re.compile(r"^\s*([^#\s][^\r\n]*?)\s*$")
 XML_REF = re.compile(r"<(?:Script|Include)\s+[^>]*?file\s*=\s*\"([^\"]+)\"", re.I)
 VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+.][0-9A-Za-z.+-]+)?$")
+# a guide registration (generated: R({ id="..."; hand-written: NS.Guide.Register({ id = "...") and a baked order row
+GUIDE_ID = re.compile(rb'(?:\bR|\.Register)\(\{\s*id\s*=\s*"([^"]+)"')
+ORDER_ROW = re.compile(rb'^O\["([^"]+)"\]\s*=', re.M)
 
 
 def match(pattern, rel):
@@ -353,41 +366,49 @@ def stamp_toc(text, version, strip_rels):
 
 
 def personal_terms(opts, res):
-    terms, labels = [], []
+    """{lower-case term: label} for every personal term: --personal-term, the local terms file, and the WoW account
+    and character names under <wow>/_*_/WTF/Account/<account>/<realm>/<character>"""
+    found = []
     for t in opts.personal_term or []:
-        terms.append(t)
-        labels.append("--personal-term")
+        found.append((t, "personal term (--personal-term)"))
     if PERSONAL_TERMS_FILE.exists() and not opts.no_local_terms:
         for line in PERSONAL_TERMS_FILE.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line and not line.startswith("#"):
-                terms.append(line)
-                labels.append(PERSONAL_TERMS_FILE.name)
+                found.append((line, f"personal term ({PERSONAL_TERMS_FILE.name})"))
     wow = Path(opts.wow_dir) if opts.wow_dir else None
     if wow and wow.is_dir():
-        n = 0
+        accounts, chars = set(), set()
         for acc in sorted(wow.glob("_*_/WTF/Account/*")):
-            if acc.is_dir() and acc.name != "SavedVariables":
-                terms.append(acc.name)
-                labels.append("WoW account name (WTF/Account)")
-                n += 1
-        res.warnings.append(f"personal data: {n} WoW account name(s) found under the WoW folder's WTF/Account are checked")
+            if not acc.is_dir() or acc.name == "SavedVariables":
+                continue
+            accounts.add(acc.name)
+            for realm in sorted(acc.iterdir()):
+                if realm.is_dir() and realm.name != "SavedVariables":
+                    chars.update(c.name for c in realm.iterdir() if c.is_dir() and c.name != "SavedVariables")
+        found += [(a, "WoW account name (WTF/Account)") for a in sorted(accounts)]
+        found += [(c, "WoW character name (WTF/Account/<account>/<realm>)") for c in sorted(chars)]
+        res.warnings.append(f"personal data: {len(accounts)} WoW account name(s) and {len(chars)} character name(s) "
+                            "found under the WoW folder's WTF/Account are checked")
     elif wow:
-        res.warnings.append("personal data: WoW folder not found, account names were not checked "
+        res.warnings.append("personal data: WoW folder not found, account and character names were not checked "
                             "(pass --wow-dir, --personal-term or tools/release/personal_terms.local.txt)")
-    out = []
-    for t, label in zip(terms, labels):
+    out = {}
+    for t, label in found:
         if len(t) < 4:
-            res.warnings.append(f"personal data: a term from {label} is shorter than 4 characters and was skipped")
+            res.warnings.append(f"personal data: a {label} is shorter than 4 characters and was skipped")
             continue
-        out.append((re.compile(r"(?<![A-Za-z0-9])" + re.escape(t) + r"(?![A-Za-z0-9])", re.I), label))
+        out.setdefault(t.lower(), label)
     return out
 
 
 class Scanner:
     def __init__(self, terms):
         self.deny = denylist()
-        self.terms = terms
+        self.terms = terms          # {lower-case term: label}
+        # one pass per file for every personal term, longest first so a longer term wins over its prefix
+        alts = "|".join(re.escape(t) for t in sorted(terms, key=len, reverse=True))
+        self.term_rx = re.compile(r"(?<![A-Za-z0-9])(?:" + alts + r")(?![A-Za-z0-9])", re.I) if terms else None
 
     def scan(self, rel, data, category, res):
         text = data.decode("utf-8", errors="replace") if not rel.endswith(".tga") else data.decode("latin-1")
@@ -417,12 +438,15 @@ class Scanner:
         m = LOCAL_PATH.search(text)
         if m:
             res.fail("personal-data", rel, f"local machine path {mask(m.group(0))} at line {lineno(text, m.start())}")
-        for rx, label in self.terms:
-            if rx.search(rel):
-                res.fail("personal-data", rel, f"the file name holds a personal term from {label}")
-            m = rx.search(text)
+        if self.term_rx:
+            m = self.term_rx.search(rel)
             if m:
-                res.fail("personal-data", rel, f"personal term from {label} at line {lineno(text, m.start())}")
+                res.fail("personal-data", rel, f"the file name holds a {self.terms[m.group(0).lower()]}")
+            first = {}
+            for m in self.term_rx.finditer(text):
+                first.setdefault(self.terms[m.group(0).lower()], m.start())
+            for label, pos in first.items():
+                res.fail("personal-data", rel, f"{label} at line {lineno(text, pos)}")
         for label, rx in SECRETS:
             m = rx.search(text)
             if m:
@@ -553,25 +577,31 @@ def assemble(opts):
     stage = Path(opts.stage) / ADDON
     stage.mkdir(parents=True, exist_ok=True)
     res.stage = stage
-    present = set()
+    present, linked = set(), 0
     for rel in sorted(universal):
         r = rule_for(rel)
         src = source_of(rel)
         if not os.path.lexists(src):
             continue            # reported by the TOC check below
         present.add(rel)
-        link = symlink_component(addon, rel) if src == addon / rel else (rel if src.is_symlink() else None)
+        base = addon if src == addon / rel else Path(str(src)[:-len(rel) - 1])
+        link = symlink_component(base, rel)
         via = ""
         if link:
             target = src.resolve()
             inside = next((root for root in allowed_roots if target.is_relative_to(root)), None)
             same = inside is not None and target.relative_to(inside).as_posix() == rel
-            if r and r.origin == "generated" and link == rel and target.is_file() and same:
+            checkout_link = bool(r and r.origin == "generated" and link == rel and target.is_file() and same)
+            if checkout_link and opts.allow_checkout_links:
                 via = "symlink into a checkout"
+                linked += 1
             else:
                 res.fail("symlink", rel, "would be packaged through a symlink (" + (
-                    "a parent folder is a link" if link != rel else "only generated data may be a link to the same "
-                    "path in a checkout or --data-root") + ")")
+                    "a parent folder is a link" if link != rel else
+                    "a generated file linked to the same path in the main checkout: a git worktree may pass "
+                    "--allow-checkout-links" if checkout_link else
+                    "only generated data may be a link, and only to the same path in the main checkout, with "
+                    "--allow-checkout-links") + ")")
                 continue
         if not src.is_file():
             res.fail("no-provenance", rel, "not a regular file")
@@ -595,6 +625,43 @@ def assemble(opts):
             "generator": r.generator if r else "", "origin": r.origin if r else "unknown",
             "via": via or ("--data-root" if src != addon / rel else ""),
         }
+    if linked:
+        res.warnings.append(f"--allow-checkout-links: {linked} generated file(s) were read through links into the main "
+                            "checkout; provenance.json marks them (via)")
+
+    # ---- gate: baked route orders only for guides that ship -------------------------------------------------------
+    # Data/RouteOrder_<flavor>.lua is computed over every quest guide the bake loaded. A row for a guide that never
+    # ships (the Questie-derived _gaps guides, qdb:/qpoi:) is an order computed from that guide's Questie points.
+    shipped_ids = set()
+    for rel in res.files:
+        if rel.startswith("Guides/") and rel.endswith(".lua"):
+            shipped_ids.update(GUIDE_ID.findall((stage / rel).read_bytes()))
+    interop_ids = {}
+    for e in sorted(res.excluded, key=lambda e: (e["path"] not in strip, e["path"])):     # the TOC-listed file names it
+        src = source_of(e["path"])
+        if src.is_file() and e["path"].endswith(".lua"):
+            for gid in GUIDE_ID.findall(src.read_bytes()):
+                interop_ids.setdefault(gid, e["path"])
+    for rel in sorted(res.files):
+        if not match("Data/RouteOrder_*.lua", rel):
+            continue
+        rows = ORDER_ROW.findall((stage / rel).read_bytes())
+        res.files[rel]["order_rows"] = len(rows)
+        derived = [g for g in rows if g not in shipped_ids and g in interop_ids]
+        orphan = [g for g in rows if g not in shipped_ids and g not in interop_ids]
+        if derived:
+            prefixes = {}
+            for g in derived:
+                p = g.split(b":", 1)[0].decode("utf-8", "replace") + ":"
+                prefixes[p] = prefixes.get(p, 0) + 1
+            files = sorted({interop_ids[g] for g in derived})
+            res.fail("interop-derived", rel, f"{len(derived)} of {len(rows)} baked order row(s) order guides that never ship "
+                     f"because they are Questie- or WoW-Pro-derived ({', '.join(f'{k} {v}' for k, v in sorted(prefixes.items()))}; "
+                     f"from {', '.join(files[:3])}{' ...' if len(files) > 3 else ''}); rebake over the shipped guides only "
+                     "(docs/RELEASE.md)")
+        if orphan:
+            res.warnings.append(f"{rel}: {len(orphan)} baked order row(s) name a guide that is in no file here "
+                                f"(stale bake?), first {orphan[0].decode('utf-8', 'replace')}")
 
     # ---- files written by the packager ----------------------------------------------------------------------------
     lic = repo / "LICENSE"
@@ -727,8 +794,9 @@ def report(res, measured, dry, out=sys.stdout):
     if res.excluded:
         p(f"never shipped ({len(res.excluded)}): " + ", ".join(e["path"] for e in res.excluded))
     if res.stripped:
-        p(f"TOC lines stripped from the packaged copy ({len(res.stripped)}): "
-          + ", ".join(sorted({s["line"].replace(chr(92), '/') for s in res.stripped})))
+        files = sorted({s["line"].replace(chr(92), '/') for s in res.stripped})
+        p(f"TOC lines stripped from the packaged copy ({len(res.stripped)} lines in {len({s['toc'] for s in res.stripped})} "
+          f"TOCs, {len(files)} files): " + ", ".join(files))
     if res.not_packaged:
         p(f"not loaded by any TOC, not packaged ({len(res.not_packaged)}): " + redact(", ".join(res.not_packaged)))
     if measured:
@@ -766,7 +834,39 @@ def parse_args(argv):
     ap.add_argument("--personal-term", action="append", help="extra personal term the package must not contain (repeatable)")
     ap.add_argument("--no-local-terms", action="store_true", help=f"ignore {PERSONAL_TERMS_FILE.name}")
     ap.add_argument("--no-measure", action="store_true", help="skip building the zips of the other layout")
+    ap.add_argument("--allow-checkout-links", action="store_true",
+                    help="a git worktree whose generated data files are links to the same path in the main checkout: "
+                    "read through those links (every other symlink still fails the gate)")
+    ap.add_argument("--db", help="also write tables data_provenance and release_gate into this SQLite file "
+                    "(for example docs/verification.sqlite in the main checkout); never written by default")
     return ap.parse_args(argv)
+
+
+def write_db(path, res, man):
+    """data_provenance (one row per packaged file) and release_gate (one row per problem, or one PASS row) for this
+    version, replacing the rows an earlier build of the same version wrote"""
+    con = sqlite3.connect(path)
+    try:
+        con.executescript("""
+        create table if not exists data_provenance(version text, commit_id text, path text, category text, licence text,
+            source text, generator text, origin text, via text, bytes int, sha256 text, clients text,
+            primary key(version, path));
+        create table if not exists release_gate(version text, commit_id text, built text, result text, rule text,
+            path text, detail text);
+        """)
+        con.execute("delete from data_provenance where version=?", (res.version,))
+        con.execute("delete from release_gate where version=?", (res.version,))
+        con.executemany("insert into data_provenance values (?,?,?,?,?,?,?,?,?,?,?,?)",
+                        [(res.version, res.commit, f["path"], f["category"], f["licence"], f["source"], f["generator"],
+                          f["origin"], f["via"], f["bytes"], f["sha256"], ",".join(f.get("clients", ())))
+                         for f in man["files"]])
+        gate = man["gate"]
+        rows = [(res.version, res.commit, man["built"], gate["result"], f["rule"], f["path"], f["detail"])
+                for f in gate["failures"]] or [(res.version, res.commit, man["built"], gate["result"], "", "", "")]
+        con.executemany("insert into release_gate values (?,?,?,?,?,?,?)", rows)
+        con.commit()
+    finally:
+        con.close()
 
 
 def write_dist(opts, res, man, measured, chosen, zdir):
@@ -800,6 +900,9 @@ def write_dist(opts, res, man, measured, chosen, zdir):
 def run(argv=None, out=sys.stdout):
     """the whole build; returns (exit code, Result, manifest dict)"""
     opts = parse_args(argv)
+    if opts.db and os.path.islink(opts.db):
+        # a git worktree's docs/verification.sqlite is a link into the main checkout: never write through it
+        raise SystemExit(f"package_release: --db {opts.db} is a symlink; pass the real file")
     tmp = tempfile.mkdtemp(prefix="cr-release-", dir=opts.tmp)
     try:
         opts.stage = Path(tmp) / "stage"
@@ -820,9 +923,13 @@ def run(argv=None, out=sys.stdout):
         measured = sorted(recs.values(), key=lambda r: r["name"])
         if opts.write:
             dest = write_dist(opts, res, man, measured, chosen, zdir)
+        if opts.db:
+            write_db(opts.db, res, man)
         report(res, measured, not opts.write, out)
         if opts.write:
             print(f"wrote {dest}" + ("" if res.ok else " (gate.txt and provenance.json only: the gate failed)"), file=out)
+        if opts.db:
+            print(f"wrote tables data_provenance and release_gate ({len(man['files'])} files) to {opts.db}", file=out)
         return (0 if res.ok else 1), res, man
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

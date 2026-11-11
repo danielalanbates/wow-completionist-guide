@@ -8,15 +8,18 @@
     python3 tools/test_package.py [--keep]
 
 Builds a fixture checkout in a temp folder (under /private/tmp/claude-501 when it exists): the real tracked add-on code
-and LICENSE, plus small clean stand-ins for every generated file the TOCs load, committed to a throwaway git repo. It
-proves a clean build passes (interop files left out, their TOC lines stripped, version stamped, notices present,
-provenance for every zip entry, reproducible zips), then plants one bad file per gate rule and proves the gate fails with
-that rule. Nothing outside the temp folder is read or written, except reading the tracked files it copies.
+and LICENSE, plus small clean stand-ins for every generated file the TOCs load, committed to a throwaway git repo, and a
+fake WoW folder with one account and one character. It proves a clean build passes (interop files left out, their TOC
+lines stripped, version stamped, notices present, provenance for every zip entry, reproducible zips, dist/ archiving),
+then plants one bad file per gate rule and proves the gate fails with that rule. It also covers a git worktree whose
+generated files link into its main checkout (fails by default, passes with --allow-checkout-links), --data-root and the
+--db tables. Nothing outside the temp folder is read or written, except reading the tracked files it copies.
 """
 import io
 import json
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -57,6 +60,11 @@ STAND_IN = {
 }
 
 
+def append(path, text):
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(text)
+
+
 def make_base(tmp):
     """the fixture checkout: tracked code + LICENSE + .gitignore, stand-ins for generated data, one commit"""
     base = tmp / "base"
@@ -77,6 +85,10 @@ def make_base(tmp):
                     (addon / rel).parent.mkdir(parents=True, exist_ok=True)
                     (addon / rel).write_text(STAND_IN[r.category], encoding="utf-8")
     (addon / "Guides" / "Imported_Quests_era.lua").write_text(STAND_IN["interop-questie"], encoding="utf-8")
+    # one shipped wiki guide with its baked order row, and one Questie-derived _gaps guide (no row yet)
+    append(addon / "Guides" / "Imported_Wiki_era.lua", 'R({ id="wiki:era:1429:Both", name="Test", type="Quests", text=[==[\n]==] })\n')
+    append(addon / "Data" / "RouteOrder_era.lua", 'O["wiki:era:1429:Both"] = { n = 2, sum = 1, o = "2,1" }\n')
+    append(addon / "Guides" / "Imported_Quests_era_gaps.lua", 'R({ id="qdb:era:1:Alliance", name="Gap", type="Quests", text=[==[\n]==] })\n')
     git(base, "init", "-q")
     git(base, "add", "-A")
     git(base, "commit", "-qm", "fixture")
@@ -88,6 +100,7 @@ class Env:
         self.tmp, self.base, self.n = tmp, base, 0
         self.wow = tmp / "wow"
         (self.wow / "_retail_" / "WTF" / "Account" / "TESTACCT42" / "SavedVariables").mkdir(parents=True)
+        (self.wow / "_retail_" / "WTF" / "Account" / "TESTACCT42" / "Some Realm" / "Zorblaxia" / "SavedVariables").mkdir(parents=True)
         (self.wow / "_retail_" / "WTF" / "Account" / "SavedVariables").mkdir(parents=True)
 
     def scenario(self):
@@ -105,11 +118,6 @@ class Env:
 
 def has(res, rule, path=None):
     return any(f.rule == rule and (path is None or f.path == path) for f in res.failures)
-
-
-def append(path, text):
-    with open(path, "a", encoding="utf-8") as fh:
-        fh.write(text)
 
 
 def expect_fail(env, title, rule, path, plant, *extra):
@@ -143,6 +151,9 @@ def main():
                                                        "Guides/Imported_Storylines_retail.lua", "Data/Imported_Entrances.lua",
                                                        "Guides/Imported_Quests_era.lua"}, "excluded files are listed with a reason")
         check({"LICENSE.txt", "ATTRIBUTION.md", "README.md"} <= set(res.files), "LICENSE.txt, ATTRIBUTION.md and README.md are added")
+        check(res.files["Data/RouteOrder_era.lua"].get("order_rows") == 1, "a baked order row for a shipped guide passes")
+        check(any("WoW account name" in w and "1 character name" in w for w in res.warnings),
+              "account and character names under WTF/Account are checked")
 
         print("write mode")
         dist = tmp / "dist"
@@ -215,6 +226,14 @@ def main():
             x.write_text(x.read_text().replace("</Ui>", '\t<Script file="Imported_WoWPro_era.lua"/>\n</Ui>'))
             git(d, "add", "-A"); git(d, "commit", "-qm", "plant")
         expect_fail(env, "WoW-Pro file pulled in through an XML include", "interop-derived", "Guides/Imported_WoWPro_era.lua", plant_xml)
+        res, _ = expect_fail(env, "baked order row for a Questie-derived _gaps guide", "interop-derived", "Data/RouteOrder_era.lua",
+                             lambda d, a: append(a / "Data" / "RouteOrder_era.lua", 'O["qdb:era:1:Alliance"] = { n = 2, sum = 1, o = "1,2" }\n'))
+        check(any("qdb: 1" in f.detail for f in res.failures), "the finding counts the rows by guide-id prefix")
+        d = env.scenario()
+        append(d / pr.ADDON / "Data" / "RouteOrder_tbc.lua", 'O["wiki:tbc:9999:Both"] = { n = 2, sum = 1, o = "1,2" }\n')
+        code, res, _, _ = env.run(d)
+        check(code == 0 and any("RouteOrder_tbc.lua" in w and "stale" in w for w in res.warnings),
+              "a baked row for a guide that exists nowhere is a warning (stale bake), not a failure")
         expect_fail(env, "data that says do not redistribute", "not-redistributable", "Guides/Imported_Missions_retail.lua",
                     lambda d, a: (a / "Guides" / "Imported_Missions_retail.lua").write_text(
                         "-- (wago.tools DB2 exports).  Local use only - gitignored, do not redistribute.\n"))
@@ -236,6 +255,10 @@ def main():
         res, text = expect_fail(env, "WoW account name from WTF/Account", "personal-data", "Guides/Imported_Gold_era.lua",
                                 lambda d, a: append(a / "Guides" / "Imported_Gold_era.lua", "-- testacct42 was here\n"))
         check("TESTACCT42" not in text.upper(), "the report does not print the account name")
+        res, text = expect_fail(env, "WoW character name from WTF/Account/<account>/<realm>", "personal-data",
+                                "Guides/Imported_Professions_era.lua",
+                                lambda d, a: append(a / "Guides" / "Imported_Professions_era.lua", "-- ZORBLAXIA\n"))
+        check("zorblaxia" not in text.lower(), "the report does not print the character name")
         expect_fail(env, "--personal-term", "personal-data", "Guides/Imported_Wiki_tbc.lua",
                     lambda d, a: append(a / "Guides" / "Imported_Wiki_tbc.lua", "-- Zebulon Quux\n"), "--personal-term", "Zebulon Quux")
 
@@ -274,12 +297,17 @@ def main():
                 os.symlink(p, wt / pr.ADDON / rel)
                 linked += 1
         code, res, man, _ = env.run(wt)
-        check(code == 0 and linked > 20 and any(r["via"] == "symlink into a checkout" for r in man["files"]),
-              f"worktree with {linked} generated-data links into its main checkout passes")
+        check(code == 1 and has(res, "symlink", "Guides/Imported_Wiki_era.lua") and has(res, "symlink", "Data/RouteOrder_era.lua"),
+              f"worktree with {linked} generated-data links into its main checkout fails by default (every symlink fails)")
+        code, res, man, _ = env.run(wt, "--allow-checkout-links")
+        check(code == 0 and linked > 20 and sum(r["via"] == "symlink into a checkout" for r in man["files"]) > 20
+              and any("--allow-checkout-links" in w for w in res.warnings),
+              f"... and passes with --allow-checkout-links, each linked file marked in provenance.json")
         os.unlink(wt / pr.ADDON / "Guides" / "Imported_Wiki_tbc.lua")
         os.symlink(main_co / pr.ADDON / "Guides" / "Imported_Wiki_era.lua", wt / pr.ADDON / "Guides" / "Imported_Wiki_tbc.lua")
-        code, res, man, _ = env.run(wt)
-        check(code == 1 and has(res, "symlink", "Guides/Imported_Wiki_tbc.lua"), "a generated link to a different file fails")
+        code, res, man, _ = env.run(wt, "--allow-checkout-links")
+        check(code == 1 and has(res, "symlink", "Guides/Imported_Wiki_tbc.lua"),
+              "a generated link to a different file fails even with --allow-checkout-links")
 
         expect_fail(env, "TOC lists a file that does not exist", "toc-missing-file", "CompletionRoute_Mists.toc",
                     lambda d, a: append(a / "CompletionRoute_Mists.toc", "Data\\Missing.lua\n"))
@@ -314,6 +342,25 @@ def main():
         (over / "Core" / "Init.lua").write_text("-- replaced\n")
         code, res, man, _ = env.run(d, "--data-root", str(over))
         check(code == 1 and has(res, "no-provenance", "Core/Init.lua"), "a --data-root holding tracked code fails the gate")
+        print("provenance table")
+        db = tmp / "prov.sqlite"
+        code, res, man, _ = env.run(d, "--data-root", str(over), "--db", str(db), "--version", "9.9.9-db")
+        code2, res2, man2, _ = env.run(env.scenario(), "--db", str(db), "--version", "9.9.9-db")
+        con = sqlite3.connect(db)
+        n = con.execute("select count(*) from data_provenance where version='9.9.9-db'").fetchone()[0]
+        gate = con.execute("select result, rule from release_gate where version='9.9.9-db'").fetchall()
+        cats = {r[0] for r in con.execute("select distinct category from data_provenance")}
+        con.close()
+        check(code == 1 and code2 == 0 and n == len(man2["files"]) and gate == [("PASS", "")] and cats <= set(pr.SHIPPABLE),
+              f"--db writes one data_provenance row per packaged file ({n}) and replaces the rows of the same version")
+        link = tmp / "linked.sqlite"
+        os.symlink(db, link)
+        try:
+            env.run(d, "--db", str(link))
+            refused = False
+        except SystemExit as e:
+            refused = isinstance(e.code, str) and "symlink" in e.code
+        check(refused, "--db refuses a path that is a symlink (a worktree's docs/verification.sqlite)")
     finally:
         if keep:
             print("kept " + str(tmp))
