@@ -64,3 +64,5 @@ tools/db2/*/*.missing
 
 # quest prerequisite index for quest-level skipping (tools/gen_quest_deps.py, built on the generated guides + wiki)
 CompletionRoute/Data/QuestDeps_*.lua
+# tools/check_teleports.py: Blizzard client tables and Warcraft Wiki pages it downloads (regenerate with --fetch / --wiki)
+tools/teleports_db2/

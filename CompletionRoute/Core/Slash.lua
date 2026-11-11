@@ -62,10 +62,18 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             NS:Print(("  %d. [%s] %s  (%s, ~%s)"):format(i, s.action, s.title, s.zone and U.MapName(s.zone) or "?", U.FmtTime(secs)))
         end
     elseif cmd == "taxi" then
-        local n = 0 for _ in pairs(NS.db.char.knownTaxi) do n = n + 1 end
-        local pol = NS.TravelGraph.TaxiPolicy()
-        NS:Print(("Flight paths: policy=%s, learned=%d, graph nodes=%d (%d road). %s"):format(pol, n, #NS.TravelGraph.nodes, NS.TravelGraph.roadCount or 0,
-            pol == "faction" and "Routing uses every flight master your faction can reach; unlearned ones are labelled (new flight path)." or "Routing uses learned flight paths only."))
+        local TG = NS.TravelGraph
+        local n = U.tcount(NS.db.char.knownTaxi or {})
+        local acct = U.tcount(NS.db.global.knownTaxi or {})
+        local pol = TG.TaxiPolicy()
+        NS:Print(("Flight paths: policy=%s, this character %d, account %d (%s), graph nodes=%d (%d road)."):format(pol, n, acct,
+            TG.TaxiShared() and "shared on this client" or "not shared on this client", #TG.nodes, TG.roadCount or 0))
+        NS:Print(pol == "faction" and "Routing flies to every flight master your faction can use; undiscovered ones are labelled (new flight path)."
+            or "Routing flies only into flight paths you have discovered; it may walk you to a new flight master to pick it up. Open a flight master's map once per continent to teach me the rest.")
+    elseif cmd == "teleports" or cmd == "tele" or cmd == "teleport" then
+        if not NS.Teleports then NS:Print("Teleports not loaded.") return end
+        NS:Print(("Teleports (%s):"):format(NS.db.profile.routing.teleports == false and "OFF in options" or "used when faster"))
+        for _, l in ipairs(NS.Teleports.Report()) do NS:Print("  " .. l) end
     elseif cmd == "road" or cmd == "roads" then
         if NS.Roads then NS.Roads.Command(rest) else NS:Print("Road recorder not loaded.") end
     elseif cmd == "hearth" then
@@ -287,7 +295,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | hearth | import | farm | log | bug [note] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | import | farm | log | bug [note] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 

@@ -1,4 +1,4 @@
-# Status / handoff (2026-11-10, integration: skipping quests + beta bug reports)
+# Status / handoff (2026-11-10, integration: skipping quests, beta bug reports, routing graph, release packager)
 
 ## Skipping quests (`quest-skip`)
 
@@ -75,6 +75,69 @@ IDEAS #3, merged into `integration`. Offline only. **Nothing here has run in a r
 * **Tests.** New `tools/test_bug_report.lua` (93 checks) and `tools/test_ingest_beta_reports.py` (5 tests, fixture
   `tools/fixtures/beta_reports_SavedVariables.lua`). All existing harnesses pass (see the commit for the list).
 * **Not done.** The skip-reason menu, an opt-in for the character name, a companion app view, and any in-client run.
+
+## Routing graph: discovered flight paths, turn-in rebuilds, teleports (`routing-graph`)
+
+Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** Merged into `integration`, not
+installed. All 14 harnesses pass (the 13 below plus the new `tools/test_teleports.lua`), and `tools/check_teleports.py
+--fetch --wiki` reports 0 failures. Details: [ROUTING.md](ROUTING.md) "Flight paths", "What changes the graph", "Teleports".
+
+* **Discovered flight paths only (IDEAS #2).** Default flight rule is now `known`: a flight lands only at a flight master
+  the character has discovered; it may take off from a new one, and the walk there says "pick up the flight path".
+  Per character on Classic Era, TBC Anniversary and MoP Classic; account-wide on Retail and WoW Forever. On first load a
+  Classic character's flight paths start empty once (older builds had copied the whole account's set into it) and
+  fill again at the next flight-master visit. A profile on the old `faction` default moves to `known` once; Options
+  keeps the old rule. **Behaviour change Daniel will see:** a Classic alt walks until it has opened a flight master's map
+  on each continent, unless the login harvest (`isUndiscovered == false` from `C_TaxiMap.GetTaxiNodesForMap`) works on
+  that client, which is not verified.
+* **Which rule the tools use.** The bake (`cost_matrix.lua`) and `route_sweep.lua` are pinned to `faction`, so the bake is
+  unchanged (cost_matrix output for one era and one retail guide compared before/after: identical but for run time). `vplayer.lua` has `--taxi all|learn` (default `all`, unchanged). On the 12-guide samples below, `--taxi
+  learn` (each guide starts with no flight path) costs era 58,842 -> 75,444 s of travel (+28%) and retail 16,664 ->
+  19,083 s (+15%), with 8 and 29 flight paths discovered. The bake gain under `learn` was not re-measured.
+* **Turn-ins no longer rebuild the graph (IDEAS #4).** Only the access edges are rebuilt when an access chain's unlock quest
+  is turned in; a learned flight path wipes the path cache; a hearth re-bind or a teleport change drops only the costs
+  from the player; any other turn-in changes nothing. Measured under `luajit -joff` with the new `vplayer --turnins`
+  (12 guides per flavor, before = branch base code via `CR_OVERRIDE`): era handler time per turn-in 9.30 -> 5.24 ms mean
+  (p95 47.7 -> 32.5), 95 -> 0 graph builds, whole run 19 -> 5 CPU s; retail 90.4 -> 37.6 ms mean (p95 300 -> 180),
+  225 -> 0 builds, whole run 193 -> 43 CPU s. Retail results identical; one era guide differs slightly, explained in
+  ROUTING.md. Guides: era `wiki:era:` 1416:Alliance, 1417:Alliance, 1447:Horde, 1428:Both, 1443:Both, 1431:Alliance,
+  1423:Alliance, 1448:Both, 1455:Alliance:1, 1450:Both, 1433:Alliance, 1421:Both; retail `wiki:retail:` 648:Both,
+  885:Both, 1565:Both:3, 1408:Alliance, 2255:Both:1, 76:Horde:1, 630:Both:4, 15:Horde, 105:Both, 1161:Both, 114:Horde:1,
+  646:Both:4.
+* **Teleports as router edges (IDEAS #5).** `Data/Teleports.lua`, 73 entries: 30 class spells (every mage teleport per
+  faction and expansion, Teleport: Moonglade, Death Gate on MoP Classic), 4 engineering transporters, the Dalaran and
+  Garrison hearthstones, 36 Hearthstone stand-ins. Ids, names, reagents, use spells, cooldowns, trinket slots and the
+  shared Hearthstone cooldown are checked against each client's DB2; landing points come from Warcraft Wiki coordinates
+  (or TaxiNodes) and are recomputed by the test. Used like the hearth: a first leg only when known or owned and usable,
+  with at most 15 minutes of cooldown left; never in pairwise costs, so the bake is unchanged. The arrow's secure button
+  casts the spell, uses the item, or uses the toy (`type = "toy"`). `/cr teleports` lists them. `cond` now works on
+  Transit and Access entries.
+* **Fixed on the way:** a combat-queued arrow-button change is replayed with an explicit argument count (it relied on `#`
+  of a table with a nil hole); toggling taxi, transit or the flight rule in Options left StepOrder's kept costs stale.
+* **Fixed after review (same day):**
+  * Turning in "Establish Your Garrison" bumped the one-shot generation but did not re-check what is usable, so the
+    Garrison Hearthstone stayed unused until some later bag, spell or toy event. The turn-in now re-checks at once
+    (`T.Recheck`), and bumps only when what is offered changed. Test: the `QUEST_TURNED_IN` event alone, with no
+    manual re-check, makes the next route to Frostwall use it.
+  * `test_live_route.lua` and `test_parked.lua` had silently picked up the new `known` default with no flight paths
+    known (walk-only routing). Both now pin the faction rule, as the other harnesses do.
+  * Options: comfort mode and the terrain detour slider now wipe the path cache (they changed costs without dropping
+    cached paths); the hearth base cost slider now re-prices the from-player costs. The two sliders act only when the
+    value really changes, because opening the panel re-sets them. New test drives every cost-changing Options control
+    (`test_live_route.lua` section 10); 4 of its checks fail on the old handlers.
+  * Engineering transporters carry `profession = 202`, checked against ItemSparse `RequiredSkill` by
+    `check_teleports.py`; a character the client says has no Engineering is not offered them.
+  * Harness counts now: test_teleports 42 (was 35), test_live_route 52 (was 40), test_parked 26; all 14 pass, and
+    `check_teleports.py --wiki` reports 134 entry-client and 73 wiki checks, 0 failures. None of these fixes is on the
+    code path of `vplayer.lua` or `cost_matrix.lua` (neither loads `Routing/Teleports.lua` or `UI/Options.lua`), so the
+    turn-in measurements above and the bake are unchanged.
+* **Not done / unverified:** everything in-game (secure `toy` action, `C_ToyBox.IsToyUsable`, toy cooldowns, Classic
+  taxi harvest, landing spots); Zen Pilgrimage, retail Death Gate, Dreamwalk, class halls, Midnight's Teleport:
+  Silvermoon City, Ultrasafe Transporter: Mechagon (no landing coordinate on the wiki; DB2 SpellTargetPosition not read
+  yet); Orgrimmar's landing point on Classic Era and TBC is the modern city's; engineering malfunctions are
+  not priced; the bake and the cost-model rework (IDEAS #9) still use the faction rule.
+  Noticed, older than this branch: the return leg of a two-way portal reuses the outbound title ("Take the Orgrimmar
+  Portal Room portal to Silithus" when going from Silithus to Orgrimmar).
 
 # Status / handoff (2026-11-09, gold guides, secondary professions, guides by level)
 

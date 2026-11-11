@@ -51,14 +51,15 @@ check("Route optimizer: use the pre-computed fastest order for quest guides", fu
     end
     if NS.Progress.guide then NS.Progress.Load(NS.Progress.guide.id) end
 end, "Data/RouteOrder: each quest guide's steps solved offline for the least travel time (A before C before T, prerequisites, quest log size and level kept). Off = the guide's own order.")
-check("Routing: use flight paths", function() return P().routing.taxi end, function(v) P().routing.taxi = v NS.Router.Invalidate() end)
-check("Routing: prefer flight paths (comfort mode)", function() return P().routing.preferTaxi end, function(v) P().routing.preferTaxi = v NS.Router.Invalidate() end, "Favors comfortable automated flight paths over manual flying.")
-check("Routing: route by every flight path your faction can use (off = only ones you have learned)", function() return NS.TravelGraph.TaxiPolicy() == "faction" end, function(v) P().routing.taxiPolicy = v and "faction" or "known" P().routing.assumeAllTaxi = nil NS.Router.Invalidate() end, "A flight you have not learned yet is labelled (new flight path); the route still walks you to the right flight master.")
+check("Routing: use flight paths", function() return P().routing.taxi end, function(v) P().routing.taxi = v NS.TravelGraph.PathCacheWipe() NS.Router.Invalidate() end)
+check("Routing: prefer flight paths (comfort mode)", function() return P().routing.preferTaxi end, function(v) P().routing.preferTaxi = v NS.TravelGraph.PathCacheWipe() NS.Router.Invalidate() end, "Favors comfortable automated flight paths over manual flying.")
+check("Routing: fly to every flight master your faction can use, discovered or not (off = only flight paths this character has discovered)", function() return NS.TravelGraph.TaxiPolicy() == "faction" end, function(v) P().routing.taxiPolicy = v and "faction" or "known" P().routing.assumeAllTaxi = nil NS.TravelGraph.TaxiChanged() end, "Off (default): a flight only lands at a flight master you have discovered - on Retail and WoW Forever any character of the account counts, on Classic only this one. The route may walk you to a new flight master to pick it up. On: the old rule; an undiscovered landing is labelled (new flight path).")
 check("Flight map: highlight destination when talking to a flight master", function() return P().beacon.highlightTaxi ~= false end, function(v) P().beacon.highlightTaxi = v end, "Shows a pulsing beacon and name over the exact destination pin/button on the flight master map.")
 check("Routing: follow roads through zones (authored + recorded paths)", function() return P().routing.roads ~= false end, function(v) P().routing.roads = v NS.TravelGraph.RebuildRoads() NS.Router.Invalidate() end)
 check("Routing: record the roads I walk to improve pathing (stored in SavedVariables, shareable)", function() return P().routing.recordRoads ~= false end, function(v) P().routing.recordRoads = v end)
-check("Routing: use boats / zeppelins / portals / tram", function() return P().routing.transit end, function(v) P().routing.transit = v NS.Router.Invalidate() end)
-check("Routing: suggest Hearthstone when it is faster", function() return P().routing.hearth end, function(v) P().routing.hearth = v NS.Router.Invalidate() end)
+check("Routing: use boats / zeppelins / portals / tram", function() return P().routing.transit end, function(v) P().routing.transit = v NS.TravelGraph.PathCacheWipe() NS.Router.Invalidate() end)
+check("Routing: suggest Hearthstone when it is faster", function() return P().routing.hearth end, function(v) P().routing.hearth = v NS.TravelGraph.OneShotChanged() end)
+check("Routing: suggest class teleports, transporters and hub hearthstones when faster", function() return P().routing.teleports ~= false end, function(v) P().routing.teleports = v NS.TravelGraph.OneShotChanged() end, "Mage teleports, Teleport: Moonglade, Death Gate (MoP Classic), engineering transporters, the Dalaran and Garrison hearthstones (Data/Teleports.lua). Only what this character knows or owns, with at most 15 minutes of cooldown left. /cr teleports lists them.")
 check("Target beacon: marker over the head of the step's NPC / mob", function() return P().beacon.enabled end, function(v) P().beacon.enabled = v NS.Beacon.ApplySettings() end)
 check("Target beacon: bob the marker up and down", function() return P().beacon.bounce end, function(v) P().beacon.bounce = v NS.Beacon.RescanPlates() end, "Turn this off for a completely still marker.")
 check("Target beacon: minimap + world map pins for the step location", function() return P().beacon.pins end, function(v) P().beacon.pins = v NS.Beacon.UpdatePins() end)
@@ -67,8 +68,14 @@ check("Account-wide progress: count steps ANY of my characters finished (finer c
 check("Account-wide: also match by quest ID across different guides", function() return P().accountQuests end, function(v) P().accountQuests = v NS.Progress.Refresh() end, "A quest an alt turned in clears the matching step in any guide that covers it, not just the same guide.")
 check("Debug messages", function() return P().debug end, function(v) P().debug = v end)
 slider("Reorder window (steps)", 3, 24, 1, function() return P().routing.window end, function(v) P().routing.window = v NS.Progress.Refresh() end)
-slider("Terrain detour factor x100", 100, 200, 5, function() return math.floor((P().routing.terrainFactor or 1.25) * 100 + 0.5) end, function(v) P().routing.terrainFactor = v / 100 NS.Router.Invalidate() end)
-slider("Hearth base cost (seconds)", 10, 300, 10, function() return P().routing.hearthCost or 60 end, function(v) P().routing.hearthCost = v NS.Router.Invalidate() end)
+slider("Terrain detour factor x100", 100, 200, 5, function() return math.floor((P().routing.terrainFactor or 1.25) * 100 + 0.5) end, function(v)
+    -- OnShow's SetValue lands here too: drop the cached paths only when the factor really changed
+    if P().routing.terrainFactor ~= v / 100 then P().routing.terrainFactor = v / 100 NS.TravelGraph.PathCacheWipe() end
+    NS.Router.Invalidate()
+end)
+slider("Hearth base cost (seconds)", 10, 300, 10, function() return P().routing.hearthCost or 60 end, function(v)
+    if (P().routing.hearthCost or 60) ~= v then P().routing.hearthCost = v NS.TravelGraph.OneShotChanged() end
+end)
 slider("Beacon scale x100", 50, 200, 5, function() return math.floor((P().beacon.scale or 1) * 100 + 0.5) end, function(v) P().beacon.scale = v / 100 NS.Beacon.RescanPlates() end)
 slider("Arrow scale x100", 50, 200, 5, function() return math.floor((P().arrow.scale or 1) * 100 + 0.5) end, function(v) P().arrow.scale = v / 100 NS.Arrow.ApplySettings() end)
 slider("Guide window scale x100", 50, 200, 5, function() return math.floor((P().frame.scale or 1) * 100 + 0.5) end, function(v) P().frame.scale = v / 100 NS.GuideFrame.ApplySettings() end)

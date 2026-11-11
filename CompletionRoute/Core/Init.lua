@@ -36,8 +36,12 @@ NS.defaults = {
                   style = "hand" },   -- "hand": pointing hand in your class colour; "arrow": the old chevron
         frame = { scale = 1.0, alpha = 0.95, width = 320, height = 300, showSteps = 6, lock = false, x = 0, y = 0, point = "CENTER" },
         routing = { enabled = true, reorder = true, baked = true, hearth = true, taxi = true, transit = true, window = 24,
+                    teleports = true,         -- class teleports, hearth toys, engineering transporters (Data/Teleports.lua)
                     runSpeed = 7, mountSpeed = nil, terrainFactor = 1.25, taxiSpeed = 32,
-                    taxiPolicy = "faction",   -- "faction": any flight master your faction can use; "known": learned only
+                    -- "known": fly only INTO flight paths this character has discovered (account-wide on retail and
+                    -- WoW Forever, where the client shares them); walking to a new flight master to pick it up is fine.
+                    -- "faction": every flight master your faction can use, discovered or not (the old default).
+                    taxiPolicy = "known",
                     preferTaxi = false,       -- comfort mode: favors flight paths when available
                     roads = true, roadFactor = 1.0, recordRoads = true },
         beacon = { enabled = true, scale = 1.0, pins = true, targetButton = true, bounce = true, icon = "action",
@@ -60,7 +64,8 @@ NS.defaults = {
         step = 1,             -- current step index (in original guide order)
         done = {},            -- [guideid] = { [stepindex] = true }
         skipped = {},         -- [guideid] = { [stepindex] = true }
-        knownTaxi = {},       -- [taxiNodeID] = true (learned flight masters)
+        knownTaxi = {},       -- [taxiNodeID] = true: flight masters THIS character has discovered (CompletionRouteDB.knownTaxi
+                              -- is the account-wide union, used for routing only where the client shares flight paths)
         bind = nil,           -- { map=, x=, y=, name= } learned hearth location
         laps = {},            -- [guideid] = laps walked on this character
     },
@@ -129,10 +134,25 @@ NS:RegisterEvent("ADDON_LOADED", function(_, name)
         if routing.window == 12 then routing.window = 24 end
         routing.window24 = true
     end
+    -- Flight paths: the route now flies only into flight paths this character has discovered (docs/ROUTING.md). A profile
+    -- saved under the old "faction" default moves to "known" once; Options still offers the old rule.
+    if routing and not routing.taxiKnown1 then
+        if routing.taxiPolicy == "faction" or routing.taxiPolicy == nil then routing.taxiPolicy = "known" end
+        routing.assumeAllTaxi = nil
+        routing.taxiKnown1 = true
+    end
+    -- Only retail and WoW Forever share discovered flight paths between characters. Older builds copied the account-wide
+    -- set into every character on every client, so a Classic character's own set is not known: it starts empty once (the
+    -- merged set is kept as knownTaxiMerged, unused) and the next login harvest or flight-master visit fills it.
+    NS.taxiShared = (NS.flavor == "retail") or NS.isForever or false
     CompletionRouteDB.knownTaxi = CompletionRouteDB.knownTaxi or {}
     CompletionRouteCharDB.knownTaxi = CompletionRouteCharDB.knownTaxi or {}
-    for id in pairs(CompletionRouteDB.knownTaxi) do CompletionRouteCharDB.knownTaxi[id] = true end
     for id in pairs(CompletionRouteCharDB.knownTaxi) do CompletionRouteDB.knownTaxi[id] = true end
+    if not NS.taxiShared and not CompletionRouteCharDB.taxiOwn then
+        if next(CompletionRouteCharDB.knownTaxi) then CompletionRouteCharDB.knownTaxiMerged = CompletionRouteCharDB.knownTaxi end
+        CompletionRouteCharDB.knownTaxi = {}
+    end
+    CompletionRouteCharDB.taxiOwn = true
     NS.db = { profile = CompletionRouteDB.profile, char = CompletionRouteCharDB, global = CompletionRouteDB }
     NS.player = {
         faction = UnitFactionGroup("player"),

@@ -35,6 +35,7 @@ Data\Taxi_retail.lua
 Data\RouteOrder_mop.lua
 Data\QuestDeps_mop.lua
 Data\Transit.lua
+Data\Teleports.lua
 Data\Imported_Entrances.lua
 Data\Inns.lua
 Data\Farm_routes.lua
@@ -42,6 +43,7 @@ Data\ZoneAliases.lua
 Data\Roads_ek.lua
 Data\Roads_kalimdor.lua
 Routing\TravelGraph.lua
+Routing\Teleports.lua
 Routing\Roads.lua
 Routing\StepOrder.lua
 Routing\Router.lua

@@ -18,9 +18,10 @@ smart arrow — while the guide content is community-driven and open.
 | Guide viewer with steps that auto-complete | ✅ `UI/GuideFrame.lua` + `Core/Progress.lua` (quest accept / objectives / turn-in / run-to / hearth / fly / level / item events) |
 | Waypoint arrow | ✅ `UI/Arrow.lua` — world-coordinate bearing via HereBeDragons, distance + ETA, colour by distance |
 | Arrow turns into the quest item when you should click it | ✅ secure item button replaces the arrow (`|U|itemID` / `|ITEM|` tag; combat-safe: queued until you leave combat) |
-| Arrow turns into Hearthstone when hearthing is faster | ✅ router puts a `hearth` leg first when `(cast + cooldown + walk from inn) < walking/flying`; button shows Hearthstone (or Astral Recall) |
+| Arrow turns into Hearthstone when hearthing is faster | ✅ router puts a `hearth` leg first when `(cast + cooldown + walk from inn) < walking/flying`; button shows Hearthstone (or Astral Recall, or a hearth toy when no Hearthstone is in the bags) |
+| Class teleports, transporters, hub hearthstones | ✅ *branch routing-graph, not yet run in a client:* `Data/Teleports.lua` — mage teleports, Teleport: Moonglade, Death Gate (MoP Classic), engineering transporters (Engineering only), Dalaran and Garrison hearthstones, 36 hearth toys; used as a first leg when known or owned with at most 15 min of cooldown left; the arrow's button casts or uses it (`/cr teleports`) |
 | Travel system: flight paths, boats, zeppelins, portals | ✅ `Routing/TravelGraph.lua` Dijkstra over ~180 taxi nodes (real polyline lengths from game data) + `Data/Transit.lua` |
-| Only uses flight paths you have learned | ✅ learned when you open any flight map (`TAXIMAP_OPENED`), stored per character |
+| Only uses flight paths you have discovered | ✅ *branch routing-graph:* a flight lands only at a flight master you have discovered (per character on Classic Era, TBC and MoP Classic; account-wide on Retail and WoW Forever, as the client shares them); the route may walk you to a new one and says "pick up the flight path". Learned from the flight map and at login |
 | Optimal quest routing for the chosen guide | ✅ `Routing/StepOrder.lua` — precedence-constrained reordering of the next N steps (accept → complete → turn-in kept, anchors like *run to zone* respected) |
 | Skip quests | ✅ `Core/Skip.lua` — drop a quest from every guide; if other quests need it you are warned first, with their names, and confirming drops the whole chain. Breadcrumbs never block. The guide is rebuilt without those quests and without any quest it could then no longer offer (steps, counts and progress follow), then re-planned for travel time in the background (`Routing/Replan.lua`). `/cr unskip` brings everything back — [docs/ROUTING.md](docs/ROUTING.md#skipping-quests) |
 | Guide library | ✅ native guides in `Guides/` (WoW-Pro line syntax, CC BY-SA) + a **runtime adapter** that reads your installed **WoW-Pro** guides (interop only, nothing copied) |
@@ -32,7 +33,7 @@ smart arrow — while the guide content is community-driven and open.
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
 | Beta bug reports | Built, offline-tested only: `/cr bug [note]` or the guide window's **Report** button saves a snapshot (guide, step, open steps, position, route, quest log including quests that only gate a step, profession skill, last 30 log lines, last addon Lua error; no character or realm name). `tools/ingest_beta_reports.py` loads reports into SQL and `vplayer --repro <id>` replays one offline — [docs/BETA_REPORTS.md](docs/BETA_REPORTS.md) |
 
-Not yet: primary profession guides, talent advisor, gear finder, model viewer, guide editor UI, retail-specific hearth toys, indoor/dungeon-aware walking, per-zone "wall" data.
+Not yet: primary profession guides, talent advisor, gear finder, model viewer, guide editor UI, Zen Pilgrimage / Dreamwalk / class-hall teleports, indoor/dungeon-aware walking, per-zone "wall" data.
 
 ## Where the guides come from
 
@@ -83,7 +84,8 @@ To rebuild and deploy:
 ## Use
 
 * `/or` — toggle guide window · `/or guides` — pick a guide · `/or route` — explain the current route
-* `/or order` — show the optimizer's order for the upcoming steps · `/or taxi` — flight paths learned · `/or hearth`
+* `/or order` — show the optimizer's order for the upcoming steps · `/or taxi` — flight paths discovered (this character, account) and the flight rule · `/or hearth`
+* `/cr teleports` — every teleport, transporter and hearth toy the router knows for your class, and whether it is offered
 * `/cr farm` — farm circuits: status, `build`, `record`, `import`, `export`, `stats`, `radius`
 * `/cr list [level] [category]` — best guides for a level · `/cr gold [level]` — gold guides · `/cr prof` — profession guides for your current skill
 * `/or test` — routing self-test from your position to major cities · `/or import` — re-scan WoW-Pro guides
@@ -106,8 +108,8 @@ Guides are plain Lua files registered in `CompletionRoute/Guides/Guides.xml`.
 ```
 CompletionRoute/            the addon (copy this folder into Interface/AddOns)
   Core/               Init, Util (HBD wrappers, quest/item helpers), Conditions, Guide parser, Progress, Slash
-  Routing/            TravelGraph (Dijkstra), StepOrder (optimizer), Router (facade + arrow recommendation)
-  Data/               Taxi_<flavor>.lua (generated), Transit.lua (hand-authored), Inns.lua (seed)
+  Routing/            TravelGraph (Dijkstra), Teleports (teleport legs), StepOrder (optimizer), Router (facade + arrow recommendation)
+  Data/               Taxi_<flavor>.lua (generated), Transit.lua (hand-authored), Teleports.lua (DB2 ids + wiki landing points), Inns.lua (seed)
   UI/                 Arrow, GuideFrame, GuideMenu, Options
   Adapters/           WoWPro.lua (runtime import of an installed WoW-Pro)
   Guides/             native community guides (CC BY-SA)
@@ -124,7 +126,11 @@ luajit tools/test_offline.lua        # parser + Dijkstra + optimizer smoke test 
 luajit tools/test_load_all.lua       # every TOC's file list loads clean on all five flavors (incl. Forever)
 luajit tools/test_wiki.lua           # wiki guides parse, are flavor-gated, quest 7 has A/C/T with coords, spine has 0 PRE violations
 luajit tools/test_route_order.lua    # baked RouteOrder never breaks precedence, loads on every flavor
+luajit tools/test_teleports.lua      # teleport data (landing points vs citations) + teleport legs, hearth toys, arrow button
+../venv/bin/python tools/check_teleports.py --fetch --wiki   # every teleport id/name/reagent/cooldown vs DB2, every cited wiki page
 luajit tools/vplayer.lua retail --shard 1/4    # play every guide; python3 tools/collect_vplayer.py
+luajit tools/vplayer.lua era --guides-file F --taxi learn       # fly only into discovered flight paths (default --taxi all)
+luajit -joff tools/vplayer.lua era --guides-file F --turnins    # time the QUEST_TURNED_IN handlers
 luajit tools/route_sweep.lua era     # route every guide from its own zone
 luajit tools/test_bug_report.lua     # /cr bug snapshot, error hook, caps, SavedVariables reader, capture/replay round trip
 python3 tools/test_ingest_beta_reports.py      # beta_reports ingest on a fixture (temp database)
