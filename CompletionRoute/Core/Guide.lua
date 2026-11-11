@@ -244,6 +244,132 @@ function G.ApplyCoordFix(s)
     s.coordFixed = true
 end
 
+-- ---------------------------------------------------------------------------
+-- Stable step keys (docs/STEP_KEYS.md)
+-- ---------------------------------------------------------------------------
+-- Progress marks (done, skipped, reopened: Core/Account.lua, Core/Progress.lua) are stored by a key that survives a
+-- regenerated guide: an inserted or deleted line, a moved coordinate or a reordered block leave every other step's key
+-- as it was.
+--   quest step     <action><quest ids, sorted, "+" between>[.<objective>]        "A123", "C123.2", "T123+124"
+--   other step     <action>~<hash of the title's words + achievement/recipe/skill/mission ids>   "N~2bq9z0k1f"
+--   repeats        "#2", "#3"... on the 2nd, 3rd step with the same key above, counted in the guide's own order
+--   access chain   "@<chain>/" in front (Access.ParseSteps, Core/Progress.lua)
+-- Coordinates, zones, notes and flags never take part, so a data fix that moves a point keeps the key.  Keys are made
+-- once per parse, in author order, before a baked route order is applied (nothing is hashed per frame); they are a new
+-- field only, so parsing results and G.RouteChecksum are unchanged.  G.KEY_VERSION goes up if the recipe ever changes.
+G.KEY_VERSION = 1
+-- 45-bit polynomial hash: (P - 1) * B + 255 < 2^53, so every step is exact in a Lua 5.1 double (no bit library needed)
+local HASH_P, HASH_B = 68757246219383, 131
+local byte, lower, gsub = string.byte, string.lower, string.gsub
+local function hash45(str, h)
+    h = h or 0
+    for i = 1, #str do h = (h * HASH_B + byte(str, i)) % HASH_P end
+    return h
+end
+G.Hash45 = hash45
+-- Nine base-36 digits (P < 36^9), built with one string.char: a loop of concatenations cost four times as much
+local DIG = {}
+for d = 0, 35 do DIG[d] = ("0123456789abcdefghijklmnopqrstuvwxyz"):byte(d + 1) end
+local char = string.char
+local function base36(n)
+    local d1 = n % 36 n = (n - d1) / 36
+    local d2 = n % 36 n = (n - d2) / 36
+    local d3 = n % 36 n = (n - d3) / 36
+    local d4 = n % 36 n = (n - d4) / 36
+    local d5 = n % 36 n = (n - d5) / 36
+    local d6 = n % 36 n = (n - d6) / 36
+    local d7 = n % 36 n = (n - d7) / 36
+    local d8 = n % 36 n = (n - d8) / 36
+    return char(DIG[n % 36], DIG[d8], DIG[d7], DIG[d6], DIG[d5], DIG[d4], DIG[d3], DIG[d2], DIG[d1])
+end
+G.Base36 = base36
+-- The words of a title: case, punctuation and coordinates written into the text ("48.1, 42.9") folded away.  A title
+-- never holds "|" (ParseLine splits the line on it), so there are no colour codes or links to strip.
+function G.NormText(t)
+    t = lower(t or "")
+    t = gsub(t, "%d+%.%d+%s*,%s*%d+%.%d+", " ")
+    t = gsub(t, "[%c%p%s]+", " ")
+    return (t:match("^ ?(.-) ?$"))
+end
+-- The key of one step before repeats are counted, and the text that was hashed for it (nil when nothing was)
+function G.StepBase(s)
+    local a = s.action or "?"
+    local q = s.qid
+    if q and #q > 0 then
+        local ids
+        if #q == 1 then ids = tostring(q[1])
+        else
+            local c = {}
+            for i = 1, #q do c[i] = q[i] end
+            table.sort(c)
+            ids = table.concat(c, "+")
+        end
+        local qo = s.qo
+        if qo and qo ~= "" then
+            local n = tostring(qo):match("^%s*(%d+)%s*$")
+            if n then return a .. ids .. "." .. n end
+            local t = G.NormText(tostring(qo))
+            return a .. ids .. "." .. base36(hash45(t)), t
+        end
+        return a .. ids
+    end
+    local t = G.NormText(s.title)
+    if s.ach then t = t .. "|a" .. s.ach .. "." .. (s.achCrit or "") end
+    if s.recipe then t = t .. "|r" .. s.recipe end
+    if s.skill then t = t .. "|s" .. lower(s.skill.name or "") .. "." .. (s.skill.target or "") .. "." .. (s.skill.tier or "") end
+    if s.mission then t = t .. "|m" .. s.mission end
+    return a .. "~" .. base36(hash45(t)), t
+end
+-- Give every step of a list (in the guide's own order) its key; prefix marks steps that are not the guide's own
+function G.AssignKeys(steps, prefix)
+    local seen, stepBase = {}, G.StepBase
+    for i = 1, #steps do
+        local s = steps[i]
+        local base = stepBase(s)
+        local n = (seen[base] or 0) + 1
+        seen[base] = n
+        local k = (n == 1) and base or (base .. "#" .. n)
+        s.key = prefix and (prefix .. k) or k
+    end
+end
+-- Checksum of a list's keys in list order: "<count>:<hash>".  withIndex also binds each step's author index (a saved
+-- order written as author indices is only valid under that).
+function G.KeySum(list, withIndex)
+    local h = 0
+    for i = 1, #list do
+        local s = list[i]
+        h = (hash45(s.key or "?", h) * HASH_B + 10) % HASH_P
+        if withIndex then h = (hash45(tostring(s.index or 0), h) * HASH_B + 10) % HASH_P end
+    end
+    return #list .. ":" .. base36(h)
+end
+-- The guide's own steps in author order, summed: stored next to progress marks (Core/Account.lua) so a later release
+-- can tell which version of the guide they were made on.  Cached per parsed list (weak: a list the menu drops goes).
+local sumCache = setmetatable({}, { __mode = "k" })
+local keySetCache = setmetatable({}, { __mode = "k" })
+function G.GuideSum(id)
+    local steps = G.Steps(id)
+    if not steps then return nil end
+    local v = sumCache[steps]
+    if not v then
+        local auth = {}
+        for _, s in ipairs(steps) do if (s.index or 0) > 0 then auth[s.index] = s end end
+        v = G.KeySum(auth)
+        sumCache[steps] = v
+    end
+    return v
+end
+-- set of the keys in a parsed list (cached per list)
+function G.KeySet(steps)
+    local set = keySetCache[steps]
+    if not set then
+        set = {}
+        for _, s in ipairs(steps) do if s.key then set[s.key] = true end end
+        keySetCache[steps] = set
+    end
+    return set
+end
+
 -- Baked route order (Data/RouteOrder_<flavor>.lua, written offline by tools/optimize_routes.py from the
 -- addon's own travel graph). Same checksum as the generator: a guide regenerated since the bake no longer
 -- matches and simply keeps its author order. Spine entries reuse their zone guide's text, so they look up
@@ -318,7 +444,9 @@ function G.Steps(id)
             s.index = #steps + 1 s.guide = id steps[#steps + 1] = s
         elseif err then errors = errors + 1 NS:Debug("guide " .. id .. " line " .. n .. ": " .. err) end
     end
-    -- baked order: same step tables (s.index stays the author index, so progress keys never move)
+    -- stable keys for progress marks, in author order (see "Stable step keys" above)
+    G.AssignKeys(steps)
+    -- baked order: same step tables (s.index stays the author index and s.key the step key, so neither moves)
     local order = G.BakedOrder(g, steps)
     if order then
         local baked = {}
