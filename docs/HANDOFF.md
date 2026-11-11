@@ -67,6 +67,16 @@ started at 22:18 under `caffeinate -is`. If it dies, re-run
 `python3 tools/bake_resume.py --flavors era,tbc,forever --force-mapfix`. When it ends, install into
 `_classic_era_`, `_anniversary_` and `_forever_`, copy those three RouteOrder files to Drive, and refresh STATUS.
 
+**Update 2026-11-10, 22:45.** From here this file is kept on branch `integration` (worktree `wt-int`).
+* `quest-skip` is **done**. It was built, checked by two independent reviewers (1 major and 11 minor or performance
+  findings), and all of those were fixed. 542 skip checks pass.
+* `integration` (worktree `wt-int`) = `route-bake-finish` + `quest-skip` + `beta-bug-report`. Conflicts were in Slash help,
+  README and STATUS (both sides kept). Every harness passes on it, plus the ingest unit tests.
+* Phase 2a started as workflow `beta-features-phase2a`: #6 in worktree `wt-ids` (branch `stable-step-id`) and #7 in
+  `wt-auto` (branch `auto-quest`), both from `integration`. #9 then #1 wait for `routing-graph`, because they change
+  the same cost code.
+* Still running: `routing-graph` and `release-packager` (phase-1 resume), the data repo, and the map-fix bake.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
