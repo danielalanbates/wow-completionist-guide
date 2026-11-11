@@ -732,13 +732,14 @@ def report(res, measured, dry, out=sys.stdout):
     if res.not_packaged:
         p(f"not loaded by any TOC, not packaged ({len(res.not_packaged)}): " + redact(", ".join(res.not_packaged)))
     if measured:
+        w = max(len(r["name"]) for r in measured)
         p("sizes (zip = deflate level 9):")
-        p(f"  {'package':40} {'files':>6} {'unpacked MB':>12} {'zip MB':>8}")
+        p(f"  {'package':{w}} {'files':>6} {'unpacked MB':>12} {'zip MB':>8}")
         for rec in measured:
-            p(f"  {rec['name']:40} {rec['files']:6d} {rec['bytes_unpacked'] / 1e6:12.2f} {rec['bytes_zip'] / 1e6:8.2f}")
+            p(f"  {rec['name']:{w}} {rec['files']:6d} {rec['bytes_unpacked'] / 1e6:12.2f} {rec['bytes_zip'] / 1e6:8.2f}")
         per = [r for r in measured if r["client"] != "all"]
         if per and len(per) < len(measured):
-            p(f"  {'per-client zips together':40} {'':6} {sum(r['bytes_unpacked'] for r in per) / 1e6:12.2f} "
+            p(f"  {'per-client zips together':{w}} {'':6} {sum(r['bytes_unpacked'] for r in per) / 1e6:12.2f} "
               f"{sum(r['bytes_zip'] for r in per) / 1e6:8.2f}")
     for w in res.warnings:
         p(f"note: {w}")
