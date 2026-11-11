@@ -16,8 +16,9 @@ python3 tools/collect_vplayer.py       # -> docs/verification.sqlite
 `luajit tools/vplayer.lua --repro <report id | latest | report.json> [--db PATH] [--check] [--show]` puts the
 virtual character where a `/cr bug` report says (flavor, guide, step progress, quest log, position, level,
 faction, flight paths, hearth, speed, options) and prints the route and the next steps next to what the client
-recorded, ending in `RESULT MATCH` or `RESULT DIFF`. `<flavor> --capture auto --capture-out r.json` makes a report
-in the fake world for the round-trip self-test. See [BETA_REPORTS.md](BETA_REPORTS.md).
+recorded, ending in `RESULT MATCH` or `RESULT DIFF` (current step, open steps, route legs, route time, arrow mode).
+`<flavor> --capture auto --capture-out r.json [--capture-done 6623]` makes a report in the fake world for the
+round-trip self-test. See [BETA_REPORTS.md](BETA_REPORTS.md).
 
 ## How it differs from the route sweep
 
