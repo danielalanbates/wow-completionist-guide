@@ -49,6 +49,9 @@ end)
 bRoute:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -28)
 local bOpt = smallButton("Opts", 40, "Options", function() NS.Options.Open() end)
 bOpt:SetPoint("LEFT", bRoute, "RIGHT", 2, 0)
+local bBug = smallButton("Report", 52, "Save a bug report: guide, step, position, route and recent log (/cr bug [note])",
+    function() NS.BugReport.FromButton() end)
+bBug:SetPoint("LEFT", bOpt, "RIGHT", 2, 0)
 
 local pathText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 pathText:SetPoint("BOTTOMLEFT", 10, 8); pathText:SetPoint("RIGHT", -24, 0)

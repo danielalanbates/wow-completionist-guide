@@ -194,6 +194,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "verifyfeatures" then
         NS.RunFeatureVerify()
     elseif cmd == "log" then NS.Log.Toggle()
+    elseif cmd == "bug" then NS.BugReport.Command(rest)   -- beta report snapshot (Core/BugReport.lua, docs/BETA_REPORTS.md)
     elseif cmd == "stats" then
         local bySrc = {}
         for _, id in ipairs(G.list) do local g = G.registry[id] bySrc[g.source or "?"] = (bySrc[g.source or "?"] or 0) + 1 end
@@ -265,7 +266,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | hearth | import | farm | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | hearth | import | farm | log | bug [note] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 
