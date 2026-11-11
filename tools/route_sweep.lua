@@ -47,6 +47,7 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
 NS.db.profile.debug = false
+NS.db.profile.routing.taxiPolicy = "faction"   -- every flight master of the faction, as before (the client default is "known")
 NS.Print = function() end   -- silence chat
 pcall(NS.Adapters.WoWPro.ImportStatic)
 NS.TravelGraph.Build()

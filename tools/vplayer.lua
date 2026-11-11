@@ -18,6 +18,10 @@
 --                                  [--guide ID] [--faction Horde] [--guidecap 20] [--out PATH]
 --                                  [--order author|baked] [--live on|off]   (baked = Data/RouteOrder_<fl>.lua; live = 12-step window)
 --                                  [--chain Alliance|Horde] [--questsperlevel 25]   (play the whole spine with the real chain logic)
+--                                  [--taxi all|learn]   all (default) = every flight master of the faction (the bake's rule);
+--                                                       learn = start each guide (each chain) with no flight paths known, fly
+--                                                       only into discovered ones, discover a flight master the route walks to
+--                                                       and any within 40 yd of where the player stands (docs/VPLAYER.md)
 -- Then:   python3 tools/collect_vplayer.py   (folds the TSVs into docs/verification.sqlite)
 package.path = "./?.lua;" .. package.path
 
@@ -28,6 +32,7 @@ local withSpine = false
 local guideSet = nil
 orderMode, liveWindow = "author", true
 local chainFaction, questsPerLevel
+local taxiMode = "all"
 for i = 2, #arg do
     local a = arg[i]
     if a == "--limit" then limit = tonumber(arg[i + 1])
@@ -45,6 +50,7 @@ for i = 2, #arg do
     elseif a == "--questsperlevel" then questsPerLevel = tonumber(arg[i + 1])
     elseif a == "--order" then orderMode = arg[i + 1]      -- author | baked (Data/RouteOrder_<fl>.lua, tools/optimize_routes.py)
     elseif a == "--live" then liveWindow = arg[i + 1] ~= "off" -- the 12-step live reorder window on top (default on)
+    elseif a == "--taxi" then taxiMode = arg[i + 1]          -- all | learn (flight-path discovery, see the header)
     elseif a == "--verbose" then verbose = true end
 end
 outPath = outPath or ("docs/vplayer_" .. flavor .. (shardN > 1 and ("_" .. shardI) or "") .. ".tsv")
@@ -159,11 +165,44 @@ NS.db.profile.debug = false
 NS.db.profile.routing.baked = (orderMode == "baked")
 NS.db.profile.routing.reorder = liveWindow
 NS.db.profile.routing.liveBudgetMs = 1e9   -- the simulation has no frames: let each live repair finish (the 3 ms slice is unit-tested)
+-- flight rule: "all" keeps the faction-wide rule every earlier run and the offline bake use; "learn" is the client's
+-- default (fly only into discovered flight paths), with discovery simulated below
+if taxiMode ~= "all" and taxiMode ~= "learn" then error("vplayer --taxi must be all or learn") end
+NS.db.profile.routing.taxiPolicy = (taxiMode == "learn") and "known" or "faction"
 NS.Print, NS.Debug, NS.Error = function() end, function() end, function() end
 pcall(NS.Adapters.WoWPro.ImportStatic)
 NS.TravelGraph.Build()
 
 local G, P, R, U, Cond = NS.Guide, NS.Progress, NS.Router, NS.Util, NS.Cond
+
+-- --taxi learn: the route a step was reached by (last TravelGraph.FindPath of walkTo) and flight-path discovery
+local lastPath, taxiLearned = nil, 0
+if taxiMode == "learn" then
+    local findPath = NS.TravelGraph.FindPath
+    NS.TravelGraph.FindPath = function(...) local p = findPath(...) lastPath = p return p end
+end
+local function forgetTaxi()
+    if taxiMode ~= "learn" then return end
+    NS.db.char.knownTaxi, NS.db.global.knownTaxi = {}, {}
+    NS.TravelGraph.PathCacheWipe()
+end
+-- the player took off from (talked to) every flight master the route flew from, and talks to any within 40 yd of
+-- the step it now stands on (an |f| step's flight master included)
+local function discoverTaxi(path)
+    if taxiMode ~= "learn" then return 0 end
+    local TG, new = NS.TravelGraph, 0
+    local function mark(id) if id and not TG.IsTaxiKnownID(id) then TG.MarkTaxiKnown(id) new = new + 1 end end
+    for _, l in ipairs(path and path.legs or {}) do
+        if l.mode == "taxi" then mark(l.from.taxiID) mark(l.to.taxiID) end
+    end
+    if PLAYER.wx then
+        for _, n in ipairs(TG.byInst and TG.byInst[PLAYER.inst] or {}) do
+            if n.taxiID and (n.wx - PLAYER.wx) ^ 2 + (n.wy - PLAYER.wy) ^ 2 <= 40 * 40 then mark(n.taxiID) end
+        end
+    end
+    if new > 0 then TG.PathCacheWipe() taxiLearned = taxiLearned + new end
+    return new
+end
 
 -- wall-clock cost of every live repair (cold router caches included); CR_LIVE_BUDGET_MS plays the real per-call budget
 local planMs = {}
@@ -239,8 +278,10 @@ end
 -- Move the player onto the step (this is the "walking" part).  Returns yards, seconds, routed.
 local function walkTo(step)
     local secs = nil
+    lastPath = nil
     local ok, v = pcall(R.TravelSecondsFromPlayer, step)
     if ok then secs = v end
+    local path = lastPath
     local yards = 0
     local tx, ty, ti = R.StepWorld(step)
     if tx and PLAYER.wx and ti == PLAYER.inst then
@@ -251,6 +292,7 @@ local function walkTo(step)
         local c = step.coords and step.coords[1]
         place(step.zone, c and c.x or 0.5, c and c.y or 0.5)
     end
+    if secs ~= nil then discoverTaxi(path) end
     return yards, secs, (secs ~= nil), (tx ~= nil)
 end
 
@@ -329,6 +371,7 @@ local function playGuide(g)
     NS.db.char.parked, NS.db.char.parkReturn = {}, nil
     R.Invalidate()
     NS.TravelGraph.Build()
+    forgetTaxi()
 
     -- start where a player would: the guide's own zone
     local zone = g.zone
@@ -452,6 +495,7 @@ if chainFaction then
     place(G.registry[first].zone, 0.5, 0.5)
     R.Invalidate()
     NS.TravelGraph.Build()
+    forgetTaxi()
     if not P.Load(first) then error("could not load " .. first) end
     local loads, tenureSteps, lastGuide, bounces, order, stepsDone = {}, 0, nil, 0, {}, 0
     local secs, stalls, noroute = 0, 0, 0
@@ -500,9 +544,9 @@ if chainFaction then
         if c > 1 then reloaded = reloaded + 1 end
         if c > maxLoads then maxLoads = c end
     end
-    print(("CHAIN %s %s: %d guides loaded, %d distinct, %d resumed at least once (max %d loads of one guide), bounces %d, steps done %d, level %d, parked left %d, stalls %d, no_route %d, %.0f s travel, cap_left %d"):format(
+    print(("CHAIN %s %s: %d guides loaded, %d distinct, %d resumed at least once (max %d loads of one guide), bounces %d, steps done %d, level %d, parked left %d, stalls %d, no_route %d, %.0f s travel, cap_left %d, taxi %s (%d discovered)"):format(
         flavor, chainFaction, #order, (function() local n = 0 for _ in pairs(loads) do n = n + 1 end return n end)(),
-        reloaded, maxLoads, bounces, stepsDone, W.level, parkedLeft, stalls, noroute, secs, capSteps))
+        reloaded, maxLoads, bounces, stepsDone, W.level, parkedLeft, stalls, noroute, secs, capSteps, taxiMode, taxiLearned))
     if bounces > 0 then os.exit(1) end
     os.exit(0)
 end
@@ -554,5 +598,5 @@ if #planMs > 0 then
     local pct = function(p) return planMs[math.max(1, math.ceil(#planMs * p))] end
     io.stderr:write(("LIVE %s: %d repairs, ms p50 %.2f p95 %.2f p99 %.2f max %.1f\n"):format(flavor, #planMs, pct(0.5), pct(0.95), pct(0.99), planMs[#planMs]))
 end
-io.stderr:write(("DONE %s shard %d/%d: %d guides in %.0fs -> %s | finished=%d stalled-guides=%d errors=%d\n")
-    :format(flavor, shardI, shardN, n, os.clock() - t0, outPath, finished, stalled, errored))
+io.stderr:write(("DONE %s shard %d/%d: %d guides in %.0fs -> %s | finished=%d stalled-guides=%d errors=%d | taxi %s (%d flight paths discovered)\n")
+    :format(flavor, shardI, shardN, n, os.clock() - t0, outPath, finished, stalled, errored, taxiMode, taxiLearned))

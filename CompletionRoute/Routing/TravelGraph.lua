@@ -149,51 +149,80 @@ function TG.NodeByName(name)
     return best
 end
 
-function TG.IsTaxiKnown(node)
-    if not node or not node.taxiID then return false end
-    local id = node.taxiID
+-- Flight paths are shared between characters only on retail and WoW Forever (Core/Init.lua NS.taxiShared). Everywhere
+-- else each character has its own: the account-wide set (CompletionRouteDB.knownTaxi) is kept but not routed on.
+function TG.TaxiShared()
+    if NS.taxiShared ~= nil then return NS.taxiShared end
+    return NS.flavor == "retail" or NS.isForever or false
+end
+function TG.IsTaxiKnownID(id)
+    if not id then return false end
     if NS.db and NS.db.char and NS.db.char.knownTaxi and NS.db.char.knownTaxi[id] then return true end
-    if NS.db and NS.db.global and NS.db.global.knownTaxi and NS.db.global.knownTaxi[id] then return true end
+    if TG.TaxiShared() and NS.db and NS.db.global and NS.db.global.knownTaxi and NS.db.global.knownTaxi[id] then return true end
     return false
 end
--- "faction" (default): every flight master your faction can use is routable, learned or not -
--- the route walks you to the one you need. "known": only flight paths this character has learned.
+function TG.IsTaxiKnown(node) return (node and TG.IsTaxiKnownID(node.taxiID)) or false end
+-- "known" (default): a flight leg u -> v needs v discovered by this character (account-wide where the client shares
+-- flight paths).  u may be new: walking to a flight master discovers it, so the route may walk there, pick it up and
+-- fly on - that walk leg is labelled "pick up the flight path".  Every hop of a multi-hop flight lands on a node,
+-- so each one must be known, exactly as in the client.  "faction": every flight master the faction can use, discovered
+-- or not (the old default; an undiscovered destination is labelled "(new flight path)").  assumeAllTaxi (offline
+-- harnesses) and an unset policy (an NS.db built by hand) mean "faction"; Core/Init.lua's default is "known".
 function TG.TaxiPolicy()
     local c = cfg()
+    if c.assumeAllTaxi then return "faction" end
     if c.taxiPolicy == "known" then return "known" end
-    if c.taxiPolicy == "faction" or c.assumeAllTaxi or c.taxiPolicy == nil then return "faction" end
     return "faction"
 end
+-- may the route fly INTO this node?
 function TG.TaxiUsable(node)
     if TG.TaxiPolicy() == "faction" then return true end
     return TG.IsTaxiKnown(node)
 end
+local function markKnown(id)
+    if not id then return false end
+    local new = not (NS.db and NS.db.char and NS.db.char.knownTaxi and NS.db.char.knownTaxi[id])
+    if NS.db and NS.db.char then
+        NS.db.char.knownTaxi = NS.db.char.knownTaxi or {}
+        NS.db.char.knownTaxi[id] = true
+    end
+    if NS.db and NS.db.global then
+        NS.db.global.knownTaxi = NS.db.global.knownTaxi or {}
+        NS.db.global.knownTaxi[id] = true
+    end
+    return new
+end
+TG.MarkTaxiKnown = markKnown
 -- Harvesting flight paths ONLY when the player opens a flight master's map meant a character
 -- who had not done that this session routed with zero flights - the arrow then points in a
 -- straight line across the world instead of "fly Stormwind -> Morgan's Vigil". The game already
 -- knows which nodes you have; ask it for every continent at login, and support the classic
 -- taxi API too (C_TaxiMap does not exist on every client).
+--   C_TaxiMap.GetAllTaxiNodes (flight map open): entries carry `state` (Current / Reachable / Unreachable)
+--   C_TaxiMap.GetTaxiNodesForMap (world map data, any time): entries carry `isUndiscovered` where the client has it;
+--     only an explicit false counts, an entry without the field says nothing about this character
 local function harvestList(list)
     local learned = 0
     local unreachable = (Enum and Enum.FlightPathState and Enum.FlightPathState.Unreachable) or 2
     for _, n in ipairs(list or {}) do
-        if n.nodeID and n.state ~= nil and n.state ~= unreachable then
-            if not TG.IsTaxiKnown({ taxiID = n.nodeID }) then learned = learned + 1 end
-            if NS.db and NS.db.char and NS.db.char.knownTaxi then NS.db.char.knownTaxi[n.nodeID] = true end
-            if NS.db and NS.db.global then
-                NS.db.global.knownTaxi = NS.db.global.knownTaxi or {}
-                NS.db.global.knownTaxi[n.nodeID] = true
-            end
-        end
+        local known = n.nodeID and ((n.state ~= nil and n.state ~= unreachable) or (n.state == nil and n.isUndiscovered == false))
+        if known and markKnown(n.nodeID) then learned = learned + 1 end
     end
     return learned
 end
 
-local function nodesForMap(mapID)
-    if not (C_TaxiMap and mapID) then return nil end
-    if C_TaxiMap.GetAllTaxiNodes then return C_TaxiMap.GetAllTaxiNodes(mapID) end
-    if C_TaxiMap.GetTaxiNodesForMap then return C_TaxiMap.GetTaxiNodesForMap(mapID) end
-    return nil
+local function harvestMap(mapID)
+    if not (C_TaxiMap and mapID) then return 0 end
+    local n = 0
+    if C_TaxiMap.GetAllTaxiNodes then
+        local ok, list = pcall(C_TaxiMap.GetAllTaxiNodes, mapID)
+        if ok then n = n + harvestList(list) end
+    end
+    if C_TaxiMap.GetTaxiNodesForMap then
+        local ok, list = pcall(C_TaxiMap.GetTaxiNodesForMap, mapID)
+        if ok then n = n + harvestList(list) end
+    end
+    return n
 end
 
 local KNOWN_CONTINENTS = {
@@ -230,21 +259,14 @@ end
 function TG.LearnTaxi(quiet)
     local learned = 0
     local map = U.PlayerPos()
-    learned = learned + harvestList(nodesForMap(map))
-    for _, m in ipairs(continentMaps()) do learned = learned + harvestList(nodesForMap(m)) end
+    learned = learned + harvestMap(map)
+    for _, m in ipairs(continentMaps()) do learned = learned + harvestMap(m) end
     -- retail FlightMapFrame pin harvest
     if FlightMapFrame and FlightMapFrame.pinPools and FlightMapFrame.pinPools.FlightMap_FlightPointPinTemplate then
         local unreachable = (Enum and Enum.FlightPathState and Enum.FlightPathState.Unreachable) or 2
         for pin in FlightMapFrame.pinPools.FlightMap_FlightPointPinTemplate:EnumerateActive() do
             local d = pin.taxiNodeData
-            if d and d.nodeID and d.state ~= nil and d.state ~= unreachable then
-                if not TG.IsTaxiKnown({ taxiID = d.nodeID }) then learned = learned + 1 end
-                if NS.db and NS.db.char and NS.db.char.knownTaxi then NS.db.char.knownTaxi[d.nodeID] = true end
-                if NS.db and NS.db.global then
-                    NS.db.global.knownTaxi = NS.db.global.knownTaxi or {}
-                    NS.db.global.knownTaxi[d.nodeID] = true
-                end
-            end
+            if d and d.nodeID and d.state ~= nil and d.state ~= unreachable and markKnown(d.nodeID) then learned = learned + 1 end
         end
     end
     -- classic clients: while a flight master's map is open the legacy API lists your nodes
@@ -253,21 +275,13 @@ function TG.LearnTaxi(quiet)
             local t = TaxiNodeGetType(i)
             if t == "REACHABLE" or t == "CURRENT" then
                 local nm = TaxiNodeName and TaxiNodeName(i)
-                if nm then
-                    local node = TG.NodeByName and TG.NodeByName(nm)
-                    if node and node.taxiID and not TG.IsTaxiKnown(node) then
-                        if NS.db and NS.db.char and NS.db.char.knownTaxi then NS.db.char.knownTaxi[node.taxiID] = true end
-                        if NS.db and NS.db.global then
-                            NS.db.global.knownTaxi = NS.db.global.knownTaxi or {}
-                            NS.db.global.knownTaxi[node.taxiID] = true
-                        end
-                        learned = learned + 1
-                    end
-                end
+                local node = nm and TG.NodeByName and TG.NodeByName(nm)
+                if node and node.taxiID and markKnown(node.taxiID) then learned = learned + 1 end
             end
         end
     end
     if learned > 0 then
+        TG.PathCacheWipe()            -- pair costs depend on which flight paths are known
         NS.Router.Invalidate()
         if not quiet then NS:Print("Learned " .. learned .. " flight path(s).") end
     end
@@ -280,9 +294,10 @@ NS:On("PLAYER_READY", function()
         pcall(TG.LearnTaxi, true)
         local n = 0
         for _ in pairs(NS.db.char.knownTaxi) do n = n + 1 end
+        if TG.TaxiShared() then for _ in pairs(NS.db.global.knownTaxi or {}) do n = n + 1 end end
         if n == 0 and TG.TaxiPolicy() == "known" and not NS.db.char.taxiHintShown then
             NS.db.char.taxiHintShown = true
-            NS:Print("|cffff9900No flight paths known yet|r - open any flight master's map once and I can route you by air. Until then the arrow walks. (/cr taxi)")
+            NS:Print("|cffff9900No flight paths known yet|r - open a flight master's map once on each continent and I can route you by air. Until then the route walks, and picks up flight masters on the way. (/cr taxi)")
         end
     end)
 end)
@@ -591,7 +606,8 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
         for i = 1, #same do
             local v = same[i]
             if v.inst == u.inst and v ~= u and not v.road and not closed[v] then
-                local usable = (v.kind ~= "taxi") or (useTaxi and TG.TaxiUsable(v))
+                -- any flight master may be walked to (that is how a new one is discovered); flying INTO one is the rule
+                local usable = (v.kind ~= "taxi") or useTaxi
                 if v.kind == "transit" and not useTransit then usable = false end
                 if usable then
                     local wc, dd = walkCost(u.wx, u.wy, v.wx, v.wy, speed)
@@ -620,7 +636,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             for _, e in ipairs(u.edges) do
                 local v = e.to
                 local ok = true
-                if e.mode == "taxi" and (not useTaxi or not TG.TaxiUsable(u) or not TG.TaxiUsable(v)) then ok = false end
+                if e.mode == "taxi" and (not useTaxi or not TG.TaxiUsable(v)) then ok = false end
                 if (v.kind == "transit") and not useTransit and e.mode ~= "hearth" then ok = false end
                 if ok and not closed[v] then
                     local ecost = e.cost
@@ -643,7 +659,11 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
         local e = prevEdge[v]
         local leg = { mode = e.mode, from = prev[v], to = v, cost = e.cost, title = e.title, data = e.data, dist = e.dist }
         if e.mode == "road" then leg.mode = "walk" leg.road = true leg.dist = e.data.dist leg.cost = d[v] - d[prev[v]] end
-        if e.mode == "taxi" then leg.discover = not TG.IsTaxiKnown(v) if leg.discover then leg.title = leg.title .. " (new flight path)" end end
+        if e.mode == "taxi" then
+            leg.discover = not TG.IsTaxiKnown(v)          -- "faction" policy: landing at a flight master never discovered
+            if leg.discover then leg.title = leg.title .. " (new flight path)" end
+            leg.pickup = not TG.IsTaxiKnown(prev[v])      -- taking off from one: walking there discovers it
+        end
         tinsert(legs, 1, leg)
         v = prev[v]
     end
@@ -658,6 +678,16 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             last.road = last.road or l.road
         else merged[#merged + 1] = l end
     end
+    -- the walk onto a flight master the character has not discovered yet is where it gets picked up
+    for i, l in ipairs(merged) do
+        if l.mode == "taxi" and l.pickup then
+            local w = merged[i - 1]
+            if w and w.mode == "walk" then
+                w.pickup = true
+                w.title = "Walk to " .. (l.from.name or "the flight master") .. " and pick up the flight path"
+            else l.pickup = nil end
+        end
+    end
     return TG.PathCacheStore(ckey, { cost = d[goal], legs = merged })
 end
 
@@ -666,7 +696,8 @@ function TG.Describe(path)
     if not path then return "no route" end
     local out = {}
     for _, l in ipairs(path.legs) do
-        if l.mode == "walk" then out[#out + 1] = ("%s %s to %s"):format(l.road and "Follow the road" or "Walk", U.FmtDist(l.dist), l.to.name or "?")
+        if l.mode == "walk" then out[#out + 1] = ("%s %s to %s%s"):format(l.road and "Follow the road" or "Walk", U.FmtDist(l.dist), l.to.name or "?",
+                                                                        l.pickup and " (pick up the flight path)" or "")
         elseif l.mode == "taxi" then out[#out + 1] = ("Fly %s -> %s"):format(l.from.name, l.to.name)
         elseif l.mode == "hearth" then out[#out + 1] = l.title
         else out[#out + 1] = l.title or (l.mode .. " to " .. (l.to.name or "?")) end
