@@ -1,3 +1,22 @@
+# Status / handoff (2026-11-10, skipping quests)
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `quest-skip`, not merged, not installed. All 13 existing
+harnesses pass, plus the new `tools/test_skip.lua` (463 checks with 6 guides per flavor).
+
+* **Skip a quest** from the step details ("Skip quest"), the right-click menu on the step, or `/cr skip [questID]`. If other
+  quests need it, a confirmation names them (this guide / other guides) and says what the guide loses; confirming drops the
+  chain. `/cr unskip <questID|all>`, `/cr skipped`, `/cr skipstep` (the old per-step skip, which now also warns on an accept
+  or turn-in other quests need). Per character, never shared.
+* **The guide is rebuilt**, not just routed around: the dropped and locked quests, and the notes, use-item and travel steps
+  that only served them, leave the list. Counts and progress follow; ticks are kept by author index; unskip gives back the
+  identical list; other guides rebuild when opened; a reload shows the same guide.
+* **Re-plan for travel time** in the background (1 ms per frame, "re-planning..." in the title). Kept only when it beats
+  "baked order minus removed steps" by the live window's margin. On 30 sample guides: 8 kept, 4.2% less travel overall.
+* **Data:** `tools/gen_quest_deps.py` -> `Data/QuestDeps_<flavor>.lua` (gitignored; era 2,163 quests with prerequisites,
+  tbc 3,237, mop 9,613, retail 18,071, forever 2,249). Breadcrumbs come from the wiki's own wording and never block.
+* **Open:** client test of the popup, right-click menu and frame times; heavy retail guides take up to ~3 minutes of
+  background re-planning; one frame in 8,367 went over 2 ms (Lua collector pause). Details in `docs/ROUTING.md`, "Skipping quests".
+
 # Status / handoff (2026-11-09, gold guides, secondary professions, guides by level)
 
 Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** Installed on all five clients. All 13 harnesses pass
