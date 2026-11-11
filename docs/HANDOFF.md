@@ -153,13 +153,45 @@ and pushed only after it has been verified.
 
 ### Phase 5: coverage push (the "every quest, mission, story, item quest, achievement" goal)
 Current numbers are in docs/STATUS.md. Known gaps:
-* **Achievements:** located shares are below the 80% target (mop about 68%, retail about 43%).
+* **Achievements:** located shares are below the 80% target (mop about 68%, retail about 43%). *Workstream A below.*
 * **Retail Cooking tiers:** Pandaria stops at 22 of 75; Outland and Shadowlands have no guide.
 * **No-route rows:** mop has 27 and retail 62 routable steps with no route.
 * **Blasted Lands:** a 5.5-unit point offset with no known cause.
-* **Item-started quests:** coverage has never been measured.
+* **Item-started quests:** coverage has never been measured. *Workstream A below.*
 Measure each gap with `tools/coverage.py` and `tools/status_report.py`, close it from the wiki and DB2, and record the
 results in `docs/verification.sqlite`.
+
+**Workstream A done offline on branch `coverage-ach` (2026-11-11, worktree wt-cov1; not merged, nothing run in a
+client).** Achievements, item-started quests and storylines; numbers in STATUS 2026-11-11. Release build (no fallback):
+achievements located retail 42.0% → 83.4%, mop 68.8% → 85.9% (retail is 75.6% without the wiki-page source);
+item-started quests with a located accept (point + zone) era 21 → 64, tbc 37 → 141, mop 54 → 184, retail 195 → 661,
+forever 22 → 65; storylines ship for the first time (`Imported_QuestLines_retail.lua`, 1,499 of 1,653 lines with a point
+on every quest). What changed: `coverage.py` (`--shippable`, item quests from Blizzard ItemSparse, `coverage_ach_types`,
+`item_quests`, internal achievements apart), `status_report.py` (the located share, item quests, `--label`),
+`parse_wiki.py` (item sources and coords, `achievement_links`, `race_courses`), `fetch_titles.py --db2-names`,
+`gen_wiki_guides.py` (item-started accepts, `|U|<item>|`), `gen_completion_guides.py` (achievement places, quest lines),
+the retail TOC, `install.sh`, `package_release.py` + `test_package.py`, and the tools that load the storyline file.
+
+To regenerate in the main checkout after merging, in this order, each under `heavy.sh` (times measured in wt-cov1):
+1. `python3 tools/wiki/db2_fetch.py WorldMapOverlay UiMapXMapArt UiMapArt UiMapArtStyleLayer DungeonEncounter AreaTable -- retail mop`
+   (12 small requests, under a minute; `gen_completion_guides.py` would fetch them itself).
+2. `python3 tools/wiki/parse_wiki.py` (about 1.5 min). It rebuilds `wiki.sqlite` and drops the tables
+   `gen_wiki_guides.py` writes there, so step 5 must follow.
+3. `python3 tools/wiki/fetch_titles.py --db2-names --min-interval 1.5`, then `parse_wiki.py` again, then the same pair
+   once more (round 1: 301 requests, about 14 min, 6,377 pages; round 2: 8 requests, 292 pages). Resumable. Faster:
+   copy `tools/wiki/cache/wiki_raw.sqlite` (370 MB) from wt-cov1, which already holds these pages, then run step 2 once.
+4. Check: `python3 tools/wiki/fetch_titles.py --db2-names --dry-run` should report a few hundred titles at most.
+5. `python3 tools/wiki/gen_wiki_guides.py` (all five flavors, about 2 min; `--no-fallback` for a release build).
+6. `python3 tools/gen_completion_guides.py retail mop` (about 5-10 s once it has the lock): achievements, the new
+   `Imported_QuestLines_retail.lua`, missions. The old `Imported_Storylines_retail.lua` is no longer written or loaded;
+   archive it rather than delete it.
+7. `python3 tools/gen_quest_deps.py` as usual (`--wiki-only` for a release); it now reads the quest-line file.
+8. `python3 tools/coverage.py --label <name>` and `--shippable --label <name>-ship`, then
+   `python3 tools/status_report.py --label <name>` (about a minute each).
+9. Rebake: the regenerated wiki guides change some splits (era 137 → 138, tbc 185 → 182, mop 338 → 336, retail 814 →
+   824, forever 143 → 144 guides), so their baked orders go stale; the full rebake planned after the cost model covers it.
+Then `tools/install.sh` per client that is not running (retail now installs `Imported_QuestLines_retail.lua` and drops
+the old storylines file from the client folder).
 
 ## 6. Other pathways considered
 

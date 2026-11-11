@@ -1,5 +1,104 @@
 # Status / handoff (2026-11-11, integration: skipping quests, beta bug reports, routing graph, release packager, stable step keys, auto quests)
 
+## 2026-11-11: Coverage push A: achievements, item-started quests, storylines (`coverage-ach`)
+
+Offline only. **Nothing here has run in a real WoW client.** Not merged, not installed. Sources: Warcraft Wiki and
+Blizzard client tables only; no Questie, WoW-Pro or other data was used to build anything (Questie-derived local files
+were read only by `coverage.py` to measure the TOC set below).
+
+Two measurements, both in `docs/verification.sqlite` (`coverage`, `coverage_ach_types`, `item_quests`):
+**ship** = what a release loads (`coverage.py --shippable` on real `gen_wiki_guides.py --no-fallback` builds of the old
+and the new code; labels `cov-before-ship-nf`, `cov-after-ship`), **TOC** = what the TOCs load on Daniel's machine
+(fallback points, gaps guides, WoW-Pro; labels `cov-before`, `cov-after`).
+
+| | before (ship) | after (ship) | before (TOC) | after (TOC) |
+|---|---:|---:|---:|---:|
+| retail achievements located | 42.0% | **83.4%** | 43.1% | 83.8% |
+| mop achievements located | 68.8% | **85.9%** | 68.4% | 85.7% |
+| retail storylines covered / every quest has a point | 1,251 / 505 of 1,653 | 1,653 / 1,499 | 1,652 / 1,527 | 1,653 / 1,527 |
+| retail storyline quests with a point | 11,024 of 17,991 | 17,264 | 17,299 | 17,302 |
+| item-started quests, accept step point + zone-only: era | 21 + 0 of 269 | 42 + 22 | 74 + 2 | 78 + 2 |
+| tbc | 37 + 0 of 213 | 88 + 53 | 132 + 0 | 140 + 22 |
+| mop | 54 + 0 of 418 | 116 + 68 | 244 + 0 | 254 + 7 |
+| retail | 195 + 0 of 1,458 | 445 + 216 | 498 + 7 | 653 + 137 |
+| forever | 22 + 0 of 456 | 42 + 23 | 74 + 2 | 78 + 3 |
+
+* **The metric** (the plan's 80% target, now defined): achievements with a point or a zone-only step / (achievements
+  minus non-geographic ones). Internal rows (title or description marked DNT, `<DND>`, `<Hidden>`, Hidden Tracking,
+  "char specific hidden copy") are left out of the guides and of both universes: retail 813, mop 17. Retail ship:
+  point 1,184 → 3,153, zone-only 2,378 → 3,990, non-geographic 2,725 → 2,650, neither 4,924 → 1,418 (of 11,211).
+  mop: 315 → 408, 1,059 → 1,322, 1,091 → 1,075, 624 → 284 (of 3,089). `status_report.py` shows it (`--label`).
+* **Achievements** (`tools/gen_completion_guides.py`). Criteria located by Blizzard `Criteria.Type`, ship, point / zone /
+  none, before → after:
+
+  | type | retail | mop |
+  |---|---|---|
+  | 27 complete quest | 2,952/1,934/4,550 → 3,785/1,624/4,027 | 571/188/858 → 582/380/655 |
+  | 0 kill creature | 902/2,971/1,026 → 938/3,030/931 | 237/1,401/179 → 237/1,426/154 |
+  | 43 explore area | 275/1,463/52 → **1,705**/85/0 | 170/911/21 → **1,102**/0/0 |
+  | 165 dungeon encounter | 31/1,597/439 → 18/2,046/3 | (none) |
+  | 71 complete instance | 0/4/67 → 0/71/0 | 4/81/32 → 0/117/0 |
+  | 216 dungeon (by name) | 34/59/688 → 96/567/118 | (none) |
+  | 158 pet tamer | 775/478/546 → 809/632/358 | 51/2/351 → 86/153/165 |
+  | 73 scripted event (delves) | 126/4/467 → 273/121/203 | 0/4/1 → 0/4/1 |
+  | 36 own item | 12/0/1,163 → 228/283/664 | 0/0/781 → 109/225/447 |
+  | 42 loot item | 6/0/314 → 68/138/114 | 0/0/148 → 39/83/26 |
+  | 68 use object | 130/1/236 → 164/12/191 | 70/1/108 → 93/1/85 |
+  | 28 spell target | 52/401/906 → 77/452/830 | 19/279/239 → 31/307/199 |
+  | all criteria | 5,411/9,496/21,077 → 8,304/9,828/17,804 | 1,182/3,203/7,672 → 2,335/3,179/6,495 |
+
+  Sources: explore = centre of the Blizzard `WorldMapOverlay` hit rectangle (checked against the wiki on Elwynn
+  Forest: Northshire Valley 50.4,42.5 vs the wiki's 50.2,42.2); quest = wiki point, else Blizzard `QuestPOI` turn-in pin
+  (retail; MoP Classic's QuestPOI has no quest rows), else wiki zone; encounter / instance = `DungeonEncounter.MapID` /
+  `Map` → the instance map (zone-only, the router goes to the door); kill / object / item / NPC-named = wiki NPC, object
+  and item pages; a criterion named after a map or an explorable area (`AreaTable` + overlay); meta parts take their
+  part achievement's one zone. Achievement-level when no criterion has a place: "Name: <area or zone>" titles (dragon
+  glyphs), wiki race lists (`race_courses`, the start point of 124 skyriding courses) and race quests, the achievement's
+  wiki page links (only a page whose name the title or description also uses), a description naming one zone. Zone-only
+  steps end in "(zone only)". Spot checks of 22 wiki-page matches before the name filter found 3 doubtful ones (a delve
+  companion, a currency, a brawl NPC); after it, 17 of 18 sampled matches looked right and one is doubtful (a Winter
+  Veil toy achievement placed at the event page's point in Dalaran). Achievement-level places by source, retail: race
+  course 1,395 point + 99 zone, wiki page 282 + 390, named area 112 points, named zone 216; mop: wiki page 50 + 47, named
+  zone 17. **Without the wiki-page source retail would be at 75.6% and mop at 81.1%**, so the retail 80% rests on it.
+  Not checked in game.
+* **Non-geographic, marked `|NOGEO|reason|`** (no place exists in these sources): feats, PvP, reputation, guild,
+  character, collections, battlegrounds/arenas, and achievements whose criteria are only counters: level, skill, quests
+  done, dailies, currency, titles, bank slots, reputation, archaeology finds, spells learned (mounts, pets, toys),
+  ratings, recipes known, pets collected or levelled, missions done. Still unlocated (ship): retail 1,418, mop 284;
+  mostly cast-spell (type 29), quest criteria whose quest has no wiki page or pin (hidden quests), NPC names the wiki
+  titles differently, Cup races without a course row (Pandaria Cup page not cached), and metas whose parts span zones.
+  Reputation / level / skill criteria no longer borrow a wiki link's point (19/27, 12, 10 retail steps lost on purpose).
+* **Item-started quests** (`tools/wiki/gen_wiki_guides.py`): the universe is Blizzard `ItemSparse.StartQuestID` in each
+  client's QuestV2. The accept step goes where the item is obtained (the item page's own coords, else a drop/source
+  page's point, else the source zone as zone-only) and carries `|U|<item>|`, so the arrow offers "Use <item>" once it is
+  looted. Item pages parsed 15,725 → 25,904 (Itemtip found in the first 600 characters, plus 6,669 pages fetched). Still
+  not covered (ship): era 33 / tbc 8 / mop 14 / retail 66 / forever 233 quests with no wiki quest page, plus membership
+  exclusions (Season of Discovery: era 109, forever 85; Classic only, removed, removed from beta). Covered but no
+  location: era 62, tbc 50, mop 121, retail 587, forever 72: the item page is missing or its sources have no point.
+* **Storylines** are now `Guides/Imported_QuestLines_retail.lua` (the retail TOC loads it; `story:retail:<id>` ids kept,
+  so marks stay): Blizzard QuestLine order, each quest's wiki steps (fallback points dropped), Blizzard QuestPOI pins for
+  steps the wiki leaves without one (24,296 steps), the quest's map as a zone-only accept where nothing else exists
+  (7,851), and "Quest <id>" steps for the 2,345 quests without a wiki page (1,551 of them with a pin, 794 with no
+  location at all). No Questie data, so no faction or level gates on wiki-less quests (they show for both factions).
+  `package_release.py` ships it as wiki CC BY-SA; the old `Imported_Storylines_retail.lua` keeps its interop rule and
+  `install.sh` never installs it. File size 9.2 MB (old file 6.1 MB); retail achievements went 17.2 → 5.8 MB.
+* **Side effects.** Regenerating the wiki guides moves more steps onto wiki points (wiki-coord steps era +158, tbc
+  +238, mop +325, retail +1,726, forever +161) and changes a few guide splits (era 137 → 138, tbc 185 → 182, mop
+  338 → 336, retail 814 → 824, forever 143 → 144 guides), so those baked orders go stale (the full rebake after the
+  cost-model branch covers it). `gen_wiki_guides.py`'s spine split is not byte-stable between two runs (60 lines of
+  retail part order differed on identical input). The TOC set covers 33 fewer retail quest ids: they were only in
+  internal achievements.
+* **Tests.** All 17 `tools/test_*.lua` (`luajit -joff`), `validate_toc.lua`, `test_package.py` (3 new checks: the
+  quest-line file ships as wiki data; a Questie-credited line in it fails `interop-derived`; a TOC that still lists the
+  old storylines has the line stripped and never ships it) and the ingest unit tests pass. vplayer sample (author order,
+  `--guidecap 20`): retail 12 storyline + 6 achievement guides, mop 8 achievement + 8 wiki guides with item quests,
+  era/tbc/forever 10 wiki guides with item quests each: 64/64 finished, 0 stalls, 0 errors (3 class-gated storyline
+  guides simulated no step; 63 retail and 15 mop no_route steps are instance steps whose door needs the client).
+  `package_release.py --stage-dir` on the no-fallback build: the new achievement, quest-line and mission files pass every
+  gate rule; the gate still fails only on the known RouteOrder rows for gaps guides and the local QuestDeps build.
+* **Open:** a client check of zone-only and "Use <item>" accepts, and of the storyline guides; the remaining unlocated
+  rows above; the Pandaria Cup and continent-map race notes; Forever-only item quests (no wiki pages).
+
 ## 2026-11-10: Stable step keys (`stable-step-id`, IDEAS #6)
 
 Offline only. **Nothing here has run in a real WoW client.** Not merged, not installed. Details: [STEP_KEYS.md](STEP_KEYS.md).

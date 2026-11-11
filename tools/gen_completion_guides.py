@@ -728,6 +728,7 @@ def gen_achievements(fl):
             z = place.one_zone(zs)
             if fallback:
                 fixed_zone, why = fallback, fwhy
+                st[f"achievement-level {'point' if fallback.startswith('M|') else 'zone'} {fwhy}"] += 1
             elif z is not None:
                 fixed_zone, why = place._zone(z), "meta"
         if fixed_zone:
