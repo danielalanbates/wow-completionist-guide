@@ -72,6 +72,9 @@ About 0.9 microseconds per step on retail. Keys are built once per parse; nothin
 guide (a few hundred steps) costs well under 1 ms. The one very large retail achievement guide (102,672 steps, all
 without quests) costs 0.24 s more on top of its 1.06 s parse, a hitch it already has. A first version built the base-36
 digits with a loop of concatenations (0.4 s on that guide); one `string.char` call cut the encoding to a quarter.
+Loading a guide also sums its keys once (`G.GuideSum`, stored next to the marks): 76 ms on that guide, about
+0.7 microseconds per step, cached per parse. A guide with skipped quests sums keys and indices for its rebuild key
+once per rebuilt list (89 ms there).
 Absolute times on this Mac vary up to about 4x between runs (jobs run at nice 10 next to other agents' work and can land
 on efficiency cores), so the share of parse time is the steadier figure; the client's own Lua 5.1 differs from
 `luajit -joff` by a factor that was not measured.
