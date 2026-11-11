@@ -83,9 +83,16 @@ def guide_files(gdir, fl, shippable=False):
 RE_QID = re.compile(r"\|QID\|([\d.^;&]+)")
 RE_ACH = re.compile(r"\|ACH\|(\d+)")
 RE_ACH_CRIT = re.compile(r"\|ACH\|(\d+);(\d+)\|")
+# a meta achievement's part line ("C <part>|ACH|<part>|...|N|Needed for <meta>.|") ticks from the part's own id but is a
+# step of the meta's block, which ends with the meta's FIXED "earn it" line (tools/gen_completion_guides.py)
+RE_ACH_PART = re.compile(r"\|ACH\|\d+\|(?!FIXED\|)")
+RE_ACH_FIXED = re.compile(r"\|ACH\|(\d+)\|FIXED\|")
 RE_MIS = re.compile(r"\|MISSION\|(\d+)")
 # a point the --no-fallback wiki build does not have (tools/wiki/gen_wiki_guides.py Fallback)
 FALLBACK_NOTE = ("(location: Questie data", "(location: Blizzard data")
+# a storyline accept that only names the quest's map (tools/gen_completion_guides.py gen_questlines) says nothing about
+# where a starting item is obtained: it does not count as a located accept for item-quest
+QUEST_MAP_NOTE = "the quest's map"
 KINDS = ("quest", "achievement", "mission", "achievement-zone", "achievement-nongeo", "accept", "ach-crit")
 RANK = {"none": 0, "zone": 1, "point": 2}
 
@@ -94,9 +101,12 @@ def scan(path, shippable=False):
     """-> dict kind -> {id: located_bool}; "accept" -> {qid: point|zone|none} of A steps, "ach-crit" -> {ct: (ach, how)}"""
     found = {k: {} for k in KINDS}
     txt = path.read_text(encoding="utf-8", errors="replace")
+    part_loc = part_zone = False   # meta part lines seen since the last FIXED line
     for line in txt.splitlines():
         if "|" not in line:
             continue
+        if line.startswith("R({"):
+            part_loc = part_zone = False
         loc = "|M|" in line
         zone = "|Z|" in line
         if shippable and any(n in line for n in FALLBACK_NOTE):
@@ -110,13 +120,23 @@ def scan(path, shippable=False):
                     found["quest"][q] = found["quest"].get(q, False) or loc
                     if line.startswith(("A ", "a ")):
                         prev = found["accept"].get(q, "none")
-                        found["accept"][q] = how if RANK[how] > RANK[prev] else prev
+                        h = "none" if QUEST_MAP_NOTE in line and not loc else how
+                        found["accept"][q] = h if RANK[h] > RANK[prev] else prev
         for a in RE_ACH.findall(line):
             found["achievement"][int(a)] = found["achievement"].get(int(a), False) or loc
             if zone and not loc:
                 found["achievement-zone"][int(a)] = True
             if "|NOGEO|" in line:
                 found["achievement-nongeo"][int(a)] = True
+        if RE_ACH_PART.search(line) and "|QID|" not in line:
+            part_loc, part_zone = part_loc or loc, part_zone or (zone and not loc)
+        fx = RE_ACH_FIXED.search(line)
+        if fx:
+            a = int(fx.group(1))
+            found["achievement"][a] = found["achievement"].get(a, False) or part_loc
+            if part_zone and not part_loc:
+                found["achievement-zone"][a] = True
+            part_loc = part_zone = False
         for a, ct in RE_ACH_CRIT.findall(line):
             found["ach-crit"][int(ct)] = (int(a), how)
         for a in RE_MIS.findall(line):
