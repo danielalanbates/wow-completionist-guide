@@ -102,6 +102,44 @@ and **published** at https://github.com/danielalanbates/wow-completionist-data (
 own `docs/HANDOFF.md`, and the plan for the addon generators to read from it (not implemented). Its working tree, without
 `.git` and `build/`, is copied to Drive at My Drive/Code/wow-completionist-data. The addon README links to it.
 
+**Update 2026-11-11, 03:05.**
+* `stable-step-id` (#6) and `auto-quest` (#7) are **done**: built, verified and fixed, then merged into `integration`
+  (`d6b6d9f`, `b0dbdf1`). The auto-quest merge moved QuestAuto to key-based skip marks; every harness passes, including
+  test_progress_keys (196) and test_quest_auto (1,272). test_skip's 2 ms frame check can flake under machine load; it
+  is a known, existing timing check.
+* Still running:
+  * Phase 2b (`wt-cost`, #9 then #1). It was branched before these two merges, so expect `Core/Guide.lua` conflicts
+    (step keys against the new checksum).
+  * Phase 5, workflow `coverage-push-phase5`, in two worktrees. Each has **private copy-on-write data** (`cp -c`),
+    not links, so its generators may write.
+    * `wt-cov1` (`coverage-ach`): achievements, item-started quests, and storylines from wiki and Blizzard data only.
+    * `wt-cov2` (`coverage-prof`): profession tiers, no-route rows, the Blasted Lands offset, and `--no-fallback`
+      points for release.
+  * Their generated data is not merged. Merge the code, then re-run the generators in `repo/` as each branch's
+    report says, **before** the full rebake.
+* `caffeinate -is -t 36000` holds off sleep until about 13:00.
+
+**Update 2026-11-11, 04:55.** `cost-model` (#9 then #1) is **done**: built, verified (1 major, 5 minor findings), fixed, and
+merged into `integration` (`7b92174`). That merge kept both the step keys and `CostModel.Locate`, and loads CostModel in
+test_progress_keys and test_quest_auto. Every harness passes **except `test_route_order`, which fails by design**:
+checksum v2 makes all 1,953 old RouteOrder entries stale, so until the rebake every guide plays in author order plus
+the live window.
+* **Full rebake: waits for phase 5.** Phase 5 regenerates most guides, so baking first would only be redone. Order:
+  1. merge `coverage-ach` and `coverage-prof` into `integration`;
+  2. `git worktree remove wt-int`, then check out `integration` in `repo/`;
+  3. re-run the generators in `repo/` as each phase-5 report says, and `tools/gen_quest_deps.py`;
+  4. `heavy.sh python3 tools/bake_resume.py --dry-run`, then run it without `--dry-run` (gate on; about 7 to 10 h; safe to
+     kill and re-run);
+  5. `test_route_order` must pass, then `test_cost_parity` and `unittest tools/test_bake_gate.py`;
+  6. install into clients that are not running, sync Drive, open the PR, and merge locally.
+* Free-AI second opinion, per the owner's rule to use free AIs where possible. Gemini 2.5 Flash on the free tier
+  (gemini-pro-latest hit its quota, 3.8-flash was overloaded) reviewed QuestAuto, Skip, CostModel, Replan and Teleports.
+  It reported 2 minor items, and both were rejected:
+  * "QuestIsDaily is Classic only": wrong. Retail's own quest frame uses the global.
+  * "store nil instead of true for a guide-less root": that would lose the skip, because nil means unskipped
+    (Skip.lua:846).
+  The script and its output are in the session scratchpad (`freeai/`). Nothing changed.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
@@ -121,7 +159,7 @@ These touch the same files as quest skip (`Core/Progress.lua`, `Core/Guide.lua`,
 |---|---|---|
 | #6 Stable step identity | Store done, skipped and locked marks by a stable step key (for example a hash of action + quest id + objective index + zone + rounded point) instead of the author step index, with a one-time migration of existing SavedVariables. | This is what lets guide data be regenerated without moving players' ticks. Quest skip already keeps its own marks by author index plus quest id; move them to the stable key. |
 | #7 Auto accept and turn-in | Only for quests in the active guide, never for skipped or locked quests, never when a turn-in offers a reward choice (unless `UI/ItemScore.lua` gives a clear winner and the option allows it). Hold a modifier to bypass. Use the existing `autoAccept` and `autoTurnin` options. Cover the Classic gossip/quest-frame APIs and Retail C_GossipInfo. | |
-| #9, then #1: one cost model, then the bake gate | #9: `Routing/CostModel.lua` used by cost_matrix, StepOrder and vplayer. It sets one rule for when a zone-only step counts as located, one no-route cost (currently 1,800 s, 600 s and 0 in the three places) and a speed per level band. `tools/test_cost_parity.lua` must show agreement within 2%. #1: `optimize_routes.py --gate` keeps a baked order only if vplayer finds it not slower than author order + live by more than max(1%, 30 s). The checksum gains zone and first point **in all three copies** (Core/Guide.lua, cost_matrix.lua, optimize_routes.py), and `tools/test_route_order.lua` fails on any stale entry. | The new checksum invalidates every existing baked order. That is intended: after #2, #5 and #9 change the costs, a **full rebake** of all five flavors is needed anyway. Use `tools/bake_resume.py`; expect about 6–8 hours for about 2,620 guides. Decide which flight-path knowledge the bake assumes (all faction nodes, or the nodes a character at that level band would have) and document it. |
+| #9, then #1: one cost model, then the bake gate | **Built on branch `cost-model` (worktree `wt-cost`), 2026-11-10, review fixes 2026-11-11, offline only, not merged.** #9: `Routing/CostModel.lua` (all six TOCs, version 2) owns the located rule (NPC point, else ride along in the same zone, else the new zone's centre; chosen by `tools/cost_holdout.lua`), one no-route cost (1,800 s), speed per level band at each step's planning level, the walking factor, the offline flight rule (faction-wide, measured against a level-band rule), the gate limits and the planning character (`CostModel.Persona`: per guide the faction, class, race and profession at least half of its located steps are written for; before the fix 89 guides, 75 with a bake today, had nothing to bake, now 12, all split between classes). cost_matrix, optimize_routes (reads the row's `"cm"`), StepOrder, Replan, Router.StepWorld and vplayer use it; the client files hold no fallback copies. `tools/test_cost_parity.lua`: optimizer and vplayer (`--who plan --live off`) agree within 2% per guide (harness 30/30; 20 per client with the full solver 100/100; 50 changed guides 50/50). #1: checksum version 2 (zone + first point) in Core/Guide.lua, cost_matrix and optimize_routes, equal on all 2,621 quest guides; `optimize_routes.py --gate` plays the planning character (`vplayer --who gate`), both factions for a guide for both (entries carry `va`/`vb`, plus `vah`/`vbh`), and saves the solves before the gate so a killed or failed gate never re-solves (`tools/test_bake_gate.py`, new); `bake_resume.py` gates each batch, resumes ungated rows, writes only current entries; `test_route_order.lua` fails on stale entries. Saved quest-skip re-plans reset once after the update (documented). Numbers: docs/ROUTING.md "One cost model" and "Bake gate". | **The orchestrator must run next, in repo/ after merging:** `cd ~/Downloads/CompletionistGuide-work/repo`, then `~/Downloads/CompletionistGuide-work/heavy.sh python3 tools/bake_resume.py --dry-run` (every quest guide shows as to do, about 2,620: every row is stale under checksum v2 and cost model v2), then `~/Downloads/CompletionistGuide-work/heavy.sh python3 tools/bake_resume.py` (all five flavors, gate on; the solve is about 6-8 h as before; the gate adds two vplayer runs per batch of 20, four when the batch holds guides for both factions, 16-32 s per batch on the samples, so roughly +1 to +2.5 h over about 131 batches, more on the largest zone guides; an estimate, not measured on the full set). Safe to kill and re-run at any point. Then `luajit tools/test_route_order.lua` must pass, then `luajit tools/test_cost_parity.lua` and `venv/bin/python -m unittest tools/test_bake_gate.py`, the sample vplayer runs and `python3 tools/collect_routes.py collect`, then install. Until the rebake, every guide plays in author order with the live window (checked). |
 
 ### Phase 3: integration and publish
 1. Create the integration branch from `route-bake-finish`. Merge in this order: `quest-skip`, `routing-graph`,
@@ -200,12 +238,13 @@ numbers in docs/STATUS.md "2026-11-11: Coverage workstream B".
 * **Bake strategy.** Incremental (`bake_resume.py`, recompute only missing or stale guides) is the default. A full rebake is
   needed after any cost-model, graph or checksum change. A faster alternative is lower solver limits (`--limit-s 4
   --dp-time 1`, used at the 2026-11-09 deadline), which cost route quality; `tools/optimize_routes.py` documents the limits.
-* **Stale detection.** Option A (planned, #1) puts coordinates into the checksum. Option B stores a per-guide content hash
+* **Stale detection.** Option A (built on branch `cost-model`, checksum version 2) puts coordinates into the checksum. Option B stores a per-guide content hash
   in the result rows and compares it. B avoids invalidating the client-side check but needs the same hash in cost_matrix.
 * **Re-planning after a skip.** In-game local search from the baked order minus the removed steps (being built). The
   alternative is shipping per-chain alternative bakes. That isn't feasible because the number of combinations explodes.
 * **Flight paths in the bake.** Either assume every faction node (optimistic; the live router corrects it in game) or use a
-  per-level-band discovery model. Decide in #9 and measure both with `vplayer --taxi learn`.
+  per-level-band discovery model. Decided on branch `cost-model`: faction-wide stays (measured with `vplayer --taxi learn`
+  on 100 sample guides: both bakes beat author order, faction-wide by 0.4% more); `--taxi band` remains for experiments.
 
 ## 7. Gotchas
 

@@ -216,7 +216,7 @@ local function harness(flavor, family)
     if flavor == "forever" then files[#files + 1] = "Data/MapFix_forever.lua" end
     -- TOC order: Core/QuestAuto.lua right after Core/Skip.lua; UI/ItemScore.lua later (looked up at turn-in time)
     for _, f in ipairs({ "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua",
-        "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua",
+        "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua",
         "Routing/Replan.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Skip.lua", "Core/QuestAuto.lua",
         "Core/Recommend.lua", "UI/ItemScore.lua", "Core/Slash.lua" }) do
         files[#files + 1] = f

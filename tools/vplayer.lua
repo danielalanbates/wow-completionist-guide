@@ -18,10 +18,28 @@
 --                                  [--guide ID] [--faction Horde] [--guidecap 20] [--out PATH]
 --                                  [--order author|baked] [--live on|off]   (baked = Data/RouteOrder_<fl>.lua; live = 12-step window)
 --                                  [--chain Alliance|Horde] [--questsperlevel 25]   (play the whole spine with the real chain logic)
---                                  [--taxi all|learn]   all (default) = every flight master of the faction (the bake's rule);
---                                                       learn = start each guide (each chain) with no flight paths known, fly
---                                                       only into discovered ones, discover a flight master the route walks to
---                                                       and any within 40 yd of where the player stands (docs/VPLAYER.md)
+--                                  [--route-order PATH]   with --order baked: load this RouteOrder file instead of
+--                                                         Data/RouteOrder_<fl>.lua (the bake gate, tools/test_cost_parity.lua)
+--                                  [--who warrior|plan|gate]   warrior (default) = a Human / Orc warrior levelling through
+--                                                         the guide; plan = the character the bake plans for (see below);
+--                                                         gate = a real character of the planning character's faction,
+--                                                         class and race (a Human / Orc warrior where it has none): the
+--                                                         bake gate (tools/optimize_routes.py --gate)
+--                                  [--both-as Alliance|Horde]   play a guide for both factions as this faction (default:
+--                                                         the planning character's faction with --who gate, else Alliance;
+--                                                         not with --who plan)
+--                                  [--taxi model|all|band|learn]   model (default) = the cost model's offline rule
+--                                                       (Routing/CostModel.lua OFFLINE_TAXI, what the bake assumes);
+--                                                       all = every flight master of the faction; band = flight masters in
+--                                                       zones at or below the planning level; learn = start each guide (each
+--                                                       chain) with no flight paths known, fly only into discovered ones,
+--                                                       discover a flight master the route walks to and any within 40 yd of
+--                                                       where the player stands (docs/VPLAYER.md)
+-- Travel is priced by the cost model (docs/VPLAYER.md "Cost model"): each leg from the point of the last located step
+-- to the next located step at the planning level of the step it leaves from, no hearth (an H step costs
+-- CostModel.HEARTH), a leg with no route costs CostModel.NOROUTE; a step that rides along costs nothing and the
+-- character stays where it is.  CR_TRACE=F writes
+-- one line per visited step (index, action, quest, zone, coords, seconds, title, cost-model kind).
 --                                  [--turnins]   fire QUEST_TURNED_IN at every turn-in, as the client does, and time the
 --                                                handlers (graph rebuilds + the re-plan they cause); run under luajit -joff
 --         luajit tools/vplayer.lua --repro <report id|latest|report.json> [--db PATH] [--check] [--show]   (replay a beta bug report)
@@ -37,8 +55,11 @@ local withSpine = false
 local guideSet = nil
 orderMode, liveWindow = "author", true
 local chainFaction, questsPerLevel
-local taxiMode = "all"
+local taxiMode = "model"
 local fireTurnins = false
+local routeOrderPath
+local whoMode = "warrior"
+local bothAs
 for i = 2, #arg do
     local a = arg[i]
     if a == "--limit" then limit = tonumber(arg[i + 1])
@@ -56,8 +77,11 @@ for i = 2, #arg do
     elseif a == "--questsperlevel" then questsPerLevel = tonumber(arg[i + 1])
     elseif a == "--order" then orderMode = arg[i + 1]      -- author | baked (Data/RouteOrder_<fl>.lua, tools/optimize_routes.py)
     elseif a == "--live" then liveWindow = arg[i + 1] ~= "off" -- the 12-step live reorder window on top (default on)
-    elseif a == "--taxi" then taxiMode = arg[i + 1]          -- all | learn (flight-path discovery, see the header)
+    elseif a == "--taxi" then taxiMode = arg[i + 1]          -- model | all | band | learn (see the header)
+    elseif a == "--route-order" then routeOrderPath = arg[i + 1]
     elseif a == "--turnins" then fireTurnins = true
+    elseif a == "--who" then whoMode = arg[i + 1]          -- warrior (default) | plan | gate (see the header)
+    elseif a == "--both-as" then bothAs = arg[i + 1]       -- Alliance | Horde: the faction a guide for both factions is played as
     elseif a == "--verbose" then verbose = true end
 end
 -- --repro / --capture: the report decides the flavor, the order mode, the live window and the spine (tools/vplayer_repro.lua)
@@ -171,7 +195,7 @@ local function load(path)
 end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], EXTRA[flavor] or TAXI[flavor], "Data/Transit.lua", "Data/Imported_Entrances.lua", "Data/Access.lua",
     "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
-    "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
+    "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
     "Core/Account.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
     "Adapters/WoWPro.lua",
     ("Guides/Imported_WoWPro_" .. (WOWPRO[flavor] or flavor) .. ".lua"),
@@ -182,8 +206,12 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
 -- the spine reuses the wiki guides' text under "spine:" ids; only with --spine, so a default run plays each guide once
 if withSpine then load("Guides/Imported_Spine_" .. flavor .. ".lua") end
 if orderMode == "baked" then
-    load("Data/RouteOrder_" .. flavor .. ".lua")
-    if not NS.RouteOrder then error("vplayer --order baked: Data/RouteOrder_" .. flavor .. ".lua is missing (tools/optimize_routes.py)") end
+    if routeOrderPath then
+        assert(loadfile(routeOrderPath))(ADDON, NS)
+    else
+        load("Data/RouteOrder_" .. flavor .. ".lua")
+    end
+    if not NS.RouteOrder then error("vplayer --order baked: " .. (routeOrderPath or ("Data/RouteOrder_" .. flavor .. ".lua")) .. " is missing or empty (tools/optimize_routes.py)") end
 elseif orderMode ~= "author" then error("vplayer --order must be author or baked") end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 -- the label every output row carries (collect_vplayer.py keys on it): Forever must not overwrite era rows
@@ -194,15 +222,41 @@ NS.db.profile.debug = false
 NS.db.profile.routing.baked = (orderMode == "baked")
 NS.db.profile.routing.reorder = liveWindow
 NS.db.profile.routing.liveBudgetMs = 1e9   -- the simulation has no frames: let each live repair finish (the 3 ms slice is unit-tested)
--- flight rule: "all" keeps the faction-wide rule every earlier run and the offline bake use; "learn" is the client's
--- default (fly only into discovered flight paths), with discovery simulated below
-if taxiMode ~= "all" and taxiMode ~= "learn" then error("vplayer --taxi must be all or learn") end
+-- flight rule: "model" = the cost model's offline rule (what the bake assumes); "all" the faction-wide rule every run
+-- before the cost model used; "band" the planning-level rule; "learn" the client's default (fly only into discovered
+-- flight paths), with discovery simulated below
+local TAXI_POLICY = { model = nil, all = "faction", band = "band", learn = "known" }
+if TAXI_POLICY[taxiMode] == nil and taxiMode ~= "model" then error("vplayer --taxi must be model, all, band or learn") end
 NS.db.profile.routing.taxiPolicy = (taxiMode == "learn") and "known" or "faction"
 NS.Print, NS.Debug, NS.Error = function() end, function() end, function() end
 pcall(NS.Adapters.WoWPro.ImportStatic)
 NS.TravelGraph.Build()
 
-local G, P, R, U, Cond = NS.Guide, NS.Progress, NS.Router, NS.Util, NS.Cond
+local G, P, R, U, Cond, CM = NS.Guide, NS.Progress, NS.Router, NS.Util, NS.Cond, NS.CostModel
+-- the cost model's offline character (tools/cm_offline.lua): installed for the per-guide and --chain runs, not for
+-- --repro / --capture, which replay what a client recorded (its own speed, hearth and flight rule)
+local OFF = dofile("tools/cm_offline.lua")
+local ctl
+if not REPRO then
+    ctl = OFF.Install(NS, MAPS, { taxi = TAXI_POLICY[taxiMode] })
+    if taxiMode == "model" then taxiMode = (ctl.policy == "faction") and "all" or ctl.policy end
+end
+-- --who plan: the character the bake plans for (CostModel.Persona / Takes): the faction, class, race and profession most
+-- of the guide's located steps are written for (none where no one value covers half of them), so it takes exactly the
+-- steps the bake walks to; it has done every prerequisite quest that no step it takes turns in (earlier content), and
+-- meets every level gate - so it plays the given order exactly as the optimizer prices it (tools/test_cost_parity.lua).
+-- --who gate: a real character (the real Core/Conditions.lua rules) of the planning character's faction, class and
+-- race, a Human / Orc warrior where it has none, levelling through the guide: what the bake gate measures.
+-- The default "warrior" is the Human / Orc warrior every earlier run used.
+local planWho = {}
+if whoMode == "plan" then
+    Cond.ClassMatch = function(list) return CM.ListTakes(list, "class", planWho.class) end
+    Cond.RaceMatch = function(list) return CM.ListTakes(list, "race", planWho.race) end
+    Cond.ProfMatch = function(spec) return CM.ListTakes(spec, "prof", planWho.prof) end
+    Cond.FactionMatch = function(f) return CM.FactionTakes(f, planWho.faction) end
+    if bothAs then error("vplayer --both-as is not for --who plan (it plays the planning character's own faction)") end
+elseif whoMode ~= "warrior" and whoMode ~= "gate" then error("vplayer --who must be warrior, plan or gate") end
+if bothAs and bothAs ~= "Alliance" and bothAs ~= "Horde" then error("vplayer --both-as must be Alliance or Horde") end
 
 -- --taxi learn: the route a step was reached by (last TravelGraph.FindPath of walkTo) and flight-path discovery
 local lastPath, taxiLearned = nil, 0
@@ -323,9 +377,50 @@ local function finishObjectives(q)
     if not objs or #objs == 0 then objs = { { numFulfilled = 1, numRequired = 1, finished = true, text = "obj" } } W.objectives[q] = objs end
     for _, o in ipairs(objs) do o.finished = true o.numFulfilled = o.numRequired or 1 end
 end
+-- The numbered objectives (|QO| indices) the guide in play names for a quest, over the steps this character can ever
+-- take (class, race, faction, profession).  A quest is complete once each of them is done, or once an objective step
+-- with no index (the whole quest) is done - as in the client, where every objective is its own trip.  Routing/CostModel.lua
+-- PlanSteps prices the same rule (until 2026-11-10 any objective step finished the whole quest here).
+local OBJECTIVE_ACTION = { C = true, K = true, l = true, U = true }
+local objNeed = { id = nil, map = nil }
+local function namedObjectives(q)
+    local id = P.guide and P.guide.id
+    if objNeed.id ~= id or not objNeed.map then
+        objNeed.id, objNeed.map = id, {}
+        for _, s in ipairs((id and G.Steps(id)) or {}) do
+            local n = tonumber(s.qo)
+            if n and s.qid and OBJECTIVE_ACTION[s.action] and Cond.ClassMatch(s.class) and Cond.RaceMatch(s.race)
+                and Cond.FactionMatch(s.faction) and Cond.ProfMatch(s.prof) then
+                for _, qq in ipairs(s.qid) do local t = objNeed.map[qq] or {} t[n] = true objNeed.map[qq] = t end
+            end
+        end
+    end
+    return objNeed.map[q]
+end
+local function doObjective(q, qo)
+    if W.quests[q] == "done" then return end
+    local n = tonumber(qo)
+    local need = n and namedObjectives(q)
+    if not (need and need[n]) then W.quests[q] = "complete" finishObjectives(q) return end
+    local objs = W.objectives[q]
+    if not objs or #objs == 0 then
+        objs = {}
+        local max = 0
+        for k in pairs(need) do if k > max then max = k end end
+        for k = 1, max do objs[k] = { numFulfilled = need[k] and 0 or 1, numRequired = 1, finished = not need[k], text = "obj" .. k } end
+        W.objectives[q] = objs
+    end
+    local o = objs[n]
+    if o then o.finished, o.numFulfilled = true, o.numRequired or 1 end
+    for _, x in ipairs(objs) do
+        if not x.finished then if W.quests[q] ~= "complete" then W.quests[q] = "log" end return end
+    end
+    W.quests[q] = "complete"
+end
 
--- Move the player onto the step (this is the "walking" part).  Returns yards, seconds, routed.
-local function walkTo(step)
+-- --repro / --capture: move the player onto the step the way the client would route it (from where the player stands,
+-- the hearth allowed).  Returns yards, seconds, routed, has a destination.
+local function walkToClient(step)
     local secs = nil
     lastPath = nil
     local ok, v = pcall(R.TravelSecondsFromPlayer, step)
@@ -345,14 +440,49 @@ local function walkTo(step)
     return yards, secs, (secs ~= nil), (tx ~= nil)
 end
 
+-- The cost model's walk (Routing/CostModel.lua, the bake's pricing): `here` is the point of the last located step the
+-- character visited (or where it was put), and that step's planning level, which sets the speed of the next leg.
+local here = { pt = nil, level = 1 }
+-- an explicit placement (a guide's start, a chain's start): the next leg leaves from the player's spot
+local function placeHere(level)
+    here.pt = PLAYER.wx and { wx = PLAYER.wx, wy = PLAYER.wy, inst = PLAYER.inst, zone = PLAYER.map } or nil
+    here.level = level or here.level
+end
+local function walkTo(step)
+    if not ctl then return walkToClient(step) end
+    lastPath = nil
+    -- a step that rides along is done where the character stands: no leg, no move
+    if not CM.Located(step) then return 0, 0, true, false end
+    local tx, ty, ti = R.StepWorld(step)
+    if not tx then return 0, 0, true, false end
+    local secs, routed, yards = 0, true, 0
+    if step.action == "H" then
+        secs = CM.HEARTH     -- use the hearthstone: the cost model's hearth cost, not the trip (the bake prices it the same)
+    elseif here.pt then
+        ctl.SetLevel(here.level)
+        local from = { coords = { { x = 0.5, y = 0.5 } }, zone = here.pt.zone, _wx = here.pt.wx, _wy = here.pt.wy, _winst = here.pt.inst, _cmk = "own" }
+        local ok, v = pcall(R.TravelSeconds, from, step)
+        if ok and v then secs = v else secs, routed = CM.NOROUTE, false end
+        if here.pt.inst == ti then yards = math.sqrt((tx - here.pt.wx) ^ 2 + (ty - here.pt.wy) ^ 2) end
+    end   -- (no start point: the first leg is free, as in the bake)
+    local path = lastPath
+    -- put the character on the step (its own zone and point, an NPC's point, or the zone centre) so the position-driven
+    -- checks (R/G/F/b/J/H/D) can see it there
+    local z, x, y = CM.MapPoint(step)
+    if z and MAPS[z] and MAPS[z][3] then place(z, x, y) end
+    here.pt = { wx = tx, wy = ty, inst = ti, zone = step.zone }
+    here.level = CM.Level(step, here.level)
+    ctl.SetLevel(here.level)
+    if routed then discoverTaxi(path) end
+    return yards, secs, routed, true
+end
+
 local function act(step)
     local a = step.action
     if a == "A" or a == "a" or a == "!" then
         for _, q in ipairs(step.qid or {}) do if W.quests[q] ~= "done" then W.quests[q] = "log" end end
     elseif a == "C" or a == "K" or a == "l" then
-        for _, q in ipairs(step.qid or {}) do
-            if W.quests[q] ~= "done" then W.quests[q] = "complete" finishObjectives(q) end
-        end
+        for _, q in ipairs(step.qid or {}) do doObjective(q, step.qo) end
         for _, l in ipairs(step.loot or {}) do W.bags[l.id] = math.max(W.bags[l.id] or 0, l.qty or 1) end
     elseif a == "T" or a == "t" then
         for _, q in ipairs(step.qid or {}) do W.quests[q] = "done" W.objectives[q] = nil end
@@ -365,7 +495,7 @@ local function act(step)
             pcall(P.CheckStep, step)     -- lets CheckStep latch step.hadItem
             W.bags[step.item] = nil
         end
-        for _, q in ipairs(step.qid or {}) do if W.quests[q] ~= "done" then W.quests[q] = "complete" finishObjectives(q) end end
+        for _, q in ipairs(step.qid or {}) do doObjective(q, step.qo) end
     elseif a == "B" then
         for _, l in ipairs(step.loot or {}) do W.bags[l.id] = math.max(W.bags[l.id] or 0, l.qty or 1) end
     elseif a == "L" then
@@ -419,9 +549,35 @@ local function playGuide(g)
     local steps = G.Steps(id)
     if not steps or #steps == 0 or g.empty then return nil end
 
+    local forBoth = g.faction ~= "Alliance" and g.faction ~= "Horde"
     FACTION = (g.faction == "Horde") and "Horde" or "Alliance"
+    if whoMode == "plan" or whoMode == "gate" then
+        local who = CM.Persona(steps, g)
+        if whoMode == "plan" then
+            planWho = who
+            FACTION = who.faction or FACTION
+        else
+            FACTION = (forBoth and bothAs) or who.faction or FACTION
+            CLASS = who.class or "WARRIOR"
+            RACE = who.race or ((FACTION == "Horde") and "Orc" or "Human")
+        end
+    elseif forBoth and bothAs then
+        FACTION = bothAs
+    end
     NS.player.faction, NS.player.class, NS.player.race = FACTION, CLASS, RACE
     wipeWorld(math.max(1, tonumber(g.minlevel) or 1))
+    if whoMode == "plan" then
+        W.level = 999
+        -- a prerequisite counts as done before the guide unless a step this character takes turns it in (a quest only
+        -- another faction's or class's steps turn in is earlier content for it, as in CostModel.PlanSteps)
+        local tin = {}
+        for _, s in ipairs(steps) do
+            if (s.action == "T" or s.action == "t") and s.qid and CM.Takes(s, planWho) then for _, q in ipairs(s.qid) do tin[q] = true end end
+        end
+        for _, s in ipairs(steps) do
+            for _, q in ipairs(s.pre or {}) do if not tin[q] then W.quests[q] = "done" end end
+        end
+    end
     NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened, NS.db.char.laps, NS.db.char.guide = {}, {}, {}, {}, nil
     NS.db.char.parked, NS.db.char.parkReturn = {}, nil
     wipeMarks()
@@ -433,6 +589,11 @@ local function playGuide(g)
     local zone = g.zone
     if not zone then for _, s in ipairs(steps) do if s.zone then zone = s.zone break end end end
     local placed = zone and MAPS[zone] and place(zone, 0.5, 0.5) or false
+    if ctl then
+        -- the guide's start: its zone's centre at its start level (no map for the zone: the first leg is free)
+        if placed then placeHere(CM.StartLevel(g)) else here.pt, here.level = nil, CM.StartLevel(g) end
+        ctl.SetLevel(here.level)
+    end
 
     local row = { steps = #steps, sim = 0, auto = 0, manual = 0, stalls = 0, forced = 0, laps = 0,
                   yards = 0, seconds = 0, noroute = 0, finished = 0, err = "", reasons = {}, resumes = 0 }
@@ -475,8 +636,8 @@ local function playGuide(g)
 
             local fromMap = PLAYER.map
             local y, s, routed, hasDest = walkTo(step)
-            if traceOut then traceOut:write(("%d\t%s\t%s\t%s\t%s\t%.0f\t%s\n"):format(step.index, step.action, tostring(step.qid and step.qid[1] or ""),
-                tostring(step.zone or ""), step.coords and "xy" or "-", s or -1, (step.title or ""):sub(1, 40))) end
+            if traceOut then traceOut:write(("%s\t%d\t%s\t%s\t%s\t%s\t%.1f\t%s\t%s\n"):format(id, step.index, step.action, tostring(step.qid and step.qid[1] or ""),
+                tostring(step.zone or ""), step.coords and "xy" or "-", s or -1, ((step.title or ""):sub(1, 40):gsub("\t", " ")), CM.Kind(step))) end
             row.yards = row.yards + (y or 0)
             row.seconds = row.seconds + (s or 0)
             -- only a step that HAS a destination the router failed to path to is a routing gap;
@@ -550,6 +711,8 @@ if chainFaction then
     end
     if not first then error("no spine guides for " .. chainFaction .. " (load them with --spine)") end
     place(G.registry[first].zone, 0.5, 0.5)
+    placeHere(CM.StartLevel(G.registry[first]))
+    ctl.SetLevel(here.level)
     R.Invalidate()
     NS.TravelGraph.Build()
     forgetTaxi()

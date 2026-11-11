@@ -196,6 +196,77 @@ not merged, not installed. Details and the client API matrix: [QUEST_AUTO.md](QU
 * **Open:** client test of every path; whether game-object quest givers give `UnitGUID("npc")`; quest ids from the
   greeting frame on the classic clients; reward data that arrives late is never chosen.
 
+## 2026-11-10: one cost model and the bake gate (branch `cost-model`, IDEAS #9 then #1)
+
+Offline only. **Nothing here has run in a real WoW client.** Not merged, not installed. Details and every table:
+docs/ROUTING.md "One cost model" and "Bake gate and stale-bake check"; docs/VPLAYER.md "Cost model".
+
+**Review fixes (2026-11-11).** A reviewer found one major and five minor problems; all are fixed or documented:
+* **Guides with nothing to bake (major).** The planning character had no class, race or profession and, in a guide for
+  both factions, no faction tag, so race starting zones, class campaigns and Alliance-only "Both" guides had nothing to
+  bake: 89 quest guides, 75 of them with a bake today. Cost model version 2 plans each guide for the character most of
+  its located steps are written for (`CostModel.Persona`: faction, then class, race, profession, each at least half).
+  Left without a bake: 12 (mop 2, retail 10), all split between many classes. On a 50-guide sample of the changed guides:
+  parity 50/50, 30 bakes kept by the gate (24,153 s saved), 10 rejected. Tests: `tools/test_cost_parity.lua` (synthetic
+  rules, 5 real guides, no 0 s guide in the sample).
+* **Gate for both factions.** The gate plays a real character of the planning character's faction, class and race
+  (`vplayer --who gate`); a guide for both factions is played as Alliance and as Horde and must pass both (entries add
+  `vah`/`vbh`). Same 20 guides per client: kept / rejected 7/6, 11/2, 11/0, 13/1, 13/2 (era, tbc, mop, retail, forever);
+  two bakes are now rejected only for the Horde play.
+* **Kill during the gate.** The solves were written only after the gate, so a killed run solved the batch again. They
+  are now saved first; a vplayer failure exits 3 with the rows saved. `tools/test_bake_gate.py` (new) and an end-to-end
+  kill test prove a restart gates without solving.
+* **No hand-copied constants.** The client files read the cost model directly (no fallback literals); the gate limits
+  live in `CostModel.GATE_FRAC`/`GATE_ABS`, which the optimizer reads from the rows and test_route_order from the file.
+* **Saved quest-skip re-plans reset once** after this update (their key includes the route checksum, and the rebake
+  changes the orders anyway): a guide with skipped quests is re-planned once in the background when next opened.
+  Documented, not changed.
+* **Re-planner CPU, corrected.** Slices keep p50 0.80 ms, p99 0.82-0.89 ms, no frame over 2 ms; but the worst frame with
+  the collector running rose from 0.96-0.98 to 1.42-1.47 ms and retail re-plans do more work (+41% CPU on one guide, +24%
+  summed over the test's 22 re-plans, all on retail): more blocks under the located rule, and the firm-only second search
+  runs more often on retail. Accepted; the earlier "max 1.43 -> 1.46 ms" compared against one outlier run.
+
+* **One cost model.** `Routing/CostModel.lua` (all six TOCs, before the travel graph) owns where a step is priced, the
+  no-route cost (1,800 s everywhere; it was 1,800 / 600 / 0), the speed per level band (each leg at the planning level of
+  the step it leaves from; the bake used the guide's lowest level), the walking factor (short walks now use the flying
+  factor when flying, like the graph) and the offline flight rule. cost_matrix, optimize_routes (through the row's `"cm"`,
+  no second copy), StepOrder, Replan, Router.StepWorld and vplayer read it. cost_matrix now uses `Router.TravelRow` instead
+  of its own Dijkstra copy.
+* **Located rule:** an NPC's point from elsewhere in the guide, else ride along in the zone the route is in, else the new
+  zone's centre. Chosen by a hold-out test (`tools/cost_holdout.lua`, 3,000 steps per client): mean error 22-50 s per step,
+  against 117-194 s for the zone centre alone and 27-110 s for riding along alone.
+* **Parity** (`tools/test_cost_parity.lua`, new): the optimizer's predicted seconds and vplayer's (planning character, no
+  live window) agree within 2% per guide: 100 of 100 sample guides with the full solver after one vplayer fix; the
+  harness's own 30-guide run: 28 inside, the 2 misses are author orders that break their own prerequisites (qdb gaps
+  guides; excused by rule, listed).
+* **Predicted against measured** (20 guides per client, warrior, live window off), measured / predicted saving:
+  before 0.59 / 0.62 / 0.42 / 0.12 / 0.53 (era, tbc, mop, retail, forever), after 0.63 / 0.76 / 0.88 / 0.60 / 0.67. With
+  the live window on, the bake's measured saving went from -1,234 / 2,581 / 1,584 / 307 / 94 s to 2,943 / 4,873 / 3,937 /
+  9,067 / 9,073 s.
+* **Flight paths offline stay faction-wide.** A level-band rule changed 27 of 64 baked orders; under the client's
+  discovered-only rule both bakes beat author order on every client and faction-wide is 0.4% faster overall.
+* **vplayer changed:** cost-model walking, no hearth, 1,800 s per unroutable leg, one objective per `|QO|` step,
+  `--who plan`, `--route-order`, `--taxi model|band`. Earlier vplayer numbers are not comparable.
+* **Optimizer:** PRE now orders every step that names the prerequisite (was: accepts only); objective steps of a quest
+  keep author order when one of them would tick by itself.
+* **Checksum version 2** (zone + first point in 0.5 % steps) in Core/Guide.lua, cost_matrix and optimize_routes; the three
+  agree on all 2,621 quest guides. Every existing baked entry is now stale (era 168, tbc 260, mop 501, retail 854, forever
+  170): the game plays those guides in author order with the live window (vplayer: the stale files play second for second
+  like author order on 40 sample guides). `tools/test_route_order.lua` **fails** on stale entries until the rebake.
+* **Gate:** `optimize_routes.py --gate` keeps a bake only if vplayer finds baked + live no slower than author + live by more
+  than max(1%, 30 s); entries carry `va`/`vb`. On the samples it kept 55 of 64 bakes (saves 32,701 s) and rejected 9 (would
+  have cost 2,808 s); after the review fixes 55 of 66 (both factions played for guides for both, see above). `tools/bake_resume.py` gates every batch (`--no-gate`), resumes an ungated row without re-solving,
+  writes entries only for current guides, and takes `--lua-dir` and `--only-file`.
+* **CPU** (`luajit -joff`): the live window got cheaper (warm mean 1.64 -> 1.25 ms era, 1.64 -> 1.18 ms retail); re-plan
+  slices keep their budget (p99 0.82-0.89 ms, none over 2 ms) but retail re-plans do more work (see the fixes above).
+* **Harnesses:** all pass except `tools/test_route_order.lua` (fails on the stale entries above, by design, until the
+  rebake; with `CR_ROUTE_ORDER_DIR` on the gated sample bakes of all five clients it passes) and the JIT-on frame check in
+  `tools/test_skip.lua` (one frame of about 1,000 over 2 ms in some runs; the branch base fails it the same way, 1 of 3
+  runs; under `luajit -joff`, the client's proxy, both pass with max 1.0-1.5 ms). New: `tools/test_bake_gate.py`
+  (`venv/bin/python -m unittest tools/test_bake_gate.py`).
+* **Next (orchestrator):** merge, then the full rebake with the gate, then `luajit tools/test_route_order.lua` must pass.
+  See docs/HANDOFF.md section 5.
+
 ## Skipping quests (`quest-skip`)
 
 Offline only. **Nothing here has run in a real WoW client.** Merged into `integration`, not installed. All 13 existing

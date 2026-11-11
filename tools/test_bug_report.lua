@@ -61,7 +61,7 @@ function debugstack() return STACK end
 local function load(path) assert(loadfile("CompletionRoute/" .. path))(ADDON, NS) end
 -- TOC order: Core/BugReport.lua right after Core/Init.lua (its error hook goes in before the rest of the addon)
 for _, f in ipairs({ "Core/Init.lua", "Core/BugReport.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua",
-    "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua",
+    "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua",
     "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua",
     "Core/Recommend.lua", "Core/Instances.lua", "UI/Log.lua" }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
@@ -171,6 +171,8 @@ t("character: class, race, level, faction", r.char.class == "WARRIOR" and r.char
 t("character: speed and flying", type(r.char.speed) == "number" and r.char.canFly == false)
 t("guide: id, name, steps, checksum", r.guide.id == "t:elwynn" and r.guide.name == "Elwynn sample" and r.guide.steps == 7 and r.guide.authored == 7
     and type(r.guide.sum) == "number", J.encode(r.guide))
+t("guide: the checksum's version travels with it (a replay compares only like with like)", r.guide.sumv == NS.Guide.ROUTE_CHECKSUM_VERSION
+    and r.guide.sumv == 2, tostring(r.guide.sumv))
 t("step is the current step", r.step and r.step.index == P.current.index and r.step.action == P.current.action, r.step and r.step.index)
 t("step: raw guide line", r.step.raw == lines[r.step.index], r.step.raw)
 t("step: quest ids, zone, points, location source", r.step.qid == table.concat(P.current.qid, ",") and r.step.zone == 1429

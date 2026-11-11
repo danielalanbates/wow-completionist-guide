@@ -96,11 +96,12 @@ local function harness(flavor, opts)
     local files = { "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor] }
     if flavor == "forever" then files[#files + 1] = "Data/MapFix_forever.lua" end
     for _, f in ipairs({ "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua",
-        "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua",
+        "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua",
         "Routing/Replan.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Skip.lua", "Core/Recommend.lua" }) do
         files[#files + 1] = f
     end
-    for _, f in ipairs(files) do load(f) end
+    -- the previous release (opts.code) predates Routing/CostModel.lua (branch cost-model): load it only when present there
+    for _, f in ipairs(files) do load(f, opts.code ~= nil and f == "Routing/CostModel.lua") end
     load("Data/Imported_Entrances.lua", true)
     if opts.real then
         for _, f in ipairs(tocData(flavor)) do load(f, true) end
