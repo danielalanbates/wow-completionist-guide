@@ -22,9 +22,10 @@ not merged, not installed. Details and the client API matrix: [QUEST_AUTO.md](QU
   eight decisions.
 * **Tests:** new `tools/test_quest_auto.lua`, 1,154 checks on all five flavors x three API families; 13 deliberate
   breakages of the module were each caught. All other harnesses, `validate_toc.lua` and the ingest unittest pass.
-  `tools/test_skip.lua`'s "re-plan frames never over 2 ms" check failed on 2 of 4 runs (1 to 2 frames of about 1,000 at
-  2.16 to 2.37 ms, JIT on, load average up to 13 with the route bake running) and passed on the other two (one under
-  `-joff`); this branch does not touch the re-planner.
+  Not this branch: `tools/test_skip.lua`'s two "re-plan frames never over 2 ms" timing checks fail now and then on this
+  loaded Mac (route bake running, load average 4 to 13): 5 of 8 runs here (1 to 3 frames over, worst 2.16 to 2.39 ms,
+  JIT on; the one `-joff` run passed), and 2 of 3 runs (worst 2.15 and 2.45 ms) with the integration versions of the two
+  files this branch changes in its load list (`Core/Init.lua`, `Core/Progress.lua`). The re-planner is untouched.
 * **CPU** (`luajit -joff`, biggest real wiki guide per flavor): about 0.01 ms per dialog event, 0.06 to 0.34 ms right
   after a quest change.
 * **Open:** client test of every path; whether game-object quest givers give `UnitGUID("npc")`; quest ids from the
