@@ -53,7 +53,9 @@ TIER_CAP = {"Cooking": {"Classic": 300, "Outland": 75, "Northrend": 75, "Catacly
 # Wiki 'Fishing' skill table: where each expansion's skill is raised.  Trainer tables use the landmass headings.
 TIER_LAND = {"Classic": ("Eastern Kingdoms", "Kalimdor"), "Outland": ("Outland",), "Northrend": ("Northrend",), "Cataclysm": (),
              "Pandaria": ("Pandaria",), "Draenor": ("Draenor",), "Legion": ("Broken Isles",), "Kul Tiran": ("Kul Tiras", "Zandalar"),
-             "Shadowlands": ("Shadowlands",), "Dragon Isles": ("Dragon Isles",), "Khaz Algar": (), "Midnight": ()}
+             "Shadowlands": ("Shadowlands",), "Dragon Isles": ("Dragon Isles",), "Khaz Algar": ("Khaz Algar",), "Midnight": ("Quel'Thalas",)}
+# continent names on the retail maps -> the landmass headings of the wiki trainer tables
+CONTINENT_LAND = {"The Shadowlands": "Shadowlands"}
 TIER_WATER = {"Outland": ["Outland"], "Northrend": ["Northrend"], "Cataclysm": ["Mount Hyjal", "Twilight Highlands", "Uldum", "Deepholm"],
               "Pandaria": ["Pandaria"], "Draenor": ["Draenor"], "Legion": ["Broken Isles"], "Kul Tiran": ["Kul Tiras", "Zandalar"],
               "Shadowlands": ["The Shadowlands", "Shadowlands"], "Dragon Isles": ["Dragon Isles"], "Khaz Algar": ["Khaz Algar"],
@@ -74,6 +76,8 @@ SEASONAL = re.compile(r"winter veil|hallow'?s end|brewfest|day of the dead|pilgr
 VENDOR = re.compile(r"sold by|vendors?\b|merchant|supplier|purchased|can be bought", re.I)
 RANK_LIMIT = re.compile(r"teaches only up to\s*\{\{quality\|common\|journeyman", re.I)
 SPECIAL_TRAINER = re.compile(r"available only to starting|only available during|appears at .{0,60}during|teaches the \[\[way|teaches \[\[|teaches 3 recipes", re.I)
+# the same restrictions said in an NPC page's own words ("He teaches [[Maw Walker]]s ..." is not a specialty)
+SPECIAL_PAGE = re.compile(r"available only to starting|only available during|appears at .{0,60}during|teaches the \[\[way|\bway of the\b", re.I)
 LATER_PAGE = re.compile(r"no longer (offers|teaches|trains)", re.I)
 MOVED = re.compile(r"before the \[*cataclysm|prior to .{0,40}cataclysm", re.I)
 ADDED = re.compile(r"\{\{\s*patch (\d+)\.(\d+)(?:\.(\d+))?[a-z]?\s*\|\s*(?:added\s*=|note\s*=\s*added)", re.I)
@@ -153,8 +157,10 @@ class Gen:
         self.atlas = wikimaps.Atlas()
         self.db = sqlite3.connect(str(HERE / "wiki.sqlite"))
         self.npc_pts = defaultdict(list)
+        marks = wikimaps.history_marks()    # pre-4.0.3 coordinates are Classic-map numbers (fetch_coord_history.py)
         for r in self.db.execute("select title, zone, x, y, source, badge, classic from npc_coords order by title, idx"):
-            self.npc_pts[r[0]].append(r[1:])
+            zone, classic = wikimaps.mark_classic(marks, r[0], r[1], r[2], r[3]) if r[2] is not None else (r[1], None)
+            self.npc_pts[r[0]].append((zone, r[2], r[3], r[4], r[5], r[6] if classic is None else classic))
         self.quest = {}
         for r in self.db.execute("select id, name, faction, start_json, end_json, page_title from quests"):
             self.quest[r[0]] = r
@@ -162,12 +168,13 @@ class Gen:
         for r in self.db.execute("select quest_id, idx, kind, target_title, count, text from quest_objectives order by quest_id, idx"):
             self.objectives[r[0]].append(r[1:])
         self.trainers = {p: parse_trainers(p) for p in SKILL_LINE}
+        self._cat = {}
         names = {t["page"] for rows in self.trainers.values() for t in rows}
         self.npc_page = fetch_pages(names)
 
     # -- points ------------------------------------------------------------------------------------------------------
-    def place(self, zone, x, y, fl):
-        r = self.atlas.place(zone, x, y, fl, False, None)
+    def place(self, zone, x, y, fl, added=None):
+        r = self.atlas.place(zone, x, y, fl, False, added)
         if not r:
             return None
         return r[0], round(r[1], 1), round(r[2], 1)
@@ -199,9 +206,62 @@ class Gen:
                             return r
         return None
 
-    def usable_trainers(self, prof, fl, stats):
+    def category_trainers(self, prof):
+        """trainers the wiki's 'Category:<prof> trainers' lists, as rows like parse_trainers gives: the trainer table stops
+        at Pandaria for most landmasses, but each later trainer's own NPC page is in the category.  The landmass is the
+        continent of the page's {{Npcbox}} location on the retail maps (a trainer teaches the tier of the land it stands on)."""
+        if prof in self._cat:
+            return self._cat[prof]
+        S = self.atlas.sets["retail"]
+        titles = [t for t in W.category("Category:%s trainers" % prof)
+                  if ":" not in t and not t.lower().endswith(("trainers", "trainer", "by skill"))]
+        pages = fetch_pages(titles)
+        boxes = {}
+        for t in titles:
+            for _s, _e, _n, inner in WT.find_templates(pages.get(t, ("", ""))[0], re.compile(r"npcbox", re.I)):
+                boxes[t] = WT.split_params(inner)[1]
+                break
+        # many trainer pages name only the building ("[[Roasted Ram]], [[Valdrakken]]"): that place's own page has the point
+        places = fetch_pages({ln[0] for b in boxes.values() if not WT.coords(b.get("location", ""))
+                              for ln in WT.links(b.get("location", ""))[:1]})
         out = []
-        for t in self.trainers[prof]:
+        for t in titles:
+            body = pages.get(t, ("", ""))[0]
+            if not body:
+                continue
+            self.npc_page.setdefault(t, pages[t])
+            named = boxes.get(t, {})
+            pts = [(x, y, z) for x, y, z, _, _ in WT.coords(named.get("location", ""))] or \
+                  [(x, y, z) for x, y, z, _, _ in WT.coords(WT.sections(body).get("", ""))]
+            via = ""
+            if not pts:
+                ln = WT.links(named.get("location", ""))[:1]
+                place = places.get(ln[0][0], ("", ""))[0] if ln else ""
+                pts = [(x, y, z) for x, y, z, _, _ in WT.coords(WT.sections(place).get("", "") if place else "")][:1]
+                via = ln[0][0] if pts else ""
+            if not pts:
+                continue
+            added = [(int(a), int(b), int(c or 0)) for a, b, c in
+                     [(m.group(1), m.group(2), m.group(3)) for m in ADDED.finditer(body)]]
+            r = self.atlas.place(pts[0][2], pts[0][0], pts[0][1], "retail", False, min(added) if added else None)
+            if not r:
+                continue
+            cont, seen = r[0], 0
+            while cont in S.maps and S.maps[cont]["type"] > 2 and seen < 8:
+                cont, seen = S.maps[cont]["parent"], seen + 1
+            land = S.maps.get(cont, {}).get("name", "")
+            fac = (named.get("faction") or "").strip()
+            fac = fac if fac in ("Alliance", "Horde") else "Neutral"
+            lead = WT.sections(body).get("", "")
+            out.append(dict(prof=prof, land=CONTINENT_LAND.get(land, land), faction=fac, page=t, name=t, exp=1, pts=pts,
+                            row=lead, limit=99, special=bool(SPECIAL_PAGE.search(lead) or SEASONAL.search(lead[:600])),
+                            added=min(added) if added else None, category=True, via=via))
+        self._cat[prof] = out
+        return out
+
+    def usable_trainers(self, prof, fl, stats, rows=None):
+        out = []
+        for t in (self.trainers[prof] if rows is None else rows):
             if t["exp"] > EXPANSION[fl]:
                 continue
             if t["special"]:
@@ -217,7 +277,7 @@ class Gen:
                 continue
             placed = []
             for x, y, z in t["pts"]:
-                r = self.place(z, x, y, fl)
+                r = self.place(z, x, y, fl, t.get("added"))
                 if r:
                     placed.append(r)
             if classic:
@@ -255,11 +315,13 @@ def spell_names(fl):
 
 RECIPE_PREFIX = ("Recipe: ", "Manual: ", "Formula: ")
 RECIPE_ITEMS = {}       # [flavor][item name] = item id: the recipe items this client really has
+RECIPE_RANK = {}        # [flavor][item name] = [(RequiredSkill, RequiredSkillRank)]: the skill the client asks to learn it
 
 
 def item_names(fl, ids):
-    """{id: name} for `ids`, and fills RECIPE_ITEMS[fl].  Streams the table so only the rows wanted stay in memory."""
-    want, out, recipes = set(str(i) for i in ids), {}, {}
+    """{id: name} for `ids`, and fills RECIPE_ITEMS[fl] / RECIPE_RANK[fl].  Streams the table so only the rows wanted stay
+    in memory."""
+    want, out, recipes, ranks = set(str(i) for i in ids), {}, {}, defaultdict(list)
     p = D.fetch(fl, "ItemSparse")
     if not p:
         return out
@@ -270,8 +332,19 @@ def item_names(fl, ids):
                 out[int(r["ID"])] = name
             if name.startswith(RECIPE_PREFIX):
                 recipes[name] = int(r["ID"])
+                if (r.get("RequiredSkill") or "0") != "0":
+                    ranks[name].append((r["RequiredSkill"], int(r.get("RequiredSkillRank") or 0)))
     RECIPE_ITEMS[fl] = recipes
+    RECIPE_RANK[fl] = dict(ranks)
     return out
+
+
+def item_learn(fl, item, prof, tier):
+    """the skill this client asks for to learn recipe item `item` (ItemSparse RequiredSkillRank), when the item is for this
+    profession or this expansion tier of it; None when the client has no such item or names another skill"""
+    lines = {SKILL_LINE[prof]} | ({str(tier)} if tier else set())
+    ranks = [rk for sk, rk in RECIPE_RANK.get(fl, {}).get(item, []) if sk in lines and rk > 0]
+    return min(ranks) if ranks else None
 
 
 def reagents_of(fl):
@@ -409,6 +482,11 @@ def build_recipes(fl, prof, tier, names, sla, reag, lists, fa, boxes, faction, s
             continue
         if tier and r.get("SkillupSkillLineID") != str(tier):
             continue
+        cm = int(r.get("ClassMask") or 0)
+        if cm and cm & (cm - 1) == 0:
+            # a row for one class only (MoP: Death Knights are taught the bandages automatically); the guide is for everyone
+            stats["recipe_one_class"] += 1
+            continue
         name = names.get(r["Spell"]) or ""
         if re.search(r"campfire|cooking fire", name, re.I):     # the fire itself, not a dish
             continue
@@ -435,11 +513,24 @@ def build_recipes(fl, prof, tier, names, sla, reag, lists, fa, boxes, faction, s
             learn = learn if learn is not None else lv
             kind = "trainer" if re.match(r"\s*(\{\{[^}]*\}\}\s*)?trainer", src, re.I) else "listed"
             source = clean(WT.plain(src))
+        if learn is None and body:
+            # the box gives no orange value, but the page's opening sentence does ("created with Cooking (20)")
+            lead = lead_source(body)
+            if lead and lead[0] is not None:
+                learn = lead[0]
+                stats["recipe_learn_lead"] += 1
         if fl in CLASSICISH and kind == "trainer":
             for prefix in RECIPE_PREFIX:
                 if prefix + name in RECIPE_ITEMS.get(fl, {}):
                     kind, source = "item", prefix + name
                     stats["recipe_item_on_classic"] += 1
+                    break
+        if kind is None:
+            # the wiki names no source, but this client has a recipe item of that name: it is taught by the item
+            for prefix in RECIPE_PREFIX:
+                if prefix + name in RECIPE_ITEMS.get(fl, {}):
+                    kind, source = "item", prefix + name
+                    stats["recipe_item_by_name"] += 1
                     break
         auto = r["AcquireMethod"] == "1"
         if auto:
@@ -456,9 +547,18 @@ def build_recipes(fl, prof, tier, names, sla, reag, lists, fa, boxes, faction, s
         db_min = int(r["MinSkillLineRank"])
         rc = Recipe()
         rc.spell, rc.name, rc.yellow, rc.grey, rc.auto, rc.kind, rc.source = int(r["Spell"]), name, yellow or grey, grey, auto, kind, source
-        # both sources give a floor: the later of the two can never make the plan use a recipe too early.  With no learn
-        # value from the wiki the yellow threshold is the safe floor: a recipe is always learned at or below its yellow.
-        if learn is None:
+        # The client's own value comes first: the skill its recipe item asks for (ItemSparse RequiredSkillRank, only for
+        # the item the wiki says teaches it), and for a recipe the client teaches by itself (AcquireMethod 1) the rank it
+        # is taught at (MinSkillLineRank).  Then the wiki.  Both give a floor: the later of the two can never make the
+        # plan use a recipe too early.  With no learn value at all the yellow threshold is the safe floor: a recipe is
+        # always learned at or below its yellow.
+        client = item_learn(fl, source, prof, tier) if kind == "item" else None
+        if client is None and auto:
+            client = max(db_min, 1)
+        if client is not None and client <= rc.yellow:
+            stats["recipe_learn_client"] += 1
+            learn = client
+        elif learn is None:
             stats["recipe_learn_unknown"] += 1
             learn = rc.yellow
         elif learn > rc.yellow or (fl != "retail" and rc.yellow - learn > MAX_ORANGE_BAND):
@@ -861,8 +961,12 @@ def gen_tiers(gen, fl, out, prof, trainers, sla, names, reag, lists, fa, boxes, 
     for prefix, tid in tiers.items():
         cap = TIER_CAP[prof][prefix]
         lands = TIER_LAND[prefix]
+        usable = [t for t in trainers if t["land"] in lands]
+        if not usable and lands:
+            # the trainer table lists nobody for this land: the trainers' own pages (Category:<prof> trainers) do
+            usable = [t for t in gen.usable_trainers(prof, fl, stats, gen.category_trainers(prof)) if t["land"] in lands]
+            stats["trainer_from_category"] += len(usable)
         for faction in ("Alliance", "Horde"):
-            usable = [t for t in trainers if t["land"] in lands]
             alt, tcount = gen.alt(usable, faction)
             bands = [(1, 75), (75, 150), (150, 225), (225, 300)] if prefix == "Classic" else [(1, cap)]
             taught = set()

@@ -203,6 +203,30 @@ for _, id in ipairs(ids) do
     if g.skillMax < 75 and g.prof ~= "Archaeology" and flavor ~= "retail" then short = short + 1 end
 end
 
+-- ---- retail expansion tiers (2026-11-11): Outland and Shadowlands Cooking had no guide, Pandaria stopped at 22 and
+-- Cataclysm at 36, because the learn skill fell back to the yellow threshold.  The client's own values (recipe item
+-- RequiredSkillRank, MinSkillLineRank of an automatic recipe) and the recipe page's opening sentence now give it.  Tiers
+-- the wiki's trainer table leaves empty take their trainers from the trainers' own pages (Category:Cooking trainers).
+if flavor == "retail" then
+    local reach, alt = {}, {}
+    for _, id in ipairs(ids) do
+        local g = G.registry[id]
+        if g.prof == "Cooking" and g.tier then
+            local k = g.tier .. ":" .. g.faction
+            reach[k] = math.max(reach[k] or 0, g.skillMax)
+            if g.skillMin <= 1 and g.text:find("|ALT|", 1, true) then alt[k] = true end
+        end
+    end
+    for _, tier in ipairs({ 2547, 2546, 2545, 2544, 2752 }) do
+        for _, fac in ipairs({ "Alliance", "Horde" }) do
+            check((reach[tier .. ":" .. fac] or 0) >= 75, ("Cooking tier %d (%s) reaches 75, got %s"):format(tier, fac, tostring(reach[tier .. ":" .. fac])))
+        end
+    end
+    for _, tier in ipairs({ 2541, 2873, 2908 }) do
+        check(alt[tier .. ":Alliance"] and alt[tier .. ":Horde"], ("Cooking tier %d lists a trainer for both factions"):format(tier))
+    end
+end
+
 -- ---- why make steps carry SPELL and not RECIPE: the engine finishes a step on EITHER tag
 do
     SPELLS_KNOWN[4242] = true
