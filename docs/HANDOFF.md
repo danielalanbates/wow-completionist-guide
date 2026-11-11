@@ -140,6 +140,28 @@ the live window.
     (Skip.lua:846).
   The script and its output are in the session scratchpad (`freeai/`). Nothing changed.
 
+**Update 2026-11-11, 07:45 (new session; the earlier one was cleared).**
+* Phase 5 (`coverage-push-phase5`, run `wf_50bf916c-593`) survived the session change. Both builds and both reviews are
+  done (ach: 6 major + 3 minor findings; prof: 4 major + 6 minor). The two fix agents were still running in `wt-cov1` and
+  `wt-cov2` (uncommitted edits there are theirs; do not touch). Results: that run's `journal.jsonl`.
+* A read-only review of the merged tree runs as `integration-premerge-review` (`wf_d7d40fec-138`): real-client API and
+  protected-action safety, cross-feature state and SavedVariables safety, plain Lua 5.1 behaviour and cost; then one
+  skeptic verifies every finding. Fixes are applied on `integration` **after** the two coverage branches are merged.
+* **Nothing since PR #3 is on GitHub.** A bundle of all local branches is in Drive at
+  `My Drive/Code/Completionist's Guide/_wip-backup/` (restore with `git clone <bundle>`). The Drive working tree is still
+  the 11-10 beta (code of `route-bake-finish` + its data), on purpose: the companion app installs from it, so it only
+  changes when a consistent code + data + bake set exists.
+* **Owner's work email in public history.** 40 commits on `origin/master` (2026-09-18 to 2026-11-09) carry the global
+  `git config user.email` as author and committer; the 11-10 purge only looked for the other address. Plan: at publish
+  time, with all worktrees removed, rewrite author/committer to the GitHub noreply address in a fresh mirror clone
+  (`git filter-repo --mailmap`), check that every branch tree is unchanged, keep a rollback bundle, then force-push
+  `master`. The repo-local `user.email` is already the noreply address; the global one is the owner's and is left alone.
+* `tools/optimize_routes.py`, `tools/cost_matrix.lua` and `tools/collect_routes.py` hardcode a home-directory path for the
+  job folder. Replace with `CR_TMP` or `~` expansion before publishing.
+* Order from here: phase-5 fixes land -> merge `coverage-ach`, `coverage-prof` -> apply review fixes -> all harnesses ->
+  check out `integration` in `repo/` -> regenerate (section 5 of each phase-5 report) -> full rebake -> install, Drive,
+  PR, local merge, push.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
