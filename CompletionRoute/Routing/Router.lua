@@ -2,7 +2,7 @@
 -- Facade between guide steps and the travel graph.  Provides:
 --   Router.OrderSteps(steps)   -> reordered steps (optimizer)
 --   Router.CurrentPath()       -> path from player to the current step (legs)
---   Router.Recommendation()    -> what the arrow should do right now (walk / hearth / item / taxi / transit)
+--   Router.Recommendation()    -> what the arrow should do right now (walk / hearth / teleport / item / taxi / transit)
 local ADDON, NS = ...
 local U, HBD, TG = NS.Util, NS.HBD, NS.TravelGraph
 local R = {}
@@ -276,8 +276,10 @@ function R.Recommendation()
     end
     -- 2) hearth step itself
     if step.action == "H" then
-        local ready, cd, kind, id = U.HearthReady()
-        rec.mode = "hearth"; rec.item = NS.HEARTH_ITEM; rec.text = ready and "Use your Hearthstone" or ("Hearthstone ready in " .. U.FmtTime(cd))
+        local ready, cd, kind, id, isToy = U.HearthReady()
+        rec.mode = "hearth"; rec.item = id or NS.HEARTH_ITEM; rec.toy = isToy or nil
+        local what = (not id or id == NS.HEARTH_ITEM) and "your Hearthstone" or U.ItemName(id)
+        rec.text = ready and ("Use " .. what) or ((id and id ~= NS.HEARTH_ITEM) and (what .. " ready in ") or "Hearthstone ready in ") .. U.FmtTime(cd)
         return rec
     end
     -- Still nothing to aim at? Borrow the location of the nearest upcoming step that does have
@@ -311,10 +313,12 @@ function R.Recommendation()
     end
     rec.eta = path.cost
     local leg = path.legs[1]
-    if leg.mode == "hearth" then
-        rec.mode = "hearth"
+    if leg.mode == "hearth" or leg.mode == "teleport" then
+        -- the secure button casts the spell, uses the item, or uses the toy (Data/Teleports.lua) for this leg
+        rec.mode = leg.mode
         rec.item = leg.data and leg.data.kind == "item" and leg.data.id or nil
         rec.spell = leg.data and leg.data.kind == "spell" and leg.data.id or nil
+        rec.toy = leg.data and leg.data.toy or nil
         rec.text = leg.title .. " (saves time)"
         rec.wx, rec.wy, rec.inst = leg.to.wx, leg.to.wy, leg.to.inst
     elseif leg.mode == "walk" then

@@ -2,7 +2,8 @@
 -- The travel-system graph (written from scratch, open data):
 --   nodes  = flight masters (from wago.tools TaxiNodes), transit endpoints (boats/zeppelins/portals/trams),
 --            the character's hearth location, plus a virtual start (player) and goal.
---   edges  = taxi flights (real polyline lengths), transit rides, hearth (cast + cooldown), and implicit
+--   edges  = taxi flights (real polyline lengths), transit rides, hearth (cast + cooldown), class teleports, hearth
+--            toys and engineering transporters (Data/Teleports.lua, Routing/Teleports.lua), and implicit
 --            straight-line walking between any two nodes on the same continent instance.
 -- Dijkstra over that graph gives the cheapest (in seconds) way from A to B: this is what powers
 -- "hearth when it's faster", "fly from X to Y", "take the boat", and the step-order optimizer.
@@ -486,7 +487,8 @@ end)
 -- After hearthing we arrive at the inn: record position once loading finishes
 local hearthPending = false
 NS:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, _, spellID)
-    if unit == "player" and (spellID == NS.HEARTH_SPELL or spellID == NS.ASTRAL_RECALL) then hearthPending = true end
+    if unit == "player" and (spellID == NS.HEARTH_SPELL or spellID == NS.ASTRAL_RECALL
+                             or (NS.Teleports and NS.Teleports.IsHearthSpell(spellID))) then hearthPending = true end
 end)
 NS:RegisterEvent("PLAYER_ENTERING_WORLD", function()
     if hearthPending then hearthPending = false NS:After(3, recordBindHere) end
@@ -687,8 +689,11 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     local useHearth = (opts.hearth == nil) and (c.hearth ~= false) or opts.hearth
     local useTaxi = (opts.taxi == nil) and (c.taxi ~= false) or opts.taxi
     local useTransit = (opts.transit == nil) and (c.transit ~= false) or opts.transit
+    -- teleports are one-shot resources like the hearth: never on a pairwise (hearth = false) query
+    local useTele = ((opts.teleports == nil) and (opts.hearth ~= false) and (c.teleports ~= false) and NS.Teleports ~= nil)
+                    or (opts.teleports == true and NS.Teleports ~= nil)
     local ckey
-    if not useHearth then
+    if not useHearth and not useTele then
         ckey = ("%s|%s|%s|%s|%s|%s|%s|%s|%s|%s"):format(sinst, sx, sy, ginst, gx, gy, speed,
                                                      useTaxi and 1 or 0, useTransit and 1 or 0, TG.TaxiPolicy())
         local hit = TG.pathCache[ckey]
@@ -709,17 +714,32 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     if useHearth then
         local hx, hy, hinst, hname = TG.HearthWorld()
         if hx then
-            local ready, cd, kind, id = U.HearthReady()
+            local ready, cd, kind, id, isToy = U.HearthReady()
             local aready, acd, akind, aid = U.AstralRecallReady()
-            local function hnode(cdleft, k, i, label)
+            local function hnode(cdleft, k, i, label, toy)
                 if cdleft > 15 * 60 then return end
                 local hn = { id = "hearth" .. k, kind = "hearth", inst = hinst, wx = hx, wy = hy, name = hname or "Home", edges = {} }
                 local cost = (c.hearthCost or 60) + cdleft
-                addEdge(start, hn, cost, "hearth", label .. " to " .. (hname or "your inn"), { kind = k, id = i, cd = cdleft })
+                addEdge(start, hn, cost, "hearth", label .. " to " .. (hname or "your inn"), { kind = k, id = i, cd = cdleft, toy = toy })
                 hearthNodes[#hearthNodes + 1] = hn
             end
-            if U.HasItem(NS.HEARTH_ITEM) then hnode(cd, "item", NS.HEARTH_ITEM, "Hearth") end
+            -- the Hearthstone, or (not in the bags) a hearthstone toy on the same cooldown
+            if id then hnode(cd, "item", id, (id == NS.HEARTH_ITEM) and "Hearth" or ("Hearth (" .. U.ItemName(id) .. ")"), isToy) end
             if akind then hnode(acd, "spell", NS.ASTRAL_RECALL, "Astral Recall") end
+        end
+    end
+    -- teleports (Routing/Teleports.lua): a spell this character knows, or an item or toy it owns, whose cooldown has
+    -- at most 15 minutes left (the hearth's rule): an edge from here to its fixed landing point.  The hearth cost
+    -- (60 s) holds a 10 s cast; a teleport pays the same overhead with its own cast time, plus the cooldown left.
+    if useTele then
+        for _, a in ipairs(NS.Teleports.Available()) do
+            if a.inst and a.cd <= 15 * 60 then
+                local tn = { id = "tele:" .. a.key, kind = "teleport", inst = a.inst, wx = a.wx, wy = a.wy, name = a.dest, edges = {} }
+                local cost = (c.hearthCost or 60) - 10 + (a.cast or 10) + a.cd
+                addEdge(start, tn, cost, "teleport", a.title, { kind = (a.kind == "spell") and "spell" or "item", id = a.id,
+                                                               toy = (a.kind == "toy"), cd = a.cd, key = a.key })
+                hearthNodes[#hearthNodes + 1] = tn
+            end
         end
     end
     -- unreachable continent (neither from here nor from the hearth) -> no graph search at all
@@ -868,6 +888,8 @@ do
         if not wx then return end
         if last and (last.inst ~= inst or dist(last.wx, last.wy, wx, wy) > 300) then
             pcall(TG.LearnTransit, last, { inst = inst, wx = wx, wy = wy })
+            -- the landing spot of a teleport the route just used (Routing/Teleports.lua keeps it within reach of the data)
+            if NS.Teleports and NS.Teleports.OnJump then pcall(NS.Teleports.OnJump, { inst = inst, wx = wx, wy = wy }) end
         end
         last = { inst = inst, wx = wx, wy = wy }
     end)

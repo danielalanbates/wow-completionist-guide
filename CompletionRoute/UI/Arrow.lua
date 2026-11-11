@@ -1,7 +1,8 @@
 -- CompletionRoute :: UI/Arrow.lua
 -- The waypoint arrow.  Points at the router's recommended next target (walk / flight master / boat).
--- When the recommendation is "use an item" or "hearth", the arrow is replaced by a clickable secure
--- item button — quest items when you're at the spot, Hearthstone when hearthing is faster.
+-- When the recommendation is "use an item", "hearth" or "teleport", the arrow is replaced by a clickable secure
+-- button — quest items when you're at the spot, the Hearthstone (or a hearth toy) when hearthing is faster, a class
+-- teleport, transporter or hub hearthstone (Data/Teleports.lua) when that leg is the fastest start.
 local ADDON, NS = ...
 local U = NS.Util
 local A = {}
@@ -68,15 +69,20 @@ btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
 -- pending secure changes while in combat
 local pending
-local function applyButton(mode, itemID, spellID, reason)
-    if InCombatLockdown() then pending = { mode, itemID, spellID, reason } return end
+-- isToy: the item is used from the toy box (retail and MoP Classic hearth toys, transporters): the secure "toy" action
+local function applyButton(mode, itemID, spellID, reason, isToy)
+    if InCombatLockdown() then pending = { mode, itemID, spellID, reason, isToy } return end
     pending = nil
     -- "show" with neither an item nor a spell used to leave the empty ring painted on screen
     if mode == "hide" or (not itemID and not spellID) then
         btn:Hide(); btn.itemID, btn.spellID = nil, nil
         return
     end
-    if itemID then
+    if itemID and isToy then
+        btn:SetAttribute("type", "toy"); btn:SetAttribute("toy", itemID)
+        icon:SetTexture(U.ItemIcon(itemID))
+        btn.itemID, btn.spellID = itemID, nil
+    elseif itemID then
         btn:SetAttribute("type", "item"); btn:SetAttribute("item", "item:" .. itemID)
         icon:SetTexture(U.ItemIcon(itemID))
         btn.itemID, btn.spellID = itemID, nil
@@ -89,7 +95,7 @@ local function applyButton(mode, itemID, spellID, reason)
     btn.reason = reason
     btn:Show()
 end
-NS:RegisterEvent("PLAYER_REGEN_ENABLED", function() if pending then applyButton(unpack(pending)) end end)
+NS:RegisterEvent("PLAYER_REGEN_ENABLED", function() if pending then applyButton(unpack(pending, 1, 5)) end end)
 
 local function updateCooldown()
     if not btn:IsShown() then return end
@@ -183,12 +189,12 @@ function A.Update()
         return
     end
     title:SetTextColor(1, 0.82, 0)
-    if (rec.mode == "item" or rec.mode == "hearth") and (rec.item or rec.spell) then
+    if (rec.mode == "item" or rec.mode == "hearth" or rec.mode == "teleport") and (rec.item or rec.spell) then
         arrow:Hide()
-        applyButton("show", rec.item, rec.spell, rec.text)
+        applyButton("show", rec.item, rec.spell, rec.text, rec.toy)
         updateCooldown()
-        if rec.mode == "hearth" and rec.eta then eta:SetText("ETA ~" .. U.FmtTime(rec.eta)) else eta:SetText("") end
-        sub:SetText(rec.mode == "item" and "Click to use" or "Click to hearth")
+        if rec.mode ~= "item" and rec.eta then eta:SetText("ETA ~" .. U.FmtTime(rec.eta)) else eta:SetText("") end
+        sub:SetText(rec.mode == "item" and "Click to use" or (rec.mode == "teleport" and "Click to teleport" or "Click to hearth"))
         lastMode = rec.mode
         return
     end

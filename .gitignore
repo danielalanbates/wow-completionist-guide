@@ -61,3 +61,6 @@ CompletionRoute/Data/RouteOrder_*.lua
 tools/db2/*/*.csv
 tools/db2/*/*.csv.part
 tools/db2/*/*.missing
+
+# tools/check_teleports.py: Blizzard client tables and Warcraft Wiki pages it downloads (regenerate with --fetch / --wiki)
+tools/teleports_db2/
