@@ -2,20 +2,23 @@
 -- resolves a zone, and from Orgrimmar (Horde) / Stormwind (Alliance) a route to each destination exists that
 -- goes through the chain. Then: a fake guide whose first step is on the Siren Isle gets the chain injected.
 --   luajit tools/test_access.lua
+-- The same per-entry checks then run on the MoP Classic map table for the entries flagged for mop
+-- (`luajit tools/test_access.lua --flavor mop`, started by the retail run): Pandaria and the Isle of Thunder.
 package.path = "./?.lua;" .. package.path
-STUB_MAPS = dofile("tools/maps_retail.lua")
+local FL = (arg[1] == "--flavor" and arg[2]) or "retail"
+STUB_MAPS = dofile("tools/maps_" .. FL .. ".lua")
 local ADDON, NS = "CompletionRoute", {}
 dofile("tools/stubs.lua")
-function GetBuildInfo() return "x", "0", "2026", 120100 end
+function GetBuildInfo() return "x", "0", "2026", FL == "mop" and 50504 or 120100 end
 FACTION, LEVEL = "Horde", 80
 function UnitFactionGroup() return FACTION end
 function UnitLevel() return LEVEL end
 PLAYER = { map = 85, x = 0.5, y = 0.5 }
 local function place(map, x, y) local wx, wy, inst = z2w(x, y, map) PLAYER.map, PLAYER.x, PLAYER.y, PLAYER.wx, PLAYER.wy, PLAYER.inst = map, x, y, wx, wy, inst end
 local function load(path) local fn = assert(loadfile("CompletionRoute/" .. path)) fn(ADDON, NS) end
-for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_retail.lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
+for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_" .. FL .. ".lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
     "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Progress.lua" }) do load(f) end
-NS.flavor = "retail"
+NS.flavor = FL
 NS.db = NS.db or { profile = { routing = {} }, char = { knownTaxi = {}, done = {}, skipped = {} }, global = {} }
 NS.db.global = NS.db.global or {}
 NS.db.profile.routing = NS.db.profile.routing or {}
@@ -28,7 +31,8 @@ for _, fac in ipairs({ "Horde", "Alliance" }) do
     TG.built = false TG.Build()
     print(("%s from %s: %d nodes, %d access edges, unresolved: %s"):format(fac, fac == "Horde" and "Orgrimmar" or "Stormwind", #TG.nodes, #TG.accessEdges, table.concat(TG.unresolved or {}, "; ")))
     for _, a in ipairs(NS.AccessData) do
-        if (not a.fac) or a.fac == (fac == "Horde" and "H" or "A") then
+        -- an entry for another client is never built here (TG.Build reads `flavors`); it is checked by that client's run
+        if ((not a.fac) or a.fac == (fac == "Horde" and "H" or "A")) and ((not a.flavors) or a.flavors[FL]) then
             local bx, by, bi = TG.zoneToWorld(a.to[1], a.to[2], a.to[3])
             check(bx ~= nil, a.key .. " destination resolves")
             local p = bx and TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, bx, by, bi, {})
@@ -43,6 +47,15 @@ for _, fac in ipairs({ "Horde", "Alliance" }) do
             check(located >= #steps - 3, a.key .. " chain steps located " .. located .. "/" .. #steps)
         end
     end
+end
+if FL ~= "retail" then
+    if fails > 0 then print(fails .. " ACCESS TESTS FAILED (" .. FL .. ")") os.exit(1) end
+    print("ALL ACCESS TESTS PASSED (" .. FL .. ")")
+    os.exit(0)
+end
+do
+    local rc = os.execute("luajit tools/test_access.lua --flavor mop")
+    check(rc == 0 or rc == true, "MoP Classic access entries (luajit tools/test_access.lua --flavor mop)")
 end
 -- prefix injection: fake guide starting on the Siren Isle, Horde at Orgrimmar
 FACTION = "Horde" NS.player = { faction = "Horde" } place(85, 0.5, 0.5) TG.built = false TG.Build()
