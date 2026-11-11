@@ -6,6 +6,13 @@
 --            straight-line walking between any two nodes on the same continent instance.
 -- Dijkstra over that graph gives the cheapest (in seconds) way from A to B: this is what powers
 -- "hearth when it's faster", "fly from X to Y", "take the boat", and the step-order optimizer.
+--
+-- What invalidates what (kept costs are expensive to rebuild: a 24-step window holds up to 552 pair costs):
+--   * an access chain unlocks (its unlock quest is turned in)  -> the access edges are rebuilt, the path cache is wiped
+--   * a flight path is learned                                  -> the path cache is wiped (TG.TaxiChanged)
+--   * the hearth is re-bound, a teleport or hearth item becomes  -> only costs FROM the player are dropped
+--     (un)available                                                (TG.oneShotGen, read by Routing/StepOrder.lua)
+--   * any other quest turn-in                                   -> nothing
 local ADDON, NS = ...
 local U, HBD = NS.Util, NS.HBD
 local TG = {}
@@ -14,6 +21,8 @@ NS.TravelGraph = TG
 TG.nodes = {}          -- array of nodes
 TG.taxiByID = {}       -- taxiNodeID -> node
 TG.built = false
+-- profiling counters (cheap; read by tools/route_sweep.lua); builds / accessRebuilds count graph (re)builds
+TG.stats = { calls = 0, pops = 0, relax = 0, capped = 0, skipped = 0, builds = 0, accessRebuilds = 0 }
 
 local function cfg() return NS.db and NS.db.profile.routing or {} end
 local function faction() return NS.player and NS.player.faction == "Alliance" and "A" or "H" end
@@ -41,15 +50,106 @@ TG.zoneToWorld = zoneToWorld
 -- ---------------------------------------------------------------------------
 -- Build static part of the graph (taxi + transit)
 -- ---------------------------------------------------------------------------
+-- Quests turned in this session: the completed-quest flag can lag the QUEST_TURNED_IN event by a moment.
+TG.turnedIn = {}
+local function questDone(q)
+    if TG.turnedIn[q] then return true end
+    return (C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(q)) and true or false
+end
+TG.QuestDone = questDone
 function TG.AccessUnlocked(a)
     if not a.unlock then return false end
     for _, q in ipairs(a.unlock) do
-        if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(q) then return true end
+        if questDone(q) then return true end
     end
     return false
 end
--- the graph depends on which chains are unlocked: rebuild lazily after a turn-in
-if NS.RegisterEvent then NS:RegisterEvent("QUEST_TURNED_IN", function() TG.built = false end) end
+
+-- `cond` on a Data/Transit.lua, Data/Access.lua or Data/Teleports.lua entry: the edge exists only for characters it
+-- holds for.  Either a function (NS) -> bool, or a table whose every key must hold:
+--   class = "MAGE" or { MAGE = true, ... }   race = "Human" or { ... }   level = minimum level
+--   quest = id or { ids } (any one turned in)  notQuest = id or { ids } (none turned in)
+--   spell = id (known)   item = id (in the bags)   toy = id (in the toy box)
+local function oneOf(want, have)
+    if type(want) == "table" then return want[have] and true or false end
+    return want == have
+end
+local function anyQuest(q)
+    if type(q) ~= "table" then return questDone(q) end
+    for _, id in ipairs(q) do if questDone(id) then return true end end
+    return false
+end
+function TG.CondOK(cond)
+    if cond == nil then return true end
+    if type(cond) == "function" then
+        local ok, v = pcall(cond, NS)
+        return ok and v and true or false
+    end
+    if type(cond) ~= "table" then return true end
+    local p = NS.player or {}
+    if cond.class and not oneOf(cond.class, p.class) then return false end
+    if cond.race and not oneOf(cond.race, p.race) then return false end
+    if cond.level and ((UnitLevel and UnitLevel("player")) or 0) < cond.level then return false end
+    if cond.quest and not anyQuest(cond.quest) then return false end
+    if cond.notQuest and anyQuest(cond.notQuest) then return false end
+    if cond.spell and not U.SpellKnown(cond.spell) then return false end
+    if cond.item and not U.HasItem(cond.item) then return false end
+    if cond.toy and not U.HasToy(cond.toy) then return false end
+    return true
+end
+-- quest ids a `cond` reads (a turn-in of one of them changes the graph)
+local function condQuests(cond, into)
+    if type(cond) ~= "table" then return end
+    for _, k in ipairs({ "quest", "notQuest" }) do
+        local q = cond[k]
+        if type(q) == "table" then for _, id in ipairs(q) do into[id] = true end elseif q then into[q] = true end
+    end
+end
+-- a cond that can change during play without a turn-in (spell learned, item looted, level gained, or a function)
+local function condDynamic(cond)
+    return type(cond) == "function" or (type(cond) == "table" and (cond.spell or cond.item or cond.toy or cond.level)) and true or false
+end
+
+-- A turn-in changes the graph only when it unlocks an access chain or flips a quest `cond`: then the access and
+-- transit edges are rebuilt and the kept costs dropped.  Any other turn-in keeps everything (the old rule rebuilt the
+-- whole graph after every turn-in, and StepOrder then recomputed every kept pair cost).
+TG.unlockQuests = {}   -- [questID] = true, filled by TG.Build
+function TG.OnQuestTurnedIn(questID)
+    if not questID then return false end
+    TG.turnedIn[questID] = true
+    local what = TG.unlockQuests[questID]
+    if what == "access" then TG.accessDirty = true return true end
+    if what then TG.built = false return true end     -- a transit `cond` reads it: full (lazy) rebuild
+    -- a one-shot (teleport) cond may read it: costs from the player are re-priced, nothing else
+    if NS.Teleports and NS.Teleports.QuestMatters and NS.Teleports.QuestMatters(questID) then TG.OneShotChanged() end
+    return false
+end
+if NS.RegisterEvent then NS:RegisterEvent("QUEST_TURNED_IN", function(_, questID) TG.OnQuestTurnedIn(questID) end) end
+
+-- Costs FROM the player (hearth, teleports) depend on one-shot state: bump this and StepOrder drops only those.
+TG.oneShotGen = 0
+function TG.OneShotChanged()
+    TG.oneShotGen = TG.oneShotGen + 1
+    if NS.Router and NS.Router.Invalidate then NS.Router.Invalidate() end
+end
+-- A flight path was learned: pair costs may change (taxi policy "known"), so the path cache goes, and with it
+-- StepOrder's kept costs.  The graph itself stays: every flight master of the faction is already a node.
+function TG.TaxiChanged()
+    TG.PathCacheWipe()
+    if NS.Router and NS.Router.Invalidate then NS.Router.Invalidate() end
+end
+-- spells learned, items looted, a level gained: a transit/access `cond` of that kind may have flipped
+function TG.RecheckConds()
+    if not TG.built or not TG.condEntries or #TG.condEntries == 0 then return end
+    for _, e in ipairs(TG.condEntries) do
+        if TG.CondOK(e.row.cond) ~= e.ok then TG.built = false return end
+    end
+end
+if NS.RegisterEvent then
+    for _, ev in ipairs({ "SPELLS_CHANGED", "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP", "NEW_TOY_ADDED" }) do
+        NS:RegisterEvent(ev, function() if NS.Throttle then NS:Throttle("tg-conds", 1, TG.RecheckConds) else TG.RecheckConds() end end)
+    end
+end
 
 -- Known internal DB2 nodes that are not open-world player flight masters
 local TAXI_BLACKLIST = {
@@ -57,8 +157,65 @@ local TAXI_BLACKLIST = {
     [3] = true,    -- Programmer Isle
 }
 
+-- Access chains (Data/Access.lua): a one-way edge into a place an intro quest line unlocks. Locked -> the edge starts
+-- where the chain starts and costs the whole chain; unlocked -> the cheap `after` edge (portal, airship...). Progress
+-- injects the chain's steps in front of a guide whose step 1 is behind a locked one.  Returns the unresolved count.
+local function buildAccess(flavor, fac)
+    TG.accessEdges = {}
+    local missing = 0
+    for _, a in ipairs(NS.AccessData or {}) do
+        local okFlavor = (not a.flavors) or a.flavors[flavor]
+        local okFac = (not a.fac) or a.fac == fac
+        if okFlavor and okFac then
+            for _, q in ipairs(a.unlock or {}) do TG.unlockQuests[q] = TG.unlockQuests[q] or "access" end
+            local cq = {}
+            condQuests(a.cond, cq)
+            for q in pairs(cq) do TG.unlockQuests[q] = TG.unlockQuests[q] or "access" end
+            local condOK = TG.CondOK(a.cond)
+            if a.cond and condDynamic(a.cond) then TG.condEntries[#TG.condEntries + 1] = { row = a, ok = condOK, access = true } end
+            if condOK then
+                local unlocked = TG.AccessUnlocked(a)
+                local src = (unlocked and a.after and a.after.from) or a.from
+                local ax, ay, ai = zoneToWorld(src[1], src[2], src[3])
+                local bx, by, bi = zoneToWorld(a.to[1], a.to[2], a.to[3])
+                if ax and bx then
+                    local n1 = newNode("transit", ai, ax, ay, src.name or src[1]); n1.mode = "access"
+                    local n2 = newNode("transit", bi, bx, by, a.to.name or a.to[1]); n2.mode = "access"
+                    local title = unlocked and a.after and a.after.title or a.title
+                    addEdge(n1, n2, (unlocked and a.after and a.after.cost) or a.cost or 600, "access", title, { access = a, locked = not unlocked })
+                    TG.accessEdges[#TG.accessEdges + 1] = n1
+                else missing = missing + 1 TG.unresolved[#TG.unresolved + 1] = "access " .. tostring(a.key) end
+            end
+        end
+    end
+    return missing
+end
+
+-- Rebuild only the access edges (an unlock quest was turned in): drop the access nodes, add them again in their new
+-- state, re-index.  Taxi, transit and road nodes stay as they are.
+function TG.RebuildAccess()
+    if not TG.nodes or #TG.nodes == 0 then return TG.Build() end
+    local keep = {}
+    for _, n in ipairs(TG.nodes) do if n.mode ~= "access" then keep[#keep + 1] = n end end
+    TG.nodes = keep
+    for i, n in ipairs(TG.nodes) do n.id = i end
+    local kept = {}
+    for _, e in ipairs(TG.condEntries or {}) do if not e.access then kept[#kept + 1] = e end end
+    TG.condEntries = kept
+    buildAccess(NS.flavor, faction())
+    TG.Index()
+    TG.built, TG.accessDirty = true, false
+    TG.stats.accessRebuilds = (TG.stats.accessRebuilds or 0) + 1
+end
+-- the graph as the next search needs it: a full build, or only the access edges after an unlock
+function TG.Ensure()
+    if not TG.built then TG.Build() elseif TG.accessDirty then TG.RebuildAccess() end
+end
+
 function TG.Build()
     TG.nodes, TG.taxiByID, TG.unresolved = {}, {}, {}
+    TG.unlockQuests, TG.condEntries, TG.accessDirty = {}, {}, false
+    TG.stats.builds = (TG.stats.builds or 0) + 1
     local flavor = NS.flavor
     -- Forever has its own taxi network (Data/Taxi_forever.lua); era data is the fallback
     local taxi = NS.TaxiData and (NS.TaxiData[NS.dataFlavor or flavor] or NS.TaxiData[flavor] or NS.TaxiData.tbc)
@@ -85,7 +242,15 @@ function TG.Build()
     for _, t in ipairs(NS.TransitData or {}) do
         local okFlavor = (not t.flavors) or t.flavors[flavor]
         local okFac = (not t.fac) or t.fac == fac
-        if okFlavor and okFac then
+        local okCond = true
+        if okFlavor and okFac and t.cond then
+            local cq = {}
+            condQuests(t.cond, cq)
+            for q in pairs(cq) do TG.unlockQuests[q] = "full" end     -- a turn-in of one of them rebuilds the graph
+            okCond = TG.CondOK(t.cond)
+            if condDynamic(t.cond) then TG.condEntries[#TG.condEntries + 1] = { row = t, ok = okCond } end
+        end
+        if okFlavor and okFac and okCond then
             local ax, ay, ai = zoneToWorld(t.from[1], t.from[2], t.from[3])
             local bx, by, bi = zoneToWorld(t.to[1], t.to[2], t.to[3])
             -- a spot learned by actually taking this portal beats the hand-typed (+-2%) coordinate
@@ -100,27 +265,7 @@ function TG.Build()
             else missing = missing + 1 TG.unresolved = TG.unresolved or {} TG.unresolved[#TG.unresolved + 1] = (t.title or "?") .. " [" .. tostring(ax and "" or t.from[1]) .. (bx and "" or (" " .. tostring(t.to[1]))) .. "]" end
         end
     end
-    -- access chains (Data/Access.lua): a one-way edge into a place an intro quest line unlocks. Locked -> the
-    -- edge starts where the chain starts and costs the whole chain; unlocked -> the cheap `after` edge (portal,
-    -- airship...). Progress injects the chain's steps in front of a guide whose step 1 is behind a locked one.
-    TG.accessEdges = {}
-    for _, a in ipairs(NS.AccessData or {}) do
-        local okFlavor = (not a.flavors) or a.flavors[flavor]
-        local okFac = (not a.fac) or a.fac == fac
-        if okFlavor and okFac then
-            local unlocked = TG.AccessUnlocked(a)
-            local src = (unlocked and a.after and a.after.from) or a.from
-            local ax, ay, ai = zoneToWorld(src[1], src[2], src[3])
-            local bx, by, bi = zoneToWorld(a.to[1], a.to[2], a.to[3])
-            if ax and bx then
-                local n1 = newNode("transit", ai, ax, ay, src.name or src[1]); n1.mode = "access"
-                local n2 = newNode("transit", bi, bx, by, a.to.name or a.to[1]); n2.mode = "access"
-                local title = unlocked and a.after and a.after.title or a.title
-                addEdge(n1, n2, (unlocked and a.after and a.after.cost) or a.cost or 600, "access", title, { access = a, locked = not unlocked })
-                TG.accessEdges[#TG.accessEdges + 1] = n1
-            else missing = missing + 1 TG.unresolved[#TG.unresolved + 1] = "access " .. tostring(a.key) end
-        end
-    end
+    missing = missing + buildAccess(flavor, fac)
     TG.BuildRoads()
     TG.Index()
     TG.built = true
@@ -281,8 +426,7 @@ function TG.LearnTaxi(quiet)
         end
     end
     if learned > 0 then
-        TG.PathCacheWipe()            -- pair costs depend on which flight paths are known
-        NS.Router.Invalidate()
+        TG.TaxiChanged()
         if not quiet then NS:Print("Learned " .. learned .. " flight path(s).") end
     end
     return learned
@@ -319,10 +463,14 @@ end
 local function recordBindHere()
     local map, x, y, inst, wx, wy = U.PlayerPos()
     if wx then
+        local old = NS.db.char.bind
         NS.db.char.bind = { wx = wx, wy = wy, inst = inst, map = map, x = x, y = y, name = GetBindLocation and GetBindLocation() or "Home" }
         NS:Debug("Hearth location recorded: " .. tostring(NS.db.char.bind.name))
+        -- a new home moves every hearth-first route (costs from the player); pair costs never use the hearth
+        if not old or old.inst ~= inst or dist(old.wx, old.wy, wx, wy) > 30 then TG.OneShotChanged() end
     end
 end
+TG.RecordBindHere = recordBindHere
 NS:RegisterEvent("HEARTHSTONE_BOUND", function() NS:After(1, recordBindHere) end)
 -- learn the hearth spot whenever we are resting AT our bind location (inn name == bind name)
 NS:RegisterEvent("PLAYER_UPDATE_RESTING", function()
@@ -529,10 +677,9 @@ function TG.InstReachable(a, b)
     return fa == fb
 end
 
-TG.stats = { calls = 0, pops = 0, relax = 0, capped = 0, skipped = 0 }   -- profiling counters (cheap; read by tools/route_sweep.lua)
 function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     TG.stats.calls = TG.stats.calls + 1
-    if not TG.built then TG.Build() end
+    TG.Ensure()
     if not (sx and gx and sinst and ginst) then return nil end
     opts = opts or {}
     local c = cfg()

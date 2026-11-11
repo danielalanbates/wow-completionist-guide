@@ -63,6 +63,68 @@ local bx, by, bi = TG.zoneToWorld("Siren Isle", 69.3, 48.0)
 local p = TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, bx, by, bi, {})
 check(p and TG.Describe(p):find("Skaggit") ~= nil, "unlocked route goes via the airship: " .. (p and TG.Describe(p):sub(1, 120) or "-"))
 
+-- Turn-ins (docs/ROUTING.md "What changes the graph"): an ordinary turn-in keeps the graph and every kept cost; the
+-- turn-in of an access chain's unlock quest rebuilds only the access edges, even before the client's completed-quest
+-- flag catches up with the QUEST_TURNED_IN event.
+do
+    local kx, ky, ki = TG.zoneToWorld("Tazavesh", 59.74, 83.36)
+    local function viaRift(path)     -- the unlocked K'aresh edge (the Spatial Rift), not the locked chain
+        for _, l in ipairs(path and path.legs or {}) do
+            if l.mode == "access" and l.data.access.key == "karesh" then return not l.data.locked end
+        end
+        return false
+    end
+    local p0 = TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, kx, ky, ki, {})
+    check(p0 and not viaRift(p0), "K'aresh locked: the route does the Locus-Walker chain")
+    local builds, rebuilds, cache, nodes = TG.stats.builds, TG.stats.accessRebuilds, TG.pathCache, #TG.nodes
+    TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, kx, ky, ki, { hearth = false })   -- something worth keeping in the cache
+    check(TG.OnQuestTurnedIn(424242) == false and TG.built and not TG.accessDirty, "an ordinary turn-in does not touch the graph")
+    TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, kx, ky, ki, {})
+    check(TG.stats.builds == builds and TG.stats.accessRebuilds == rebuilds and TG.pathCache == cache,
+          "an ordinary turn-in keeps the graph and the path cache (builds " .. TG.stats.builds - builds .. ", access rebuilds " .. TG.stats.accessRebuilds - rebuilds .. ")")
+    check(TG.unlockQuests[84957] == "access", "K'aresh unlock quest 84957 is in the unlock set")
+    check(TG.OnQuestTurnedIn(84957) == true and TG.accessDirty, "the unlock turn-in marks the access edges dirty")
+    local p1 = TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, kx, ky, ki, {})
+    check(TG.stats.builds == builds and TG.stats.accessRebuilds == rebuilds + 1, "the unlock rebuilt only the access edges, not the whole graph")
+    check(TG.pathCache ~= cache, "the unlock dropped the path cache (and with it StepOrder's kept costs)")
+    check(#TG.nodes == nodes, "access-only rebuild keeps the node count (" .. #TG.nodes .. " vs " .. nodes .. ")")
+    check(viaRift(p1), "after the unlock turn-in the route takes the Spatial Rift: " .. (p1 and TG.Describe(p1):sub(1, 120) or "-"))
+    -- a full build from scratch agrees with the access-only rebuild
+    TG.built = false TG.Build()
+    local p2 = TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, kx, ky, ki, {})
+    check(#TG.nodes == nodes and p2 and p1 and math.abs(p2.cost - p1.cost) < 0.01,
+          ("full rebuild matches the access-only rebuild (%s vs %s s)"):format(tostring(p2 and math.floor(p2.cost)), tostring(p1 and math.floor(p1.cost))))
+end
+
+-- `cond` on a Data/Transit.lua entry (TG.CondOK): the edge exists only for characters it holds for; a quest cond is
+-- re-read on the turn-in of that quest (a full rebuild, since it is a transit edge)
+do
+    local saved = NS.TransitData
+    local extra = { from = { "Orgrimmar", 50, 50 }, to = { "Silithus", 50, 50 }, mode = "portal", cost = 5, title = "Test cond portal",
+                    cond = { class = "MAGE", quest = 424243 } }
+    NS.TransitData = { extra }
+    for _, row in ipairs(saved) do NS.TransitData[#NS.TransitData + 1] = row end
+    local function hasEdge()
+        for _, n in ipairs(TG.nodes) do for _, e in ipairs(n.edges) do if e.title == "Test cond portal" then return true end end end
+        return false
+    end
+    NS.player = { faction = "Horde", class = "WARRIOR" }
+    TG.built = false TG.Build()
+    check(not hasEdge(), "cond: a warrior gets no mage-only edge")
+    NS.player.class = "MAGE"
+    TG.built = false TG.Build()
+    check(not hasEdge(), "cond: a mage without the cond quest gets no edge")
+    check(TG.unlockQuests[424243] == "full", "cond quest registered for a full rebuild")
+    check(TG.OnQuestTurnedIn(424243) == true and not TG.built, "cond quest turn-in marks the graph for a rebuild")
+    TG.Ensure()
+    check(hasEdge(), "cond: a mage who turned the quest in gets the edge")
+    check(TG.CondOK({ notQuest = 424243 }) == false and TG.CondOK({ level = 1 }) and TG.CondOK(function() return true end) and TG.CondOK(nil),
+          "cond: notQuest / level / function forms")
+    NS.TransitData = saved
+    NS.player = { faction = "Horde" }
+    TG.built = false TG.Build()
+end
+
 -- Legion Class Order Halls: verify all 12 class order halls resolve and are routable
 local order_halls = {
     { map = "695", name = "Skyhold (Warrior)" },

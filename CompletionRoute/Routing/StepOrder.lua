@@ -78,9 +78,12 @@ local function buildConstraints(steps)
 end
 
 -- Costs kept between refreshes, keyed by the step tables themselves (no string keys in a hot path).
--- Router.TravelSeconds is hearth-free and stable; the graph's own path cache table is replaced on a rebuild, which
--- tells us to drop ours.  Costs from the player are kept until the player has moved a little.
-local kept = { pair = {}, from = {}, guide = nil, speed = nil, tgCache = nil, px = nil, py = nil, pinst = nil }
+-- Router.TravelSeconds is hearth-free and stable; the graph's own path cache table is replaced when the graph changes
+-- (an access chain unlocks, a flight path is learned, roads are rebuilt), which tells us to drop ours.  A plain quest
+-- turn-in no longer touches the graph, so the pair costs survive it.  Costs from the player are kept until the player
+-- has moved a little, or until the one-shot legs change (TG.oneShotGen: hearth re-bound, a teleport or hearth item
+-- became usable or unusable) - those drop only the from-player costs.
+local kept = { pair = {}, from = {}, guide = nil, speed = nil, tgCache = nil, oneShot = nil, px = nil, py = nil, pinst = nil }
 
 local function dropKept()
     kept.pair, kept.from = {}, {}
@@ -89,7 +92,7 @@ end
 
 function SO.Reset()
     dropKept()
-    kept.guide, kept.speed, kept.tgCache = nil, nil, nil
+    kept.guide, kept.speed, kept.tgCache, kept.oneShot = nil, nil, nil, nil
     SO.plan = nil
 end
 
@@ -485,10 +488,13 @@ function SO.Plan(head, router, opts)
         kept.guide, kept.speed, kept.tgCache = guide, speed, tg
         if SO.plan and SO.plan.guide ~= guide then SO.plan = nil end
     end
-    -- Costs from the player live until the player has moved 40 yd (the walk-time error is then at most a few seconds).
-    if not (kept.px and kept.pinst == pinst and pwx and math.abs(kept.px - pwx) + math.abs(kept.py - pwy) < 40) then
+    -- Costs from the player live until the player has moved 40 yd (the walk-time error is then at most a few seconds),
+    -- or until the hearth or a teleport changed (they are the only legs a from-player search adds)
+    local oneShot = NS.TravelGraph and NS.TravelGraph.oneShotGen
+    if not (kept.px and kept.pinst == pinst and pwx and math.abs(kept.px - pwx) + math.abs(kept.py - pwy) < 40)
+       or kept.oneShot ~= oneShot then
         kept.from = {}
-        kept.px, kept.py, kept.pinst = pwx, pwy, pinst
+        kept.px, kept.py, kept.pinst, kept.oneShot = pwx, pwy, pinst, oneShot
     end
     -- the baseline: the current plan's steps that are still pending, in plan order; steps new to the window after them
     local baseBlocks

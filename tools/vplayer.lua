@@ -22,6 +22,8 @@
 --                                                       learn = start each guide (each chain) with no flight paths known, fly
 --                                                       only into discovered ones, discover a flight master the route walks to
 --                                                       and any within 40 yd of where the player stands (docs/VPLAYER.md)
+--                                  [--turnins]   fire QUEST_TURNED_IN at every turn-in, as the client does, and time the
+--                                                handlers (graph rebuilds + the re-plan they cause); run under luajit -joff
 -- Then:   python3 tools/collect_vplayer.py   (folds the TSVs into docs/verification.sqlite)
 package.path = "./?.lua;" .. package.path
 
@@ -33,6 +35,7 @@ local guideSet = nil
 orderMode, liveWindow = "author", true
 local chainFaction, questsPerLevel
 local taxiMode = "all"
+local fireTurnins = false
 for i = 2, #arg do
     local a = arg[i]
     if a == "--limit" then limit = tonumber(arg[i + 1])
@@ -51,6 +54,7 @@ for i = 2, #arg do
     elseif a == "--order" then orderMode = arg[i + 1]      -- author | baked (Data/RouteOrder_<fl>.lua, tools/optimize_routes.py)
     elseif a == "--live" then liveWindow = arg[i + 1] ~= "off" -- the 12-step live reorder window on top (default on)
     elseif a == "--taxi" then taxiMode = arg[i + 1]          -- all | learn (flight-path discovery, see the header)
+    elseif a == "--turnins" then fireTurnins = true
     elseif a == "--verbose" then verbose = true end
 end
 outPath = outPath or ("docs/vplayer_" .. flavor .. (shardN > 1 and ("_" .. shardI) or "") .. ".tsv")
@@ -184,7 +188,7 @@ end
 local function forgetTaxi()
     if taxiMode ~= "learn" then return end
     NS.db.char.knownTaxi, NS.db.global.knownTaxi = {}, {}
-    NS.TravelGraph.PathCacheWipe()
+    NS.TravelGraph.TaxiChanged()
 end
 -- the player took off from (talked to) every flight master the route flew from, and talks to any within 40 yd of
 -- the step it now stands on (an |f| step's flight master included)
@@ -200,7 +204,7 @@ local function discoverTaxi(path)
             if n.taxiID and (n.wx - PLAYER.wx) ^ 2 + (n.wy - PLAYER.wy) ^ 2 <= 40 * 40 then mark(n.taxiID) end
         end
     end
-    if new > 0 then TG.PathCacheWipe() taxiLearned = taxiLearned + new end
+    if new > 0 then TG.TaxiChanged() taxiLearned = taxiLearned + new end
     return new
 end
 
@@ -269,6 +273,26 @@ local function autoable(step)
     return false, "note-class step (" .. a .. ")"
 end
 
+-- --turnins: what one QUEST_TURNED_IN costs (every handler, including the Progress refresh and live re-plan it starts)
+-- (graph builds and router calls are counted only while the handlers run)
+local turnin = { ms = {}, builds = 0, calls = 0, active = false }
+if fireTurnins then
+    local TG = NS.TravelGraph
+    local build = TG.Build
+    TG.Build = function(...) if turnin.active then turnin.builds = turnin.builds + 1 end return build(...) end
+    for _, k in ipairs({ "TravelSeconds", "TravelSecondsFromPlayer" }) do
+        local f = NS.Router[k]
+        NS.Router[k] = function(...) if turnin.active then turnin.calls = turnin.calls + 1 end return f(...) end
+    end
+end
+local function fireTurnin(q)
+    turnin.active = true
+    local t0 = os.clock()
+    for _, h in ipairs(NS.wowHandlers.QUEST_TURNED_IN or {}) do pcall(h, "QUEST_TURNED_IN", q, 0, 0) end
+    turnin.ms[#turnin.ms + 1] = (os.clock() - t0) * 1000
+    turnin.active = false
+end
+
 local function finishObjectives(q)
     local objs = W.objectives[q]
     if not objs or #objs == 0 then objs = { { numFulfilled = 1, numRequired = 1, finished = true, text = "obj" } } W.objectives[q] = objs end
@@ -307,6 +331,7 @@ local function act(step)
         for _, l in ipairs(step.loot or {}) do W.bags[l.id] = math.max(W.bags[l.id] or 0, l.qty or 1) end
     elseif a == "T" or a == "t" then
         for _, q in ipairs(step.qid or {}) do W.quests[q] = "done" W.objectives[q] = nil end
+        if fireTurnins then for _, q in ipairs(step.qid or {}) do fireTurnin(q) end end
         W.xp = W.xp + 25
         if W.xp >= W.xpmax then W.xp, W.level = 0, W.level + 1 end
     elseif a == "U" then
@@ -597,6 +622,15 @@ if #planMs > 0 then
     table.sort(planMs)
     local pct = function(p) return planMs[math.max(1, math.ceil(#planMs * p))] end
     io.stderr:write(("LIVE %s: %d repairs, ms p50 %.2f p95 %.2f p99 %.2f max %.1f\n"):format(flavor, #planMs, pct(0.5), pct(0.95), pct(0.99), planMs[#planMs]))
+end
+if #turnin.ms > 0 then
+    local ms = {}
+    local sum = 0
+    for i, v in ipairs(turnin.ms) do ms[i] = v sum = sum + v end
+    table.sort(ms)
+    local pct = function(p) return ms[math.max(1, math.ceil(#ms * p))] end
+    io.stderr:write(("TURNIN %s (jit %s): %d turn-ins, ms per turn-in mean %.2f p50 %.2f p95 %.2f max %.1f, total %.0f ms; graph builds %d, router calls %d\n"):format(
+        flavor, (jit and jit.status and (jit.status() and "on" or "off")) or "n/a", #ms, sum / #ms, pct(0.5), pct(0.95), ms[#ms], sum, turnin.builds, turnin.calls))
 end
 io.stderr:write(("DONE %s shard %d/%d: %d guides in %.0fs -> %s | finished=%d stalled-guides=%d errors=%d | taxi %s (%d flight paths discovered)\n")
     :format(flavor, shardI, shardN, n, os.clock() - t0, outPath, finished, stalled, errored, taxiMode, taxiLearned))

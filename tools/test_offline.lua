@@ -571,7 +571,7 @@ do
     -- Lakeshire, Morgan's Vigil, Thorium Point, Thelsamar; NOT Darkshire (12), where the faction route above takes off
     NS.db.char.knownTaxi = { [5] = true, [71] = true, [74] = true, [8] = true }
     NS.db.global.knownTaxi = {}
-    TG.PathCacheWipe()
+    TG.TaxiChanged()
     local sx, sy, si = z2w(0.42, 0.65, 1429)                    -- Goldshire
     local gx, gy, gi = z2w(0.5, 0.5, 1437)                      -- Wetlands
     local p = TG.FindPath(sx, sy, si, gx, gy, gi, { hearth = false })
@@ -589,7 +589,7 @@ do
     assert(TG.Describe(p):find("pick up the flight path", 1, true), "Describe does not say where to pick up the flight path: " .. TG.Describe(p))
     -- with Lakeshire undiscovered no flight may land there (Darkshire -> Morgan's Vigil has no direct flight)
     NS.db.char.knownTaxi = { [71] = true, [74] = true, [8] = true }
-    TG.PathCacheWipe()
+    TG.TaxiChanged()
     local p2 = TG.FindPath(sx, sy, si, gx, gy, gi, { hearth = false })
     for _, l in ipairs(p2 and p2.legs or {}) do
         if l.mode == "taxi" then assert(TG.IsTaxiKnown(l.to), "landed at undiscovered " .. tostring(l.to.name)) end
@@ -597,7 +597,7 @@ do
     -- Classic clients do not share flight paths: the account-wide set is kept but not routed on; retail/Forever share it
     NS.db.char.knownTaxi = {}
     NS.db.global.knownTaxi = { [5] = true, [71] = true, [74] = true, [8] = true }
-    TG.PathCacheWipe()
+    TG.TaxiChanged()
     assert(not TG.IsTaxiKnownID(5), "tbc routed on another character's flight path")
     NS.taxiShared = true
     assert(TG.IsTaxiKnownID(5), "shared client ignored the account-wide flight paths")
@@ -621,7 +621,7 @@ do
     NS.db.char.knownTaxi, NS.db.global.knownTaxi = {}, {}
     NS.db.profile.routing.taxiPolicy = "faction"
     NS.db.profile.routing.assumeAllTaxi = true
-    TG.PathCacheWipe()
+    TG.TaxiChanged()
     print("discovered taxi OK: lands only on discovered flight masters, walks to pick a new one up, shares only on retail/Forever")
 end
 
