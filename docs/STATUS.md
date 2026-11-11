@@ -1,3 +1,29 @@
+# Status / handoff (2026-11-10, release packager with a data-provenance gate, branch release-packager)
+
+Offline only. **Nothing here has run in a real WoW client, and no build has passed the gate on real data.** No tag, push
+or GitHub release was made. All 12 `tools/test_*.lua` harnesses, `validate_toc` and `tools/test_package.py` (59 checks) pass.
+
+* **`tools/package_release.py`** ([RELEASE.md](RELEASE.md)) assembles the add-on from the tracked code plus the local
+  generated data, limited to what the TOCs load. It writes `provenance.json` (category, licence, source, generator per
+  file), `LICENSE.txt`, `ATTRIBUTION.md` and a player README, and stamps the version into the packaged TOCs only. WoW-Pro
+  and Questie-derived files never ship and their TOC lines are stripped (19 lines in 6 TOCs). Dry run by default.
+* **Layout:** one universal zip (6.06 MB, 43 MB unpacked on today's data) instead of per-client zips (0.56 to 4.07 MB,
+  7.27 MB together); each client loads only its own TOC's files. `--layout per-client` still builds them.
+* **Gate** fails on: no provenance, WoW-Pro/Questie data (by file, by content, or a baked order row for a gaps guide),
+  "do not redistribute", the replaced commercial product's name, personal data (e-mail, home paths, WoW account and
+  character names), secrets, any symlink (worktrees: `--allow-checkout-links`), TOC lines with no packaged file, missing
+  licence notices. `--db` writes `data_provenance` and `release_gate` tables.
+* **Today's local data fails with 13 problems:** the wiki files carry fallback points (`--no-fallback` build needed),
+  achievements and missions keep the old header (regenerate), and every `RouteOrder` file orders Questie-derived gaps
+  guides (era 56, tbc 101, mop 44, retail 29, forever 55 rows). RELEASE.md lists the steps to a passing build, including
+  a rebake inside the staged package; that rebake was smoke-tested on one era guide only.
+* The staged package (interop lines stripped) loads clean in `test_load_all.lua` on all six TOCs. Stub load only.
+* Also: CallbackHandler ships its Ace3 licence text; HereBeDragons is BSD as declared upstream (no upstream text);
+  `WIKI_DATA_LICENSE.md` lists the Forever wiki and spine files and no longer calls the hand-written guides non-CC BY-SA;
+  `release.yml` no longer publishes on a tag (manual run of the gate tests only).
+* **Next:** regenerate wiki `--no-fallback`, gold, professions, achievements and missions; rebake route orders in the
+  stage; `--write`; Daniel's beta; only then publish by hand.
+
 # Status / handoff (2026-11-09, gold guides, secondary professions, guides by level)
 
 Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** Installed on all five clients. All 13 harnesses pass

@@ -29,6 +29,7 @@ smart arrow — while the guide content is community-driven and open.
 | Guides listed by level | ✅ `Core/Recommend.lua`: a *For level N* section, *Only guides for this level* filter, *Group by level* tree, and profession guides matched to your real skill |
 | Dungeon guides | ✅ steps inside an instance route to the **entrance** (learned door + retail encounter journal), `Core/Instances.lua` |
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
+| Release packager with a data-provenance gate | 🚧 `tools/package_release.py` ([docs/RELEASE.md](docs/RELEASE.md)): one universal zip, `provenance.json` for every file, `LICENSE.txt` + `ATTRIBUTION.md`; fails on WoW-Pro/Questie data, personal data, secrets, symlinks and broken TOC lines. Dry run by default, never tags or publishes. Today's local data fails it (fallback wiki points, old headers, baked orders of gaps guides). |
 
 Not yet: primary profession guides, talent advisor, gear finder, model viewer, guide editor UI, retail-specific hearth toys, indoor/dungeon-aware walking, per-zone "wall" data.
 
@@ -66,6 +67,7 @@ tools/install.sh                     # copies CompletionRoute/ into _anniversary
 tools/install.sh _classic_era_ _retail_
 ```
 Or copy the `CompletionRoute/` folder into `Interface/AddOns/`.
+Release zips are built with `tools/package_release.py` (see [docs/RELEASE.md](docs/RELEASE.md)); none is published yet.
 
 ### macOS Companion App (`/Applications/Completionist's Guide.app`)
 A native, lightweight macOS AppKit companion application (400 KB, zero external dependencies) is maintained in `/Applications/Completionist's Guide.app`:
@@ -123,6 +125,9 @@ luajit tools/vplayer.lua retail --shard 1/4    # play every guide; python3 tools
 luajit tools/route_sweep.lua era     # route every guide from its own zone
 python3 tools/gen_quest_guides_retail.py       # regenerate the retail quest guides from client data
 python3 tools/gen_taxi.py tbc 2.5.6.69110 era 1.15.9.69109 mop 5.5.4.69155 retail 12.1.0.69382
+python3 tools/package_release.py               # release dry run: assemble, provenance gate, zip sizes (writes nothing)
+python3 tools/package_release.py --write --version 2.0.0-beta1   # dist/<version>/ (gitignored); never tags or publishes
+python3 tools/test_package.py                  # every release-gate rule fires on a planted bad file
 ```
 
 ## License
