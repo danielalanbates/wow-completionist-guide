@@ -1,5 +1,50 @@
 # Status / handoff (2026-11-10, integration: skipping quests, beta bug reports, routing graph, release packager)
 
+## 2026-11-10: one cost model and the bake gate (branch `cost-model`, IDEAS #9 then #1)
+
+Offline only. **Nothing here has run in a real WoW client.** Not merged, not installed. Details and every table:
+docs/ROUTING.md "One cost model" and "Bake gate and stale-bake check"; docs/VPLAYER.md "Cost model".
+
+* **One cost model.** `Routing/CostModel.lua` (all six TOCs, before the travel graph) owns where a step is priced, the
+  no-route cost (1,800 s everywhere; it was 1,800 / 600 / 0), the speed per level band (each leg at the planning level of
+  the step it leaves from; the bake used the guide's lowest level), the walking factor (short walks now use the flying
+  factor when flying, like the graph) and the offline flight rule. cost_matrix, optimize_routes (through the row's `"cm"`,
+  no second copy), StepOrder, Replan, Router.StepWorld and vplayer read it. cost_matrix now uses `Router.TravelRow` instead
+  of its own Dijkstra copy.
+* **Located rule:** an NPC's point from elsewhere in the guide, else ride along in the zone the route is in, else the new
+  zone's centre. Chosen by a hold-out test (`tools/cost_holdout.lua`, 3,000 steps per client): mean error 22-50 s per step,
+  against 117-194 s for the zone centre alone and 27-110 s for riding along alone.
+* **Parity** (`tools/test_cost_parity.lua`, new): the optimizer's predicted seconds and vplayer's (planning character, no
+  live window) agree within 2% per guide: 100 of 100 sample guides with the full solver after one vplayer fix; the
+  harness's own 30-guide run: 28 inside, the 2 misses are author orders that break their own prerequisites (qdb gaps
+  guides; excused by rule, listed).
+* **Predicted against measured** (20 guides per client, warrior, live window off), measured / predicted saving:
+  before 0.59 / 0.62 / 0.42 / 0.12 / 0.53 (era, tbc, mop, retail, forever), after 0.63 / 0.76 / 0.88 / 0.60 / 0.67. With
+  the live window on, the bake's measured saving went from -1,234 / 2,581 / 1,584 / 307 / 94 s to 2,943 / 4,873 / 3,937 /
+  9,067 / 9,073 s.
+* **Flight paths offline stay faction-wide.** A level-band rule changed 27 of 64 baked orders; under the client's
+  discovered-only rule both bakes beat author order on every client and faction-wide is 0.4% faster overall.
+* **vplayer changed:** cost-model walking, no hearth, 1,800 s per unroutable leg, one objective per `|QO|` step,
+  `--who plan`, `--route-order`, `--taxi model|band`. Earlier vplayer numbers are not comparable.
+* **Optimizer:** PRE now orders every step that names the prerequisite (was: accepts only); objective steps of a quest
+  keep author order when one of them would tick by itself.
+* **Checksum version 2** (zone + first point in 0.5 % steps) in Core/Guide.lua, cost_matrix and optimize_routes; the three
+  agree on all 2,621 quest guides. Every existing baked entry is now stale (era 168, tbc 260, mop 501, retail 854, forever
+  170): the game plays those guides in author order with the live window (vplayer: the stale files play second for second
+  like author order on 40 sample guides). `tools/test_route_order.lua` **fails** on stale entries until the rebake.
+* **Gate:** `optimize_routes.py --gate` keeps a bake only if vplayer finds baked + live no slower than author + live by more
+  than max(1%, 30 s); entries carry `va`/`vb`. On the samples it kept 55 of 64 bakes (saves 32,701 s) and rejected 9 (would
+  have cost 2,808 s). `tools/bake_resume.py` gates every batch (`--no-gate`), resumes an ungated row without re-solving,
+  writes entries only for current guides, and takes `--lua-dir` and `--only-file`.
+* **CPU** (`luajit -joff`): the live window got cheaper (warm mean 1.64 -> 1.25 ms era, 1.64 -> 1.18 ms retail); re-plan
+  slices unchanged (p99 0.83-0.88 ms, none over 2 ms).
+* **Harnesses:** all pass except `tools/test_route_order.lua` (fails on the stale entries above, by design, until the
+  rebake; with `CR_ROUTE_ORDER_DIR` on the gated sample bakes of all five clients it passes) and the JIT-on frame check in
+  `tools/test_skip.lua` (one frame of about 1,000 over 2 ms in some runs; the branch base fails it the same way, 1 of 2
+  runs; under `luajit -joff`, the client's proxy, both pass with max 1.1-1.5 ms).
+* **Next (orchestrator):** merge, then the full rebake with the gate, then `luajit tools/test_route_order.lua` must pass.
+  See docs/HANDOFF.md section 5.
+
 ## Skipping quests (`quest-skip`)
 
 Offline only. **Nothing here has run in a real WoW client.** Merged into `integration`, not installed. All 13 existing

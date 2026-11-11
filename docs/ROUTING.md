@@ -21,9 +21,9 @@
 ## Live window over the baked order (`Routing/StepOrder.lua`, tier B)
 The next `window` (24) pending steps arrive in baked order (`Data/RouteOrder_<flavor>.lua`, or author order when there is
 no bake), and that order is the **baseline**. Hard rules (never traded for time): `A < C < T` per quest, `PRE` turn-in
-before the accept, non-routable and sticky steps as anchors with everything before them staying before them, a step with
-no place at all staying on the block before it, and a quest log that a repair may not push above the cap or the
-baseline's own peak.
+before the step that names it, non-routable and sticky steps as anchors with everything before them staying before them,
+a step the cost model does not locate (no place at all, or done where the player already is: "One cost model" below)
+staying on the block before it, and a quest log that a repair may not push above the cap or the baseline's own peak.
 
 A repair runs segment Or-opt (1-3 blocks) and precedence-safe 2-opt from the baseline and from a greedy
 nearest-feasible route seeded at the player. It replaces the baseline only when it saves more than the margin
@@ -165,34 +165,37 @@ FROM route_sweep GROUP BY flavor ORDER BY flavor;
 
 Bakes, per quest guide (wiki zone guides `wiki:*` + gaps guides `qdb:*`/`qpoi:*`), the fastest legal step order.
 
-1. `luajit tools/cost_matrix.lua <fl> [--sample K] [--guide ID] [--exact]` loads the real addon (parser, TravelGraph
-   with the flavor's taxi/transit/roads/access, Router) and writes one JSON line per guide to
-   `~/.claude/jobs/.../tmp/costmx/<fl>.jsonl` (never the repo): the parsed steps and the travel-seconds matrix between
-   the guide's distinct step locations, plus a start column from the guide zone's centre (where vplayer starts).
-   Costs = `Router.TravelSeconds` (walk < 700 yd, else FindPath with taxi/boats/portals/roads; **no hearth** - the
-   pairwise router never spends the one-shot hearth). Default mode runs FindPath's search once per source point
-   (same graph, rules and walk costs) instead of once per pair; every guide re-checks 200 random pairs against
-   `Router.TravelSeconds` and records the largest difference (`verify_maxdiff`; 0.000 s on every run so far).
+1. `luajit tools/cost_matrix.lua <fl> [--sample K] [--guide ID] [--exact] [--taxi faction|band]` loads the real addon
+   (parser, TravelGraph with the flavor's taxi/transit/roads/access, Router) and writes one JSON line per guide to
+   `$CR_TMP/costmx/<fl>.jsonl` or `--out` (never the repo): the parsed steps (with the checksum parts and the cost
+   model's kind), the travel-seconds matrix between the guide's priced points, a start column from the guide zone's
+   centre (where vplayer starts) and the cost model's constants (`"cm"`). Which steps are priced, where, at what speed
+   and with which flight paths is the cost model's decision ("One cost model" below). Rows come from
+   `Router.TravelRow` (one `TravelGraph.FindPaths` search per source point, equal to `Router.TravelSeconds` pair by
+   pair: a walk below 700 yd, else the graph without the hearth); `--verify N` re-checks N random pairs per guide
+   against `Router.TravelSeconds` (`verify_maxdiff`, 0.000 s on every run so far). The old private Dijkstra copy
+   (`settle`) is gone.
 2. `venv/bin/python tools/optimize_routes.py <fl>` (OR-Tools 9.15 in `../venv`, python 3.12 via uv). Model per
-   guide: blocks = a located step + the unlocated steps after it; anchors (non-routable / sticky steps) cut the guide
-   into independently solved segments. Hard rules: A < C < T per quest, PRE turn-in < accept (only edges the author
-   order keeps), quest log <= 20 (era/forever) / 25 (tbc/mop) / 35 (retail) or the author's own peak, level gates
+   guide: blocks = a priced step + the steps after it that ride along; anchors (non-routable / sticky steps) cut the
+   guide into independently solved segments. Hard rules: A < C < T per quest, PRE turn-in < every step that names it
+   (only edges the author order keeps; until 2026-11-10 only accepts), objective steps of a quest in author order when
+   one of them ticks by itself (`CostModel.PlanSteps`), quest log <= 20 (era/forever) / 25 (tbc/mop) / 35 (retail) or the author's own peak, level gates
    (a step above the start level needs as many turn-ins before it as the author needed before its first step of that
    level). Solve: feasible nearest-neighbour vs author order -> OR-Tools routing (order/log/turn-in dimensions, guided
    local search, 2 s + 0.1 s/block, max 30 s) -> exact DP over precedence-closed subsets on the metric closure of the
    costs (<= 90 blocks, 6 s): when it finishes its optimum is a true lower bound (`lb_exact`), otherwise the bound is
-   max(assignment, MST, Held-Karp) and ignores precedence (loose). Writes `Data/RouteOrder_<fl>.lua` (gitignored;
-   only guides the bake makes > 1 s faster) as `O[id] = { n, sum, o = "1-5,9,6-8" }`.
+   max(assignment, MST, Held-Karp) and ignores precedence (loose). Writes `Data/RouteOrder_<fl>.lua` or `--lua-out`
+   (gitignored; only guides the bake makes > 1 s faster and, with `--gate`, that vplayer confirms) as
+   `O[id] = { n, sum, o = "1-5,9,6-8", va, vb }` (va / vb: the gate's measured seconds, "Bake gate" below).
 3. `Core/Guide.lua G.Steps` permutes a guide's parsed steps when `n` and the checksum still match (`G.BakedOrder`;
    spine entries look up their `part`). `s.index` stays the author index, so saved progress never moves;
    `P.Undo` compares display positions. Option "use the pre-computed fastest order" = `routing.baked`. The live
    12-step window (`Router.OrderSteps`) still runs on top.
-   The bake keeps the faction-wide flight rule (`cost_matrix.lua` pins `taxiPolicy = "faction"`; its `settle` copy
-   still has the old both-ends rule for `known`) and never sees teleports (it does not load `Routing/Teleports.lua`, and
-   pairwise costs exclude one-shot legs anyway). The cost-model rework (docs/IDEAS.md) decides whether that changes.
+   The bake's flight rule is the cost model's `OFFLINE_TAXI` (faction-wide, decided and measured 2026-11-10 in "One
+   cost model"), installed by `tools/cm_offline.lua`; it never sees teleports or the hearth (one-shot legs).
 4. Measure: `luajit tools/vplayer.lua <fl> --guides-file F --order author|baked --live on|off`, then
    `python3 tools/collect_routes.py collect` -> `route_compare`, `opt_violations` in `docs/verification.sqlite`.
-   Check: `luajit tools/test_route_order.lua`.
+   Check: `luajit tools/test_route_order.lua` (fails on a stale entry) and `luajit tools/test_cost_parity.lua`.
 5. Release bake (2026-11-10, `docs/RELEASE.md`). The dev bake also orders the Questie-derived `qdb:`/`qpoi:` gaps
    guides, and its costs use the fallback points and `Data/Imported_Entrances.lua`. `tools/package_release.py` fails a
    `RouteOrder` row for a guide that never ships. A release bake runs `cost_matrix.lua <fl> --prefix wiki:` inside the
@@ -290,8 +293,8 @@ is re-planned for travel time. Model = the offline bake's: only steps still to d
 segments, blocks of one step with an `|M|` point plus the steps after it without one, A < C < T per quest, PRE turn-in
 before the dependent, quest log at most max(cap, the baseline's own peak) (removed quests free space), level gates as in
 the bake. Every step the arrow can point at is priced: its `|M|` point, or without one the live quest objective or the
-zone centre, as `Router.StepWorld` and the live window see it; a leg runs from one block's last priced step to the next
-block's first.
+cost model's point (an NPC's point from elsewhere in the guide, the step it rides with, a new zone's centre), as
+`Router.StepWorld` and the live window see it; a leg runs from one block's last priced step to the next block's first.
 
 * **One cost set per job.** Speed, walking factor, player position and the travel graph (`TravelGraph.Snapshot`: nodes,
   roads, continent links, usable flight masters) are fixed when the job starts, so mounting, flying, a turn-in that
@@ -306,8 +309,8 @@ block's first.
   first-improvement Or-opt (1-3 blocks moved next to one of their nearest blocks by travel time, so other continents
   count; every block when the segment has at most 60) and 2-opt (up to 40 blocks), with don't-look bits.
 * **Acceptance.** The new order must save max(`StepOrder.MIN_GAIN`, `StepOrder.GAIN_FRAC` of it), the live window's
-  margin, on the route the arrow walks, AND the route through the steps with their own `|M|` (the bake's measure) may not
-  get longer: a zone centre only stands in for an objective, and a saving must not come from the stand-in alone. When the
+  margin, on the route the arrow walks, AND the route through the steps with a firm point (their own `|M|` or an NPC's)
+  may not get longer: a zone centre only stands in for an objective, and a saving must not come from the stand-in alone. When the
   first search fails either test, a second search on the `|M|` steps alone gets its chance. So a kept re-plan never costs
   more than "baked order minus removed steps" by either measure; the test checks both with the live router, pair by
   pair. The decision is saved under the rebuild key (step count, route checksum, quests out of the guide), so a reload
@@ -373,14 +376,14 @@ Which rule each tool uses:
 | Tool | Flight rule |
 |---|---|
 | The client | `known` (Options: "fly to every flight master your faction can use" = `faction`) |
-| `tools/cost_matrix.lua` (the bake) | `faction`, pinned, unchanged (its output for `wiki:era:1416:Alliance` and `wiki:retail:76:Horde:1` is identical before and after this branch, apart from the run time) |
-| `tools/vplayer.lua` | `--taxi all` (default) = `faction`; `--taxi learn` = `known`, starting each guide with nothing known |
+| `tools/cost_matrix.lua` (the bake) | the cost model's `OFFLINE_TAXI` = `faction` (since 2026-11-10 through `tools/cm_offline.lua`; `--taxi band` for experiments) |
+| `tools/vplayer.lua` | `--taxi model` (default since 2026-11-10) = the bake's rule; `all` = `faction`; `band`; `learn` = `known`, starting each guide with nothing known |
 | `tools/route_sweep.lua` | `faction`, pinned |
 | `tools/test_*.lua` | `assumeAllTaxi` or `faction`, except the taxi tests in `test_offline.lua` |
 
 `vplayer --taxi learn` discovers the flight master the route took off from (it walked there) and any flight master
-within 40 yd of each step the player stands on (an `f` step's included). The bake gain has not been re-measured under
-`learn`; that belongs to the cost-model rework.
+within 40 yd of each step the player stands on (an `f` step's included). The bake's gain under `learn` was measured on
+2026-11-10 ("One cost model", flight paths).
 
 ## What changes the graph (2026-11-10, branch routing-graph)
 
@@ -478,3 +481,156 @@ either, so the landing point would need DB2 SpellTargetPosition, which the harne
 Nothing here has run in a client: the secure `toy` button type, `C_ToyBox.IsToyUsable`, the cooldown readings for
 toys, the Engineering check on each client's skill API and the landing spots all need Daniel's beta.
 
+
+## One cost model (2026-11-10, branch cost-model)
+
+`Routing/CostModel.lua` (loaded by all six TOCs before the travel graph, the live window and the re-planner, and by the
+offline tools through `tools/cm_offline.lua`) holds every rule that decides what a leg costs. Before it, the bake, the
+live window and vplayer each had their own: a zone-only step cost nothing in the bake but sent the live window and
+vplayer to the zone centre, a leg with no route cost 1,800 s, 600 s and 0 s, and the bake priced a whole guide at its
+lowest level's speed.
+
+| Rule | What it says | Who reads it |
+|---|---|---|
+| Located (`CM.Locate`, once per guide in author order) | A step is priced at its own `|M|` point (`own`); with none, at the point of the NPC its note names ("From X." / "To X.") when another step of the guide has that NPC's point (`npc`); with neither, it is done where the player already is when it has no zone or the zone of the last priced point before it (`ride`: no leg, it joins the block before it); otherwise at the centre of the new zone (`zone`). | cost_matrix, optimize_routes (through the rows), StepOrder `located`, Replan blocks, Router.StepWorld (after the live quest objective), vplayer |
+| No route | `CM.NOROUTE` = 1,800 s for a leg the router cannot path. | optimize_routes (row `cm`), StepOrder, Replan, vplayer |
+| Hearth step | an `H` step costs `CM.HEARTH` = 60 s offline instead of the trip; no other leg uses the hearth or a teleport offline. | optimize_routes, vplayer (the quest guides the bake orders have no H step) |
+| Speed | ground speed by level band (7, 11.2 from 40, 14 from 60 yd/s on Classic clients; 14 from 10 on retail), retail flies from 10 at 45 yd/s; offline a leg is priced at the planning level of the step it leaves from (the guide's start level raised by every `|LVL|` up to that step). | U.TravelSpeed in game, cost_matrix and vplayer offline |
+| Walking factor | 1.25 off road (the Options slider in game), 1.05 when flying, the same for a short walk below 700 yd as for the graph's walks (a short walk used the ground factor even when flying). | TravelGraph, Router.TravelSeconds and TravelRow |
+| Offline flight paths | `CM.OFFLINE_TAXI` = `faction` (see below). | cost_matrix, vplayer `--taxi model` |
+| Planning character | one baked order serves every class and race: the bake plans for the steps every character of the guide's faction takes (`CM.Takes`: no class, race or profession condition, no other faction's tag; in a guide for both factions no faction tag) and that it walks to (`CM.PlanSteps`: a second accept or turn-in, or an objective already done, ticks by itself). The rest ride along. | cost_matrix; vplayer `--who plan` plays exactly this character |
+
+The Python optimizer holds no copy of these: every cost_matrix row carries `"cm"` (version, no-route and hearth cost,
+flight rule) and `optimize_routes.py` refuses a row without it. `CM.VERSION` is stamped into every row; bump it when a rule
+changes and `tools/bake_resume.py` treats every row as stale.
+
+**Why this located rule.** `tools/cost_holdout.lua` takes quest steps whose point is known (3,000 per client, every third
+quest guide), hides the point, and predicts the detour prev -> step -> next with each candidate rule. Mean absolute error
+and bias, seconds per step:
+
+| Rule | era | tbc | mop | retail | forever |
+|---|---|---|---|---|---|
+| ride along with the step before | 108 / -108 | 64 / -64 | 27 / -27 | 81 / -81 | 110 / -110 |
+| zone centre (the live window's old rule) | 192 / +165 | 173 / +148 | 170 / +162 | 117 / +109 | 194 / +165 |
+| NPC's point, else ride | 93 / -87 | 50 / -50 | 27 / -22 | 96 / -37 | 89 / -84 |
+| NPC's point, else zone centre | 68 / +45 | 63 / +44 | 71 / +64 | 88 / +70 | 65 / +43 |
+| **NPC's point, else ride in the same zone, else zone centre (chosen)** | **40 / -13** | **30 / -12** | **22 / 0** | **50 / +23** | **38 / -12** |
+
+Over the quest guides' steps: era 3,136 own, 0 npc, 265 ride, 47 zone, 110 none; tbc 3,095 / 0 / 209 / 36 / 0; mop 3,110 /
+23 / 132 / 39 / 0; retail 3,132 / 88 / 716 / 235 / 0; forever 3,179 / 4 / 548 / 52 / 118 (every third guide). The hold-out
+samples are steps whose point is known; a true zone-only step may sit elsewhere, so this ranks the rules but does not
+prove the error on zone-only steps.
+
+**vplayer's world.** vplayer now walks the cost model's way (from the last priced step's point at that step's planning
+level, no hearth, 1,800 s for a leg with no route) and finishes one objective per `|QO|` step: a quest is complete when
+every numbered objective the guide names is done (any objective step used to finish the whole quest, so a second
+objective somewhere else was never walked to). `--who plan` plays the planning character.
+
+**Parity** (`tools/test_cost_parity.lua`). For sample quest guides of every client: cost_matrix, then the optimizer's
+predicted seconds of the author order and of its baked order, then vplayer playing both orders with `--who plan --live
+off`. Required: within 2% (and 1 s) per guide. With the full solver on 20 guides per client (evenly spread over the quest
+guide ids): era 20/20, tbc 20/20, retail 20/20, forever 20/20 and mop 19/20 inside 2%, most of them to the second. The
+mop miss (`wiki:mop:25:Both:1`, -7.5%) was a prerequisite turned in only by faction-tagged steps: vplayer's planning
+character never took them, so it never saw the quest that needed them; it now counts such a prerequisite as earlier
+content, as the bake does, and the re-run gives 20/20. The harness itself runs 6 guides per client (30, evenly spread
+over the quest guides with at least 10 steps) with short solver limits. One kind of guide cannot pass by construction: an
+author order that breaks its own rules (an accept listed before the in-guide turn-in of its prerequisite, the optimizer's
+`dropped_edges`; only Questie-derived `qdb:` gaps guides have them). The client cannot play such an order as written: it
+shows the hidden step later, or, when the quest is turned in first, never. A miss on such a guide is listed with that
+reason and does not fail the test; any other miss fails it. Last run: 28 of 30 inside 2%, most to the second; the two
+misses are both of that kind and both in the author order only (`qdb:era:357:Horde` -3.9%, forever `qdb:era:15:Alliance`
+-26.6%); 4 more guides of that kind agreed anyway.
+
+**Predicted against measured** (20 guides per client, evenly spread over the quest guide ids; vplayer's default warrior;
+seconds summed over the sample; "before" = branch base 472f8a4 with its own bake and vplayer, "after" = this branch):
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Before: saving the model predicts | 43,687 | 39,479 | 14,050 | 13,407 | 58,755 |
+| Before: vplayer, live window off | 25,935 | 24,374 | 5,924 | 1,635 | 31,097 |
+| Before: vplayer, live window on | -1,234 | 2,581 | 1,584 | 307 | 94 |
+| After: saving the model predicts | 33,818 | 35,645 | 12,497 | 17,244 | 45,446 |
+| After: vplayer, live window off | 21,459 | 27,194 | 10,965 | 10,421 | 30,228 |
+| After: vplayer, live window on | 2,943 | 4,873 | 3,937 | 9,067 | 9,073 |
+| After: vplayer `--who plan`, live window off | = predicted within 2% per guide | | | | |
+
+Measured over predicted (live window off) went from 0.59 / 0.62 / 0.42 / 0.12 / 0.53 to 0.63 / 0.76 / 0.88 / 0.60 / 0.67.
+The author order alone: retail predicted 72,563 s against 20,168 s measured before (vplayer hearthed home and walked to
+zone centres), 57,451 s against 50,867 s after. The gap that remains with the warrior is not the cost model: it levels by
+experience, so `|LVL|` steps open later than the bake assumes and the order it plays differs; it takes its own class and
+faction steps; and quests whose prerequisites lie in other guides stay hidden from a fresh character. The planning
+character removes those and agrees.
+
+**Flight paths offline: faction-wide stays.** `--taxi band` (cost_matrix, vplayer) allows only flight masters in zones
+whose lowest wiki-guide level is at or below the leg's planning level (5-level bins; capitals and starting areas sit in
+level-1 zones). The same 20 guides per client baked both ways (faction / band baked orders, guides whose orders differ),
+then played by the warrior with the live window under the client's rule (`--taxi learn`, every guide starting with no
+flight path) and under `--taxi all`:
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Baked orders faction / band / differing | 13 / 13 / 4 | 13 / 13 / 5 | 10 / 9 / 8 | 13 / 13 / 2 | 15 / 15 / 8 |
+| `learn`: author order | 86,127 | 108,568 | 49,526 | 44,785 | 156,337 |
+| `learn`: faction bake | 83,718 | 98,849 | 45,019 | 35,520 | 150,217 |
+| `learn`: band bake | 84,600 | 100,602 | 44,428 | 35,520 | 149,660 |
+| `all`: author / faction / band | 67,140 / 64,197 / 64,989 | 77,564 / 72,691 / 74,607 | 41,941 / 38,004 / 37,944 | 41,635 / 32,568 / 32,609 | 117,416 / 108,343 / 107,821 |
+
+Both bakes save time under `learn` on every client. Band is 1.3% better on mop and 0.4% on forever, worse on era (1.1%)
+and tbc (1.8%), equal on retail; over all five the faction bake is 1,487 s (0.4%) faster under `learn`. Band also makes
+the costs depend on wiki level data and needs a graph snapshot per level bin, so the bake keeps `faction`. The client
+always uses the character's discovered flight paths, and the live window re-prices on top of the bake.
+
+**CPU** (`luajit -joff`, the same windows on both trees). The live window, one `Router.OrderSteps` call on 340 era and 364
+retail windows of the sample guides, unbudgeted: era cold (no kept costs) mean 61.7 -> 39.1 ms, warm mean 1.64 -> 1.25 ms
+(p95 3.37 -> 3.17); retail cold 320 -> 190 ms, warm 1.64 -> 1.18 ms (p95 2.89 -> 2.58). Steps that ride along make fewer
+blocks, and a search fixes its walking factor once. In game each call still stops at 3 ms. The re-planner's slices
+(`tools/test_skip.lua`): collector paused p50 0.80 ms both, p99 0.83 -> 0.84 ms, max 0.97 -> 1.13 ms; collector running
+p99 0.88 -> 0.87 ms, max 1.43 -> 1.46 ms; none over 2 ms.
+
+**Not covered.** The speed bands are the client's old guess and are the same on every Classic client (MoP Classic and
+TBC Anniversary riding levels differ); Classic characters never fly offline. Multi-point steps are still priced at the
+first point. Nothing here has run in a client.
+
+## Bake gate and stale-bake check (2026-11-10, branch cost-model)
+
+**Checksum version 2.** `G.RouteChecksum` folds, per step, the action, first quest id, zone id and first map point in
+0.5 % steps (`G.RouteChecksumParts`), so a guide whose points moved or whose step changed zone no longer matches an old
+bake (the 2026-11-09 map fix had left old orders in force). One definition, three copies: Core/Guide.lua computes it,
+`tools/cost_matrix.lua` calls Core/Guide.lua's and writes each step's parts into its rows, and `tools/optimize_routes.py`
+folds those integer parts (no float maths in Python). `tools/test_route_order.lua` checks that all three agree on every
+quest guide (era 234, tbc 354, mop 772, retail 1,021, forever 240), that a re-parse gives the same value, a pinned value
+for a test guide, and that a moved point (0.6 % or more) or a zone change changes it while a title or an in-step move does
+not. Bug reports record the checksum's version (`sumv`); `vplayer --repro` compares only reports of the same version.
+
+**Stale entries.** Version 2 invalidates every existing entry (era 168, tbc 258 + 2 for deleted guides, mop 501, retail 854,
+forever 169 + 1). The game already handles that: `G.BakedOrder` applies an entry only when the step count and checksum
+match, so a stale guide plays in author order with the live window on top. `tools/test_route_order.lua` now checks that
+for every stale guide and then FAILS, naming the flavor, the count, the first ids and the re-bake command; an entry for a
+guide that no longer exists fails too. `CR_ROUTE_ORDER_DIR=<folder>` points it at a fresh bake before it is installed.
+
+**Gate.** `optimize_routes.py --gate` plays author order + live window and baked order + live window in vplayer (default
+warrior, the bake's flight rule) for every guide the model would bake, and keeps the bake only when it is not slower by
+more than max(1%, 30 s). A guide vplayer cannot finish in both orders is rejected. A kept entry stores both measurements:
+`O[id] = { n, sum, o, va = <author + live s>, vb = <baked + live s> }`; `G.BakedOrder` reads only `n`, `sum` and `o`, so
+the extra fields are ignored on every client (tested), and `tools/package_release.py` reads only the id. A rejected guide
+gets no entry. `--gate-only [--regate] [--gate-ids F]` gates rows already solved. `--current F` (a `cost_matrix --list`)
+writes entries only for guides that still match.
+
+`tools/bake_resume.py` runs the gate in every batch (`--no-gate` skips it). A row solved but not gated (a `--no-gate` run,
+or a run killed between the solve and the gate) is gated on the next start without being solved again; rows solved under
+another cost-model version are stale. The final write keeps only entries for guides that match the current list.
+`--lua-dir` writes the RouteOrder files elsewhere, `--only-file FLAVOR=ids` limits a run to some guides.
+
+Measured on the same 20 sample guides per client (this branch's bake, the gate's own vplayer runs):
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Baked orders checked | 13 | 13 | 10 | 13 | 15 |
+| Kept / rejected | 8 / 5 | 11 / 2 | 10 / 0 | 12 / 1 | 14 / 1 |
+| Kept: vplayer saves (s) | 4,467 | 5,846 | 3,937 | 9,200 | 9,251 |
+| Rejected: would have cost (s) | 1,524 | 973 | 0 | 133 | 178 |
+
+The same gate on the base branch's bake and vplayer (old cost model) would have rejected 5 of 13, 3 of 14, 2 of 11, 3 of
+16 and 2 of 16. The gate adds two vplayer runs per batch (live window on). On these samples one 20-guide run took 4 to 10 s,
+mostly start-up; the largest zone guides take much longer, and a guide vplayer cannot finish within `--gate-cap` (600 s
+of CPU per guide) is rejected.
