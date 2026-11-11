@@ -93,3 +93,15 @@ used for an achievement no criterion locates.
 sentences (`coords_json`). `gen_wiki_guides.py` uses them for item-started quests: Blizzard `ItemSparse.StartQuestID`
 says which item starts a quest, the accept step goes where the item is obtained (its own coords, else a source page's
 point, else the source zone as a zone-only step) and carries `|U|<item>|`.
+A source page about a zone, city or continent never gives a point (its `{{co}}` rows are neighbours and landmarks:
+the Silithus page's road to Un'Goro Crater), and neither does a topic page whose every `{{co}}` stands in a body
+section (a profession, holiday or system article); a zone source makes the accept zone-only. The accept's note names
+the page its point came from. In the default (fallback) build, an item page's point gives way to the client's own
+fallback point when the two are more than 300 yd apart or on different continents.
+
+## Glyphs (2026-11-11)
+
+`glyph_points(name, zone, x, y, page_title)` holds every dragon / skyriding glyph that the glyph pages ("Dragon Glyph",
+"Skyriding Glyph", "<zone> Glyph Hunter") give a `{{co}}` or a `{{Zone Map Note}}` for: 74 glyphs, all on the Dragon
+Isles (The War Within and Midnight hunter pages list places without coordinates). `tools/gen_completion_guides.py`
+places "Dragon Glyphs: <name>" achievements there and credits the page.

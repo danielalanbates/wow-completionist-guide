@@ -573,8 +573,8 @@ class Gen:
                 """a point an item page gave (its own {{co}} or a drop source's page) for this step: in the default build
                 it gives way to the client's fallback point for the step when the two are more than 300 yd apart or on
                 different continents (counted in st).  (Checking it against the quest's own zone was tried and dropped:
-                in a sample of 32 such points about half were right, e.g. Frozen Ectoplasm from Winterspring for a
-                Tanaris quest.)"""
+                many of a sample of 32 such points were right, e.g. Frozen Ectoplasm from Winterspring for a Tanaris
+                quest.)"""
                 f = fb.get(qid, act, qo) if fb else None
                 if f and self.far_from_fallback(maps, (e[0], e[1]), f):
                     st["item_points_far_from_fallback"] += 1
