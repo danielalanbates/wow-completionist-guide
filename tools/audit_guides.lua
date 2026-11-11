@@ -20,7 +20,7 @@ local function load(path)
 end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor],
     "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua",
-    "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua",
+    "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua",
     "Routing/Router.lua", "Routing/Loop.lua", "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua",
     "Data/Farm_routes.lua", "Core/Instances.lua", "Adapters/WoWPro.lua",
     ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),

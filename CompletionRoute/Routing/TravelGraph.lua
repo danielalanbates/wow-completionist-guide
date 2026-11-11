@@ -598,9 +598,9 @@ end
 -- ---------------------------------------------------------------------------
 -- Dijkstra
 -- ---------------------------------------------------------------------------
-local function walkCost(ax, ay, bx, by, speed)
+-- tf: the walking factor, fixed once per search (TG.WalkFactor)
+local function walkCost(ax, ay, bx, by, speed, tf)
     local d = dist(ax, ay, bx, by)
-    local tf = (U.CanFly and U.CanFly()) and 1.05 or (cfg().terrainFactor or 1.25)
     return d * tf / speed, d
 end
 
@@ -692,6 +692,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     local tick, cache0 = opts.tick, TG.pathCache
     local c = cfg()
     local speed = opts.speed or U.TravelSpeed()
+    local tf = TG.WalkFactor()
     local useHearth = (opts.hearth == nil) and (c.hearth ~= false) or opts.hearth
     local useTaxi = (opts.taxi == nil) and (c.taxi ~= false) or opts.taxi
     local useTransit = (opts.transit == nil) and (c.transit ~= false) or opts.transit
@@ -711,7 +712,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     -- direct walk
     local best
     if sinst == ginst then
-        local wc, d = walkCost(sx, sy, gx, gy, speed)
+        local wc, d = walkCost(sx, sy, gx, gy, speed, tf)
         best = { cost = wc, legs = { { mode = "walk", from = start, to = goal, cost = wc, dist = d } } }
         if d < 300 then return TG.PathCacheStore(ckey, best) end   -- nothing beats walking 300 yards
     end
@@ -725,7 +726,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             local function hnode(cdleft, k, i, label, toy)
                 if cdleft > 15 * 60 then return end
                 local hn = { id = "hearth" .. k, kind = "hearth", inst = hinst, wx = hx, wy = hy, name = hname or "Home", edges = {} }
-                local cost = (c.hearthCost or 60) + cdleft
+                local cost = (c.hearthCost or (NS.CostModel and NS.CostModel.HEARTH) or 60) + cdleft
                 addEdge(start, hn, cost, "hearth", label .. " to " .. (hname or "your inn"), { kind = k, id = i, cd = cdleft, toy = toy })
                 hearthNodes[#hearthNodes + 1] = hn
             end
@@ -741,7 +742,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
         for _, a in ipairs(NS.Teleports.Available()) do
             if a.inst and a.cd <= 15 * 60 then
                 local tn = { id = "tele:" .. a.key, kind = "teleport", inst = a.inst, wx = a.wx, wy = a.wy, name = a.dest, edges = {} }
-                local cost = (c.hearthCost or 60) - 10 + (a.cast or 10) + a.cd
+                local cost = (c.hearthCost or (NS.CostModel and NS.CostModel.HEARTH) or 60) - 10 + (a.cast or 10) + a.cd
                 addEdge(start, tn, cost, "teleport", a.title, { kind = (a.kind == "spell") and "spell" or "item", id = a.id,
                                                                toy = (a.kind == "toy"), cd = a.cd, key = a.key })
                 hearthNodes[#hearthNodes + 1] = tn
@@ -763,7 +764,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     heap:push(0, start)
     local roadFactor = c.roadFactor or 1.0
     local function relaxTo(u, du, v)
-        local wc, dd = walkCost(u.wx, u.wy, v.wx, v.wy, speed)
+        local wc, dd = walkCost(u.wx, u.wy, v.wx, v.wy, speed, tf)
         local nd = du + wc
         if nd < (d[v] or INF) then d[v] = nd prev[v] = u prevEdge[v] = { mode = "walk", cost = wc, dist = dd } heap:push(nd, v) end
     end
@@ -783,14 +784,14 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
                 local usable = (v.kind ~= "taxi") or useTaxi
                 if v.kind == "transit" and not useTransit then usable = false end
                 if usable then
-                    local wc, dd = walkCost(u.wx, u.wy, v.wx, v.wy, speed)
+                    local wc, dd = walkCost(u.wx, u.wy, v.wx, v.wy, speed, tf)
                     local nd = du + wc
                     if nd < (d[v] or INF) then d[v] = nd prev[v] = u prevEdge[v] = { mode = "walk", cost = wc, dist = dd } heap:push(nd, v) end
                 end
             end
         end
         if goal.inst == u.inst and u ~= start then
-            local wc, dd = walkCost(u.wx, u.wy, goal.wx, goal.wy, speed)
+            local wc, dd = walkCost(u.wx, u.wy, goal.wx, goal.wy, speed, tf)
             local nd = du + wc
             if nd < (d[goal] or INF) then d[goal] = nd prev[goal] = u prevEdge[goal] = { mode = "walk", cost = wc, dist = dd } heap:push(nd, goal) end
         end
@@ -886,8 +887,13 @@ function TG.Snapshot()
     end
     return snap
 end
--- the off-road walking factor FindPath uses (flying flattens the terrain)
-function TG.WalkFactor() return (U.CanFly and U.CanFly()) and 1.05 or (cfg().terrainFactor or 1.25) end
+-- the off-road walking factor FindPath uses (flying flattens the terrain; Routing/CostModel.lua)
+function TG.WalkFactor()
+    local CM = NS.CostModel
+    local fly = (U.CanFly and U.CanFly()) and true or false
+    if CM then return CM.WalkFactor(fly, cfg().terrainFactor) end
+    return fly and 1.05 or (cfg().terrainFactor or 1.25)
+end
 
 local function snapReachable(gr, a, b)
     if a == b then return true end

@@ -11,10 +11,12 @@
 --     race, faction or profession, keep their places in the list and bind nothing
 --   * anchors (non-routable, sticky, or not an accept / objective / turn-in) stay where they are and cut the guide into
 --     segments that are solved one after the other
---   * a block = a step with its own map point + the steps after it without one (the bake's block rule)
---   * every step the arrow can point at is priced: its |M| point, or with no |M| the live quest objective or the zone,
---     exactly as Router.StepWorld and the live window see it.  A leg runs from the last priced step of one block to the
---     first of the next; the legs inside a block are the same in every order
+--   * a block = a located step + the steps after it that ride with it (the cost model's rule, Routing/CostModel.lua:
+--     the bake's and the live window's block rule)
+--   * every step the arrow can point at is priced: its |M| point, or with no |M| the live quest objective or the cost
+--     model's point (an NPC's point from elsewhere in the guide, the step it rides with, a new zone's centre), exactly as
+--     Router.StepWorld and the live window see it.  A leg runs from the last priced step of one block to the first of the
+--     next; the legs inside a block are the same in every order
 --   * inside a segment: A < C < T per quest, a PRE quest's turn-in before the step that needs it (only edges the
 --     baseline keeps), the quest log never above max(cap, the baseline's own peak) - removed quests no longer use log
 --     space - and a step above the character's level only after as many turn-ins as the baseline does before its first
@@ -28,8 +30,9 @@
 -- don't-look bits.
 -- Acceptance: the new order replaces the baseline only when the whole remaining route (from the player) saves
 -- max(StepOrder.MIN_GAIN, StepOrder.GAIN_FRAC of it), the margin the live window uses, AND the route through the steps
--- with their own |M| point (the bake's measure) is no longer than before - a step without one is priced at the zone,
--- a stand-in a saving must not come from.  So it never costs more, by either measure.
+-- with a firm point (their own |M|, or an NPC's: Routing/CostModel.lua) is no longer than before - any other step is
+-- priced at a stand-in (the zone, the live objective), and a saving must not come from that alone.  So it never costs
+-- more, by either measure.
 -- CPU: everything runs in a coroutine resumed from an OnUpdate with RP.FRAME_MS per frame; the graph search yields
 -- after every node and every 64 walking links (TravelGraph.FindPaths opts.tick), so no frame waits for a search.
 local ADDON, NS = ...
@@ -41,7 +44,7 @@ RP.FRAME_MS = 0.8       -- CPU per frame (the hard limit is 2 ms: a check runs e
 RP.NEIGHBORS = 8        -- nearest blocks (by travel time) a block may be moved next to...
 RP.ALL_BELOW = 60       -- ...or every block of a segment that has at most this many
 RP.REV_MAX = 40         -- longest 2-opt reversal, in blocks
-RP.NOROUTE = 1800       -- seconds charged for a leg the router cannot path (the bake's value; same in both orders)
+RP.NOROUTE = (NS.CostModel and NS.CostModel.NOROUTE) or 1800   -- a leg the router cannot path (Routing/CostModel.lua)
 
 local ACCEPT = { A = true, a = true, ["!"] = true }
 local OBJECTIVE = { C = true, K = true, l = true, U = true }
@@ -69,8 +72,7 @@ RP.IsAnchor = isAnchor
 -- ---------------------------------------------------------------------------
 local function newCosts(ctx, stats)
     local R = ctx.router
-    local opts = { speed = ctx.speed, walkFactor = ctx.walkFactor, terrainFactor = ctx.terrainFactor, graph = ctx.graph, tick = ctx.tick,
-                   scratch = {} }
+    local opts = { speed = ctx.speed, walkFactor = ctx.walkFactor, graph = ctx.graph, tick = ctx.tick, scratch = {} }
     local pair = {}
     local C = {}
     local function rowOf(a) local r = pair[a] if not r then r = {} pair[a] = r end return r end
@@ -108,17 +110,18 @@ local function build(list, ctx)
     for i, s in ipairs(list) do
         if (s.index or 0) > 0 and not ctx.isDone(s) and everApplies(s) then items[#items + 1] = s slot[#slot + 1] = i end
     end
-    local head = {}
+    local head, firm = {}, {}
+    local CM = NS.CostModel
     for k, s in ipairs(items) do
-        if s.zone then
-            local wx, wy, inst = R.StepWorld(s)
-            if wx then
-                pt[k] = { wx = wx, wy = wy, inst = inst }
-                if s.coords then head[k] = true end
-            end
+        local wx, wy, inst = R.StepWorld(s)
+        if wx then
+            pt[k] = { wx = wx, wy = wy, inst = inst }
+            if CM then head[k], firm[k] = CM.Located(s), CM.Firm(s)
+            else head[k], firm[k] = s.coords ~= nil, s.coords ~= nil end
         end
         if k % 32 == 0 then tick() end
     end
+    M.firm = firm
     -- segments between anchors; blocks inside them
     local seq, cur, lead = M.seq, nil, {}
     local function closeSeg()
@@ -144,14 +147,14 @@ local function build(list, ctx)
         end
     end
     closeSeg()
-    -- a block's way in and way out: its first and last priced step (entryX / exitX: the first and last with an |M|)
+    -- a block's way in and way out: its first and last priced step (entryX / exitX: the first and last with a firm point)
     for _, e in ipairs(seq) do
         if e.seg then
             for _, blk in ipairs(e.seg.blocks) do
                 for _, k in ipairs(blk.items) do
                     if pt[k] then
                         blk.entry = blk.entry or pt[k] blk.exit = pt[k]
-                        if items[k].coords then blk.entryX = blk.entryX or pt[k] blk.exitX = pt[k] end
+                        if firm[k] then blk.entryX = blk.entryX or pt[k] blk.exitX = pt[k] end
                     end
                 end
             end
@@ -278,7 +281,7 @@ RP.Build = build
 -- ---------------------------------------------------------------------------
 -- Search over one segment
 -- ---------------------------------------------------------------------------
--- exact: price only the steps with their own |M| (the bake's measure) instead of every step the arrow points at
+-- exact: price only the steps with a firm point (own |M| or an NPC's) instead of every step the arrow points at
 local function solveSeg(seg, C, ctx, stats, startPt, endPt, exact)
     local tick = ctx.tick
     local blocks = seg.blocks
@@ -518,15 +521,15 @@ local function plan(list, ctx)
     ctx.graph = ctx.graph or NS.TravelGraph.Snapshot()
     local C = newCosts(ctx, stats)
     local M = build(list, ctx)
-    local items, pt, seq = M.items, M.pt, M.seq
+    local items, pt, seq, firm = M.items, M.pt, M.seq, M.firm
     local PLAYER = ctx.player
     -- the remaining route from the player along an item order: every priced step, as the arrow walks it (exact = only
-    -- the steps with their own |M| point, the bake's measure)
+    -- the steps with a firm point)
     local function routeCost(order, exact)
         local t, prev = 0, PLAYER
         for n, k in ipairs(order) do
             local p = pt[k]
-            if p and (not exact or items[k].coords) then
+            if p and (not exact or firm[k]) then
                 if prev then t = t + C.get(prev, p) end
                 prev = p
             end
@@ -538,7 +541,7 @@ local function plan(list, ctx)
     local function solveAll(exact)
         local order, lastPt = {}, PLAYER
         local OUT = exact and "exitX" or "exit"
-        local function anchorPt(k) return pt[k] and (not exact or items[k].coords) and pt[k] or nil end
+        local function anchorPt(k) return pt[k] and (not exact or firm[k]) and pt[k] or nil end
         for si, e in ipairs(seq) do
             if e.anchor then
                 order[#order + 1] = e.anchor
@@ -570,10 +573,10 @@ local function plan(list, ctx)
     local baseCost, exactBase = routeCost(base), routeCost(base, true)
     local SO = NS.StepOrder or {}
     local margin = math.max(SO.MIN_GAIN or 15, baseCost * (SO.GAIN_FRAC or 0.05))
-    -- A step with no |M| is priced where the arrow points before its quest is taken: the zone, a rough stand-in for the
-    -- objective.  So a saving must not come from that stand-in alone: the legs between steps with their own point may
-    -- not get longer either.  The search runs on every step the arrow visits; when its order fails either test, a second
-    -- search on the steps with an |M| only gets its chance.
+    -- A step with no firm point is priced where the arrow points before its quest is taken: a new zone's centre, a rough
+    -- stand-in for the objective.  So a saving must not come from that stand-in alone: the legs between steps with a
+    -- firm point (own |M| or an NPC's) may not get longer either.  The search runs on every step the arrow visits; when
+    -- its order fails either test, a second search on the firm steps only gets its chance.
     local res = { baseCost = baseCost, exactBase = exactBase, margin = margin, steps = #items, stats = stats, speed = ctx.speed,
                   accepted = false, passes = {} }
     local order
@@ -654,7 +657,6 @@ function RP.Start(opts)
     -- job's first frame, TravelGraph.Snapshot)
     J.ctx = { router = R, tick = J.tick, level = U.PlayerLevel(), logStart = logStart, logCap = logCap,
               speed = opts.speed or U.TravelSpeed(), walkFactor = opts.walkFactor or NS.TravelGraph.WalkFactor(),
-              terrainFactor = (NS.db and NS.db.profile.routing.terrainFactor) or 1.25,
               player = opts.player or (R.PlayerPoint and R.PlayerPoint()) or nil,
               isDone = opts.isDone or function(s) return NS.Progress.IsDone(s) end }
     J.co = coroutine.create(function() J.result = plan(J.list, J.ctx) end)

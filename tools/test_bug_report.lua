@@ -61,7 +61,7 @@ function debugstack() return STACK end
 local function load(path) assert(loadfile("CompletionRoute/" .. path))(ADDON, NS) end
 -- TOC order: Core/BugReport.lua right after Core/Init.lua (its error hook goes in before the rest of the addon)
 for _, f in ipairs({ "Core/Init.lua", "Core/BugReport.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua",
-    "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua",
+    "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua",
     "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua",
     "Core/Recommend.lua", "Core/Instances.lua", "UI/Log.lua" }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil

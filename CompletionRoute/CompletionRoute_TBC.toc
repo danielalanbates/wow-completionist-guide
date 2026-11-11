@@ -41,6 +41,7 @@ Data\Farm_routes.lua
 Data\ZoneAliases.lua
 Data\Roads_ek.lua
 Data\Roads_kalimdor.lua
+Routing\CostModel.lua
 Routing\TravelGraph.lua
 Routing\Teleports.lua
 Routing\Roads.lua

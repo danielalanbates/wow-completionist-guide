@@ -107,9 +107,12 @@ end
 
 local now = debugprofilestop or function() return 0 end
 
--- located: anywhere Router.StepWorld can point, which includes the zone fallback for a step with no |M| (the arrow goes
--- there too, so the plan has to pay for that trip).  A step with no place at all rides along with the block before it.
-local function located(s) return s.zone ~= nil end
+-- located: the cost model's rule (Routing/CostModel.lua): a step with its own |M|, an NPC point borrowed from elsewhere in
+-- the guide, or the centre of a zone the route is not in yet starts a block and is priced where Router.StepWorld points.
+-- A step done where the player already is (same zone, no point) or with no place at all rides with the block before it.
+-- (A step CostModel.Locate never saw keeps the old rule: any zone counts.)
+local LOCATED = (NS.CostModel and NS.CostModel.LOCATED) or { own = true, npc = true, zone = true }
+local function located(s) local k = s._cmk if k then return LOCATED[k] or false end return s.zone ~= nil end
 
 -- Collapse steps into blocks.  A block is { list of positions in `steps`, in order }.  Returns blocks and block-level
 -- precedence.  A leading step with no location is its own block and is pinned first (nothing else can jump it).
@@ -194,7 +197,7 @@ local function buildMatrix(steps, blocks, after, router, deadline, bb, baseFirst
     local afterStep = after and located(after) and after or nil
     local m = {}
     for u = 0, nb do m[u] = {} end
-    local UNKNOWN = 600
+    local UNKNOWN = (NS.CostModel and NS.CostModel.NOROUTE) or 1800   -- a leg the router cannot path (one cost everywhere)
     local spent = false
     local function over()
         if not spent and now() > deadline then spent = true end

@@ -14,7 +14,7 @@ PLAYER = { map = 85, x = 0.5, y = 0.5 }
 local function place(map, x, y) local wx, wy, inst = z2w(x, y, map) PLAYER.map, PLAYER.x, PLAYER.y, PLAYER.wx, PLAYER.wy, PLAYER.inst = map, x, y, wx, wy, inst end
 local function load(path) local fn = assert(loadfile("CompletionRoute/" .. path)) fn(ADDON, NS) end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_retail.lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
-    "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Progress.lua" }) do load(f) end
+    "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Progress.lua" }) do load(f) end
 NS.flavor = "retail"
 NS.db = NS.db or { profile = { routing = {} }, char = { knownTaxi = {}, done = {}, skipped = {} }, global = {} }
 NS.db.global = NS.db.global or {}

@@ -381,8 +381,8 @@ function U.FlySpeed()
     if p.flySpeed then return p.flySpeed end
     if not NS.isClassic then
         -- Retail Skyriding is typically 705%-830% (~50-60 yd/s); steady flying is 310% (~30 yd/s).
-        -- 45 yd/s gives a realistic average point-to-point travel speed.
-        return 45
+        -- 45 yd/s gives a realistic average point-to-point travel speed (Routing/CostModel.lua FLY_SPEED).
+        return (NS.CostModel and NS.CostModel.FLY_SPEED) or 45
     else
         if IsSpellKnown and IsSpellKnown(90265) then return 29 end -- 310%
         if IsSpellKnown and IsSpellKnown(34091) then return 27 end -- 280%
@@ -404,6 +404,8 @@ function U.TravelSpeed()
     if IsMounted and IsMounted() and cur > 0 then return cur end
     if p.mountSpeed then return p.mountSpeed end
     local lvl = UnitLevel("player")
+    -- the speed bands live in Routing/CostModel.lua (the offline bake and vplayer use the same ones)
+    if NS.CostModel then return NS.CostModel.GroundSpeed(lvl, NS.isClassic, p.runSpeed) end
     if NS.isClassic then
         if lvl >= 60 then return 14 end   -- assume 100% ground / can't assume epic
         if lvl >= 40 then return 11.2 end -- 60% mount

@@ -25,7 +25,7 @@ function GetLootSlotLink() return LOOT.link end
 local function load(path) local fn = assert(loadfile("CompletionRoute/" .. path)) fn(ADDON, NS) end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua",
     "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua",
-    "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua",
+    "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua",
     "Routing/Router.lua", "Routing/Loop.lua", "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua",
     "Data/Farm_routes.lua", "Core/Instances.lua" }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil

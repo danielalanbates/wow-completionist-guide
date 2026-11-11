@@ -318,6 +318,8 @@ function G.Steps(id)
             s.index = #steps + 1 s.guide = id steps[#steps + 1] = s
         elseif err then errors = errors + 1 NS:Debug("guide " .. id .. " line " .. n .. ": " .. err) end
     end
+    -- where each step is priced and its planning level (Routing/CostModel.lua), once, in author order
+    if NS.CostModel then NS.CostModel.Locate(steps, g) end
     -- baked order: same step tables (s.index stays the author index, so progress keys never move)
     local order = G.BakedOrder(g, steps)
     if order then

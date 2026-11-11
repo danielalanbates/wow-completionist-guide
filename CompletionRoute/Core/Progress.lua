@@ -850,6 +850,7 @@ function Access.ParseSteps(a, guideId)
         s.index = i - #out - 1          -- -k .. -1
         s.guide, s.access, s.accessTitle = guideId, a.key, a.title
     end
+    if NS.CostModel then NS.CostModel.Locate(out) end
     return out
 end
 function Access.PrefixFor(steps, guideId)
