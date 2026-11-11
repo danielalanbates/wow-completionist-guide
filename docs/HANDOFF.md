@@ -77,6 +77,19 @@ started at 22:18 under `caffeinate -is`. If it dies, re-run
   the same cost code.
 * Still running: `routing-graph` and `release-packager` (phase-1 resume), the data repo, and the map-fix bake.
 
+**Update 2026-11-10, 23:30.** `routing-graph` and `release-packager` are **done**, both built, verified and fixed, and both
+are merged into `integration`, merge order quest-skip → beta-bug-report → routing-graph → release-packager. Fix commit
+`472f8a4` resolved three break points between branches:
+* The quest-skip re-planner's `FindPaths` was ported to the discovered-flight-path rule.
+* `test_bug_report` now expects the new default policy, `known`.
+* The packager learned `Data/QuestDeps_*.lua`: only the new `gen_quest_deps.py --wiki-only` build ships, and the
+  local build names its sources (Questie-derived gaps guides, storylines) in its header, so the packager refuses
+  it. `Data/Teleports.lua` (wiki CC BY-SA) was added too.
+
+Every harness passes on `integration`. Phase 2b (#9 cost model, then #1 bake gate and coordinate-aware checksum) runs
+as workflow `beta-features-phase2b` in worktree `wt-cost` (branch `cost-model`, from `integration`). `wt-ids` and
+`wt-auto` were branched before these merges, so expect conflicts in Slash help, README and STATUS when they merge.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
