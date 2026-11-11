@@ -648,7 +648,8 @@ do
     local required = { "guides", "load", "icon", "why", "next", "skip", "undo", "reset", "arrow", "beacon", "demo",
                        "chars", "accountwide", "forget", "options", "route", "order", "taxi",
                        "hearth", "import", "switch", "scan", "verify", "verifyfeatures",
-                       "verifyall", "autoverify", "log", "stats", "debug", "test", "list", "gold", "prof" }
+                       "verifyall", "autoverify", "log", "stats", "debug", "test", "list", "gold", "prof",
+                       "skipstep", "unskip", "skipped" }
     local missing = {}
     for _, c in ipairs(required) do if not handled[c] then missing[#missing + 1] = c end end
     assert(#missing == 0, "slash commands not handled: " .. table.concat(missing, ", "))

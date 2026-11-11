@@ -84,6 +84,8 @@ for _, sv in ipairs(svs) do
         unionInto(m.done, c.done) unionInto(m.skipped, c.skipped) unionInto(m.quests, c.quests)
         local pick = newer(c, m)
         for f, v in pairs(c) do if type(v) ~= "table" and (pick == c or m[f] == nil) then m[f] = v end end
+        -- quests the player dropped (Core/Skip.lua): a choice, not progress - the newest record's choice wins whole
+        if c.questSkip and (pick == c or m.questSkip == nil) then m.questSkip = c.questSkip end
     end
 end
 -- also union the recorded road traces (one road network for the account)
