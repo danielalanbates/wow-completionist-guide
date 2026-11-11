@@ -30,6 +30,7 @@ smart arrow — while the guide content is community-driven and open.
 | Guides listed by level | ✅ `Core/Recommend.lua`: a *For level N* section, *Only guides for this level* filter, *Group by level* tree, and profession guides matched to your real skill |
 | Dungeon guides | ✅ steps inside an instance route to the **entrance** (learned door + retail encounter journal), `Core/Instances.lua` |
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
+| Beta bug reports | Built, offline-tested only: `/cr bug [note]` or the guide window's **Report** button saves a snapshot (guide, step, open steps, position, route, quest log including quests that only gate a step, profession skill, last 30 log lines, last addon Lua error; no character or realm name). `tools/ingest_beta_reports.py` loads reports into SQL and `vplayer --repro <id>` replays one offline — [docs/BETA_REPORTS.md](docs/BETA_REPORTS.md) |
 
 Not yet: primary profession guides, talent advisor, gear finder, model viewer, guide editor UI, retail-specific hearth toys, indoor/dungeon-aware walking, per-zone "wall" data.
 
@@ -88,6 +89,7 @@ To rebuild and deploy:
 * `/or test` — routing self-test from your position to major cities · `/or import` — re-scan WoW-Pro guides
 * `/cr skip [questID]` — skip a quest (default: the current step's); warns first when other quests need it · `/cr skipstep` — skip the current step (on an accept of a quest you do not have, that skips the quest, so its turn-in is not left behind)
 * `/cr unskip <questID|all>` — bring skipped quests back · `/cr skipped` — list them and what they lock
+* `/cr bug [what went wrong]` — save a bug report (also the **Report** button) · `/cr bug list` — stored reports · `/cr log` — the addon log
 * Click the step for details (Complete, Skip, Skip quest) · right-click = skip menu · `<` back · `>` done · `Route` toggles reordering
 
 Open a flight master's map once on each continent so the router knows which flight paths you have.
@@ -124,6 +126,10 @@ luajit tools/test_wiki.lua           # wiki guides parse, are flavor-gated, ques
 luajit tools/test_route_order.lua    # baked RouteOrder never breaks precedence, loads on every flavor
 luajit tools/vplayer.lua retail --shard 1/4    # play every guide; python3 tools/collect_vplayer.py
 luajit tools/route_sweep.lua era     # route every guide from its own zone
+luajit tools/test_bug_report.lua     # /cr bug snapshot, error hook, caps, SavedVariables reader, capture/replay round trip
+python3 tools/test_ingest_beta_reports.py      # beta_reports ingest on a fixture (temp database)
+python3 tools/ingest_beta_reports.py           # Daniel's /cr bug reports -> beta_reports; then:
+luajit tools/vplayer.lua --repro <report id> --check   # replay one offline; exit 1 on a DIFF (docs/BETA_REPORTS.md)
 python3 tools/gen_quest_guides_retail.py       # regenerate the retail quest guides from client data
 python3 tools/gen_taxi.py tbc 2.5.6.69110 era 1.15.9.69109 mop 5.5.4.69155 retail 12.1.0.69382
 ```

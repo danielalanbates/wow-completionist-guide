@@ -1,6 +1,8 @@
-# Status / handoff (2026-11-10, skipping quests)
+# Status / handoff (2026-11-10, integration: skipping quests + beta bug reports)
 
-Offline only. **Nothing here has run in a real WoW client.** Branch `quest-skip`, not merged, not installed. All 13 existing
+## Skipping quests (`quest-skip`)
+
+Offline only. **Nothing here has run in a real WoW client.** Merged into `integration`, not installed. All 13 existing
 harnesses pass, plus the new `tools/test_skip.lua` (542 checks with 6 guides per flavor). A second round fixed what two
 reviewers found (below).
 
@@ -32,6 +34,47 @@ reviewers found (below).
   (about 3 ms, the live window's own budget); heavy retail guides still re-plan for up to about 90 s in the background;
   a storyline guide loses the rest of its storyline when one quest of it is dropped (the warning says so). Details in
   `docs/ROUTING.md`, "Skipping quests".
+
+## Beta bug reports: `/cr bug`, `beta_reports`, `vplayer --repro` (`beta-bug-report`)
+
+IDEAS #3, merged into `integration`. Offline only. **Nothing here has run in a real WoW client.** Details: [BETA_REPORTS.md](BETA_REPORTS.md).
+
+* **In game.** `/cr bug [note]` and a **Report** button on the guide window save a snapshot to
+  `CompletionRouteDB.bugReports` (newest first, at most 50, about 400 KB; one report about 16 KB, trimmed past that).
+  It holds flavor and build, addon version, class, race, level and faction (no character or realm name), the guide
+  and step with its raw line and location source, the 8 visible steps, window order and kept plan, done and skipped
+  steps and the open steps, the quest states of the guide's quests and of the quests that only gate a step (PRE,
+  ACTIVE, AVAILABLE), profession skill for `|P|` and `SKILL` steps, objectives, map, x, y and world position, the
+  route legs and arrow advice,
+  flight paths, hearth and options, the last 30 log lines and the last Lua error raised inside the addon. Chat
+  confirms the id. `/cr bug list` shows the stored ones. New file `Core/BugReport.lua`, loaded right after
+  `Core/Init.lua` in all six TOCs.
+* **Error hook.** Wraps the client's handler, always calls the previous one and returns its result, keeps only
+  errors whose message or stack names this addon's folder in a path (not a bare `CompletionRouteDB`), re-wraps at
+  login, counts repeats.
+* **Names.** Character and realm names (2 letters or more) are replaced as whole words in the log, the error and the
+  note; the note in any letter case.
+* **SQL.** `tools/ingest_beta_reports.py` reads every client's SavedVariables through `tools/sv_to_json.lua`
+  (sandboxed luajit, read-only) into `beta_reports` (key `id`; triage columns are never overwritten; the account
+  folder is stored only as a hash). Run against the five real SavedVariables files into a temp database: all five
+  read, 0 reports (none made yet), files unchanged.
+* **Replay.** `luajit tools/vplayer.lua --repro <id|latest|file.json> [--check]` (new `tools/vplayer_repro.lua`).
+  It restores the quest states, including gate-only quests, and profession skill, and compares the open steps both
+  ways: a step open in the client but not offline is a DIFF. Self-test: `--capture` makes a report in the fake world,
+  `--repro --check` replays it. MATCH with the same open steps on all five flavors (author order) and on era with
+  baked order, with routes of 4 to 8 legs including tram, portal, boat and taxi.
+* **Review fixes (same day).** A verifier found that reports left out quests named only by `PRE`/`ACTIVE`/`AVAILABLE`
+  (78 of 137 era wiki guides have such steps), so a replay hid a step and still said MATCH; that 2-letter names and a
+  lower-case name in the note were not scrubbed; that another addon's error naming `CompletionRouteDB` was kept;
+  that the ingest crashed on a missing file; and that "under 1 ms" held only with warm caches. All five fixed, each
+  with a regression test.
+* **Cost of a click** (`luajit -joff`, virtual player): 0.2 to 0.7 ms when the arrow's path is fresh, also right
+  after a graph rebuild (the upcoming list reads the planner's kept costs and never searches). When the arrow's
+  path is stale the click runs one route search: 3.7 ms era, 8.2 tbc, 22 mop, 45 retail, 5.7 forever. Largest guide
+  (retail, 1950 steps): 11.9 ms. Not measured in a client.
+* **Tests.** New `tools/test_bug_report.lua` (93 checks) and `tools/test_ingest_beta_reports.py` (5 tests, fixture
+  `tools/fixtures/beta_reports_SavedVariables.lua`). All existing harnesses pass (see the commit for the list).
+* **Not done.** The skip-reason menu, an opt-in for the character name, a companion app view, and any in-client run.
 
 # Status / handoff (2026-11-09, gold guides, secondary professions, guides by level)
 

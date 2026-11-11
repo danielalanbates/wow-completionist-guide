@@ -11,6 +11,15 @@ luajit tools/vplayer.lua <era|tbc|mop|retail> [--limit N] [--shard i/n] [--type 
 python3 tools/collect_vplayer.py       # -> docs/verification.sqlite
 ```
 
+## Replaying a beta bug report
+
+`luajit tools/vplayer.lua --repro <report id | latest | report.json> [--db PATH] [--check] [--show]` puts the
+virtual character where a `/cr bug` report says (flavor, guide, step progress, quest log, position, level,
+faction, flight paths, hearth, speed, options) and prints the route and the next steps next to what the client
+recorded, ending in `RESULT MATCH` or `RESULT DIFF` (current step, open steps, route legs, route time, arrow mode).
+`<flavor> --capture auto --capture-out r.json [--capture-done 6623]` makes a report in the fake world for the
+round-trip self-test. See [BETA_REPORTS.md](BETA_REPORTS.md).
+
 ## How it differs from the route sweep
 
 `route_sweep.lua` asks *"can the router reach step 1, and is the optimizer's order legal?"*.  It never

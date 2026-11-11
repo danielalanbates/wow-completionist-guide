@@ -35,6 +35,8 @@ CPU: pair costs are kept between refreshes (dropped when the guide, the speed or
 searches are limited to `SO.FIRST_LEGS`, and a call stops at `routing.liveBudgetMs` (3 ms) and returns the baseline; the
 caller retries 0.2 s later and the kept costs make the retry cheaper. A single router call is not interruptible, so a
 call can overrun its budget by one Dijkstra. Author order breaks ties. Toggle with the `Route` button or `/or options`.
+`SO.KeptCost(a, b)` reads a kept pair cost without ever searching (nil when unpriced or stale); `/cr bug` uses it for
+its upcoming list ([BETA_REPORTS.md](BETA_REPORTS.md)).
 
 Tests: `tools/test_live_route.lua` (margins, plan stability, 400 random windows for precedence and the log cap, budget,
 off-route). `tools/vplayer.lua` takes `CR_SO`, `CR_WINDOW`, `CR_LIVE_BUDGET_MS` for experiments and prints repair times.
