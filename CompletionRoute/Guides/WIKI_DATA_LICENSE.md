@@ -36,6 +36,13 @@ recipe is learned, where reagents come from, skill books and rank quests, and fi
 Which recipes exist on a client, their skill thresholds and reagents, and the Archaeology dig sites come from Blizzard's client tables via wago.tools
 (facts only). See `docs/PROFESSIONS.md`.
 
+## Quest prerequisite index
+
+`Data/QuestDeps_era.lua`, `Data/QuestDeps_tbc.lua`, `Data/QuestDeps_mop.lua`, `Data/QuestDeps_retail.lua` and `Data/QuestDeps_forever.lua`
+(written by `tools/gen_quest_deps.py`) hold the quest chains (`previous`/`next` links) and quest names of the files above, under the same
+licence, plus breadcrumb flags read from the wording of the quest pages ("is a breadcrumb", "(optional breadcrumb)", "previous = ... (optional)").
+For quests the wiki lacks they also hold chain order from the gaps guides and from Blizzard's quest-line tables (facts only).
+
 ## What this licence does not cover
 
 The rest of the add-on is *not* under CC BY-SA. That includes all Lua code, the routing engine, the tools and the
