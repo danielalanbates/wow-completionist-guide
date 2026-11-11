@@ -86,7 +86,10 @@ def make_base(tmp):
                     r = pr.rule_for(rel)
                     assert r and r.origin == "generated", f"TOC lists {rel}, which is neither tracked nor generated"
                     (addon / rel).parent.mkdir(parents=True, exist_ok=True)
-                    (addon / rel).write_text(STAND_IN[r.category], encoding="utf-8")
+                    text = STAND_IN[r.category]
+                    if pr.match("Data/QuestDeps_*.lua", rel):     # the release build's header (--wiki-only)
+                        text = "-- test stand-in: Sources: Warcraft Wiki only (release build, --wiki-only).\n" + text
+                    (addon / rel).write_text(text, encoding="utf-8")
     (addon / "Guides" / "Imported_Quests_era.lua").write_text(STAND_IN["interop-questie"], encoding="utf-8")
     # one shipped wiki guide with its baked order row, and one Questie-derived _gaps guide (no row yet)
     append(addon / "Guides" / "Imported_Wiki_era.lua", 'R({ id="wiki:era:1429:Both", name="Test", type="Quests", text=[==[\n]==] })\n')
@@ -283,6 +286,11 @@ def main():
             git(d, "add", "-A"); git(d, "commit", "-qm", "plant")
         expect_fail(env, "texture type with no rule", "no-provenance", "Textures/odd.blp", plant_texture)
 
+        def plant_deps(d, addon):     # the local build of the quest prerequisite index (gaps guides + storylines)
+            (addon / "Data" / "QuestDeps_era.lua").write_text(
+                "-- then the gaps guides (Questie-derived) and the retail storylines for quests the wiki lacks.\n"
+                "local _, NS = ...\n", encoding="utf-8")
+        expect_fail(env, "quest prerequisite index not built --wiki-only", "interop-derived", "Data/QuestDeps_era.lua", plant_deps)
         expect_fail(env, "Questie fallback line in wiki data", "interop-derived", "Guides/Imported_Wiki_era.lua",
                     lambda d, a: append(a / "Guides" / "Imported_Wiki_era.lua",
                                         "T Foo|QID|5|M|1,1|Z|1; X|N|To Foo. (location: Questie data)|\n"))
@@ -387,7 +395,8 @@ def main():
         wt = tmp / "worktree"
         git(main_co, "worktree", "add", "-q", "-b", "wt", str(wt))
         linked = 0
-        for p in sorted((main_co / pr.ADDON).rglob("Imported_*.lua")) + sorted((main_co / pr.ADDON).rglob("RouteOrder_*.lua")):
+        for p in sorted((main_co / pr.ADDON).rglob("Imported_*.lua")) + sorted((main_co / pr.ADDON).rglob("RouteOrder_*.lua")) \
+                + sorted((main_co / pr.ADDON).rglob("QuestDeps_*.lua")):
             rel = p.relative_to(main_co / pr.ADDON)
             if not (wt / pr.ADDON / rel).exists():
                 os.symlink(p, wt / pr.ADDON / rel)

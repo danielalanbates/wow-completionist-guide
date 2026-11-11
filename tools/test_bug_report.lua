@@ -187,7 +187,9 @@ t("position: map, x, y, world, instance", r.player.map == 1429 and math.abs(r.pl
 t("route: legs with mode and seconds", r.route and r.route.found and #r.route.legs >= 1 and r.route.legs[1].mode
     and type(r.route.legs[1].secs) == "number" and type(r.route.secs) == "number" and r.route.desc, r.route and J.encode(r.route))
 t("arrow advice", r.arrow and r.arrow.mode ~= nil, r.arrow and J.encode(r.arrow))
-t("travel: taxi policy and known flight paths", r.travel.taxiPolicy == "faction" and r.travel.knownTaxi == "2,4..6" and r.travel.knownTaxiCount == 4,
+-- the report records the policy in force: "known" is the default since routing-graph (IDEAS #2), "faction" when the
+-- profile assumes every flight path (routing.assumeAllTaxi) or picked the old rule
+t("travel: taxi policy and known flight paths", r.travel.taxiPolicy == NS.TravelGraph.TaxiPolicy() and r.travel.taxiPolicy == "known" and r.travel.knownTaxi == "2,4..6" and r.travel.knownTaxiCount == 4,
     J.encode(r.travel))
 t("travel: hearth", r.travel.hasHearthstone == true and r.travel.bindName == "Goldshire")
 t("options: routing settings", r.options.routing.window == 24 and r.options.routing.reorder == true and r.options.scope ~= nil)

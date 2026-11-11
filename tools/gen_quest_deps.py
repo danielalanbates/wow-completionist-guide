@@ -5,7 +5,11 @@
 # https://batesai.org  help@batesai.org
 """Quest prerequisite index per client, for quest-level skipping (Core/Skip.lua, docs/ROUTING.md "Skipping quests").
 
-    nice -n 10 venv/bin/python tools/gen_quest_deps.py [era tbc mop retail forever] [--no-crumbs]
+    nice -n 10 venv/bin/python tools/gen_quest_deps.py [era tbc mop retail forever] [--no-crumbs] [--wiki-only]
+
+    --wiki-only  the release build (tools/package_release.py, docs/RELEASE.md): read source 1 only. The default build
+                 also reads the gaps guides (Questie-derived) and the retail storylines (Questie names), says so in
+                 its header, and the packager's gate fails it.
 
 Inputs : the generated quest guides the client loads (same files as its TOC), in priority order
            1. Guides/Imported_Wiki_<fl>.lua         Warcraft Wiki chains (CC BY-SA 4.0) - the source of truth
@@ -215,9 +219,10 @@ def lua_long(s):
     return "[" + eq + "[\n" + s + "]" + eq + "]"
 
 
-def build(fl, crumbs, soft_prev, titles, use_crumbs):
-    sources = [GUIDES / f"Imported_Wiki_{fl}.lua", GUIDES / f"Imported_Quests_{fl}_gaps.lua",
-               GUIDES / f"Imported_Storylines_{fl}.lua"]
+def build(fl, crumbs, soft_prev, titles, use_crumbs, wiki_only=False):
+    sources = [GUIDES / f"Imported_Wiki_{fl}.lua"]
+    if not wiki_only:
+        sources += [GUIDES / f"Imported_Quests_{fl}_gaps.lua", GUIDES / f"Imported_Storylines_{fl}.lua"]
     owner, pre, names = {}, {}, {}
     for rank, path in enumerate(sources):
         present, p, n = read_source(path)
@@ -305,6 +310,7 @@ def unobtainable(hard_of):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     use_crumbs = "--no-crumbs" not in sys.argv
+    wiki_only = "--wiki-only" in sys.argv
     fls = args or FLAVORS
     crumbs, soft_prev, why = load_crumbs() if use_crumbs else (set(), {}, {})
     titles = Titles()
@@ -316,13 +322,15 @@ def main():
         if not (GUIDES / f"Imported_Wiki_{fl}.lua").exists():
             print(f"skip {fl}: Guides/Imported_Wiki_{fl}.lua missing")
             continue
-        rows, free_rows, never, name_rows, st, crumb_q = build(fl, crumbs, soft_prev, titles, use_crumbs)
+        rows, free_rows, never, name_rows, st, crumb_q = build(fl, crumbs, soft_prev, titles, use_crumbs, wiki_only)
         out = OUT / f"QuestDeps_{fl}.lua"
         body = [
             f"-- Completionist's Guide :: QuestDeps_{fl}.lua - GENERATED {today} by tools/gen_quest_deps.py",
             "-- Quest prerequisites (hard ones only) for quest-level skipping, Core/Skip.lua. Chains and names come from the",
             f"-- generated guides this client loads: Imported_Wiki_{fl}.lua (Warcraft Wiki, https://warcraft.wiki.gg, CC BY-SA 4.0,",
-            "-- see Guides/WIKI_DATA_LICENSE.md), then the gaps guides and Blizzard quest-line order for quests the wiki lacks.",
+            "-- see Guides/WIKI_DATA_LICENSE.md)" + (". Sources: Warcraft Wiki only (release build, --wiki-only)." if wiki_only else
+            ", then the gaps guides (Questie-derived) and the retail storylines (Blizzard quest-line order, Questie names) for quests"
+            "\n-- the wiki lacks. Local build: it never ships (tools/package_release.py needs the --wiki-only build)."),
             "-- Breadcrumbs (the wiki's own wording) are dropped from every prerequisite set. Generated, gitignored.",
             "-- pre: q:p1;p2 = any one of p1, p2 opens q; q:p1&p2 = all of them.  free: q:p1,p2 = soft predecessors of q the",
             "-- guides list.  crumb: breadcrumb quests.  never: quests the hard prerequisites make unobtainable.  name: q=title.",

@@ -48,7 +48,14 @@ Which recipes exist on a client, their skill thresholds and reagents, and the Ar
 `Data/QuestDeps_era.lua`, `Data/QuestDeps_tbc.lua`, `Data/QuestDeps_mop.lua`, `Data/QuestDeps_retail.lua` and `Data/QuestDeps_forever.lua`
 (written by `tools/gen_quest_deps.py`) hold the quest chains (`previous`/`next` links) and quest names of the files above, under the same
 licence, plus breadcrumb flags read from the wording of the quest pages ("is a breadcrumb", "(optional breadcrumb)", "previous = ... (optional)").
-For quests the wiki lacks they also hold chain order from the gaps guides and from Blizzard's quest-line tables (facts only).
+The released files are built with `--wiki-only`: wiki chains and names only. The local development build also takes chain order
+for quests the wiki lacks from the gaps guides and from Blizzard's quest-line tables, and is never released.
+
+## Teleports
+
+`Data/Teleports.lua` is a hand-authored list of class teleports and teleport items. Spell, item and toy ids are facts checked against
+Blizzard's client tables; each landing point comes from a Warcraft Wiki coordinate (the page is named in the entry) or a Blizzard
+TaxiNodes position, so the file is shared under the same CC BY-SA 4.0 licence.
 
 ## Achievement guides
 

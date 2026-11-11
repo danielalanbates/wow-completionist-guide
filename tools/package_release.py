@@ -148,6 +148,13 @@ RULES = (
     R("Guides/Imported_Achievements_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Blizzard Achievement/Criteria/Map tables; "
       "criterion points from Imported_Wiki_<flavor>.lua (rows credited to Questie skipped) and wiki NPC pages",
       "tools/gen_completion_guides.py (achievements)", "generated"),
+    R("Data/QuestDeps_*.lua", "wiki-cc-by-sa", CC_BY_SA, "quest chains (previous/next links) and names from "
+      "Imported_Wiki_<flavor>.lua, breadcrumb flags from the wording of the wiki quest pages. Only the --wiki-only build "
+      "ships: the default build also reads the Questie-derived gaps guides and the retail storylines, and its header says "
+      "so, which fails the gate", "tools/gen_quest_deps.py --wiki-only", "generated"),
+    R("Data/Teleports.lua", "wiki-cc-by-sa", CC_BY_SA, "hand-authored teleport list: spell, item and toy ids checked "
+      "against Blizzard tables (facts); each landing point from a Warcraft Wiki coordinate or a Blizzard TaxiNodes "
+      "position, cited per entry", "hand-authored; checked by tools/check_teleports.py", "tracked"),
     # ---- Blizzard client data -------------------------------------------------------------------------------------
     R("Guides/Imported_Missions_*.lua", "blizzard-client-data", BLIZZARD, "Blizzard GarrMission table; the travel "
       "step to each mission table is written in the generator (own)", "tools/gen_completion_guides.py (missions)",

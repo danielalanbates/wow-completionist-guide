@@ -97,6 +97,8 @@ also lists the files never shipped and why, and the TOC lines stripped. The reco
 | `Guides/Imported_Gold_*` | wiki CC BY-SA | wiki herb, ore, fishing, NPC, quest and instance pages; wiki steps credited to Questie are dropped | `tools/wiki/gen_gold.py` |
 | `Guides/Imported_Professions_*` | wiki CC BY-SA | wiki trainer, recipe, reagent and fishing pages; recipes, skill levels and dig sites from Blizzard tables | `tools/wiki/gen_professions.py` |
 | `Guides/Imported_Achievements_*` | wiki CC BY-SA | Blizzard Achievement/Criteria/Map tables; points from wiki quest steps (Questie rows skipped) and wiki NPC pages | `tools/gen_completion_guides.py` |
+| `Data/QuestDeps_*` | wiki CC BY-SA | quest chains and names from the wiki guides, breadcrumb wording from the wiki pages. Only the `--wiki-only` build ships. | `tools/gen_quest_deps.py --wiki-only` |
+| `Data/Teleports.lua` | wiki CC BY-SA | hand-authored teleport list; ids checked against Blizzard tables, landing points from wiki coordinates or TaxiNodes, cited per entry | hand-authored, checked by `tools/check_teleports.py` |
 | `Guides/Imported_Missions_retail` | Blizzard data | GarrMission table; the travel step to each table is written in the generator | `tools/gen_completion_guides.py` |
 | `Data/Taxi_*`, `Data/MapFix_forever`, `Data/ZoneAliases` | Blizzard data | TaxiNodes/TaxiPath/TaxiPathNode, UiMapAssignment, UiMap (names edited by hand) | `gen_taxi.py`, `gen_mapfix_forever.py`, `gen_maps.py` |
 | `Data/RouteOrder_*` | own data | step orders from the add-on's own travel graph over the shipped guides | `optimize_routes.py` (costs `cost_matrix.lua --prefix wiki:`) |
@@ -156,7 +158,9 @@ Run in the main checkout (the generators write fixed paths there), one heavy job
 1. `python3 tools/wiki/gen_wiki_guides.py --no-fallback` (also rebuilds the spine). This replaces the local fallback
    variant Daniel plays with; rerun without `--no-fallback` after packaging to get it back.
 2. `python3 tools/wiki/gen_gold.py`, `python3 tools/wiki/gen_professions.py`, `python3 tools/gen_completion_guides.py
-   retail mop` (new headers; achievement points come from the wiki files of step 1).
+   retail mop` (new headers; achievement points come from the wiki files of step 1), and
+   `python3 tools/gen_quest_deps.py --wiki-only` (the skip index from the wiki chains only; the local build also reads
+   the Questie-derived gaps guides and the storylines and fails the gate). Rerun it without `--wiki-only` afterwards.
 3. Rebake the route orders over the shipped guides only, without touching the dev bake:
    ```
    python3 tools/package_release.py --stage-dir /tmp/rel          # new folder; fails only on RouteOrder now

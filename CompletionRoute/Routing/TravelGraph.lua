@@ -874,7 +874,7 @@ end
 -- the routing settings and which flight masters may be used.  TravelGraph.Build replaces these tables (a quest turn-in,
 -- a learned flight path), so a job priced on one snapshot never mixes costs from two graphs.
 function TG.Snapshot()
-    if not TG.built then TG.Build() end
+    TG.Ensure()
     local c = cfg()
     local snap = { nodes = TG.nodes, byInst = TG.byInst or {}, roadGrid = TG.roadGrid, instFind = TG.instFind, instComp = TG.instComp,
                    useTaxi = c.taxi ~= false, useTransit = c.transit ~= false, roadFactor = c.roadFactor or 1.0,
@@ -1013,7 +1013,8 @@ function TG.FindPaths(sx, sy, sinst, goals, opts, out)
                         local ed = edges[e]
                         local v = ed.to
                         local ok = true
-                        if ed.mode == "taxi" and (not useTaxi or (taxiOK and (not taxiOK[u] or not taxiOK[v]))) then ok = false end
+                        -- as FindPath: flying INTO an undiscovered flight master is the rule; taking off from one is fine
+                        if ed.mode == "taxi" and (not useTaxi or (taxiOK and not taxiOK[v])) then ok = false end
                         if v.kind == "transit" and not useTransit and ed.mode ~= "hearth" then ok = false end
                         if ok and not closed[v] then
                             local ecost = ed.cost
@@ -1048,7 +1049,8 @@ function TG.FindPaths(sx, sy, sinst, goals, opts, out)
                         local v = same[i]
                         if v.inst == ui and v ~= u and not v.road and not closed[v] then
                             local usable = true
-                            if v.kind == "taxi" then usable = useTaxi and (not taxiOK or taxiOK[v]) and true or false end
+                            -- any flight master may be walked to (that is how a new one is discovered), as FindPath
+                            if v.kind == "taxi" then usable = useTaxi and true or false end
                             if v.kind == "transit" and not useTransit then usable = false end
                             if usable then
                                 local ax, ay = ux - v.wx, uy - v.wy
