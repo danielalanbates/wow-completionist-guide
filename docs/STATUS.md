@@ -1,3 +1,31 @@
+# Status / handoff (2026-11-10, beta bug reports: `/cr bug`, `beta_reports`, `vplayer --repro`)
+
+Branch `beta-bug-report` (IDEAS #3). Offline only. **Nothing here has run in a real WoW client.** Details: [BETA_REPORTS.md](BETA_REPORTS.md).
+
+* **In game.** `/cr bug [note]` and a **Report** button on the guide window save a snapshot to
+  `CompletionRouteDB.bugReports` (newest first, at most 50, about 400 KB; one report about 16 KB, trimmed past that).
+  It holds flavor and build, addon version, class, race, level and faction (no character or realm name), the guide
+  and step with its raw line and location source, the 8 visible steps, window order and kept plan, done and skipped
+  steps, the guide's quest states and objectives, map, x, y and world position, the route legs and arrow advice,
+  flight paths, hearth and options, the last 30 log lines and the last Lua error raised inside the addon. Chat
+  confirms the id. `/cr bug list` shows the stored ones. New file `Core/BugReport.lua`, loaded right after
+  `Core/Init.lua` in all six TOCs.
+* **Error hook.** Wraps the client's handler, always calls the previous one and returns its result, keeps only
+  errors whose message or stack names this addon, re-wraps at login, counts repeats.
+* **SQL.** `tools/ingest_beta_reports.py` reads every client's SavedVariables through `tools/sv_to_json.lua`
+  (sandboxed luajit, read-only) into `beta_reports` (key `id`; triage columns are never overwritten; the account
+  folder is stored only as a hash). Run against the five real SavedVariables files into a temp database: all five
+  read, 0 reports (none made yet), files unchanged.
+* **Replay.** `luajit tools/vplayer.lua --repro <id|latest|file.json> [--check]` (new `tools/vplayer_repro.lua`).
+  Self-test: `--capture` makes a report in the fake world, `--repro --check` replays it. MATCH on all five flavors
+  (author order) and on era with baked order, with routes of 5 to 8 legs including tram, portal, boat and taxi.
+* **Cost of a click** (`luajit -joff`, virtual player): under 1 ms on all five flavors. A first version searched from
+  the player for each visible step and cost 115 to 181 ms on era, mop and retail; it now reuses the arrow's
+  cached path and the planner's cached step-to-step costs.
+* **Tests.** New `tools/test_bug_report.lua` (72 checks) and `tools/test_ingest_beta_reports.py` (4 tests, fixture
+  `tools/fixtures/beta_reports_SavedVariables.lua`). All existing harnesses pass (see the commit for the list).
+* **Not done.** The skip-reason menu, an opt-in for the character name, a companion app view, and any in-client run.
+
 # Status / handoff (2026-11-09, gold guides, secondary professions, guides by level)
 
 Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** Installed on all five clients. All 13 harnesses pass
