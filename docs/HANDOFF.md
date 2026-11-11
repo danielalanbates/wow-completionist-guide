@@ -102,6 +102,23 @@ and **published** at https://github.com/danielalanbates/wow-completionist-data (
 own `docs/HANDOFF.md`, and the plan for the addon generators to read from it (not implemented). Its working tree, without
 `.git` and `build/`, is copied to Drive at My Drive/Code/wow-completionist-data. The addon README links to it.
 
+**Update 2026-11-11, 03:05.**
+* `stable-step-id` (#6) and `auto-quest` (#7) are **done**: built, verified and fixed, then merged into `integration`
+  (`d6b6d9f`, `b0dbdf1`). The auto-quest merge moved QuestAuto to key-based skip marks; every harness passes, including
+  test_progress_keys (196) and test_quest_auto (1,272). test_skip's 2 ms frame check can flake under machine load; it
+  is a known, existing timing check.
+* Still running:
+  * Phase 2b (`wt-cost`, #9 then #1). It was branched before these two merges, so expect `Core/Guide.lua` conflicts
+    (step keys against the new checksum).
+  * Phase 5, workflow `coverage-push-phase5`, in two worktrees. Each has **private copy-on-write data** (`cp -c`),
+    not links, so its generators may write.
+    * `wt-cov1` (`coverage-ach`): achievements, item-started quests, and storylines from wiki and Blizzard data only.
+    * `wt-cov2` (`coverage-prof`): profession tiers, no-route rows, the Blasted Lands offset, and `--no-fallback`
+      points for release.
+  * Their generated data is not merged. Merge the code, then re-run the generators in `repo/` as each branch's
+    report says, **before** the full rebake.
+* `caffeinate -is -t 36000` holds off sleep until about 13:00.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
