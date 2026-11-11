@@ -60,6 +60,13 @@ idle sleep, `caffeinate -is -w <bake pid>` is now attached to the bake driver an
 * Phase 4 (`~/Downloads/CompletionistGuide-work/wow-completionist-data`, local git with no remote) was started early,
   because it touches no addon file. Its build, verify and fix is running.
 
+**Update 2026-11-10, 22:20.** The main bake **finished**: all 1,221 guides, 0 failures, and every flavor's rows are
+current (tbc 354, forever 240, mop 772, retail 1021, era 234). The new `RouteOrder_mop.lua` and `RouteOrder_retail.lua`
+are installed in `_classic_` and `_retail_` and copied to Drive. The forced map-fix pass (235 era/tbc/forever guides)
+started at 22:18 under `caffeinate -is`. If it dies, re-run
+`python3 tools/bake_resume.py --flavors era,tbc,forever --force-mapfix`. When it ends, install into
+`_classic_era_`, `_anniversary_` and `_forever_`, copy those three RouteOrder files to Drive, and refresh STATUS.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
