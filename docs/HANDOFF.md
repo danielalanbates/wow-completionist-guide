@@ -77,7 +77,7 @@ started at 22:18 under `caffeinate -is`. If it dies, re-run
   the same cost code.
 * Still running: `routing-graph` and `release-packager` (phase-1 resume), the data repo, and the map-fix bake.
 
-**Update 2026-11-10, 23:30.** `routing-graph` and `release-packager` are **done**, both built, verified and fixed, and both
+**Update 2026-11-10, 22:55.** `routing-graph` and `release-packager` are **done**, both built, verified and fixed, and both
 are merged into `integration`, merge order quest-skip → beta-bug-report → routing-graph → release-packager. Fix commit
 `472f8a4` resolved three break points between branches:
 * The quest-skip re-planner's `FindPaths` was ported to the discovered-flight-path rule.
