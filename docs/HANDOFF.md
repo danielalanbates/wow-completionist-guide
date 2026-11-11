@@ -50,6 +50,16 @@ separate GitHub repo** (see section 5, phase 4).
 
 ## 4. In flight when this was written
 
+**Update 2026-11-10, 21:20.** The Mac slept from about 20:50 to 21:00, which killed two builders mid-response. To prevent
+idle sleep, `caffeinate -is -w <bake pid>` is now attached to the bake driver and ends with it. State:
+* `beta-bug-report` is **done**: built, independently verified (1 major and 4 minor findings, all fixed with regression
+  tests), and all harnesses pass.
+* `routing-graph` and `release-packager` were relaunched with a "continue the interrupted work" brief.
+* `quest-skip`: built (6 commits); the correctness check is done, and the routing and performance check was running.
+* Bake: 698 of 1,221 guides done.
+* Phase 4 (`~/Downloads/CompletionistGuide-work/wow-completionist-data`, local git with no remote) was started early,
+  because it touches no addon file. Its build, verify and fix is running.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
