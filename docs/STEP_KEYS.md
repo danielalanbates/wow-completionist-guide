@@ -133,6 +133,7 @@ marks; nothing written while downgraded is imported for a guide that was already
 | `Core/Recommend.lua`, `Core/Slash.lua`, `Core/Sweep.lua`, `UI/GuideFrame.lua` | "started", `/cr why`, the account self-check, the sweep's scratch reset (it used to clear the character's real old tables), the Back button |
 | `tools/vplayer.lua`, `tools/route_sweep.lua`, `tools/vplayer_repro.lua` | fresh-character resets cover the keyed tables; `--repro` puts the report's marks back under the offline parse's keys, marks access-chain steps after loading, and compares `keySum` (when the guide changed, the current step is found by its key) |
 | `tools/sync_progress.lua` | unions `stepDone`, `stepSkipped` and `stepMeta` as well |
+| `tools/clean_sweep_progress.py` (one-off cleanup of sweep pollution from old builds) | also clears swept `stepDone` / `stepSkipped` tables (checked on a temp file, not on real files) |
 | `tools/sv_to_json.lua`, `tools/ingest_beta_reports.py` | nothing: they never read marks (a report's new fields travel in its JSON) |
 | RouteOrder (`G.BakedOrder`) | unchanged: still maps a baked order by author index and checksum |
 
