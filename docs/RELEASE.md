@@ -151,6 +151,14 @@ The gate fails with 13 problems, all real:
 With `--stage-dir`, the packaged TOCs (interop lines stripped) load clean in `tools/test_load_all.lua` on all six
 TOCs, run from the stage folder. That is a stub load, not a client.
 
+## Dry run on 2026-11-11 (branch `coverage-prof`)
+
+Built in that worktree as steps 1 and 2 below (`--no-fallback` wiki guides with the new quest-pin, place-page and
+zone-level points; `gen_completion_guides.py retail mop`; `gen_quest_deps.py --wiki-only`): **gate FAIL, 5 problems,
+all `RouteOrder_<fl>.lua` rows that order the Questie-derived `_gaps` guides** (era 56, tbc 101, mop 217, retail 159,
+forever 55), plus stale-row notes. The wiki fallback lines, the old achievements/missions header and the local QuestDeps
+no longer fail. Step 3 (the rebake over the shipped guides) is what is left. 104 files, universal zip 6.72 MB.
+
 ## Making a build that passes
 
 Run in the main checkout (the generators write fixed paths there), one heavy job at a time:
@@ -187,6 +195,7 @@ Run in the main checkout (the generators write fixed paths there), one heavy job
   wiki files gives rows the gate cannot tell apart; follow step 3 so the bake sees only shipped data.
 * The `RouteOrder` checksum covers only each step's action and first quest id, so a stale row can still apply. That
   check belongs to the bake gate (IDEAS #1).
-* Retail `--no-fallback` also drops the `(location: Blizzard data)` points, which are Blizzard quest-POI data and
-  could ship if `gen_wiki_guides.py` kept them apart from the Questie giver points.
+* (Fixed 2026-11-11.) Retail quest-POI points are now read straight from the client tables and tagged
+  `(location: Blizzard quest POI, ...)`, so the `--no-fallback` build keeps them; place-page and zone-level steps fill
+  in after them (docs/WIKI_DATA_SPEC.md 3).
 * `.pkgmeta` (BigWigs packager) is unused since the release workflow stopped publishing on tags.

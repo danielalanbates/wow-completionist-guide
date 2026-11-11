@@ -9,6 +9,7 @@ nice -n 10 python3 tools/wiki/fetch_wiki.py        # 1. infobox pages -> cache/w
 nice -n 10 python3 tools/wiki/parse_wiki.py        # 2. -> wiki.sqlite
 nice -n 10 python3 tools/wiki/fetch_titles.py      # 3. pages quests link to that step 1 missed (items, objects,
 nice -n 10 python3 tools/wiki/parse_wiki.py        #    subzones, redirects); run 3+2 again for item drop sources
+nice -n 10 python3 tools/wiki/fetch_coord_history.py  # 3b. pre-4.0.3 revisions: Classic-map numbers (Blasted Lands by default)
 nice -n 10 python3 tools/wiki/fetch_db2.py         # 4. pinned QuestV2 per flavor (+ retail QuestObjective) -> tools/db2/
 nice -n 10 python3 tools/wiki/gen_wiki_guides.py   # 5. -> Guides/Imported_Wiki_<fl>.lua + Imported_Quests_<fl>_gaps.lua
 luajit tools/test_wiki.lua                         # 6. check
@@ -44,6 +45,12 @@ The rules live in [docs/WIKI_DATA_SPEC.md](../../docs/WIKI_DATA_SPEC.md); the co
   with only a current-retail location, used on Classic) is kept unless the client's own fallback data puts the
   step more than 300 yd away. In that case the fallback wins and the row goes to `docs/verification.sqlite`
   `wiki_db2_conflict` (`A_xy_version` / `C_xy_version` / `T_xy_version`).
+* **Release-ready points (2026-11-11).** After the wiki's own point: on retail the client's quest pin
+  (`QuestPOIBlob`/`QuestPOIPoint`, `(location: Blizzard quest POI, ...)`), then (dev build only) the fallback below,
+  then the wiki page of the place the NPC page names when it has no point (`(location: the wiki's <place> page; ...)`),
+  then the quest's zone (`|Z|` only). `fetch_titles.py` also fetches those place pages. A coordinate that stood on its
+  page before patch 4.0.3 is read as a Classic-map number (`fetch_coord_history.py`). Counts per client and build:
+  `docs/verification.sqlite` `wiki_point_sources`.
 * **Fallback.** Only used when the wiki has no usable point. The same step is taken from `Imported_Quests_<fl>.lua`
   and tagged in its note: `(location: Blizzard data)` for retail quest POI, `(location: Questie data)` for Classic.
   `--no-fallback` writes a wiki-only file, which is the shippable variant.

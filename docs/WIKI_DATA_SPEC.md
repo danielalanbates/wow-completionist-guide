@@ -67,9 +67,22 @@ Where a quest's giver or ender gets coordinates, in priority order:
    with a `==Locations==` section use one `{{Npclocations|loc=...{{co}}|level=|extracol={{Cata-inline}}|notes=}}` row per spawn,
    phase or expansion. The `extracol` expansion badge tells which era a row belongs to. Object pages (no infobox) put `{{co}}` in the lead sentence.
    Overall, 42% of start/end pages had at least one coords template.
-3. The subzone page (`{{Infobox town}}` sometimes has `{{coords}}`). Low hit rate.
-4. DB2 (retail and MoP only): `QuestPOIBlob` with `ObjectiveIndex=-1` gives the turn-in area. Write a disagreement row when it is more than 50 yd from the wiki point.
-5. Otherwise the step goes out without `M`, with `N|No coordinates on the wiki.|`. Era/TBC quests have no DB2 fallback.
+3. DB2 (retail only; MoP Classic's table holds only dig sites): `QuestPOIBlob` with `ObjectiveIndex=-1` gives the turn-in area, read
+   straight from the client table, not from the old fallback file. Used for T, for C (objective area, `ObjectiveIndex = QO - 1`), and
+   for A only when the wiki names the same NPC as giver and ender. Note `(location: Blizzard quest POI, ...)`; it ships. A disagreement
+   row is written when the wiki's T point is more than 50 yd from the pin.
+4. The page of the place the NPC/object page names first in its location field (`[[Razor Hill]], [[Durotar]]`) when the NPC page itself
+   has no point and that place is not a map. `tools/wiki/fetch_titles.py` fetches those pages. Note `(location: the wiki's <place>
+   page; ...)`; it ships. Measured against the local reference: median 71-81 yd on the Classic clients, p90 290-670 yd (2026-11-11).
+5. Otherwise the step names the quest's zone (`|Z|` without `M`) with `N|... No coordinates on the wiki; the quest is in <zone>.|`, so the
+   router still takes the player to the zone; with no zone either it goes out without a location. Era/TBC/MoP quests have no DB2 pin.
+The dev build puts the local fallback file between 3 and 4 (`(location: Questie data)`, never shipped).
+
+Classic-map numbers without a tag (2026-11-11). Patch 4.0.3 redrew the zone maps. A coordinate that already stood on its page, number for
+number, in the page's last revision before 2010-11-23 was measured on the Classic map, whatever the zone name says; read as a retail
+number it moves several units on the Classic clients (Blasted Lands: 5.5). `tools/wiki/fetch_coord_history.py` finds those
+(`tools/wiki/cache/coord_history.sqlite`) and the generators read them as `(Classic)` points. A coordinate changed or added after that
+date is a retail number. This complements `wikimaps.KEEP_NUMBERS` (whole zones whose pages are Classic numbers).
 
 Multiple spawns: emit `M|x,y;x,y` only when all points share one zone. Otherwise take the first point in the quest's own zone.
 Classic vs retail: Classic pages and `(Classic)` zones refer to pre-Cata maps. Convert them through world coordinates with the

@@ -161,6 +161,40 @@ Current numbers are in docs/STATUS.md. Known gaps:
 Measure each gap with `tools/coverage.py` and `tools/status_report.py`, close it from the wiki and DB2, and record the
 results in `docs/verification.sqlite`.
 
+**Workstream B, branch `coverage-prof` (worktree `wt-cov2`), 2026-11-11.** Offline only, not merged, not installed;
+numbers in docs/STATUS.md "2026-11-11: Coverage workstream B".
+* Done: retail Cooking tiers (Outland, Shadowlands get guides; Pandaria, Cataclysm, Northrend reach 75; trainers for
+  Kul Tiran, Dragon Isles, Khaz Algar, Midnight Cooking and Khaz Algar, Midnight Fishing); routable no_route on the
+  re-run guides mop 14 -> 6, retail 57 -> 47 (MoP Pandaria and Isle of Thunder chains, the Maelstrom, the Tazavesh
+  portal); the Blasted Lands offset (Classic-map numbers found through page history; median 5.54 -> 0.27 units) and
+  Dalaran resolving to a Deadwind Pass micro map; release-build points (retail quest pins, wiki place pages,
+  zone-level steps: era 40.2% -> 50.1% of steps with a point, retail 40.1% -> 70.9%).
+* Changed code: `tools/wiki/wikimaps.py`, new `tools/wiki/fetch_coord_history.py`, `tools/wiki/fetch_titles.py`,
+  `tools/wiki/gen_wiki_guides.py`, `tools/wiki/gen_professions.py`, new `tools/prof_tiers.py`, `Data/Access.lua`,
+  `Data/Transit.lua`; tests `test_access.lua`, `test_professions.lua`, `test_wiki.lua`.
+* **Re-run in the main checkout, in this order** (one heavy job at a time; times measured in `wt-cov2` on the shared
+  8 GB Mac with a warm cache unless noted):
+  1. `python3 tools/wiki/fetch_titles.py`: 54 requests, about 1 min. Fetches the place pages named by NPC pages that
+     have no point (2,627 pages).
+  2. `python3 tools/wiki/parse_wiki.py`: about 2 min. Rebuilds `wiki.sqlite` with the place pages.
+  3. `python3 tools/wiki/fetch_coord_history.py`: 87 history requests the first time (about 2 min), seconds after.
+     Writes `tools/wiki/cache/coord_history.sqlite`, which `parse_wiki.py` does not delete. Blasted Lands only by
+     default; `--changed-zones` would check every zone the Cataclysm redrew (not run; expect thousands of requests).
+  4. `python3 tools/wiki/gen_wiki_guides.py` (dev build, about 1.5 min) or `--no-fallback` (release build, about 70 s).
+     Both also rebuild the spine. Every wiki guide's points can move (Dalaran, Blasted Lands, quest pins, place pages,
+     zone-level steps).
+  5. `python3 tools/wiki/gen_professions.py`: about 10 s; the first run fetches the trainer categories and pages
+     (about 10 requests).
+  6. `python3 tools/gen_completion_guides.py retail mop`: about 10 s (achievement points come from step 4's files).
+  7. `python3 tools/gen_quest_deps.py` (or `--wiki-only` for a release): about 6 s.
+  8. Optional: `python3 tools/wiki/gen_gold.py` (the Dalaran fix moves gold points there; not run or timed here).
+  9. The baked route orders are stale wherever points moved; the checksum does not see it. This lines up with the
+     full rebake that `cost-model` (#1, new checksum) needs anyway.
+* Not done: anything in a client; Tol Barad on MoP Classic, Midnight, Argus and Forbidden Reach no_route rows (no
+  cited exit); the pre-4.0.3 history outside Blasted Lands; Classic points for NPCs that moved at the Cataclysm;
+  Legion and Draenor Cooking trainers; Shadowlands Cooking 75-175; the route-order rebake that the packager still
+  fails on (5 problems, all `RouteOrder` rows for `_gaps` guides).
+
 ## 6. Other pathways considered
 
 * **Bake strategy.** Incremental (`bake_resume.py`, recompute only missing or stale guides) is the default. A full rebake is
