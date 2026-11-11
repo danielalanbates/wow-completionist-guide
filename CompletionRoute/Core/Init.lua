@@ -53,7 +53,10 @@ NS.defaults = {
                  circuitizeGold = true }, -- fold imported gold guides into a loop instead of a click-through list
         -- guide list (UI/GuideMenu.lua): level is nil while the list follows your own level
         guideList = { onlyLevel = false, groupByLevel = false },
-        autoAccept = false, autoTurnin = false, autoAdvance = true, minimapButton = true, debug = false,
+        -- Core/QuestAuto.lua: accept / turn in only the quests of the guide's live window; autoChooseReward takes a turn-in
+        -- reward only when UI/ItemScore.lua sees a clear upgrade; holding autoModifier (SHIFT | CTRL | ALT | NONE) pauses it
+        autoAccept = false, autoTurnin = false, autoChooseReward = false, autoModifier = "SHIFT",
+        autoAdvance = true, minimapButton = true, debug = false,
     },
     char = {
         guide = nil,          -- currently selected guide id

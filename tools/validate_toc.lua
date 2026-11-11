@@ -65,11 +65,13 @@ for _, toc in ipairs(tocs) do
                 if fl ~= ro and seen[f] then print("FAIL " .. toc .. ": must not load " .. f); fail = fail + 1 end
             end
         end
-        -- quest-level skipping: the module comes after Progress (it rebuilds P.steps), the re-planner after the Router
+        -- quest-level skipping: the module comes after Progress (it rebuilds P.steps), the re-planner after the Router;
+        -- auto accept / turn-in (Core/QuestAuto.lua) after Util (read at load) and after Skip, whose drops it obeys
         local order = {}
         local k = 0
         for line in bodies[toc]:gmatch("[^\n]+") do k = k + 1 order[line:gsub("\\", "/")] = k end
-        for _, pair in ipairs({ { "Core/Progress.lua", "Core/Skip.lua" }, { "Routing/Router.lua", "Routing/Replan.lua" } }) do
+        for _, pair in ipairs({ { "Core/Progress.lua", "Core/Skip.lua" }, { "Routing/Router.lua", "Routing/Replan.lua" },
+                                { "Core/Util.lua", "Core/QuestAuto.lua" }, { "Core/Skip.lua", "Core/QuestAuto.lua" } }) do
             if not (order[pair[1]] and order[pair[2]] and order[pair[1]] < order[pair[2]]) then
                 print("FAIL " .. toc .. ": " .. pair[2] .. " must load after " .. pair[1]); fail = fail + 1
             end
