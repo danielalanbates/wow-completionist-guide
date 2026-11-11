@@ -99,7 +99,8 @@ end
 local WALK_ONLY_BELOW = 700  -- yards: below this, never bother with the full graph
 
 -- pairwise: seconds between two steps (no hearth — hearth is a one-shot resource)
-function R.TravelSeconds(a, b)
+-- tick (optional) is handed to TravelGraph.FindPath: the quest-skip re-planner yields from it (Routing/Replan.lua)
+function R.TravelSeconds(a, b, tick)
     local ax, ay, ai = R.StepWorld(a)
     local bx, by, bi = R.StepWorld(b)
     if not ax or not bx then return nil end
@@ -108,11 +109,11 @@ function R.TravelSeconds(a, b)
         local d = math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2)
         if d < WALK_ONLY_BELOW then return d * (NS.db.profile.routing.terrainFactor or 1.25) / speed end
     end
-    local p = TG.FindPath(ax, ay, ai, bx, by, bi, { hearth = false, speed = speed })
+    local p = TG.FindPath(ax, ay, ai, bx, by, bi, { hearth = false, speed = speed, tick = tick })
     return p and p.cost or nil
 end
 local EXIT_INSTANCE_SECONDS = 30
-function R.TravelSecondsFromPlayer(b)
+function R.TravelSecondsFromPlayer(b, tick)
     local map, x, y, inst, wx, wy = U.PlayerPos()
     local bx, by, bi = R.StepWorld(b)
     if not wx or not bx then return nil end
@@ -123,7 +124,7 @@ function R.TravelSecondsFromPlayer(b)
     if inst ~= bi and I and I.IsInstanceMap(map) then
         local ex, ey, ei = I.Entrance(map)
         if ex then
-            local p = TG.FindPath(ex, ey, ei, bx, by, bi, { speed = speed })
+            local p = TG.FindPath(ex, ey, ei, bx, by, bi, { speed = speed, tick = tick })
             return p and (p.cost + EXIT_INSTANCE_SECONDS) or nil
         end
     end
@@ -131,7 +132,7 @@ function R.TravelSecondsFromPlayer(b)
         local d = math.sqrt((wx - bx) ^ 2 + (wy - by) ^ 2)
         if d < WALK_ONLY_BELOW then return d * (NS.db.profile.routing.terrainFactor or 1.25) / speed end
     end
-    local p = TG.FindPath(wx, wy, inst, bx, by, bi, { speed = speed })
+    local p = TG.FindPath(wx, wy, inst, bx, by, bi, { speed = speed, tick = tick })
     return p and p.cost or nil
 end
 
@@ -151,6 +152,7 @@ local function questLog()
     end
     return quests or entries or 0, cap or QUEST_LOG_CAP[NS.isForever and "era" or NS.flavor]
 end
+R.QuestLog = questLog
 
 -- Reorder the upcoming window (Routing/StepOrder.lua): the baked order unless a repair wins by a real margin.
 function R.OrderSteps(steps)

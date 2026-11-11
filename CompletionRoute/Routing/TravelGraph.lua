@@ -515,11 +515,16 @@ function TG.InstReachable(a, b)
 end
 
 TG.stats = { calls = 0, pops = 0, relax = 0, capped = 0, skipped = 0 }   -- profiling counters (cheap; read by tools/route_sweep.lua)
+-- opts.tick (optional): called after every node the search settles.  The quest-skip re-planner (Routing/Replan.lua)
+-- runs inside a coroutine and passes a tick that yields when its frame budget is spent, so one long search (a retail
+-- continent is ~700 pops, tens of ms in plain Lua) is spread over several frames.  A search that yielded does not
+-- write its answer into the path cache if the graph was rebuilt while it waited.
 function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     TG.stats.calls = TG.stats.calls + 1
     if not TG.built then TG.Build() end
     if not (sx and gx and sinst and ginst) then return nil end
     opts = opts or {}
+    local tick, cache0 = opts.tick, TG.pathCache
     local c = cfg()
     local speed = opts.speed or U.TravelSpeed()
     local useHearth = (opts.hearth == nil) and (c.hearth ~= false) or opts.hearth
@@ -615,6 +620,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             if u == goal then break end
             iterations = iterations + 1
             TG.stats.pops = TG.stats.pops + 1
+            if tick then tick() end
             if iterations > 20000 then TG.stats.capped = TG.stats.capped + 1 break end
             -- explicit edges
             for _, e in ipairs(u.edges) do
@@ -634,6 +640,8 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             relaxWalk(u, du)
         end
     end
+    -- a ticked search may have waited across a graph rebuild: answer, but keep it out of the new cache
+    if tick and TG.pathCache ~= cache0 then ckey = nil end
     if not d[goal] then return TG.PathCacheStore(ckey, best) end
     if best and best.cost <= d[goal] + 1 then return TG.PathCacheStore(ckey, best) end
     -- rebuild path
