@@ -13,12 +13,13 @@ d:SetPoint("TOPLEFT", t, "BOTTOMLEFT", 0, -6); d:SetWidth(560); d:SetJustifyH("L
 d:SetText("The completionist's guide: community-driven guides for every quest, with open travel routing.\nSlash: /cr   Guides: /cr guides   What can I do now: /cr guides -> For level N   Debug route: /cr route")
 
 local y = -70
+local host = panel     -- the page check() adds to (the "Auto quests" page below switches it)
 local function check(label, get, set, tip)
     local tmpl = (C_XMLUtil and C_XMLUtil.GetTemplateInfo and C_XMLUtil.GetTemplateInfo("InterfaceOptionsCheckButtonTemplate")) and "InterfaceOptionsCheckButtonTemplate" or "SettingsCheckBoxTemplate"
-    local okcb, cb = pcall(CreateFrame, "CheckButton", nil, panel, tmpl)
-    if not okcb or not cb then cb = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate") end
+    local okcb, cb = pcall(CreateFrame, "CheckButton", nil, host, tmpl)
+    if not okcb or not cb then cb = CreateFrame("CheckButton", nil, host, "UICheckButtonTemplate") end
     cb:SetPoint("TOPLEFT", 16, y); y = y - 26
-    if cb.Text then cb.Text:SetText(label) else local fs = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight") fs:SetPoint("LEFT", cb, "RIGHT", 4, 0) fs:SetText(label) end
+    if cb.Text then cb.Text:SetText(label) else local fs = host:CreateFontString(nil, "OVERLAY", "GameFontHighlight") fs:SetPoint("LEFT", cb, "RIGHT", 4, 0) fs:SetText(label) end
     cb.tooltipText = tip
     cb:SetScript("OnShow", function(self) self:SetChecked(get()) end)
     cb:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
@@ -90,4 +91,85 @@ end
 function O.Open()
     if Settings and Settings.OpenToCategory and category then Settings.OpenToCategory(category:GetID())
     elseif InterfaceOptionsFrame_OpenToCategory then InterfaceOptionsFrame_OpenToCategory(panel) InterfaceOptionsFrame_OpenToCategory(panel) end
+end
+
+-- ---------------------------------------------------------------------------
+-- Auto quests (Core/QuestAuto.lua, docs/QUEST_AUTO.md): a page of its own under the addon's entry
+-- ---------------------------------------------------------------------------
+local auto = CreateFrame("Frame", "CompletionRouteOptionsAutoPanel")
+auto.name, auto.parent = "Auto quests", panel.name
+local at = auto:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+at:SetPoint("TOPLEFT", 16, -16); at:SetText("Auto quests")
+local ad = auto:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+ad:SetPoint("TOPLEFT", at, "BOTTOMLEFT", 0, -6); ad:SetWidth(560); ad:SetJustifyH("LEFT")
+ad:SetText("Accepts and turns in only the quests of the guide's next steps: never a quest you skipped, never the rest of the guide.\n"
+    .. "Quests that cost gold, repeatable quests the guide does not ask for, and turn-ins with a reward choice are left to you.\n"
+    .. "Slash: /cr auto [accept|turnin|reward|on|off|key shift|ctrl|alt|none]")
+host, y = auto, -84
+check("Auto accept the guide's quests", function() return P().autoAccept end, function(v) P().autoAccept = v end,
+    "Only a quest that belongs to one of the guide's next steps, from a quest giver you are talking to.")
+check("Auto turn in the guide's quests", function() return P().autoTurnin end, function(v) P().autoTurnin = v end,
+    "Completes the quest when the game says it can be completed. A turn-in with a reward choice stays open for you.")
+check("Auto choose the reward (only a clear upgrade by the gear score)", function() return P().autoChooseReward end, function(v) P().autoChooseReward = v end,
+    "Off: every reward choice is yours. On: only when one usable item beats what you wear by 10% or more and clearly beats the others.")
+
+-- the pause key: the client's menu dropdown (Retail 11.0+), the classic UIDropDownMenu, or a button that cycles the keys
+local function keyChoice(label)
+    local QA = NS.QuestAuto
+    local keys = QA and QA.KEYS or { "SHIFT", "CTRL", "ALT", "NONE" }
+    local function current() return QA and QA.Key() or (P().autoModifier or "SHIFT") end
+    local function text(k) return (QA and QA.KEY_LABEL[k]) or k end
+    local function set(k) P().autoModifier = k end
+    local fs = host:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    fs:SetPoint("TOPLEFT", 20, y - 6); fs:SetText(label)
+    local made, dd
+    if MenuUtil and C_XMLUtil and C_XMLUtil.GetTemplateInfo and C_XMLUtil.GetTemplateInfo("WowStyle1DropdownTemplate") then
+        local ok = pcall(function()
+            dd = CreateFrame("DropdownButton", nil, host, "WowStyle1DropdownTemplate")
+            dd:SetPoint("TOPLEFT", 260, y); dd:SetWidth(140)
+            dd:SetupMenu(function(_, root)
+                for _, k in ipairs(keys) do root:CreateRadio(text(k), function() return current() == k end, function() set(k) end) end
+            end)
+        end)
+        if ok then made = dd elseif dd and dd.Hide then dd:Hide() end
+    end
+    if not made and UIDropDownMenu_Initialize and UIDropDownMenu_CreateInfo and UIDropDownMenu_AddButton and UIDropDownMenu_SetText then
+        dd = nil
+        local ok = pcall(function()
+            dd = CreateFrame("Frame", "CompletionRouteAutoKeyDropDown", host, "UIDropDownMenuTemplate")
+            dd:SetPoint("TOPLEFT", 244, y + 2)
+            if UIDropDownMenu_SetWidth then UIDropDownMenu_SetWidth(dd, 120) end
+            UIDropDownMenu_Initialize(dd, function()
+                for _, k in ipairs(keys) do
+                    local info = UIDropDownMenu_CreateInfo()
+                    info.text, info.checked = text(k), current() == k
+                    info.func = function() set(k) UIDropDownMenu_SetText(dd, text(k)) end
+                    UIDropDownMenu_AddButton(info)
+                end
+            end)
+            dd:SetScript("OnShow", function() UIDropDownMenu_SetText(dd, text(current())) end)
+        end)
+        if ok then made = dd elseif dd and dd.Hide then dd:Hide() end
+    end
+    if not made then
+        local b = CreateFrame("Button", nil, host, "UIPanelButtonTemplate")
+        b:SetPoint("TOPLEFT", 260, y); b:SetSize(120, 22)
+        local function show() b:SetText(text(current())) end
+        b:SetScript("OnShow", show)
+        b:SetScript("OnClick", function()
+            local cur, nxt = current(), keys[1]
+            for i, k in ipairs(keys) do if k == cur then nxt = keys[i % #keys + 1] end end
+            set(nxt) show()
+        end)
+        made = b
+    end
+    y = y - 34
+    return made
+end
+keyChoice("Hold to do a quest giver yourself:")
+
+if Settings and Settings.RegisterCanvasLayoutSubcategory and category then
+    O.autoCategory = Settings.RegisterCanvasLayoutSubcategory(category, auto, "Auto quests")
+elseif InterfaceOptions_AddCategory then
+    InterfaceOptions_AddCategory(auto)
 end

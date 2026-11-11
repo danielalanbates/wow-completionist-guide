@@ -745,7 +745,7 @@ do
                        "chars", "accountwide", "forget", "options", "route", "order", "taxi", "teleports",
                        "hearth", "import", "switch", "scan", "verify", "verifyfeatures",
                        "verifyall", "autoverify", "log", "stats", "debug", "test", "list", "gold", "prof",
-                       "skipstep", "unskip", "skipped", "marks" }
+                       "skipstep", "unskip", "skipped", "marks", "auto" }
     local missing = {}
     for _, c in ipairs(required) do if not handled[c] then missing[#missing + 1] = c end end
     assert(#missing == 0, "slash commands not handled: " .. table.concat(missing, ", "))

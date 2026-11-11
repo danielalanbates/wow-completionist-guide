@@ -489,6 +489,8 @@ local function secOptions(r)
                   arrowStyle = p.arrow and p.arrow.style, beacon = p.beacon and p.beacon.enabled and true or false,
                   circuitizeGold = p.farm and p.farm.circuitizeGold and true or false,
                   guideShown = NS.GuideFrame and NS.GuideFrame.frame and NS.GuideFrame.frame:IsShown() and true or false }
+    -- auto accept / turn-in (Core/QuestAuto.lua): its settings and the last decisions ("why was this not accepted?")
+    if NS.QuestAuto and NS.QuestAuto.Snapshot then r.options.questAuto = NS.QuestAuto.Snapshot() end
 end
 local function secLog(r)
     local lines = NS.Log and NS.Log.lines or {}

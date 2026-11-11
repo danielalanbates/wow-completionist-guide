@@ -43,9 +43,10 @@ read_globals = {
     "GetUnitSpeed", "IsMounted", "IsFlying", "IsSwimming", "IsIndoors", "InCombatLockdown", "GetPlayerFacing", "GetBindLocation", "GetZoneText", "GetSubZoneText", "GetMinimapZoneText",
     "IsSpellKnown", "IsPlayerSpell", "GetSpellInfo", "GetSpellCooldown", "CastSpellByID", "GetShapeshiftForm", "C_SpellBook",
     "PlayerHasToy", "C_ToyBox", "IsEquippedItem", "IsUsableItem",   -- teleports (Routing/Teleports.lua)
-    "GetItemCount", "GetItemInfo", "GetItemInfoInstant", "GetItemIcon", "GetContainerNumSlots", "GetContainerItemLink", "GetInventoryItemLink", "GetInventoryItemTexture", "GetItemStats", "GetAverageItemLevel", "GetDetailedItemLevelInfo", "EquipItemByName", "UseContainerItem", "UseInventoryItem",
+    "GetItemCount", "GetItemInfo", "GetItemInfoInstant", "GetItemIcon", "GetContainerNumSlots", "GetContainerItemLink", "GetInventoryItemLink", "GetInventoryItemTexture", "CanDualWield", "GetItemStats", "GetAverageItemLevel", "GetDetailedItemLevelInfo", "EquipItemByName", "UseContainerItem", "UseInventoryItem",
     -- Quests
     "GetNumQuestLogEntries", "GetQuestLogTitle", "SelectQuestLogEntry", "GetQuestLogQuestText", "GetQuestObjectiveInfo", "IsQuestFlaggedCompleted", "GetQuestID", "AcceptQuest", "CompleteQuest", "GetQuestReward", "GetNumQuestChoices", "QuestFrame", "QuestGetAutoAccept", "AcknowledgeAutoAcceptQuest", "GetNumAutoQuestPopUps", "GetAutoQuestPopUp", "ShowQuestOffer", "ShowQuestComplete", "GetQuestLogIndexByID",
+    "LE_QUEST_FREQUENCY_DAILY", "LE_QUEST_FREQUENCY_WEEKLY",   -- old gossip API frequency values (Core/QuestAuto.lua)
     "GossipFrame", "QuestFrameDetailPanel", "QuestFrameProgressPanel", "QuestFrameRewardPanel", "QuestFrameGreetingPanel",
     -- Namespaced C_ APIs
     "C_NamePlate", "UnitExists", "ShowUIPanel", "QuestUtils_GetQuestName", "OpenWorldMap", "WorldMapFrame", "NumTaxiNodes", "TaxiNodeGetType", "TaxiNodeName", "HBD_PINS_WORLDMAP_SHOW_PARENT",

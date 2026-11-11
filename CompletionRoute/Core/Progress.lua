@@ -220,6 +220,9 @@ function P.MarkDone(step, manual)
     P.Refresh()
 end
 function P.Skip(step) if step and step.key then charReopened()[step.key] = nil charSkipped()[step.key] = true dirty = true P.Refresh() end end
+-- The loaded guide's per-step skip marks ([step key] = true, Core/Guide.lua G.AssignKeys), in the store the progress
+-- scope reads (Core/QuestAuto.lua: a quest whose accept or turn-in step the player skipped is never done for them).
+function P.SkippedMarks() if not P.guide then return nil end return charSkipped() end
 -- Back one step: reopen the newest done/skipped step that sits BEFORE the current one.  The look-ahead
 -- auto-completer ticks steps up to 40 ahead, so "the highest done index" is often a future step; using it
 -- made Back appear to do nothing.  Reopened steps are pinned (see charReopened) until ticked forward again.

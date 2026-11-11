@@ -40,6 +40,10 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         elseif tonumber(w) then NS.Skip.Unskip(tonumber(w))
         else NS:Print("Usage: /cr unskip <questID|all>   (/cr skipped lists them)") end
     elseif cmd == "skipped" then NS.Skip.List()
+    elseif cmd == "auto" then
+        -- /cr auto [accept|turnin|reward|on|off|key <shift|ctrl|alt|none>]: auto accept / turn-in of the guide's own
+        -- quests (Core/QuestAuto.lua, docs/QUEST_AUTO.md); no argument shows the settings and the last decision
+        NS.QuestAuto.Command(rest)
     elseif cmd == "undo" or cmd == "back" or cmd == "prev" then P.Undo()
     elseif cmd == "reset" then P.Reset() NS:Print("Guide progress reset.")
     elseif cmd == "marks" then for _, line in ipairs(P.MarksReport()) do NS:Print(line) end   -- progress storage (docs/STEP_KEYS.md)
@@ -294,7 +298,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | undo | reset | marks | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | import | farm | log | bug [note] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | import | farm | log | bug [note] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 
