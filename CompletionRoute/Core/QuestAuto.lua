@@ -360,6 +360,14 @@ local function clearBusy() busy.key = nil end
 local function isBusy(key) return busy.key == key and now() - busy.at < QA.BUSY_S end
 local function markBusy(key) busy.key, busy.at = key, now() end
 
+-- A full quest log is said once per conversation (quest giver, or "item" for a quest started from an item), however
+-- many window quests it keeps out: the list names the first and counts the rest, the quest text does not repeat it.
+local function fullHint(guid, title, more)
+    local n, cap = QA.QuestLog()
+    hint("full:" .. tostring(guid or "item"), ("Auto accept: quest log full (%d/%d), %s%s not accepted."):format(n, cap or n,
+        tostring(title), (more or 0) > 0 and (" and %d more"):format(more) or ""))
+end
+
 local function onList(evt, list, guid, w)
     -- turn-ins first: one may unlock the next accept at the same quest giver
     if QA.Enabled("turnin") then
@@ -381,6 +389,7 @@ local function onList(evt, list, guid, w)
         end
     end
     if QA.Enabled("accept") then
+        local full = {}     -- window quests a full log kept out: one chat line for all of them
         for _, e in ipairs(list.available) do
             local q = e.q or QA.QuestByTitle(w, e.title)
             if q then offered[q] = { daily = e.daily, repeatable = e.repeatable } end
@@ -393,13 +402,11 @@ local function onList(evt, list, guid, w)
                     safe(list.selectAvailable, e.sel)
                     return note(evt, q, "pick accept", nil, e.title)
                 end
-                if why == "log full" then
-                    local n, cap = QA.QuestLog()
-                    hint("full:" .. tostring(q), ("Auto accept: quest log full (%d/%d), %s not accepted."):format(n, cap or n, e.title or tostring(q)))
-                end
+                if why == "log full" then full[#full + 1] = e.title or tostring(q) end
                 if not ok and why ~= "not in window" and why ~= "off" then note(evt, q, nil, why, e.title) end
             end
         end
+        if #full > 0 then fullHint(guid, full[1], #full - 1) end
     end
     return note(evt, nil, nil, "nothing of the window here")
 end
@@ -438,8 +445,7 @@ function QA.OnDetail(evt, startItem)
     local ok, why = QA.CanAccept(q, offer, w)
     if not ok then
         if why == "log full" then
-            local n, cap = QA.QuestLog()
-            hint("full:" .. tostring(q), ("Auto accept: quest log full (%d/%d), %s not accepted."):format(n, cap or n, title or tostring(q)))
+            fullHint(guid, title or tostring(q), 0)
         elseif why == "costs gold" then
             hint("gold:" .. tostring(q), ("Auto accept: %s costs %s; accept it yourself if you want it."):format(title or tostring(q), U.FmtMoney(offer.money)))
         end

@@ -13,9 +13,11 @@
 -- C_QuestLog.IsRepeatableQuest only on retail and forever; QUEST_ACCEPT_CONFIRM's quest id only on retail.
 -- Covered: in-window quest accepted, out-of-window ignored, dropped / locked / step-skipped quests ignored, the pause key
 -- (and the conversation it pauses, key choice, no key), reward choice stops (and the clear-winner path when on), a
--- quest that costs gold, dailies (a "!" step, a Daily Gold guide, a plain step refuses), log full, the completable check,
--- turn-ins before accepts, popups and world quests left alone, escort shares, the follow-up a refresh lets in, no second
--- action for one event or a repeated one, no loop after a decline, /cr auto, the options defaults, TOC order, and the
+-- reward weighing in the hands (two-hander vs shield / one-hand / off-hand, sword and board, dual wield, staff, empty
+-- off hand, ranged slot, worn stats unreadable), ignored gossip quests, a quest that costs gold, dailies (a "!" step, a
+-- Daily Gold guide, a plain step refuses), log full (one line per NPC), the completable check, turn-ins before accepts,
+-- popups and world quests left alone, escort shares, the follow-up a refresh lets in, no second action for one event or
+-- a repeated one, no loop after a decline, /cr auto, the options defaults, TOC order, and the
 -- CPU of one dialog decision on each flavor's biggest real guide (when Guides/Imported_Wiki_<flavor>.lua exists).
 -- Run under the interpreter mode that matches the client:  luajit -joff tools/test_quest_auto.lua [flavors...]
 package.path = "./?.lua;" .. package.path
@@ -49,7 +51,28 @@ local ITEMS = {   -- fake item data for UI/ItemScore.lua: link -> stats, equip s
     ["item:1003"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 18 }, loc = "INVTYPE_HEAD" },  -- almost as good as 1001
     ["item:1004"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 40 }, loc = "INVTYPE_HEAD" },  -- best, but the class cannot use it
     ["item:1005"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 21 }, loc = "INVTYPE_HEAD" },  -- 5% over item:1001
+    -- the hands (warrior scores in brackets: STR 1.0, STA 0.6, DPS 3.2, armor 0.03; mage: INT 0.9, STA 0.35)
+    ["item:2001"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 30, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 15 }, loc = "INVTYPE_2HWEAPON" },  -- two-hand sword [78]
+    ["item:2002"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 4, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 6 }, loc = "INVTYPE_WEAPON" },     -- one-hand sword [23.2]
+    ["item:2003"] = { stats = { ITEM_MOD_STAMINA_SHORT = 4, RESISTANCE0_NAME = 300 }, loc = "INVTYPE_SHIELD" },                   -- shield [11.4]
+    ["item:2004"] = { stats = { ITEM_MOD_INTELLECT_SHORT = 10, ITEM_MOD_STAMINA_SHORT = 2 }, loc = "INVTYPE_HOLDABLE" },          -- off-hand orb [mage 9.7]
+    ["item:2005"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 3, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 5 }, loc = "INVTYPE_WEAPONOFFHAND" }, -- off-hand weapon [19]
+    ["item:2006"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 34, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 16 }, loc = "INVTYPE_2HWEAPON" },  -- two-hand axe [85.2]
+    ["item:2007"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 8, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 7 }, loc = "INVTYPE_2HWEAPON" },    -- weak two-hander [30.4]
+    ["item:2008"] = { stats = { ITEM_MOD_AGILITY_SHORT = 5, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 10 }, loc = "INVTYPE_RANGED" },     -- bow [34.5]
+    ["item:2009"] = { stats = { ITEM_MOD_AGILITY_SHORT = 2, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 5 }, loc = "INVTYPE_RANGED" },      -- worn bow [17]
+    ["item:2010"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 2 }, loc = "INVTYPE_HAND" },                                             -- worn gloves [2]
+    ["item:2011"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 4 }, loc = "INVTYPE_HAND" },                                             -- better gloves [4, +100%]
+    ["item:2012"] = { stats = { ITEM_MOD_INTELLECT_SHORT = 20, ITEM_MOD_STAMINA_SHORT = 5 }, loc = "INVTYPE_2HWEAPON" },          -- staff [mage 19.75]
+    ["item:2013"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 1, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 3 }, loc = "INVTYPE_WEAPON" },     -- weak one-hand [10.6]
+    ["item:2014"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 6, ITEM_MOD_DAMAGE_PER_SECOND_SHORT = 6 }, loc = "INVTYPE_WEAPON" },     -- one-hand [25.2]
+    ["item:2015"] = { stats = { ITEM_MOD_STRENGTH_SHORT = 3 }, loc = "INVTYPE_FINGER" },                                           -- ring [3]
 }
+-- what the character wears: slot -> item link (D.worn); CanDualWield() answers D.dualWield
+local function wear(slots)
+    D.worn = slots
+    GetInventoryItemLink = function(_, slot) return D.worn[slot] end
+end
 local function installClient(flavor, family)
     D = { calls = {}, npc = "Creature-0-1-2-3-100-0001", mods = {}, offers = {}, active = {}, cur = nil, log = 3, cap = 20,
           timers = {}, now = 1000, oldIds = true, oldCounts = true, greetIds = true, greetComplete = true, popups = {} }
@@ -88,7 +111,8 @@ local function installClient(flavor, family)
     C_Item = C_Item or {}
     C_Item.GetItemStats = function(link) local it = ITEMS[link] return it and it.stats end
     C_Item.GetItemInfo = function(link) local it = ITEMS[link] if not it then return nil end return link, link, 2, 10, 1, "Armor", "Plate", 1, it.loc end
-    GetInventoryItemLink = function(_, slot) return slot == 1 and "item:900" or nil end
+    wear({ [1] = "item:900" })
+    CanDualWield = function() return D.dualWield and true or false end   -- all five clients (warcraft.wiki.gg API_CanDualWield)
     -- gossip API family
     C_GossipInfo, GetGossipAvailableQuests, GetGossipActiveQuests, SelectGossipAvailableQuest, SelectGossipActiveQuest = nil, nil, nil, nil, nil
     GetNumGossipAvailableQuests, GetNumGossipActiveQuests = nil, nil
@@ -333,6 +357,17 @@ local function scenario(flavor, family)
     D.offers = { { q = 299, title = "Far" } }
     c = fire(LE)
     t(tag .. "list: only an out-of-window quest: nothing", none(c), show(c))
+    -- a quest the player told the client to ignore (C_GossipInfo isIgnored; the old API's 7th value) is never picked
+    if family ~= "greeting" then
+        newNPC()
+        D.offers = { { q = 202, title = "Bravo", ignored = true }, { q = 203, title = "Charlie" } }
+        c = fire(LE)
+        t(tag .. "list: an ignored in-window quest is passed over for the next one", one(c, pickAvail(family, 203, 2)), show(c))
+        newNPC()
+        D.offers = { { q = 202, title = "Bravo", ignored = true } }
+        c = fire(LE)
+        t(tag .. "list: only an ignored in-window quest: nothing", none(c), show(c))
+    end
 
     -- the quest text: accept in-window, refuse out-of-window, once per event
     newNPC()
@@ -468,6 +503,25 @@ local function scenario(flavor, family)
     dialog(201, "Alpha", { choices = { { link = nil, usable = true }, { link = "item:1001", usable = true } } })
     c = fire("QUEST_COMPLETE")
     t(tag .. "complete (auto choose on): item data not loaded -> stops", none(c), show(c))
+    -- the hands: an empty off hand next to a two-hand weapon is not a free slot (it once counted as a +100% upgrade and
+    -- took a shield over better gloves)
+    wear({ [1] = "item:900", [16] = "item:2001", [10] = "item:2010" })
+    NS.QuestAuto.ResetState()
+    dialog(201, "Alpha", { choices = { { link = "item:2003", usable = true }, { link = "item:2011", usable = true } } })
+    c = fire("QUEST_COMPLETE")
+    t(tag .. "complete (auto choose on): two-hand user, shield or better gloves -> the gloves, never the shield", one(c, "GetQuestReward 2"), show(c))
+    NS.QuestAuto.ResetState()
+    dialog(201, "Alpha", { choices = { { link = "item:2003", usable = true }, { link = "item:2002", usable = true } } })
+    c = fire("QUEST_COMPLETE")
+    t(tag .. "complete (auto choose on): two-hand user, shield or one-hand sword (both below the two-hander) -> stops", none(c), show(c))
+    wear({ [1] = "item:900", [16] = "item:2002", [10] = "item:2010" })
+    NS.QuestAuto.ResetState()
+    dialog(201, "Alpha", { choices = { { link = "item:2003", usable = true }, { link = "item:2011", usable = true } } })
+    n0 = #NS.printed
+    c = fire("QUEST_COMPLETE")
+    t(tag .. "complete (auto choose on): one-hand weapon, empty off hand: the shield cannot be weighed -> stops with a hint",
+        none(c) and printedSince(n0, "cannot be weighed: empty off hand") ~= nil, show(c) .. " " .. tostring(NS.printed[n0 + 1]))
+    wear({ [1] = "item:900" })
     NS.db.profile.autoChooseReward = false
 
     -- the pause key
@@ -545,6 +599,22 @@ local function scenario(flavor, family)
     D.offers = { { q = 202, title = "Bravo" } }
     c = fire(LE)
     t(tag .. "log full: not picked from the list either", none(c), show(c))
+    -- three window quests at one quest giver with a full log: one chat line for all three, not one each
+    newNPC()
+    W.quests[203], W.quests[208] = nil, nil
+    D.offers = { { q = 202, title = "Bravo" }, { q = 203, title = "Charlie" }, { q = 208, title = "Hotel" } }
+    D.active = {}
+    n0 = #NS.printed
+    c = fire(LE)
+    local fullLine = printedSince(n0, "quest log full")
+    t(tag .. "log full, three window quests at one NPC: one chat line naming the first and the count",
+        none(c) and #NS.printed == n0 + 1 and fullLine and fullLine:find("Bravo and 2 more", 1, true) ~= nil,
+        show(c) .. " lines " .. (#NS.printed - n0) .. " " .. tostring(fullLine))
+    fire("GOSSIP_CLOSED")
+    dialog(203, "Charlie")
+    c = fire("QUEST_DETAIL")
+    t(tag .. "log full: the quest text that follows in the same conversation adds no second line", none(c) and #NS.printed == n0 + 1,
+        #NS.printed - n0)
     D.log = 3
 
     -- popups: no quest giver, the game's own auto-accept and area offers, world quests
@@ -716,6 +786,62 @@ do
     GetInventoryItemLink = function() return "item:1001" end   -- already wearing the 20-strength helm
     t("ClearWinner: an upgrade under CLEAR_PCT over what is worn -> none", IS.ClearWinner({ { link = "item:1005", usable = true }, { link = "item:1002", usable = true } }) == nil)
     t("ClearWinner: only downgrades -> none", IS.ClearWinner({ { link = "item:1003", usable = true }, { link = "item:1002", usable = true } }) == nil)
+    -- the hands and the ranged slot (IS.ChoiceGain); a warrior unless said otherwise
+    local function cw(a, b) return IS.ClearWinner({ { link = a, usable = true }, { link = b, usable = true } }) end
+    local function cwWhy(a, b) return select(2, cw(a, b)) end
+    local function near(x, y) return type(x) == "number" and math.abs(x - y) < 1e-9 end
+    wear({ [16] = "item:2001", [10] = "item:2010" })                 -- two-hand sword, weak gloves, off hand empty
+    D.dualWield = false
+    t("hands, two-hander: a shield is weighed against the two-hand weapon it would take off", near(IS.ChoiceGain("item:2003"), 11.4 - 78))
+    t("hands, two-hander: shield or better gloves -> gloves", cw("item:2003", "item:2011") == 2, tostring(cw("item:2003", "item:2011")))
+    t("hands, two-hander: one-hand sword or better gloves -> gloves", cw("item:2002", "item:2011") == 2)
+    t("hands, two-hander: an off-hand item never beats the two-hander", cw("item:2003", "item:1002") == nil)
+    D.dualWield = true
+    t("hands, two-hander, can dual wield: an off-hand weapon still takes the two-hander off", cw("item:2005", "item:1002") == nil)
+    D.dualWield = false
+    t("hands: no dual wield -> an off-hand weapon is no contender", select(3, IS.ChoiceGain("item:2005")) == false and cw("item:2005", "item:2011") == 2)
+    wear({ [16] = "item:2002", [17] = "item:2003" })                 -- one-hand sword and shield [34.6]
+    t("hands, sword and board: a two-hander must beat both hands (weak one: 30.4 < 34.6)", cw("item:2007", "item:1002") == nil,
+        tostring(cw("item:2007", "item:1002")))
+    t("hands, sword and board: a big two-hander does (85.2)", cw("item:2006", "item:1002") == 1)
+    t("hands, sword and board: a shield is weighed against the shield", near(IS.ChoiceGain("item:2003"), 0))
+    wear({ [16] = "item:2013" })                                     -- weak one-hand weapon, off hand empty
+    t("hands, no dual wield: a one-hand weapon goes in the main hand only", cw("item:2002", "item:1002") == 1)
+    t("hands, empty off hand: a shield cannot be weighed -> none, even with better gloves",
+        cw("item:2003", "item:2011") == nil and cwWhy("item:2003", "item:2011"):find("empty off hand", 1, true) ~= nil)
+    D.dualWield = true
+    t("hands, dual wielder with an empty off hand: a one-hand weapon cannot be weighed -> none", cw("item:2002", "item:1002") == nil)
+    wear({ [16] = "item:2002", [17] = "item:2013" })                 -- dual wielding 23.2 + 10.6
+    t("hands, dual wielder: a one-hand weapon is weighed against the weaker hand", near(IS.ChoiceGain("item:2014"), 25.2 - 10.6)
+        and cw("item:2014", "item:1002") == 1)
+    t("hands, dual wielder: an off-hand weapon is weighed against the off hand", cw("item:2005", "item:1002") == 1)
+    wear({ [16] = "item:2002", [17] = "item:2003" })                 -- can dual wield, but holds sword and shield
+    t("hands, sword and board that could dual wield: a one-hand weapon is weighed against the sword, not the shield",
+        near(IS.ChoiceGain("item:2014"), 25.2 - 23.2) and cw("item:2014", "item:1002") == nil, tostring(IS.ChoiceGain("item:2014")))
+    D.dualWield = false
+    wear({ [10] = "item:unknown" })                                  -- gloves worn whose stats the client does not return
+    t("armor: a worn item whose stats cannot be read -> the reward cannot be weighed -> none",
+        cw("item:2011", "item:1002") == nil and (cwWhy("item:2011", "item:1002") or ""):find("cannot be read", 1, true) ~= nil,
+        tostring(cwWhy("item:2011", "item:1002")))
+    wear({ [16] = "item:2001", [17] = "item:unknown" })
+    t("hands: a worn off-hand item whose stats cannot be read -> a two-hander cannot be weighed", cw("item:2006", "item:1002") == nil)
+    wear({})                                                         -- nothing in the hands
+    t("hands: nothing in the main hand -> a weapon cannot be weighed", cw("item:2002", "item:1002") == nil)
+    wear({ [16] = "item:unknown" })
+    t("hands: the worn weapon's data is missing -> cannot be weighed", cw("item:2002", "item:1002") == nil)
+    wear({ [16] = "item:2001" })
+    t("ranged: nothing in slot 18 (always so on MoP and Retail) -> a bow cannot be weighed, even with better gloves",
+        cw("item:2008", "item:2011") == nil)
+    wear({ [16] = "item:2001", [18] = "item:2009", [10] = "item:2010" })
+    t("ranged: a bow worn in slot 18 -> weighed against it", cw("item:2008", "item:2011") == 1)
+    wear({ [10] = "item:2010" })
+    t("armor: an empty ring slot is a real gain (only the hands and ranged are special)", cw("item:2015", "item:1002") == 1)
+    NS.player.class = "MAGE"
+    wear({ [16] = "item:2012" })                                     -- a staff
+    t("hands, staff caster: a held-in-off-hand item never beats the staff", cw("item:2004", "item:1003") == nil,
+        tostring(cw("item:2004", "item:1003")))
+    NS.player.class = "WARRIOR"
+    wear({ [1] = "item:900" })
     local w = { quests = { [1] = { step = { title = "Same Name" } }, [2] = { step = { title = "Same name!" } }, [3] = { step = { title = "Other" } } } }
     t("title match: ambiguous -> nil", QA.QuestByTitle(w, "Same Name") == nil)
     t("title match: unique, case and punctuation ignored", QA.QuestByTitle(w, "other") == 3)
