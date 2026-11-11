@@ -139,7 +139,7 @@ QA.DailyGuide = dailyGuide
 -- quest the same NPC offers at once (its |PRE| is the quest just taken or handed in) must already count, so until that
 -- refresh the window is read straight from Progress's pending steps: the same routing.window + 5 steps P.order holds
 -- (the live reorder only permutes them), except that a step the refresh would tick (the accept of the quest just
--- taken) still holds a place.  That costs 0.03-0.35 ms; a full P.Refresh() here measured up to about 20 ms.
+-- taken) still holds a place.  That costs 0.06-0.34 ms; a full P.Refresh() here measured up to about 20 ms.
 local stale = false
 
 -- The quests of the live window:

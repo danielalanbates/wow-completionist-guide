@@ -23,6 +23,7 @@ smart arrow — while the guide content is community-driven and open.
 | Only uses flight paths you have learned | ✅ learned when you open any flight map (`TAXIMAP_OPENED`), stored per character |
 | Optimal quest routing for the chosen guide | ✅ `Routing/StepOrder.lua` — precedence-constrained reordering of the next N steps (accept → complete → turn-in kept, anchors like *run to zone* respected) |
 | Skip quests | ✅ `Core/Skip.lua` — drop a quest from every guide; if other quests need it you are warned first, with their names, and confirming drops the whole chain. Breadcrumbs never block. The guide is rebuilt without those quests and without any quest it could then no longer offer (steps, counts and progress follow), then re-planned for travel time in the background (`Routing/Replan.lua`). `/cr unskip` brings everything back — [docs/ROUTING.md](docs/ROUTING.md#skipping-quests) |
+| Auto accept and turn-in (guide's quests only) | Built, offline-tested only: `Core/QuestAuto.lua`, off by default. Accepts and hands in only the quests of the guide's next steps, never skipped or dropped quests, never quests that cost gold, dailies the guide does not ask for, or a reward choice (unless the gear score sees a clear upgrade and you allow it). Hold Shift (or your chosen key) to do a quest giver yourself. Options > Auto quests, `/cr auto` — [docs/QUEST_AUTO.md](docs/QUEST_AUTO.md) |
 | Guide library | ✅ native guides in `Guides/` (WoW-Pro line syntax, CC BY-SA) + a **runtime adapter** that reads your installed **WoW-Pro** guides (interop only, nothing copied) |
 | Every quest in the game, covered | ✅ generated zone guides: Classic flavors from a local **Questie** checkout, **retail from Blizzard's own quest POI client data** (`tools/gen_quest_guides_retail.py` — 379 zone guides, 17,161 quests, 56,843 steps). No subscription required.
 | Gold guides | ✅ realm-independent money guides by level, on every client: gathering, mob farming and fishing **circuits** you walk with nothing to click, plus daily gold, instance runs and step-by-step methods. No prices are shipped; laps are priced in game from Auctionator if present, else vendor value — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
@@ -90,6 +91,7 @@ To rebuild and deploy:
 * `/cr skip [questID]` — skip a quest (default: the current step's); warns first when other quests need it · `/cr skipstep` — skip the current step (on an accept of a quest you do not have, that skips the quest, so its turn-in is not left behind)
 * `/cr unskip <questID|all>` — bring skipped quests back · `/cr skipped` — list them and what they lock
 * `/cr bug [what went wrong]` — save a bug report (also the **Report** button) · `/cr bug list` — stored reports · `/cr log` — the addon log
+* `/cr auto` — auto accept / turn-in settings and the last decision · `/cr auto accept|turnin|reward` — toggle one · `/cr auto on|off` · `/cr auto key shift|ctrl|alt|none` — the key that pauses it (Options > CompletionRoute > **Auto quests** has the same switches)
 * Click the step for details (Complete, Skip, Skip quest) · right-click = skip menu · `<` back · `>` done · `Route` toggles reordering
 
 Open a flight master's map once on each continent so the router knows which flight paths you have.
@@ -127,6 +129,7 @@ luajit tools/test_route_order.lua    # baked RouteOrder never breaks precedence,
 luajit tools/vplayer.lua retail --shard 1/4    # play every guide; python3 tools/collect_vplayer.py
 luajit tools/route_sweep.lua era     # route every guide from its own zone
 luajit tools/test_bug_report.lua     # /cr bug snapshot, error hook, caps, SavedVariables reader, capture/replay round trip
+luajit -joff tools/test_quest_auto.lua  # auto accept / turn-in on fake gossip, old-gossip and greeting clients, all five flavors
 python3 tools/test_ingest_beta_reports.py      # beta_reports ingest on a fixture (temp database)
 python3 tools/ingest_beta_reports.py           # Daniel's /cr bug reports -> beta_reports; then:
 luajit tools/vplayer.lua --repro <report id> --check   # replay one offline; exit 1 on a DIFF (docs/BETA_REPORTS.md)

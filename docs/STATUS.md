@@ -1,5 +1,35 @@
 # Status / handoff (2026-11-10, integration: skipping quests + beta bug reports)
 
+## Auto accept and turn-in (`auto-quest`, 2026-11-10)
+
+IDEAS #7. Offline only. **Nothing here has run in a real WoW client.** Committed on `auto-quest` (from `integration`),
+not merged, not installed. Details and the client API matrix: [QUEST_AUTO.md](QUEST_AUTO.md).
+
+* **New `Core/QuestAuto.lua`**, loaded right after `Core/Skip.lua` in all six TOCs (`tools/validate_toc.lua` checks the
+  order). Off by default (`autoAccept`, `autoTurnin`; new `autoChooseReward` off and `autoModifier` = Shift).
+* **Only the live window:** a quest is accepted or handed in only if a step of it is among the next `routing.window + 5`
+  pending steps (`P.order`). Never a quest `/cr skip` dropped or locked, never one whose accept or turn-in step the
+  player skipped, never one that costs gold, never a daily, weekly or repeatable unless the step is that daily (`!`, or a
+  Dailies / Daily Gold guide). A full quest log is said in chat. Holding the pause key pauses that conversation.
+* **Turn-in:** `CompleteQuest()` only when `IsQuestCompletable()`; the reward is taken with 0 or 1 choice. With more it
+  stops with one chat line, unless "Auto choose reward" is on and the new `ItemScore.ClearWinner` sees a usable item 10%
+  over what is worn and 1.5x better than the other choices.
+* **Clients:** `C_GossipInfo` (all five clients, per warcraft.wiki.gg), the old gossip API (none of them; fallback for
+  old builds) and the greeting frame, detected at call time. No dialog without a quest giver (popups), no world quests,
+  nothing the game auto-accepted. One action per dialog event; no re-pick loop after a decline.
+* **UI:** Options > CompletionRoute > **Auto quests** page (three checkboxes and the pause-key dropdown), `/cr auto
+  [accept|turnin|reward|on|off|key ...]` in the help line and README; `/cr bug` reports carry the settings and the last
+  eight decisions.
+* **Tests:** new `tools/test_quest_auto.lua`, 1,154 checks on all five flavors x three API families; 13 deliberate
+  breakages of the module were each caught. All other harnesses, `validate_toc.lua` and the ingest unittest pass.
+  `tools/test_skip.lua`'s "re-plan frames never over 2 ms" check failed on 2 of 4 runs (1 to 2 frames of about 1,000 at
+  2.16 to 2.37 ms, JIT on, load average up to 13 with the route bake running) and passed on the other two (one under
+  `-joff`); this branch does not touch the re-planner.
+* **CPU** (`luajit -joff`, biggest real wiki guide per flavor): about 0.01 ms per dialog event, 0.06 to 0.34 ms right
+  after a quest change.
+* **Open:** client test of every path; whether game-object quest givers give `UnitGUID("npc")`; quest ids from the
+  greeting frame on the classic clients; reward data that arrives late is never chosen.
+
 ## Skipping quests (`quest-skip`)
 
 Offline only. **Nothing here has run in a real WoW client.** Merged into `integration`, not installed. All 13 existing
