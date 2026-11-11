@@ -1,7 +1,8 @@
 # Status / handoff (2026-11-10, release packager with a data-provenance gate, branch release-packager)
 
 Offline only. **Nothing here has run in a real WoW client, and no build has passed the gate on real data.** No tag, push
-or GitHub release was made. All 12 `tools/test_*.lua` harnesses, `validate_toc` and `tools/test_package.py` (59 checks) pass.
+or GitHub release was made. All 12 `tools/test_*.lua` harnesses, `validate_toc` and `tools/test_package.py` (97 checks,
+Python 3.12 and 3.9) pass.
 
 * **`tools/package_release.py`** ([RELEASE.md](RELEASE.md)) assembles the add-on from the tracked code plus the local
   generated data, limited to what the TOCs load. It writes `provenance.json` (category, licence, source, generator per
@@ -18,6 +19,12 @@ or GitHub release was made. All 12 `tools/test_*.lua` harnesses, `validate_toc` 
   guides (era 56, tbc 101, mop 44, retail 29, forever 55 rows). RELEASE.md lists the steps to a passing build, including
   a rebake inside the staged package; that rebake was smoke-tested on one era guide only.
 * The staged package (interop lines stripped) loads clean in `test_load_all.lua` on all six TOCs. Stub load only.
+* **Review fixes:** `--write` never deletes or displaces a build. A failing build goes to
+  `dist/failed/<version>-<time>/`, a same-version rebuild archives the earlier one, and only the packager's own build
+  folders are ever moved, so `--out` is safe anywhere. Per-client zips carry an `ATTRIBUTION.md` listing only their
+  files. The secret rule also catches Cerebras, Groq, Hugging Face, xAI, npm and GitLab keys and unquoted
+  `api_key=` lines. Personal terms in file names are masked in every report. Edits to the packager or its templates
+  make a build `-dirty`. Usage errors exit 2, crashes 3. The player README describes the real guide-window controls.
 * Also: CallbackHandler ships its Ace3 licence text; HereBeDragons is BSD as declared upstream (no upstream text);
   `WIKI_DATA_LICENSE.md` lists the Forever wiki and spine files and no longer calls the hand-written guides non-CC BY-SA;
   `release.yml` no longer publishes on a tag (manual run of the gate tests only).

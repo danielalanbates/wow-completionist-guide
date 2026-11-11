@@ -18,20 +18,22 @@ python3 tools/package_release.py --stage-dir /tmp/rel     # keep the assembled a
 python3 tools/test_package.py                             # offline tests: every gate rule fires on a planted file
 ```
 
-On the 8 GB Mac prefix each with `heavy.sh`. A dry run on today's data takes about 18 s and 220 MB of memory.
+On the 8 GB Mac prefix each with `heavy.sh`. A dry run on today's data takes about 19 s and 225 MB of memory.
 
 | Option | Effect |
 |---|---|
 | `--layout universal\|per-client\|both` | which zips `--write` keeps (default `universal`). Both layouts are always measured. |
-| `--version V` | version stamped into the packaged TOCs and file names. Default `2.0.0-dev.<commit>`, plus `-dirty` with uncommitted tracked changes. |
+| `--version V` | version stamped into the packaged TOCs and file names. Default `2.0.0-dev.<commit>`, plus `-dirty` with uncommitted changes to `CompletionRoute/`, `LICENSE`, the packager or its templates (`tools/release/`). |
 | `--data-root DIR` | generated data read from `DIR/<same path>` first (for example a release rebake). Anything else in `DIR` fails the gate. |
 | `--allow-checkout-links` | a git worktree whose generated files are links to the same path in the main checkout may read through them. Every other symlink still fails. |
 | `--wow-dir DIR` | WoW folder whose `WTF/Account` account and character names count as personal data (default: the x10 WoW folder). |
 | `--personal-term T` | another term the package must not contain (repeatable). `tools/release/personal_terms.local.txt` (gitignored) adds more, one per line. |
 | `--db PATH` | also write tables `data_provenance` and `release_gate` into that SQLite file. Refuses a symlink. |
-| `--out DIR`, `--tmp DIR`, `--repo DIR`, `--no-measure` | output folder for `--write` (default `dist/`), temp parent, checkout, skip the other layout's zips. |
+| `--out DIR`, `--tmp DIR`, `--repo DIR`, `--no-measure` | output folder for `--write` (default `dist/`; any folder is safe, see below), temp parent, checkout, skip the other layout's zips. |
 
-Exit code 0 = gate passed, 1 = gate failed, 2 = usage error. `dist/` is gitignored.
+Exit code 0 = gate passed, 1 = gate failed, 2 = usage error (checked before any work: `--stage-dir`, `--out`,
+`--tmp` and `--db` must be folders or new paths), 3 = the packager itself crashed (traceback printed; the gate did
+not finish). `dist/` is gitignored.
 
 ## What a build contains
 
@@ -41,13 +43,24 @@ Exit code 0 = gate passed, 1 = gate failed, 2 = usage error. `dist/` is gitignor
 3. Written by the packager: `LICENSE.txt` (the repository LICENSE: PolyForm Noncommercial 1.0.0, 10% rider, all
    rights reserved, batesai.org, help@batesai.org), `ATTRIBUTION.md` (from `tools/release/ATTRIBUTION.md`: Warcraft
    Wiki source, licence, changes and the ShareAlike note, then the wiki, Blizzard-data and library files in this
-   package) and `README.md` for players (from `tools/release/README.md`).
+   package; a per-client zip gets its own copy that lists only that zip's files, and its package record in
+   `provenance.json` gives that copy's sha256 under `differs`) and `README.md` for players (from
+   `tools/release/README.md`).
 4. The packaged TOCs get `## Version: <version>` and lose the lines of files that never ship. The checkout's TOCs are
    not changed.
 
-`dist/<version>/` after a passing `--write`: `CompletionRoute/`, the zip(s), `provenance.json`, `gate.txt`. Every
-older `dist/<version>/` moves to `dist/archive/`, so one build is current. A failing `--write` writes only `gate.txt`
-and `provenance.json` and archives nothing. Zips are reproducible: fixed order, commit timestamp, mode 644.
+`--write` and the output folder:
+
+* A passing build becomes `dist/<version>/`: `CompletionRoute/`, the zip(s), `provenance.json`, `gate.txt`. Every
+  earlier build in `dist/`, the same version included, moves to `dist/archive/` (a taken name gets a time suffix), so
+  one build is current and nothing is deleted.
+* A failing build writes only `gate.txt` and `provenance.json`, to `dist/failed/<version>-<time>/`, and moves
+  nothing. It never displaces the build Daniel is testing, even when it has the same version.
+* Only folders the packager wrote count as builds: named like a version and holding that version's
+  `provenance.json`. Anything else in the output folder is never moved or changed, so `--out` can point anywhere.
+  A `dist/<version>` that is not a build stops `--write` with a usage error before anything is written.
+
+Zips are reproducible: fixed order, commit timestamp, mode 644.
 
 ## Universal zip, not per-client zips
 
@@ -66,7 +79,8 @@ Measured 2026-11-10 on the local data (deflate level 9; this data fails the gate
 Default: **one universal zip**. The project is one add-on for five clients, and a client loads only the files its
 own TOC lists, so the other clients' data costs disk space (about 40 MB for a Classic-only player), not memory or
 load time. One download covers a player with several clients. Daniel tests one artifact in beta. Nobody can install
-the wrong client's zip. It matches what `tools/install.sh` and the companion app install today. `--layout per-client`
+the wrong client's zip. This differs on purpose from `tools/install.sh` (and the companion app, which runs it): that
+script copies each client only its own data files, because it installs into known client folders. `--layout per-client`
 or `both` still builds per-client zips (era 0.56 MB, retail 4.07 MB) for a host that wants one file per game version.
 
 ## Where each file comes from (provenance)
@@ -111,14 +125,15 @@ The gate fails the build on any of these. `tools/test_package.py` plants one bad
 | `interop-derived` | a file whose rule is WoW-Pro or Questie interop would be packaged (for example through an XML include); a data file mentions Questie or WoW-Pro (for example `(location: Questie data)` fallback steps); a `RouteOrder` row orders a guide registered only in a never-shipped interop file |
 | `not-redistributable` | a non-doc file says "do not redistribute", "do not commit", "local use only" or "not for redistribution" |
 | `commercial-reference` | a file name or content names the commercial guide product this project replaced (case-insensitive; the name is stored encoded in the tool and never printed) |
-| `personal-data` | an e-mail address other than help@batesai.org; a `/Users/<name>`, `/home/<name>`, `C:\Users\<name>` or `/Volumes/<name>` path; a WoW account or character name from `WTF/Account`; a `--personal-term` (reports name the kind, never the term) |
-| `secret` | private key block, AWS key id, GitHub, Slack, Google, Stripe or Telegram token, `sk-` key, JWT, or a `password = "..."`-style assignment |
+| `personal-data` | an e-mail address other than help@batesai.org; a `/Users/<name>`, `/home/<name>`, `C:\Users\<name>` or `/Volumes/<name>` path; a WoW account or character name from `WTF/Account`; a `--personal-term`, in a file's content or its name (reports name the kind, never the term: a term in a file name is printed as `[personal term]` in `gate.txt`, `provenance.json` and the `--db` rows) |
+| `secret` | private key block; AWS key id; GitHub, GitLab, Slack, Google, Stripe, Telegram, npm or Hugging Face token; `sk-` (OpenAI, Anthropic, OpenRouter), Cerebras `csk-`, Groq `gsk_` or xAI `xai-` key; JWT; a credential assignment such as `password = "..."`, `api_key=...` or `OPENAI_API_KEY=...` (unquoted values count when they look like a key: 16+ characters with letters and digits) |
 | `symlink` | a packaged file or one of its folders is a symlink (exception: `--allow-checkout-links`) |
 | `toc-missing-file` | a packaged TOC (or an XML it includes) lists a file that is not in that client's package; a TOC is missing or not stamped |
 | `missing-notice` | LICENSE lacks the PolyForm name, the 10% rider, "All rights reserved", help@batesai.org or batesai.org; a library ships without its licence file |
 
 Notes, not failures: `RouteOrder` rows that name a guide found in no file (stale bake), how many account and
-character names were checked, links read with `--allow-checkout-links`, uncommitted tracked changes.
+character names were checked, links read with `--allow-checkout-links`, uncommitted changes (the version then ends in
+`-dirty` unless `--version` is given).
 
 ## Today's local data (2026-11-10 dry run)
 

@@ -87,7 +87,7 @@ To rebuild and deploy:
 * `/cr farm` — farm circuits: status, `build`, `record`, `import`, `export`, `stats`, `radius`
 * `/cr list [level] [category]` — best guides for a level · `/cr gold [level]` — gold guides · `/cr prof` — profession guides for your current skill
 * `/or test` — routing self-test from your position to major cities · `/or import` — re-scan WoW-Pro guides
-* Checkbox / Shift-click a step = complete · right-click = skip · `<` undo · `>` skip · `Route` toggles reordering
+* Guide window: one step at a time, steps complete themselves · right arrow = mark done · left arrow = back one step · click the step = details with Complete / Skip / Show on map · `Route` toggles reordering
 
 Open a flight master's map once on each continent so the router knows which flight paths you have.
 Hearth once (or bind at an inn) so the router learns exactly where your inn is (a seed list covers common inns).
@@ -126,7 +126,7 @@ luajit tools/route_sweep.lua era     # route every guide from its own zone
 python3 tools/gen_quest_guides_retail.py       # regenerate the retail quest guides from client data
 python3 tools/gen_taxi.py tbc 2.5.6.69110 era 1.15.9.69109 mop 5.5.4.69155 retail 12.1.0.69382
 python3 tools/package_release.py               # release dry run: assemble, provenance gate, zip sizes (writes nothing)
-python3 tools/package_release.py --write --version 2.0.0-beta1   # dist/<version>/ (gitignored); never tags or publishes
+python3 tools/package_release.py --write --version 2.0.0-beta1   # dist/<version>/ (gitignored; a failing build: dist/failed/); never tags or publishes
 python3 tools/test_package.py                  # every release-gate rule fires on a planted bad file
 ```
 
