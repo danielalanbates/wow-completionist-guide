@@ -61,3 +61,6 @@ CompletionRoute/Data/RouteOrder_*.lua
 tools/db2/*/*.csv
 tools/db2/*/*.csv.part
 tools/db2/*/*.missing
+
+# release builds (tools/package_release.py --write); never committed
+dist/
