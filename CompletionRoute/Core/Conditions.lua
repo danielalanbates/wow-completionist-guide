@@ -17,6 +17,11 @@ local raceAliases = { human="Human", dwarf="Dwarf", gnome="Gnome", nightelf="Nig
 
 local function norm(s) return (s or ""):lower():gsub("^%s+", ""):gsub("%s+$", "") end
 
+-- the UnitClass / UnitRace token a guide's class or race name stands for ("Death knight" -> DEATHKNIGHT, "Night elf" ->
+-- NightElf).  Routing/CostModel.lua's planning character names its class and race the same way.
+function C.ClassToken(name) return classAliases[norm(name)] or (norm(name):upper()) end
+function C.RaceToken(name) return raceAliases[norm(name)] or name end
+
 -- list may be "Warrior;Paladin" or "Warrior,Paladin"; leading '-' means NOT
 function C.ClassMatch(list)
     if not list or list == "" then return true end
@@ -24,8 +29,7 @@ function C.ClassMatch(list)
     local neg = list:sub(1, 1) == "-"
     if neg then list = list:sub(2) end
     for _, c in ipairs(U.split(list, ";,/")) do
-        local k = classAliases[norm(c)] or norm(c):upper()
-        if k == mine then return not neg end
+        if C.ClassToken(c) == mine then return not neg end
     end
     return neg
 end
@@ -35,8 +39,7 @@ function C.RaceMatch(list)
     local neg = list:sub(1, 1) == "-"
     if neg then list = list:sub(2) end
     for _, r in ipairs(U.split(list, ";,/")) do
-        local k = raceAliases[norm(r)] or r
-        if k == mine or norm(r) == norm(mine) then return not neg end
+        if C.RaceToken(r) == mine or norm(r) == norm(mine) then return not neg end
     end
     return neg
 end

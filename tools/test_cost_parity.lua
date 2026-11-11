@@ -16,12 +16,19 @@
 --      with that reason when it misses, and does not fail the test.
 -- Also: every row carries the cost model's version and no-route cost (the optimizer holds no copy of its own), and the
 -- optimizer refuses a row without them.
+-- The planning character (CostModel.Persona): synthetic guides check the rule (a race's starting zone, a class guide, a
+-- guide for both factions tagged for one, a guide split between classes, spelling variants, "all but" lists,
+-- professions), and real guides known to need it (a race's starting zone, a class campaign, a guide for both factions
+-- whose steps are all Alliance-tagged) must get it and have steps to bake.  Per client the test lists the guides that
+-- still have fewer than 2 steps to bake (located steps split so that no one character takes 2 of them).  The sample
+-- holds only guides with at least 2 priced steps: a guide priced at 0 s would "agree" at 0 = 0 and prove nothing.
 -- Every file goes to a work folder under /private/tmp/claude-501 (CR_TEST_TMP); the RouteOrder file the test bakes is
 -- the work folder's own (--lua-out), never Data/RouteOrder_<flavor>.lua.  The generated guides are gitignored: a client
 -- without them is skipped.  The optimizer runs with short limits (--limit-s 3 --dp-time 1): this checks the arithmetic,
 -- not the solver.
 -- Run: luajit tools/test_cost_parity.lua [--flavors era,tbc,mop,retail,forever] [--per N] [--keep]
---      (CR_PARITY_PER sets --per too; default 6 guides per client, spread evenly over the quest guides with >= 10 steps)
+--      (CR_PARITY_PER sets --per too; default 6 guides per client, spread evenly over the quest guides with >= 10 steps
+--      and >= 2 steps the planning character walks to)
 package.path = "./?.lua;" .. package.path
 local J = dofile("tools/json.lua")
 
@@ -45,10 +52,76 @@ local TMP = (os.getenv("CR_TEST_TMP") or "/private/tmp/claude-501") .. "/cr_test
 if not sh("mkdir -p " .. q(TMP)) then TMP = "/tmp/cr_test_cost_parity_" .. tostring(os.time()) sh("mkdir -p " .. q(TMP)) end
 local PY = exists("../venv/bin/python") and "../venv/bin/python" or "python3"
 
--- the cost model's constants, read from the addon file itself
-local CMNS = {}
+-- the cost model's constants, read from the addon file itself (with Core/Conditions.lua: class and race tokens)
+local CMNS = { Util = {} }
+assert(loadfile("CompletionRoute/Core/Conditions.lua"))("CompletionRoute", CMNS)
 assert(loadfile("CompletionRoute/Routing/CostModel.lua"))("CompletionRoute", CMNS)
 local CM = CMNS.CostModel
+
+-- ---------------------------------------------------------------------------
+-- The planning character on synthetic guides (every step located: its own point)
+-- ---------------------------------------------------------------------------
+do
+    local function guide(spec)
+        local out = {}
+        for i, c in ipairs(spec) do
+            local s = { action = "A", qid = { i }, zone = 1, coords = { { x = 0.5, y = 0.5 } }, index = i }
+            for k, v in pairs(c) do s[k] = v end
+            out[i] = s
+        end
+        return out
+    end
+    local function rep(n, c) local t = {} for i = 1, n do t[i] = c end return t end
+    local function cat(...) local t = {} for _, l in ipairs({ ... }) do for _, c in ipairs(l) do t[#t + 1] = c end end return t end
+    local function walked(steps, who) local w, n = CM.PlanSteps(steps, who), 0 for i = 1, #steps do if w[i] then n = n + 1 end end return n end
+    local g = guide(rep(6, { race = "Goblin" }))
+    local who = CM.Persona(g, { faction = "Horde" })
+    t("persona: a race's starting zone is planned for that race", who.faction == "Horde" and who.race == "Goblin" and walked(g, who) == 6,
+        CM.PersonaText(who))
+    t("persona: ...and a character without the race walks none of it (the rule before cost model version 2)", walked(g, "Horde") == 0)
+    g = guide(rep(5, { faction = "Alliance" }))
+    who = CM.Persona(g, {})
+    t("persona: a guide for both factions whose steps are all Alliance-tagged is planned for the Alliance",
+        who.faction == "Alliance" and walked(g, who) == 5, CM.PersonaText(who))
+    g = guide(cat(rep(3, { faction = "Alliance" }), rep(2, { faction = "Horde" }), rep(5, {})))
+    who = CM.Persona(g, {})
+    t("persona: a guide for both factions with a tagged minority keeps the untagged steps", who.faction == nil and walked(g, who) == 5,
+        CM.PersonaText(who))
+    g = guide(cat(rep(2, { class = "Mage" }), rep(2, { class = "Rogue" }), rep(2, { class = "Priest" }), rep(2, { class = "Hunter" }), rep(2, {})))
+    who = CM.Persona(g, { faction = "Alliance" })
+    t("persona: a guide split between classes keeps the steps every class takes", who.class == nil and walked(g, who) == 2, CM.PersonaText(who))
+    g = guide(cat(rep(3, { class = "Death Knight" }), rep(2, { class = "Death knight" }), rep(1, {})))
+    who = CM.Persona(g, { faction = "Horde" })
+    t("persona: spelling variants of a class are one class (Cond.ClassToken)", who.class == "DEATHKNIGHT" and walked(g, who) == 6,
+        CM.PersonaText(who))
+    g = guide(cat(rep(4, { race = "Night elf" }), rep(1, { race = "NightElf" }), rep(1, { race = "-Night Elf" }), rep(1, {})))
+    who = CM.Persona(g, { faction = "Alliance" })
+    t("persona: race names become tokens; an 'all but' list excludes the planned race", who.race == "NightElf" and walked(g, who) == 6,
+        CM.PersonaText(who))
+    t("persona: ...while a character without a race takes the 'all but' step", walked(g, "Alliance") == 2)
+    g = guide(cat(rep(4, { prof = "Cooking;1" }), rep(1, { prof = "Fishing;1" }), rep(1, {})))
+    who = CM.Persona(g, { faction = "Alliance" })
+    t("persona: a profession guide is planned for that profession", who.prof == "cooking" and walked(g, who) == 5, CM.PersonaText(who))
+    g = guide(cat(rep(2, { class = "Monk" }), rep(2, {})))
+    who = CM.Persona(g, { faction = "Horde" })
+    t("persona: exactly half is enough", who.class == "MONK" and walked(g, who) == 4, CM.PersonaText(who))
+    g = guide(cat(rep(2, { class = "Monk" }), rep(3, {})))
+    who = CM.Persona(g, { faction = "Horde" })
+    t("persona: less than half is not", who.class == nil and walked(g, who) == 3, CM.PersonaText(who))
+    g = guide(cat(rep(4, { class = "Paladin", faction = "Horde" }), rep(3, { class = "Druid" })))
+    who = CM.Persona(g, {})
+    t("persona: faction first, then class among the steps of that faction", who.faction == "Horde" and who.class == "PALADIN"
+        and walked(g, who) == 4, CM.PersonaText(who))
+    t("persona: a faction name still works as the character (no class, race or profession)", CM.Takes({ action = "A" }, "Alliance")
+        and not CM.Takes({ action = "A", class = "Mage" }, "Alliance") and CM.Takes({ action = "A", class = "-Mage" }, "Alliance"))
+end
+
+-- real guides known to need the planning character (generated, gitignored: skipped when absent).  value = who must have
+local KNOWN = {
+    mop = { ["wiki:mop:174:Horde"] = { race = "Goblin" } },
+    retail = { ["wiki:retail:1408:Both:2"] = { faction = "Alliance" }, ["wiki:retail:627:Alliance"] = { class = "WARRIOR" },
+               ["wiki:retail:76:Horde:2"] = { race = "Goblin" }, ["wiki:retail:2239:Both:2"] = { class = "DRUID" } },
+}
 
 local function readLines(p)
     local out = {}
@@ -78,8 +151,27 @@ for _, fl in ipairs(flavors) do
         sh("mkdir -p " .. q(W))
         -- 1. the sample: evenly spread over the quest guides with at least 10 steps
         assert(sh(("luajit tools/cost_matrix.lua %s --list --out %s 2>/dev/null"):format(fl, q(W .. "/list.jsonl"))), "cost_matrix --list failed")
-        local list = {}
-        for _, l in ipairs(readLines(W .. "/list.jsonl")) do local r = J.decode(l) if r.n >= 10 then list[#list + 1] = r end end
+        local list, byId, nobake = {}, {}, {}
+        for _, l in ipairs(readLines(W .. "/list.jsonl")) do
+            local r = J.decode(l)
+            byId[r.id] = r
+            if r.n >= 10 and (r.np or 0) >= 2 then list[#list + 1] = r end
+            if (r.nl or 0) >= 2 and (r.np or 0) < 2 then nobake[#nobake + 1] = r.id end
+        end
+        table.sort(nobake)
+        print(("     %s: %d of %d quest guides have >= 2 located steps but < 2 that the planning character walks to (no bake): %s%s"):format(
+            fl, #nobake, (function() local n = 0 for _ in pairs(byId) do n = n + 1 end return n end)(),
+            table.concat(nobake, ", ", 1, math.min(8, #nobake)), #nobake > 8 and ", ..." or ""))
+        for id, want in pairs(KNOWN[fl] or {}) do
+            local r = byId[id]
+            if not r then print("skip " .. id .. " (not in the generated guides any more)")
+            else
+                local ok = (r.np or 0) >= 2
+                for k, v in pairs(want) do if (r.who or {})[k] ~= v then ok = false end end
+                t(("%s %s: planned for its own character and has steps to bake"):format(fl, id), ok,
+                    ("who %s, located %s, walked %s"):format(J.encode(r.who or {}), tostring(r.nl), tostring(r.np)))
+            end
+        end
         table.sort(list, function(a, b) return a.id < b.id end)
         local ids = {}
         for k = 1, math.min(per, #list) do ids[#ids + 1] = list[math.floor((k - 0.5) * #list / math.min(per, #list)) + 1].id end
@@ -108,10 +200,16 @@ for _, fl in ipairs(flavors) do
         local baked = {}
         for _, l in ipairs(readLines(ro)) do local id = l:match('^O%["([^"]+)"%]') if id then baked[id] = true end end
         local va, vb = readTsv(W .. "/vp_author.tsv"), readTsv(W .. "/vp_baked.tsv")
-        local n, bad, excused = 0, 0, 0
+        local n, bad, excused, unpriced = 0, 0, 0, 0
         for _, l in ipairs(readLines(opt)) do
             local r = J.decode(l)
             local pa = r.author_s
+            if pa <= 0 then
+                -- the sample holds guides with >= 2 priced steps, so this needs a reason (e.g. every leg free)
+                unpriced = unpriced + 1
+                print(("     %s %s: predicted 0 s - left out of the comparison"):format(fl, r.id))
+                goto continue
+            end
             local pb = baked[r.id] and r.baked_s or r.author_s
             local a, b = va[r.id], vb[r.id]
             n = n + 1
@@ -137,10 +235,12 @@ for _, fl in ipairs(flavors) do
                     bad = bad + 1 outside[#outside + 1] = ("%s %s: vplayer did not finish (author %s, baked %s)"):format(fl, r.id, a.finished, b.finished)
                 end
             end
+            ::continue::
         end
         total = total + n
         t(("%s: %d guides, predicted and measured seconds agree within 2%% for both orders (%d excused: author order not playable)"):format(
             fl, n, excused), n > 0 and bad == 0, bad .. " outside")
+        t(("%s: no sampled guide is priced at 0 s"):format(fl), unpriced == 0, unpriced .. " left out")
         -- a row without the cost model is refused (no second copy of its constants in the optimizer)
         if #rows > 0 then
             local r = rows[1]

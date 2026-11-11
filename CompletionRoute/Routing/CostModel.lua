@@ -29,16 +29,23 @@
 --    The client itself always uses the character's discovered ones (routing.taxiPolicy "known").
 -- 5. No hearth and no teleports offline: they are one-shot legs from where the player stands, never pairwise costs.
 --    Only a step that says to use the hearthstone (H) costs CM.HEARTH instead of the trip to its point.
--- 6. The planning character (CM.Takes, CM.PlanSteps): the bake plans for the steps every character of the guide's
---    faction takes and walks to; a class, race, profession or other-faction step, or one that ticks by itself (a second
---    accept or turn-in, an objective already done), rides along.  vplayer --who plan plays exactly that character, and
---    tools/test_cost_parity.lua requires the optimizer's predicted seconds and vplayer's to agree within 2% per guide.
+-- 6. The planning character (CM.Persona, CM.Takes, CM.PlanSteps): one baked order serves everyone who plays the guide, so
+--    it is planned for the character most of the guide's located steps are written for: the guide's faction (in a guide
+--    for both factions: the faction at least half of its located steps are tagged for, else none), then the class, the
+--    race and the profession at least half of the located steps it takes so far name (else none).  A race's starting
+--    zone is planned for that race, a class guide for that class; a guide split between many classes keeps the steps
+--    every character takes.  The bake walks to the steps that character takes; a step it does not take, or one that
+--    ticks by itself (a second accept or turn-in, an objective already done), rides along.  vplayer --who plan plays
+--    exactly that character, and tools/test_cost_parity.lua requires the optimizer's predicted seconds and vplayer's to
+--    agree within 2% per guide.  The bake gate plays a real character of that faction, class and race (--who gate).
+-- 7. The bake gate (tools/optimize_routes.py --gate): a baked order is kept only when vplayer finds baked order + live
+--    window not slower than author order + live window by more than max(CM.GATE_FRAC, CM.GATE_ABS seconds).
 -- Changing any rule here changes baked costs: bump CM.VERSION, which makes every baked row stale (tools/bake_resume.py).
 local ADDON, NS = ...
 local CM = {}
 NS.CostModel = CM
 
-CM.VERSION = 1             -- stamped into every cost_matrix row and optimizer result row
+CM.VERSION = 2             -- stamped into every cost_matrix row and optimizer result row (2: the planning character)
 CM.NOROUTE = 1800          -- seconds for a leg the router cannot path (the same in every order, so it never wins a bake)
 CM.HEARTH = 60             -- seconds an H step (use the hearthstone) costs offline: routing.hearthCost's default
 CM.WALK_ONLY_BELOW = 700   -- yards: below this a leg is a straight walk, never a graph search
@@ -58,6 +65,10 @@ CM.BANDS = {
 --              starting-zone flight masters sit in level-1 zones, so they are always in.
 CM.OFFLINE_TAXI = "faction"
 CM.LEVEL_BIN = 5
+-- the bake gate: baked order + live window may be slower than author order + live window by at most
+-- max(GATE_FRAC of it, GATE_ABS seconds) (tools/optimize_routes.py reads both from the rows, tools/test_route_order.lua here)
+CM.GATE_FRAC = 0.01
+CM.GATE_ABS = 30
 CM.NPC_PATTERNS = { "^From (.-)%.", "^To (.-)%." }
 
 local floor = math.floor
@@ -238,29 +249,119 @@ function CM.MapPoint(s)
 end
 
 -- ---------------------------------------------------------------------------
--- The planning character (the bake and vplayer --who plan; the client always plays its real character)
+-- The planning character (the bake, vplayer --who plan / gate; the client always plays its real character)
 -- ---------------------------------------------------------------------------
--- One baked order serves every class and race, so it is planned for the steps every character of the guide's faction
--- takes: a step with a class, race or profession condition ("-X", all but X, counts as none) or another faction's tag
--- (in a guide for both factions: any faction tag) rides along like a step without a place.  The live window orders
--- those for the real character in game.
+-- One baked order serves every character that plays the guide, so it is planned for ONE character (rule 6 above):
+-- who = { faction = "Alliance" | "Horde" | nil, class = UnitClass token | nil, race = UnitRace token | nil,
+--         prof = profession name (lower case) | nil }; nil = none, it takes only the steps without that condition.
+-- Class and race names become tokens the way Core/Conditions.lua matches them (Cond.ClassToken / Cond.RaceToken).
+local DIMS = { "class", "race", "prof" }
+local function trim(v) return (v:gsub("^%s+", ""):gsub("%s+$", "")) end
+local function token(dim, v)
+    if dim == "prof" then return v:lower() end
+    local C = NS.Cond
+    if dim == "class" then return C and C.ClassToken and C.ClassToken(v) or (v:gsub("%s", ""):upper()) end
+    return C and C.RaceToken and C.RaceToken(v) or v
+end
+-- the values a condition names, as tokens (nil: no condition, or an "all but" list).  A profession spec is "Name;rank".
+local function named(list, dim)
+    if not list or list == "" then return nil end
+    if dim == "prof" then
+        local n = trim(list:match("^([^;]*)") or "")
+        return n ~= "" and { [n:lower()] = true } or nil
+    end
+    if list:sub(1, 1) == "-" then return nil end
+    local out
+    for v in list:gmatch("[^;,/]+") do
+        v = trim(v)
+        if v ~= "" then out = out or {} out[token(dim, v)] = true end
+    end
+    return out
+end
+-- does a character whose value in `dim` is `mine` (a token, nil = none) take a step with condition `list`?
+-- "X" takes only X; "-X" (all but X) takes everyone but X, so a character with no value takes it.
+function CM.ListTakes(list, dim, mine)
+    if not list or list == "" then return true end
+    if dim == "prof" then
+        local t = named(list, dim)
+        return mine ~= nil and t ~= nil and t[mine] == true
+    end
+    local neg = list:sub(1, 1) == "-"
+    if not mine then return neg end
+    local hit = false
+    for v in (neg and list:sub(2) or list):gmatch("[^;,/]+") do
+        v = trim(v)
+        if v ~= "" and token(dim, v) == mine then hit = true break end
+    end
+    if neg then return not hit end
+    return hit
+end
 local function forAll(list) return not list or list == "" or list:sub(1, 1) == "-" end
 function CM.FactionTakes(tag, faction)
     if not tag or tag == "" or tag == "Neutral" then return true end
     if not faction or faction == "" or faction == "Both" then return false end
     return tag:lower():sub(1, 1) == faction:lower():sub(1, 1)
 end
-function CM.Takes(s, faction)
-    if not (forAll(s.class) and forAll(s.race)) then return false end
-    if s.prof and s.prof ~= "" then return false end
-    return CM.FactionTakes(s.faction, faction)
+-- who: the planning character (CM.Persona), or a faction name (a character with no class, race or profession)
+function CM.Takes(s, who)
+    if type(who) ~= "table" then who = { faction = who } end
+    for _, d in ipairs(DIMS) do
+        if not CM.ListTakes(s[d], d, who[d]) then return false end
+    end
+    return CM.FactionTakes(s.faction, who.faction)
 end
 CM.ForAll = forAll
+
+-- The planning character of a guide (steps after CM.Locate; g = the guide): the faction, then the class, race and
+-- profession that at least half of the located steps it takes so far are written for (ties: the first name).
+function CM.Persona(steps, g)
+    local who = {}
+    local gf = g and g.faction
+    if gf == "Alliance" or gf == "Horde" then who.faction = gf end
+    local loc = {}
+    for _, s in ipairs(steps or {}) do if CM.Located(s) then loc[#loc + 1] = s end end
+    if not who.faction then
+        local a, h = 0, 0
+        for _, s in ipairs(loc) do
+            local f = s.faction and s.faction:lower():sub(1, 1)
+            if f == "a" then a = a + 1 elseif f == "h" then h = h + 1 end
+        end
+        local n = math.max(a, h)
+        if n > 0 and 2 * n >= #loc then who.faction = (a >= h) and "Alliance" or "Horde" end
+    end
+    for di, d in ipairs(DIMS) do
+        local pool, cnt = 0, {}
+        for _, s in ipairs(loc) do
+            local ok = CM.FactionTakes(s.faction, who.faction)
+            for e = 1, di - 1 do
+                if ok and not CM.ListTakes(s[DIMS[e]], DIMS[e], who[DIMS[e]]) then ok = false end
+            end
+            if ok then
+                pool = pool + 1
+                local t = named(s[d], d)
+                if t then for v in pairs(t) do cnt[v] = (cnt[v] or 0) + 1 end end
+            end
+        end
+        local best, bn
+        for v, c in pairs(cnt) do
+            if not bn or c > bn or (c == bn and v < best) then best, bn = v, c end
+        end
+        if best and 2 * bn >= pool then who[d] = best end
+    end
+    return who
+end
+-- "Horde Goblin", "Alliance WARRIOR", "any" - for logs and reports
+function CM.PersonaText(who)
+    local t = {}
+    for _, k in ipairs({ "faction", "race", "class", "prof" }) do if who and who[k] then t[#t + 1] = who[k] end end
+    return #t > 0 and table.concat(t, " ") or "any"
+end
 
 local ACCEPT = { A = true, a = true, ["!"] = true }
 local TURNIN = { T = true, t = true }
 local OBJECTIVE = { C = true, K = true, l = true, U = true }
--- CM.PlanSteps(steps, faction) -> walk, keepObj.  For the planning character, in author order:
+-- CM.PlanSteps(steps, who) -> walk, keepObj.  For the planning character (who: CM.Persona's table, or a faction name),
+-- in author order:
 --   walk[i] = true when it walks to step i: it takes the step (CM.Takes) and the step does not tick by itself.  A step
 --             ticks by itself (the client does it, and tools/vplayer.lua's world does the same) when it is a second
 --             accept or turn-in of a quest it took, or an objective step whose objective is already done: the same
@@ -269,12 +370,13 @@ local OBJECTIVE = { C = true, K = true, l = true, U = true }
 --   keepObj[q] = true for a quest with such an objective step: its objective steps keep their author order (the step
 --             that does the objective must come first, or the one that ticks by itself would be walked to instead).
 -- Accepts and turn-ins of one quest keep their author order anyway (tools/optimize_routes.py precedence).
-function CM.PlanSteps(steps, faction)
+function CM.PlanSteps(steps, who)
+    if type(who) ~= "table" then who = { faction = who } end
     local walk, keepObj = {}, {}
     local need = {}        -- quest -> { [qo] = true } numbered objectives the guide names for it (taken steps)
     for i, s in ipairs(steps) do
         local q = s.qid and s.qid[1]
-        walk[i] = CM.Takes(s, faction)
+        walk[i] = CM.Takes(s, who)
         if walk[i] and q and OBJECTIVE[s.action] then
             local n = tonumber(s.qo)
             if n then local t = need[q] if not t then t = {} need[q] = t end t[n] = true end
@@ -325,7 +427,7 @@ end
 function CM.Export(policy)
     return { version = CM.VERSION, noroute = CM.NOROUTE, hearth = CM.HEARTH, walk_only_below = CM.WALK_ONLY_BELOW, terrain = CM.TERRAIN,
              fly_terrain = CM.FLY_TERRAIN, run_speed = CM.RUN_SPEED, fly_speed = CM.FLY_SPEED, taxi = policy or CM.OFFLINE_TAXI,
-             level_bin = CM.LEVEL_BIN }
+             level_bin = CM.LEVEL_BIN, gate_frac = CM.GATE_FRAC, gate_abs = CM.GATE_ABS }
 end
 
 -- defaults the Options slider and the speed guess start from

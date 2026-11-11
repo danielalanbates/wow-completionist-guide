@@ -10,8 +10,8 @@
 -- Everything that decides a cost comes from the cost model (CompletionRoute/Routing/CostModel.lua, docs/ROUTING.md
 -- "One cost model"), installed through tools/cm_offline.lua exactly as tools/vplayer.lua installs it:
 --   * which steps are priced and where (own |M|, an NPC's point, a new zone's centre, for a step the planning character
---     walks to - no class, race or profession condition, the guide's own faction, not a step that ticks by itself;
---     the rest ride along: CostModel.PlanSteps);
+--     walks to - the character most of the guide's located steps are written for (CostModel.Persona: faction, class,
+--     race, profession), not a step that ticks by itself; the rest ride along: CostModel.PlanSteps);
 --   * a point is keyed by place AND level key: a leg is priced at the speed (and, taxi "band", the flight paths) of the
 --     planning level of the step it leaves from;
 --   * no hearth and no teleports; the offline flight-path rule (--taxi, default CostModel.OFFLINE_TAXI);
@@ -24,7 +24,8 @@
 -- Usage: luajit tools/cost_matrix.lua <era|tbc|mop|retail|forever> [--out PATH] [--guide ID] [--guides-file F]
 --                                     [--prefix wiki:,qdb:,qpoi:] [--sample K] [--limit N] [--exact] [--verify 200]
 --                                     [--taxi faction|band] [--list [--steps]]
---   --list           one {"id","n","sum","cmv"} row per quest guide, no matrices (finds unbaked or stale guides)
+--   --list           one {"id","n","sum","cmv","nl","np","who"} row per quest guide, no matrices (finds unbaked or stale
+--                    guides; nl = located steps, np = located steps the planning character walks to: < 2 = nothing to bake)
 --   --list --steps   the same plus each step's checksum parts (tools/test_route_order.lua checks the three copies)
 -- Output (default): $CR_TMP/costmx/<flavor>.jsonl, CR_TMP defaulting to the optimizer's job directory (never the repo)
 package.path = "./?.lua;" .. package.path
@@ -127,6 +128,11 @@ local function jobj(t)
     return "{" .. table.concat(o, ",") .. "}"
 end
 local CMJ = jobj(CM.Export(ctl.policy))
+local function jwho(who)
+    local o = {}
+    for _, k in ipairs({ "faction", "class", "race", "prof" }) do if who[k] then o[#o + 1] = jstr(k) .. ":" .. jstr(who[k]) end end
+    return "{" .. table.concat(o, ",") .. "}"
+end
 
 -- [action, kind, quest, pre, minlevel, point, anchor, zone, hx, hy, cost-model kind, keep objective order]; point = -1
 -- for a step the planning character does not walk to (it rides along; every step of a list row); keep = 1 on an
@@ -165,12 +171,22 @@ for _, id in ipairs(G.list) do
                     for i, s in ipairs(steps) do rows[i] = stepRow(s, -1) end
                     extra = ",\"steps\":[" .. table.concat(rows, ",") .. "]"
                 end
-                out:write(("{\"id\":%s,\"n\":%d,\"sum\":%d,\"cmv\":%d%s}\n"):format(jstr(id), #steps, checksum(steps), CM.VERSION, extra))
+                -- located steps, and the ones the planning character walks to (fewer than 2: nothing to bake)
+                local who = CM.Persona(steps, g)
+                local walk = CM.PlanSteps(steps, who)
+                local nl, np = 0, 0
+                for i, s in ipairs(steps) do
+                    if CM.Located(s) then nl = nl + 1 if walk[i] then np = np + 1 end end
+                end
+                out:write(("{\"id\":%s,\"n\":%d,\"sum\":%d,\"cmv\":%d,\"nl\":%d,\"np\":%d,\"who\":%s%s}\n"):format(jstr(id), #steps,
+                    checksum(steps), CM.VERSION, nl, np, jwho(who), extra))
                 n = n + 1
                 g.steps = nil
             elseif steps and #steps > 0 and not g.empty then
                 local tg0 = os.clock()
-                FACTION = (g.faction == "Horde") and "Horde" or "Alliance"
+                -- the planning character (CostModel.Persona); its faction decides the flight masters too
+                local who = CM.Persona(steps, g)
+                FACTION = who.faction or ((g.faction == "Horde") and "Horde" or "Alliance")
                 NS.player.faction = FACTION
                 local start = CM.StartLevel(g)
                 ctl.SetLevel(start)
@@ -181,7 +197,7 @@ for _, id in ipairs(G.list) do
                 local startPt = swx and { wx = swx, wy = swy, inst = sinst, zone = szone, level = start } or nil
                 -- the priced points: a located step the planning character walks to (CostModel.PlanSteps), at its
                 -- point, keyed by place and level key (speed band / taxi bin); every other step rides with the block before it
-                local walk, keepObj = CM.PlanSteps(steps, g.faction)
+                local walk, keepObj = CM.PlanSteps(steps, who)
                 local pts, key2pt, rows = {}, {}, {}
                 for i, s in ipairs(steps) do
                     local pi = -1
@@ -246,9 +262,9 @@ for _, id in ipairs(G.list) do
                 end
                 if maxDiff > maxDiffAll then maxDiffAll = maxDiff end
                 verified = verified + nv
-                out:write(("{\"flavor\":%s,\"id\":%s,\"name\":%s,\"faction\":%s,\"minlevel\":%d,\"n\":%d,\"sum\":%d,\"npts\":%d,\"placed\":%s,\"exact\":%s,\"verify_n\":%d,\"verify_maxdiff\":%s,\"secs\":%s,\"cm\":%s,\"levels\":%s,\"steps\":[%s],\"start\":%s,\"m\":[%s]}\n")
+                out:write(("{\"flavor\":%s,\"id\":%s,\"name\":%s,\"faction\":%s,\"minlevel\":%d,\"n\":%d,\"sum\":%d,\"npts\":%d,\"placed\":%s,\"exact\":%s,\"verify_n\":%d,\"verify_maxdiff\":%s,\"secs\":%s,\"cm\":%s,\"who\":%s,\"levels\":%s,\"steps\":[%s],\"start\":%s,\"m\":[%s]}\n")
                     :format(jstr(FL), jstr(id), jstr(g.name or id), jstr(g.faction or "Both"), start, #steps, checksum(steps), #pts,
-                        startPt and "true" or "false", exact and "true" or "false", nv, jnum(maxDiff), jnum(os.clock() - tg0), CMJ,
+                        startPt and "true" or "false", exact and "true" or "false", nv, jnum(maxDiff), jnum(os.clock() - tg0), CMJ, jwho(who),
                         jlist((function() local l = {} for i, p in ipairs(pts) do l[i] = p.level end return l end)()),
                         table.concat(rows, ","), jlist(startRow), table.concat(mrows, ",")))
                 n = n + 1

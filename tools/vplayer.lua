@@ -20,8 +20,14 @@
 --                                  [--chain Alliance|Horde] [--questsperlevel 25]   (play the whole spine with the real chain logic)
 --                                  [--route-order PATH]   with --order baked: load this RouteOrder file instead of
 --                                                         Data/RouteOrder_<fl>.lua (the bake gate, tools/test_cost_parity.lua)
---                                  [--who warrior|plan]   warrior (default) = a Human / Orc warrior levelling through the
---                                                         guide; plan = the character the bake plans for (see below)
+--                                  [--who warrior|plan|gate]   warrior (default) = a Human / Orc warrior levelling through
+--                                                         the guide; plan = the character the bake plans for (see below);
+--                                                         gate = a real character of the planning character's faction,
+--                                                         class and race (a Human / Orc warrior where it has none): the
+--                                                         bake gate (tools/optimize_routes.py --gate)
+--                                  [--both-as Alliance|Horde]   play a guide for both factions as this faction (default:
+--                                                         the planning character's faction with --who gate, else Alliance;
+--                                                         not with --who plan)
 --                                  [--taxi model|all|band|learn]   model (default) = the cost model's offline rule
 --                                                       (Routing/CostModel.lua OFFLINE_TAXI, what the bake assumes);
 --                                                       all = every flight master of the faction; band = flight masters in
@@ -53,6 +59,7 @@ local taxiMode = "model"
 local fireTurnins = false
 local routeOrderPath
 local whoMode = "warrior"
+local bothAs
 for i = 2, #arg do
     local a = arg[i]
     if a == "--limit" then limit = tonumber(arg[i + 1])
@@ -73,7 +80,8 @@ for i = 2, #arg do
     elseif a == "--taxi" then taxiMode = arg[i + 1]          -- model | all | band | learn (see the header)
     elseif a == "--route-order" then routeOrderPath = arg[i + 1]
     elseif a == "--turnins" then fireTurnins = true
-    elseif a == "--who" then whoMode = arg[i + 1]          -- warrior (default) | plan (the cost model's planning character)
+    elseif a == "--who" then whoMode = arg[i + 1]          -- warrior (default) | plan | gate (see the header)
+    elseif a == "--both-as" then bothAs = arg[i + 1]       -- Alliance | Horde: the faction a guide for both factions is played as
     elseif a == "--verbose" then verbose = true end
 end
 -- --repro / --capture: the report decides the flavor, the order mode, the live window and the spine (tools/vplayer_repro.lua)
@@ -222,17 +230,22 @@ if not REPRO then
     ctl = OFF.Install(NS, MAPS, { taxi = TAXI_POLICY[taxiMode] })
     if taxiMode == "model" then taxiMode = (ctl.policy == "faction") and "all" or ctl.policy end
 end
--- --who plan: the character the bake plans for (CostModel.Takes): it takes no class, race or profession step and no
--- other faction's step (in a guide for both factions: no faction-tagged step), has done every prerequisite quest that no
--- step it takes turns in (earlier content), and meets every level gate - so it plays the given order exactly as the
--- optimizer prices it (tools/test_cost_parity.lua).  The default "warrior" is the Human / Orc warrior every earlier run used.
-local planFaction
+-- --who plan: the character the bake plans for (CostModel.Persona / Takes): the faction, class, race and profession most
+-- of the guide's located steps are written for (none where no one value covers half of them), so it takes exactly the
+-- steps the bake walks to; it has done every prerequisite quest that no step it takes turns in (earlier content), and
+-- meets every level gate - so it plays the given order exactly as the optimizer prices it (tools/test_cost_parity.lua).
+-- --who gate: a real character (the real Core/Conditions.lua rules) of the planning character's faction, class and
+-- race, a Human / Orc warrior where it has none, levelling through the guide: what the bake gate measures.
+-- The default "warrior" is the Human / Orc warrior every earlier run used.
+local planWho = {}
 if whoMode == "plan" then
-    Cond.ClassMatch = function(list) return CM.ForAll(list) end
-    Cond.RaceMatch = function(list) return CM.ForAll(list) end
-    Cond.ProfMatch = function(spec) return not spec or spec == "" end
-    Cond.FactionMatch = function(f) return CM.FactionTakes(f, planFaction) end
-elseif whoMode ~= "warrior" then error("vplayer --who must be warrior or plan") end
+    Cond.ClassMatch = function(list) return CM.ListTakes(list, "class", planWho.class) end
+    Cond.RaceMatch = function(list) return CM.ListTakes(list, "race", planWho.race) end
+    Cond.ProfMatch = function(spec) return CM.ListTakes(spec, "prof", planWho.prof) end
+    Cond.FactionMatch = function(f) return CM.FactionTakes(f, planWho.faction) end
+    if bothAs then error("vplayer --both-as is not for --who plan (it plays the planning character's own faction)") end
+elseif whoMode ~= "warrior" and whoMode ~= "gate" then error("vplayer --who must be warrior, plan or gate") end
+if bothAs and bothAs ~= "Alliance" and bothAs ~= "Horde" then error("vplayer --both-as must be Alliance or Horde") end
 
 -- --taxi learn: the route a step was reached by (last TravelGraph.FindPath of walkTo) and flight-path discovery
 local lastPath, taxiLearned = nil, 0
@@ -525,17 +538,30 @@ local function playGuide(g)
     local steps = G.Steps(id)
     if not steps or #steps == 0 or g.empty then return nil end
 
+    local forBoth = g.faction ~= "Alliance" and g.faction ~= "Horde"
     FACTION = (g.faction == "Horde") and "Horde" or "Alliance"
+    if whoMode == "plan" or whoMode == "gate" then
+        local who = CM.Persona(steps, g)
+        if whoMode == "plan" then
+            planWho = who
+            FACTION = who.faction or FACTION
+        else
+            FACTION = (forBoth and bothAs) or who.faction or FACTION
+            CLASS = who.class or "WARRIOR"
+            RACE = who.race or ((FACTION == "Horde") and "Orc" or "Human")
+        end
+    elseif forBoth and bothAs then
+        FACTION = bothAs
+    end
     NS.player.faction, NS.player.class, NS.player.race = FACTION, CLASS, RACE
     wipeWorld(math.max(1, tonumber(g.minlevel) or 1))
     if whoMode == "plan" then
-        planFaction = g.faction
         W.level = 999
         -- a prerequisite counts as done before the guide unless a step this character takes turns it in (a quest only
         -- another faction's or class's steps turn in is earlier content for it, as in CostModel.PlanSteps)
         local tin = {}
         for _, s in ipairs(steps) do
-            if (s.action == "T" or s.action == "t") and s.qid and CM.Takes(s, planFaction) then for _, q in ipairs(s.qid) do tin[q] = true end end
+            if (s.action == "T" or s.action == "t") and s.qid and CM.Takes(s, planWho) then for _, q in ipairs(s.qid) do tin[q] = true end end
         end
         for _, s in ipairs(steps) do
             for _, q in ipairs(s.pre or {}) do if not tin[q] then W.quests[q] = "done" end end
