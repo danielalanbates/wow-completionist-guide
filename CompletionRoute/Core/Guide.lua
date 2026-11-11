@@ -248,9 +248,12 @@ end
 -- addon's own travel graph). Same checksum as the generator: a guide regenerated since the bake no longer
 -- matches and simply keeps its author order. Spine entries reuse their zone guide's text, so they look up
 -- `part`. The live window (Router.OrderSteps) still reorders the next steps on top of this order.
--- A step's place as integers: zone id and first map point in 0.5 map percent steps (+1; 0 = no point).
--- tools/cost_matrix.lua writes these into its rows next to the action and quest id.
-local function half(v) return math.floor(v * 200 + 0.5) + 1 end
+-- Checksum version 2 (2026-11-10): per step the action, the first quest id, the zone id and the first map point rounded
+-- to 0.5 map percent, so a guide whose points moved (or whose step changed zone) no longer matches an old bake.
+-- tools/cost_matrix.lua writes these parts into every row and tools/optimize_routes.py folds them the same way
+-- (tools/test_route_order.lua checks that all three agree on real guides of every client).
+G.ROUTE_CHECKSUM_VERSION = 2
+local function half(v) return math.floor(v * 200 + 0.5) + 1 end    -- 0.5 % steps; 0 = no point
 function G.RouteChecksumParts(s)
     local p = s.coords and s.coords[1]
     local hx, hy = 0, 0
@@ -258,8 +261,14 @@ function G.RouteChecksumParts(s)
     return s.action:byte(), (s.qid and s.qid[1]) or 0, tonumber(s.zone) or 0, hx, hy
 end
 function G.RouteChecksum(steps)
-    local c = 0
-    for _, s in ipairs(steps) do c = (c * 31 + s.action:byte() + ((s.qid and s.qid[1]) or 0)) % 2147483647 end
+    local c, M = 0, 2147483647
+    for _, s in ipairs(steps) do
+        local a, q, z, hx, hy = G.RouteChecksumParts(s)
+        c = (c * 31 + a + q) % M
+        c = (c * 31 + z) % M
+        c = (c * 31 + hx) % M
+        c = (c * 31 + hy) % M
+    end
     return c
 end
 local function decodeOrder(str, n)

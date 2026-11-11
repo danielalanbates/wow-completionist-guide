@@ -39,6 +39,7 @@ Output:
 
 Usage: venv/bin/python tools/optimize_routes.py <flavor> [--in PATH] [--out PATH] [--lua-out PATH] [--limit-s 30]
                                                [--guide ID] [--no-write] [--merge]
+       venv/bin/python tools/optimize_routes.py <flavor> --check-sums FILE   (cost_matrix --list --steps output)
 """
 import argparse
 import heapq
@@ -66,9 +67,14 @@ except Exception:  # pragma: no cover
 
 
 def checksum(steps):
+    """Core/Guide.lua G.RouteChecksum (version 2): per step the action and first quest id, the zone id and the first
+    map point in 0.5 % steps (+1; 0 = no point), folded from the parts tools/cost_matrix.lua writes (step[7..9])."""
     c = 0
     for s in steps:
         c = (c * 31 + ord(s[0][0]) + (s[2] or 0)) % MOD
+        c = (c * 31 + s[7]) % MOD
+        c = (c * 31 + s[8]) % MOD
+        c = (c * 31 + s[9]) % MOD
     return c
 
 
@@ -891,7 +897,7 @@ def write_lua(flavor, rows, path):
         f.write("-- Baked step order per quest guide (offline route optimizer, FINISH_PLAN W3). Own data: travel times from\n")
         f.write("-- the addon's TravelGraph (tools/cost_matrix.lua). Applied by Core/Guide.lua G.Steps only when the guide's step\n")
         f.write("-- count and checksum still match; otherwise the author order is used. /cr options: routing.baked.\n")
-        f.write("-- n = steps, sum = checksum, o = 1-based author step indices in baked order (a-b = run).\n")
+        f.write("-- n = steps, sum = checksum (version 2), o = 1-based author step indices in baked order (a-b = run).\n")
         f.write("local _, NS = ...\n")
         f.write("if (NS.dataFlavor or NS.flavor) ~= %s then return end\n" % json.dumps(flavor))
         f.write("NS.RouteOrder = NS.RouteOrder or {}\nlocal O = NS.RouteOrder\n")
@@ -899,6 +905,20 @@ def write_lua(flavor, rows, path):
             f.write("O[%s] = { n = %d, sum = %d, o = %s }\n" % (json.dumps(r["id"]), r["n"], r["sum"], json.dumps(encode(r["order"]))))
     os.replace(path + ".part", path)
     return len(keep)
+
+
+def check_sums(path):
+    """tools/cost_matrix.lua --list --steps rows: does the Python fold of the parts give the Lua checksum?"""
+    n = bad = 0
+    for line in open(path):
+        rec = json.loads(line)
+        n += 1
+        if checksum(rec["steps"]) != rec["sum"]:
+            bad += 1
+            if bad <= 5:
+                print("MISMATCH %s: python %d, lua %d" % (rec["id"], checksum(rec["steps"]), rec["sum"]))
+    print("checksums: %d guides, %d mismatches" % (n, bad))
+    return 2 if bad else 0
 
 
 def main():
@@ -913,8 +933,11 @@ def main():
     ap.add_argument("--dp-cap", type=int, default=400000, help="subset cap of the exact metric DP (lower bound)")
     ap.add_argument("--no-write", action="store_true", help="do not write the RouteOrder file")
     ap.add_argument("--merge", action="store_true", help="keep rows from an earlier --out file for guides not in this input")
+    ap.add_argument("--check-sums", help="verify the checksum of tools/cost_matrix.lua --list --steps rows and exit")
     a = ap.parse_args()
     fl = a.flavor
+    if a.check_sums:
+        sys.exit(check_sums(a.check_sums))
     inp = a.inp or os.path.join(TMP, "costmx", fl + ".jsonl")
     outp = a.out or os.path.join(TMP, "routeopt", fl + ".jsonl")
     lua_out = a.lua_out or os.path.join(REPO, "CompletionRoute", "Data", "RouteOrder_%s.lua" % fl)

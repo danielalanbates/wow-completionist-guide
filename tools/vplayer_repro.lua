@@ -341,10 +341,21 @@ function RP.Run(r, ctx, opts)
     for _, s in ipairs(G.Steps(gid) or {}) do authored[#authored + 1] = s end
     table.sort(authored, function(a, b) return a.index < b.index end)
     local sum = G.RouteChecksum(authored)
-    local sameGuide = (sum == r.guide.sum and #authored == r.guide.authored)
-    out("  guide text: %s", sameGuide and ("same as the client (%d steps, checksum %s)"):format(#authored, tostring(sum))
-        or ("|DIFFERS| offline %d steps checksum %s, client %s steps checksum %s: step indices may not line up"):format(
-            #authored, tostring(sum), tostring(r.guide.authored), tostring(r.guide.sum)))
+    -- a report from a build with another checksum version (none recorded = version 1, before 2026-11-10) can only be
+    -- compared by its step count
+    local sumv, mySumv = r.guide.sumv or 1, G.ROUTE_CHECKSUM_VERSION or 1
+    local sameGuide
+    if sumv == mySumv then
+        sameGuide = (sum == r.guide.sum and #authored == r.guide.authored)
+        out("  guide text: %s", sameGuide and ("same as the client (%d steps, checksum %s)"):format(#authored, tostring(sum))
+            or ("|DIFFERS| offline %d steps checksum %s, client %s steps checksum %s: step indices may not line up"):format(
+                #authored, tostring(sum), tostring(r.guide.authored), tostring(r.guide.sum)))
+    else
+        sameGuide = (#authored == r.guide.authored)
+        out("  guide text: %s", sameGuide and ("%d steps as in the client (its checksum is version %d, this build's %d: not compared)"):format(
+            #authored, sumv, mySumv) or ("|DIFFERS| offline %d steps, client %s steps (checksum version %d vs %d): step indices may not line up"):format(
+            #authored, tostring(r.guide.authored), sumv, mySumv))
+    end
     if (g.baked and true or false) ~= (r.guide.baked and true or false) then
         out("  baked order: client %s, offline %s", r.guide.baked and "yes" or "no", g.baked and "yes" or "no")
     end

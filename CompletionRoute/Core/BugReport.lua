@@ -261,7 +261,7 @@ local function secGuide(r)
     r.guide = { id = g.id, name = g.name, type = g.type, source = g.source, zone = g.zone, faction = g.faction,
                 minlevel = num(g.minlevel), maxlevel = num(g.maxlevel), next = g.next, loop = g.loop and true or nil,
                 baked = g.baked and true or false, steps = #(P.steps or {}), authored = #authored,
-                sum = G.RouteChecksum(authored), parseErrors = g.parseErrors }
+                sum = G.RouteChecksum(authored), sumv = G.ROUTE_CHECKSUM_VERSION, parseErrors = g.parseErrors }
 end
 local function secStep(r)
     local P, G = NS.Progress, NS.Guide
