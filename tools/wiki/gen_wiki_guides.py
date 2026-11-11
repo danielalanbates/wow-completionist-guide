@@ -245,6 +245,8 @@ class QuestPOI:
         self.q = defaultdict(dict)
         d = ROOT / "tools" / "db2" / fl
         if not (d / "QuestPOIBlob.csv").exists() or not (d / "QuestPOIPoint.csv").exists():
+            print(f"  note: tools/db2/{fl}/QuestPOIBlob.csv / QuestPOIPoint.csv missing - no client quest pins for {fl} "
+                  "(fetch them with tools/gen_quest_guides_retail.py or tools/wiki/db2_fetch.py)")
             return
         blobs = [r for r in csv.DictReader((d / "QuestPOIBlob.csv").open(encoding="utf-8"))
                  if int(r["QuestID"] or 0) > 0 and int(r["ObjectiveIndex"]) != 32]
