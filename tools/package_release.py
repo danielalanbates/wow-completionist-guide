@@ -124,8 +124,8 @@ RULES = (
     R("Guides/Imported_Storylines_*.lua", "interop-questie", "Questie: GPL-3.0 (mixed with Blizzard data)",
       "QuestLine order from Blizzard tables, but the step lines are copied from Imported_Quests_retail.lua (Questie giver "
       "points, names, faction and level gates) and bare quests take their names from tools/db2/questie_index.tsv",
-      "tools/gen_completion_guides.py (storylines)", "generated",
-      "Questie-derived until gen_completion_guides.py builds storylines from Imported_Wiki_retail.lua and Blizzard data only"),
+      "tools/gen_completion_guides.py before 2026-11-11 (storylines)", "generated",
+      "Questie-derived; replaced by Guides/Imported_QuestLines_retail.lua (wiki + Blizzard data), no TOC loads it"),
     R("Data/Imported_Entrances.lua", "interop-questie", "Questie: GPL-3.0", "dungeon entrances from Questie's "
       "Database/Zones/data/dungeons.lua", "tools/gen_entrances.py", "generated",
       "Questie-derived; Core/Instances.lua falls back to doors it learns and the retail encounter journal"),
@@ -145,9 +145,17 @@ RULES = (
     R("Guides/Imported_Professions_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Warcraft Wiki trainer, recipe, reagent and "
       "fishing pages; recipe membership, skill levels, reagents and dig sites from Blizzard tables (facts)",
       "tools/wiki/gen_professions.py", "generated"),
-    R("Guides/Imported_Achievements_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Blizzard Achievement/Criteria/Map tables; "
-      "criterion points from Imported_Wiki_<flavor>.lua (rows credited to Questie skipped) and wiki NPC pages",
-      "tools/gen_completion_guides.py (achievements)", "generated"),
+    R("Guides/Imported_Achievements_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Blizzard Achievement, Criteria, Map, QuestPOI, "
+      "WorldMapOverlay, AreaTable and DungeonEncounter tables (facts); criterion points from Imported_Wiki_<flavor>.lua "
+      "(rows credited to fallback data skipped) and wiki NPC, object, item, glyph, race and achievement pages; each "
+      "located step names its source. Only a file made from the --no-fallback wiki build ships: one made from the "
+      "default build says so in its header, which fails the gate", "tools/gen_completion_guides.py (achievements)",
+      "generated"),
+    R("Guides/Imported_QuestLines_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Blizzard QuestLine/QuestLineXQuest order and "
+      "QuestPOIBlob/QuestPOIPoint pins (facts); step text, gates and points from Imported_Wiki_retail.lua (fallback "
+      "points dropped); quests without a wiki page are 'Quest <id>' steps named live by the client. Only a file made "
+      "from the --no-fallback wiki build ships: one made from the default build says so in its header, which fails "
+      "the gate", "tools/gen_completion_guides.py (quest lines)", "generated"),
     R("Data/QuestDeps_*.lua", "wiki-cc-by-sa", CC_BY_SA, "quest chains (previous/next links) and names from "
       "Imported_Wiki_<flavor>.lua, breadcrumb flags from the wording of the wiki quest pages. Only the --wiki-only build "
       "ships: the default build also reads the Questie-derived gaps guides and the retail storylines, and its header says "

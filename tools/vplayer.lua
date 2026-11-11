@@ -201,7 +201,7 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
     ("Guides/Imported_WoWPro_" .. (WOWPRO[flavor] or flavor) .. ".lua"),
     -- quest guides exactly as the flavor TOC loads them: wiki guides + the older generated guides' gaps
     ("Guides/Imported_Wiki_" .. flavor .. ".lua"), ("Guides/Imported_Quests_" .. flavor .. "_gaps.lua"),
-    ("Guides/Imported_Achievements_" .. flavor .. ".lua"), ("Guides/Imported_Storylines_" .. flavor .. ".lua"),
+    ("Guides/Imported_Achievements_" .. flavor .. ".lua"), ("Guides/Imported_QuestLines_" .. flavor .. ".lua"),
     ("Guides/Imported_Missions_" .. flavor .. ".lua") }) do load(f) end
 -- the spine reuses the wiki guides' text under "spine:" ids; only with --spine, so a default run plays each guide once
 if withSpine then load("Guides/Imported_Spine_" .. flavor .. ".lua") end

@@ -49,8 +49,43 @@ EXTRA_ALIASES = {
 }
 
 
+RE_SUFFIX = re.compile(r"\s*\((classic|forever|burning crusade|season of discovery|zone|alternate universe|"
+                       r"bc classic|wrath classic|cata classic|mop classic)\)\s*$", re.I)
+HISTORY_DB = ROOT / "tools" / "wiki" / "cache" / "coord_history.sqlite"
+
+
 def norm(s):
     return re.sub(r"[^0-9a-z]", "", (s or "").lower())
+
+
+def base_zone(name):
+    """a wiki zone name without its version suffix: 'Blasted Lands (Classic)' -> 'Blasted Lands'"""
+    return RE_SUFFIX.sub("", (name or "").strip())
+
+
+def history_marks(path=None):
+    """{(page title, zone, x, y)} of wiki coordinates that were already on their page before patch 4.0.3 redrew the zone
+    maps (tools/wiki/fetch_coord_history.py): Classic-map numbers, to be read as '(Classic)' points.  Empty when the
+    history has not been fetched."""
+    import sqlite3
+    p = Path(path) if path else HISTORY_DB
+    if not p.exists():
+        return set()
+    con = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
+    try:
+        return {(t, z, round(x, 2), round(y, 2)) for t, z, x, y in
+                con.execute("select title, zone, x, y from coord_history where pre_cata = 1")}
+    except sqlite3.Error:
+        return set()
+    finally:
+        con.close()
+
+
+def mark_classic(marks, title, zone, x, y):
+    """(zone, classic) for one npc_coords row: a pre-4.0.3 coordinate becomes a '(Classic)' point"""
+    if marks and (title, zone, round(x, 2), round(y, 2)) in marks:
+        return base_zone(zone) + " (Classic)", 1
+    return zone, None
 
 
 def load_maps(flavor):
@@ -94,18 +129,18 @@ class MapSet:
 
     def resolve(self, name, added_patch=None, draenor=False):
         """zone/article name -> uiMapID on this client, or None"""
-        key = (name, added_patch is not None and added_patch >= (12, 0, 0), draenor)
+        key = (name, added_patch is not None and added_patch >= (12, 0, 0), added_patch is not None and added_patch >= (7, 0, 0),
+               draenor)
         if key in self.cache:
             return self.cache[key]
         r = self._resolve(name, *key[1:])
         self.cache[key] = r
         return r
 
-    def _resolve(self, name, midnight, draenor):
+    def _resolve(self, name, midnight, legion, draenor):
         if not name:
             return None
-        n = re.sub(r"\s*\((classic|forever|burning crusade|season of discovery|zone|alternate universe|"
-                   r"bc classic|wrath classic|cata classic|mop classic)\)\s*$", "", name.strip(), flags=re.I)
+        n = RE_SUFFIX.sub("", name.strip())
         cands = []
         for nm in [n, "The " + n] + self.aliases.get(n, []) + self.aliases.get("The " + n, []):
             ids = self.by_norm.get(norm(nm))
@@ -114,6 +149,15 @@ class MapSet:
                 break
         if not cands:
             return None
+        city = CITY_INSTANCE.get(norm(n))
+        if city:
+            # Dalaran has no zone-type map, so "lowest id" picked map 41, a micro map in Deadwind Pass.  The wiki article
+            # name says which city ("Dalaran (Broken Isles)"); a plain "Dalaran" is the Northrend city unless the page is
+            # from Legion on.  Its main floor is the largest map of that instance.
+            inst = city[1] if (len(city) > 1 and (legion or norm(n) != "dalaran")) else city[0]
+            pick = [i for i in cands if self.maps[i]["inst"] == inst and isinstance(self.maps[i]["w"], float)]
+            if pick:
+                return max(pick, key=lambda i: (self.maps[i]["w"] * self.maps[i]["h"], -i))
         if draenor:
             dr = [i for i in cands if self.maps[i]["inst"] == 1116]
             if dr:
@@ -213,6 +257,9 @@ class MapSet:
 # zone (median error converted vs unconverted, 2026-11-09): Badlands 8.7 / 0.6, Arathi Highlands 4.7 / 1.0, Swamp of
 # Sorrows 3.3 / 0.3, Felwood 1.5 / 0.2; Teldrassil from individual NPC pages.  MoP and retail share the retail maps.
 KEEP_NUMBERS = {fl: {"badlands", "arathihighlands", "swampofsorrows", "felwood", "teldrassil"} for fl in ("era", "tbc", "forever")}
+# Wiki names of a city that exists twice: (instance of a plain or default name, instance a Legion-era page means).
+# "Dalaran (Northrend)" = Northrend (571), "Dalaran (Broken Isles)" = the Broken Isles (1220).
+CITY_INSTANCE = {"dalaran": (571, 1220), "dalarannorthrend": (571,), "dalaranbrokenisles": (1220,)}
 
 
 class Atlas:
@@ -343,6 +390,31 @@ def _selfcheck():
     p = A.parent_point_on_sub("Valley of Trials", ("Durotar", 43.2, 68.2))
     check(p is not None and abs(p[0] - 44.8) < 0.2 and abs(p[1] - 66.2) < 0.2, f"Gornek's Durotar row on the Valley of Trials map {p}")
     check(A.parent_point_on_sub("Valley of Trials", ("Durotar", 80.0, 20.0)) is None, "a point off the subzone map must give None")
+    # Blasted Lands (2026-11-11).  The transforms are right: the Nethergarde Keep flight master's wiki point (retail map,
+    # Alexandra Constantine 61.2, 21.6) lands on the Blizzard TaxiNodes position on both clients.  The 5.5-unit offset
+    # came from pages whose numbers were measured on the Classic map before patch 4.0.3 (Daio the Decrepit 34, 50):
+    # read as retail numbers they move about 5.6 units on Classic, so tools/wiki/fetch_coord_history.py marks them.
+    taxi = {}
+    for fl in ("era", "retail"):
+        m = re.search(r"\[45\]=\{\"Nethergarde Keep, Blasted Lands\",(\d+),(-?[\d.]+),(-?[\d.]+)",
+                      (ROOT / "CompletionRoute" / "Data" / f"Taxi_{fl}.lua").read_text(encoding="utf-8"))
+        check(m is not None, f"Nethergarde Keep taxi node missing on {fl}")
+        taxi[fl] = A.sets[fl].from_world(int(m.group(1)), float(m.group(2)), float(m.group(3)), prefer_name="Blasted Lands")
+    check(abs(taxi["retail"][1] - 61.2) < 0.3 and abs(taxi["retail"][2] - 21.6) < 0.3, f"retail flight master {taxi['retail']}")
+    r = A.place("Blasted Lands", 61.2, 21.6, "era")
+    check(r[0] == taxi["era"][0] and abs(r[1] - taxi["era"][1]) < 0.3 and abs(r[2] - taxi["era"][2]) < 0.3,
+          f"retail numbers converted onto the era map {r} vs the era taxi node {taxi['era']}")
+    check(A.place("Blasted Lands (Classic)", 34.0, 50.0, "era") == (1419, 34.0, 50.0), "Classic numbers stay on era")
+    r = A.place("Blasted Lands", 34.0, 50.0, "era")
+    check(((r[1] - 34.0) ** 2 + (r[2] - 50.0) ** 2) ** 0.5 > 5.0, f"the offset a Classic number gets as a retail one {r}")
+    marks = {("Daio the Decrepit", "Blasted Lands", 34.0, 50.0)}
+    check(mark_classic(marks, "Daio the Decrepit", "Blasted Lands", 34.0, 50.0) == ("Blasted Lands (Classic)", 1), "pre-4.0.3 mark")
+    check(mark_classic(marks, "Alexandra Constantine", "Blasted Lands", 61.2, 21.6) == ("Blasted Lands", None), "retail row kept")
+    # Dalaran: never the Deadwind Pass micro map 41; Northrend unless the page says Broken Isles or is from Legion on
+    R = A.sets["retail"]
+    check(R.resolve("Dalaran") == 125 and R.resolve("Dalaran (Northrend)") == 125, f"retail Dalaran {R.resolve('Dalaran')}")
+    check(R.resolve("Dalaran (Broken Isles)") == 627 and R.resolve("Dalaran", (7, 0, 3)) == 627, "Broken Isles Dalaran")
+    check(A.sets["mop"].resolve("Dalaran") == 125, f"mop Dalaran {A.sets['mop'].resolve('Dalaran')}")
     print("wikimaps regression checks passed")
 
 

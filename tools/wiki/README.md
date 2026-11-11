@@ -8,7 +8,9 @@ fills coordinates the wiki lacks. Nothing in this pipeline reads commercial guid
 nice -n 10 python3 tools/wiki/fetch_wiki.py        # 1. infobox pages -> cache/wiki_raw.sqlite (~51 min, resumable)
 nice -n 10 python3 tools/wiki/parse_wiki.py        # 2. -> wiki.sqlite
 nice -n 10 python3 tools/wiki/fetch_titles.py      # 3. pages quests link to that step 1 missed (items, objects,
-nice -n 10 python3 tools/wiki/parse_wiki.py        #    subzones, redirects); run 3+2 again for item drop sources
+nice -n 10 python3 tools/wiki/parse_wiki.py        #    subzones, redirects); run 3+2 again for item drop sources.
+                                                   #    --db2-names also tries quest-starting items, criteria items and
+                                                   #    criteria NPC names from Blizzard tables (about 300 requests)
 nice -n 10 python3 tools/wiki/fetch_db2.py         # 4. pinned QuestV2 per flavor (+ retail QuestObjective) -> tools/db2/
 nice -n 10 python3 tools/wiki/gen_wiki_guides.py   # 5. -> Guides/Imported_Wiki_<fl>.lua + Imported_Quests_<fl>_gaps.lua
 luajit tools/test_wiki.lua                         # 6. check
@@ -77,7 +79,29 @@ point in other guides and data is converted at runtime by `U.EraToForever` (`Dat
 
 `parse_wiki.py` parses `{{#data:Achievementtip}}` into `achievements` / `achievement_criteria`: 9,157 pages carry an
 `{{elinks-achievement|id}}`, and 8,631 of those match the ids in the DB2 achievement guides. The wiki criteria have
-**no criterion ids and no coordinates**, so they cannot tick per criterion. Of 26,455 criteria, only 2,842 link to a
-quest page. The existing DB2 guides (`tools/gen_completion_guides.py`) tick every criterion through
-`|ACH|id;criteriaTreeId|`, so they stay. Wiki achievement data is available in SQL for a later enrichment pass,
-for example to add quest coordinates to quest-type criteria.
+**no criterion ids and no coordinates**, so they cannot tick per criterion. Of 26,455 criteria, 1,779 link to a
+quest page (2026-11-11 parse). The DB2 guides (`tools/gen_completion_guides.py`) tick every criterion through
+`|ACH|id;criteriaTreeId|`, so they stay; the wiki supplies places: linked quests and NPC pages per criterion, and since
+2026-11-11 table `achievement_links` (the links and `{{Coords}}` in each achievement page's lead and location sections),
+used for an achievement no criterion locates.
+
+## Items (2026-11-11)
+
+`items` keeps, per item page (`{{Itembox}}` or a `{{#data:Itemtip}}` in the first 600 characters), the pages its
+"source" sections and every lead sentence that says where it comes from link to ("can be fished on [[Mechagon Island]]",
+"drops ... from [[Itoka]]", "found on Henrig's body{{coords|...}}"), in page order, plus the `{{Coords}}` of those
+sentences (`coords_json`). `gen_wiki_guides.py` uses them for item-started quests: Blizzard `ItemSparse.StartQuestID`
+says which item starts a quest, the accept step goes where the item is obtained (its own coords, else a source page's
+point, else the source zone as a zone-only step) and carries `|U|<item>|`.
+A source page about a zone, city or continent never gives a point (its `{{co}}` rows are neighbours and landmarks:
+the Silithus page's road to Un'Goro Crater), and neither does a topic page whose every `{{co}}` stands in a body
+section (a profession, holiday or system article); a zone source makes the accept zone-only. The accept's note names
+the page its point came from. In the default (fallback) build, an item page's point gives way to the client's own
+fallback point when the two are more than 300 yd apart or on different continents.
+
+## Glyphs (2026-11-11)
+
+`glyph_points(name, zone, x, y, page_title)` holds every dragon / skyriding glyph that the glyph pages ("Dragon Glyph",
+"Skyriding Glyph", "<zone> Glyph Hunter") give a `{{co}}` or a `{{Zone Map Note}}` for: 74 glyphs, all on the Dragon
+Isles (The War Within and Midnight hunter pages list places without coordinates). `tools/gen_completion_guides.py`
+places "Dragon Glyphs: <name>" achievements there and credits the page.

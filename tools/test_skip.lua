@@ -743,7 +743,11 @@ local function realFlavor(fl)
     --      time, as Skip.Recompute would from that guide, and check the rebuilt list
     do
         local isSoft = softSet(NS.QuestDeps)
-        for _, extra in ipairs({ "Guides/Imported_WoWPro_" .. fl .. ".lua", "Guides/Imported_Storylines_" .. fl .. ".lua" }) do
+        -- storylines: the quest-line build the TOC loads (Imported_QuestLines_<fl>), or the older file in a checkout not
+        -- regenerated since 2026-11-11 (both register the same story: ids, so only one is loaded)
+        local story = "Guides/Imported_QuestLines_" .. fl .. ".lua"
+        if not exists("CompletionRoute/" .. story) then story = "Guides/Imported_Storylines_" .. fl .. ".lua" end
+        for _, extra in ipairs({ "Guides/Imported_WoWPro_" .. fl .. ".lua", story }) do
             if exists("CompletionRoute/" .. extra) then assert(loadfile("CompletionRoute/" .. extra))("CompletionRoute", NS) end
         end
         if NS.ImportedWoWPro then

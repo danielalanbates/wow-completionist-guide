@@ -33,6 +33,7 @@ TOOLS = Path(__file__).resolve().parent
 ROOT = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
 import package_release as pr  # noqa: E402
+from gen_completion_guides import FALLBACK_BUILD  # noqa: E402
 
 GIT = pr.GIT
 TMPROOT = "/private/tmp/claude-501" if os.path.isdir("/private/tmp/claude-501") else None
@@ -91,6 +92,9 @@ def make_base(tmp):
                         text = "-- test stand-in: Sources: Warcraft Wiki only (release build, --wiki-only).\n" + text
                     (addon / rel).write_text(text, encoding="utf-8")
     (addon / "Guides" / "Imported_Quests_era.lua").write_text(STAND_IN["interop-questie"], encoding="utf-8")
+    # the storylines file built before 2026-11-11 (Questie-derived) stays in a checkout that has not been regenerated;
+    # no TOC loads it any more (Imported_QuestLines_retail.lua replaced it)
+    (addon / "Guides" / "Imported_Storylines_retail.lua").write_text(STAND_IN["interop-questie"], encoding="utf-8")
     # one shipped wiki guide with its baked order row, and one Questie-derived _gaps guide (no row yet)
     append(addon / "Guides" / "Imported_Wiki_era.lua", 'R({ id="wiki:era:1429:Both", name="Test", type="Quests", text=[==[\n]==] })\n')
     append(addon / "Data" / "RouteOrder_era.lua", 'O["wiki:era:1429:Both"] = { n = 2, sum = 1, o = "2,1" }\n')
@@ -176,6 +180,9 @@ def main():
                                                        "Guides/Imported_Storylines_retail.lua", "Data/Imported_Entrances.lua",
                                                        "Guides/Imported_Quests_era.lua"}, "excluded files are listed with a reason")
         check({"LICENSE.txt", "ATTRIBUTION.md", "README.md"} <= set(res.files), "LICENSE.txt, ATTRIBUTION.md and README.md are added")
+        ql = [r for r in man["files"] if r["path"].endswith("/Guides/Imported_QuestLines_retail.lua")]
+        check(len(ql) == 1 and ql[0]["category"] == "wiki-cc-by-sa" and "QuestLine" in ql[0]["source"],
+              "the quest-line storylines (wiki + Blizzard data) ship as wiki CC BY-SA data")
         check(res.files["Data/RouteOrder_era.lua"].get("order_rows") == 1, "a baked order row for a shipped guide passes")
         check(any("WoW account name" in w and "1 character name" in w for w in res.warnings),
               "account and character names under WTF/Account are checked")
@@ -294,6 +301,25 @@ def main():
         expect_fail(env, "Questie fallback line in wiki data", "interop-derived", "Guides/Imported_Wiki_era.lua",
                     lambda d, a: append(a / "Guides" / "Imported_Wiki_era.lua",
                                         "T Foo|QID|5|M|1,1|Z|1; X|N|To Foo. (location: Questie data)|\n"))
+        expect_fail(env, "Questie-credited point in the quest-line storylines", "interop-derived",
+                    "Guides/Imported_QuestLines_retail.lua",
+                    lambda d, a: append(a / "Guides" / "Imported_QuestLines_retail.lua",
+                                        "T Foo|QID|5|M|1,1|Z|1; X|N|To Foo. (location: Questie data)|\n"))
+        # achievements and quest lines made from the default (fallback) wiki build say so in their header
+        # (tools/gen_completion_guides.py FALLBACK_BUILD): the release needs the files made from the --no-fallback build
+        for rel, fl in (("Guides/Imported_QuestLines_retail.lua", "retail"), ("Guides/Imported_Achievements_mop.lua", "mop")):
+            expect_fail(env, f"{rel} made from the default (fallback) wiki build", "interop-derived", rel,
+                        lambda d, a, rel=rel, fl=fl: append(a / rel, FALLBACK_BUILD.format(fl=fl) + "\n"))
+        def plant_old_story(d, a):
+            toc = a / "CompletionRoute.toc"
+            toc.write_text(toc.read_text().replace("Guides\\Imported_QuestLines_retail.lua", "Guides\\Imported_Storylines_retail.lua"))
+            git(d, "add", "-A"); git(d, "commit", "-qm", "plant")
+        d = env.scenario()
+        plant_old_story(d, d / pr.ADDON)
+        code, res, man, _ = env.run(d)
+        check(code == 0 and not any(r["path"].endswith("/Guides/Imported_Storylines_retail.lua") for r in man["files"])
+              and any("Imported_Storylines_retail.lua" in x["line"] for x in man["toc_lines_stripped"]),
+              "a TOC that still lists the old Questie-derived storylines: its line is stripped and the file never ships")
         expect_fail(env, "WoW-Pro guide text in gold data", "interop-derived", "Guides/Imported_Gold_tbc.lua",
                     lambda d, a: append(a / "Guides" / "Imported_Gold_tbc.lua", 'R({ id="x", author="WoWPro Team", text=[[ ]] })\n'))
         def plant_xml(d, a):

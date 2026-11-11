@@ -1,5 +1,137 @@
 # Status / handoff (2026-11-11, integration: skipping quests, beta bug reports, routing graph, release packager, stable step keys, auto quests)
 
+## 2026-11-11: Coverage push A: achievements, item-started quests, storylines (`coverage-ach`)
+
+Offline only. **Nothing here has run in a real WoW client.** Not merged, not installed. Sources: Warcraft Wiki and
+Blizzard client tables only; no Questie, WoW-Pro or other data was used to build anything (Questie-derived local files
+were read only by `coverage.py` to measure the TOC set below).
+
+**Review fixes (same day).** An independent review found that the first pass placed many steps at the wrong spot:
+topic pages (Tailoring, Abundance, Noblegarden, Cataclysm) and zone pages' "geography" rows (the Silithus page's
+road to Un'Goro, the Hellfire Peninsula page's Exodar portal) used as points; glyphs at area-overlay centres (median
+539 yd off) or inside dungeons; same-name NPCs elsewhere (Fiona in Boralus); "Dalaran" on uiMap 41 (Deadwind Pass);
+Midnight content on the old Eversong Woods / Silvermoon maps; no source on wiki-derived rows. All fixed, numbers
+re-measured below. The first pass reported retail 83.4% / mop 85.9%; those numbers counted the wrong places.
+
+Two measurements, both in `docs/verification.sqlite` (`coverage`, `coverage_ach_types`, `item_quests`):
+**ship** = what a release loads (`coverage.py --shippable` on real `gen_wiki_guides.py --no-fallback` builds; labels
+`cov-before-ship-nf` (old code), `cov-fix-ship` (this branch)), **TOC** = what the TOCs load on Daniel's machine
+(fallback points, gaps guides, WoW-Pro; labels `cov-before`, `cov-fix`). `cov-after*` are the first pass.
+
+| | before (ship) | after (ship) | before (TOC) | after (TOC) |
+|---|---:|---:|---:|---:|
+| retail achievements located | 42.0% | **82.6%** | 43.1% | 82.7% |
+| mop achievements located | 68.8% | **84.8%** | 68.4% | 84.8% |
+| retail storylines covered / every quest has a point | 1,251 / 505 of 1,653 | 1,653 / 1,492 | 1,652 / 1,527 | 1,653 / 1,526 |
+| retail storyline quests with a point | 11,024 of 17,991 | 17,246 | 17,299 | 17,298 |
+| item-started quests, accept step point + zone-only: era | 21 + 0 of 269 | 32 + 28 | 74 + 2 | 73 + 3 |
+| tbc | 37 + 0 of 213 | 68 + 75 | 132 + 0 | 134 + 28 |
+| mop | 54 + 0 of 418 | 95 + 95 | 244 + 0 | 251 + 8 |
+| retail | 195 + 0 of 1,458 | 293 + 335 | 498 + 7 | 542 + 212 |
+| forever | 22 + 0 of 456 | 32 + 29 | 74 + 2 | 73 + 4 |
+
+* **The metric** (the plan's 80% target): achievements with a point or a zone-only step / (achievements minus
+  non-geographic ones). Internal rows (title or description marked DNT, `<DND>`, `<Hidden>`, Hidden Tracking, "char
+  specific hidden copy") are left out of the guides and of both universes: retail 813, mop 17. Retail ship: point
+  1,184 → 2,856, zone-only 2,378 → 4,200, non-geographic 2,725 → 2,665, neither 4,924 → 1,490 (of 11,211). mop: 315 →
+  350, 1,059 → 1,353, 1,091 → 1,081, 624 → 305 (of 3,089). `status_report.py` shows it (`--label`).
+* **Retail reaches 80% only with the achievement wiki-page source: 76.3% without it (mop 81.2%).** That source now
+  takes only links the title or description names, never a topic page, a zone's page only as that zone, and a point
+  only inside the achievement's zone. Two random samples of 40 of its picks after the fixes found 2 wrong:
+  "Traversing the Spheres" (Korthia for Zereth Mortis; fixed) and "Treasure Hunter" (zone-only Tanaan Jungle, which
+  its description excludes; not fixed). Retail: 113 point + 424 zone-only achievements rest on it; mop 19 + 54. A
+  sample of 32 name-matched criterion points found 1 doubtful (Malfurion in Firelands for "Fireside Chat"; now
+  zone-only Molten Front), against about 10 in the first pass.
+* **Achievements** (`tools/gen_completion_guides.py`). Criteria located by Blizzard `Criteria.Type`, ship, point /
+  zone / none, before → after:
+
+  | type | retail | mop |
+  |---|---|---|
+  | 27 complete quest | 2,952/1,934/4,550 → 3,673/1,663/4,100 | 571/188/858 → 566/386/665 |
+  | 0 kill creature | 902/2,971/1,026 → 891/2,964/1,044 | 237/1,401/179 → 238/1,422/157 |
+  | 43 explore area | 275/1,463/52 → **1,754**/36/0 | 170/911/21 → **1,102**/0/0 |
+  | 165 dungeon encounter | 31/1,597/439 → 18/2,046/3 | (none) |
+  | 71 complete instance | 0/4/67 → 0/71/0 | 4/81/32 → 0/117/0 |
+  | 216 dungeon (by name) | 34/59/688 → 62/601/118 | (none) |
+  | 158 pet tamer | 775/478/546 → 757/663/379 | 51/2/351 → 51/187/166 |
+  | 73 scripted event (delves) | 126/4/467 → 260/134/203 | 0/4/1 → 0/4/1 |
+  | 36 own item | 12/0/1,163 → 191/301/683 | 0/0/781 → 97/220/464 |
+  | 42 loot item | 6/0/314 → 39/157/124 | 0/0/148 → 23/95/30 |
+  | 68 use object | 130/1/236 → 164/12/191 | 70/1/108 → 93/1/85 |
+  | 28 spell target | 52/401/906 → 62/461/836 | 19/279/239 → 25/313/199 |
+  | all criteria | 5,411/9,496/21,077 → 7,976/9,870/18,090 | 1,182/3,203/7,672 → 2,234/3,243/6,532 |
+
+  Sources: explore = centre of the Blizzard `WorldMapOverlay` hit rectangle (checked against the wiki on Elwynn
+  Forest: Northshire Valley 50.4,42.5 vs the wiki's 50.2,42.2); quest = wiki point, else Blizzard `QuestPOI` turn-in pin
+  (retail; MoP Classic's QuestPOI has no quest rows), else wiki zone; encounter / instance = `DungeonEncounter.MapID` /
+  `Map` → the instance map (zone-only); kill / object / item / NPC-named = wiki NPC, object and item pages; a criterion
+  named after a map, or after an area a Blizzard overlay covers alone (`AreaTable` + `WorldMapOverlay`); meta parts
+  take their part achievement's one zone. **Rules added by the review:** a zone's wiki page gives only that zone; a
+  topic page (every `{{co}}` in a body section) gives nothing; a name-matched page's point must lie in the
+  achievement's zone (instance, explore or quests-in zone, else the one zone or orphan map its description or title
+  names) and not on a later expansion's map than its category names, else the step is that zone only (Fiona →
+  Eastern Plaguelands, Malfurion → Molten Front, Rokhan → Orgrimmar); names that exist twice resolve for the
+  achievement's expansion (category words, else the nearest category-named achievement ids, raised to the latest zone
+  its text names): Midnight's Eversong Woods / Silvermoon (0 Midnight steps left on maps 94/110, was 137), Legion's
+  Dalaran (0 steps on uiMap 41, was 248), Draenor's Shadowmoon Valley; a quest's wiki point on an old copy of a remade
+  map gives way to Blizzard's pin. Achievement-level when no criterion has a place, retail ship: glyph wiki lists 70
+  points (new table `glyph_points`, 74 glyphs from "Dragon Glyph" and the Dragon Isles "Glyph Hunter" pages; the
+  checked 69 lie 0 yd from the wiki's own point, were median 539 yd), single-area overlay centres 13, race courses
+  1,395 + 99 zone, the wiki page 113 + 424 zone, a named zone 311, the meta's zone 34 (TWW / Midnight glyphs have no
+  wiki coordinates). "Name: <place>" never picks a dungeon for a glyph (10 were sent into instances); a zone-type copy
+  of a continent ("Dragon Isles" 2063) is no zone. **Every located step names its source** ("(wiki: <page>)",
+  "(Blizzard WorldMapOverlay 941)", "(zone only; Blizzard Map 1004)"). Retail achievements file 5.8 → 6.6 MB.
+* **Non-geographic, marked `|NOGEO|reason|`**: feats, PvP, reputation, guild, character, collections,
+  battlegrounds/arenas, and achievements whose criteria are only counters (level, skill, quests done, dailies,
+  currency, titles, bank slots, reputation, archaeology finds, spells learned, ratings, recipes, pets collected or
+  levelled, missions done). Still unlocated (ship): retail 1,490, mop 305: mostly cast-spell (type 29), quest criteria
+  whose quest has no wiki page or pin, NPC names the wiki titles differently, Cup races without a course row, metas
+  whose parts span zones, and TWW / Midnight glyphs with no wiki point and no single-area overlay.
+* **Item-started quests** (`tools/wiki/gen_wiki_guides.py`): the universe is Blizzard `ItemSparse.StartQuestID` in each
+  client's QuestV2. The accept goes where the item is obtained (the item page's own coords, else a drop/source page's
+  point, else the source zone as zone-only), names the page its point came from, and carries `|U|<item>|`. The arrow
+  switches to "Use <item>" only when the item is in the bags **and** the player is within 40 yd of the step's point
+  (or the step has no location; `Routing/Router.lua`), so an item looted far from the step's point keeps the arrow on
+  travel. **Review fixes:** a zone's page never gives a point (ship steps at a zone page's out-of-zone point: era, tbc,
+  mop, forever 0, retail 4, all from other pages that share the spot; first pass 77, 136, 127, 286, 76; integration
+  23, 23, 5, 172, 22; retail achievements 19 coincidences, was 113; quest lines 5, was 167), a topic page reached as a
+  source gives none; zone sources give zone-only accepts (Salt of Shards: Silithus, was Un'Goro). In the TOC
+  (fallback) build, an item page's point gives way to the client's own point when they are over 300 yd apart or on
+  another continent: retail steps whose fallback point a wiki point replaced, against integration, C 678 (median
+  270 yd, 317 over 300 yd, 79 on another continent) → 345 (median 74 yd, 0 over 300 yd), A 65 → 14, T 15 → 4, none
+  over 300 yd. Checking item points against the quest's own zone was tried and dropped: many of a sample of 32
+  such points were right (Frozen Ectoplasm from Winterspring for a Tanaris quest). Item pages parsed 15,725 → 25,904. Still not covered (ship): era 33 /
+  tbc 8 / mop 14 / retail 66 / forever 233 quests with no wiki quest page, plus membership exclusions (Season of
+  Discovery: era 109, forever 85; Classic only, removed). Covered but no location (ship): era 66, tbc 48, mop 115,
+  retail 620, forever 76 (no item page, or sources with no point or zone).
+* **Storylines** are now `Guides/Imported_QuestLines_retail.lua` (the retail TOC loads it; `story:retail:<id>` ids kept,
+  so marks stay): Blizzard QuestLine order, each quest's wiki steps (fallback points dropped), Blizzard QuestPOI pins for
+  steps the wiki leaves without one (ship: 23,991 steps), the quest's map as a zone-only accept where nothing else exists
+  (ship: 7,618), and "Quest <id>" steps for the 2,345 quests without a wiki page (1,551 with a pin, 794 with no location).
+  No Questie data, so no faction or level gates on wiki-less quests (they show for both factions). The file depends on
+  the wiki build it reads: made from the default (fallback) build it has other steps (in this build 1,155 step keys only
+  there) and its header says so, naming the Questie-derived source, so `package_release.py` refuses it; the same holds
+  for the achievement files. A release regenerates both after `gen_wiki_guides.py --no-fallback`. File size 9.0 MB (old
+  storylines file 6.1 MB).
+* **Side effects.** `wikimaps.py` is coverage-prof's version (Dalaran by expansion), taken verbatim so both branches
+  merge cleanly there. Regenerating the wiki guides changes a few guide splits, so baked orders go stale (see HANDOFF
+  phase 5: after the merge `test_route_order.lua` lists 5 mop and 34 retail RouteOrder rows naming no guide until the
+  rebake). `gen_wiki_guides.py`'s spine split is not byte-stable between two runs (pre-existing). Found, not fixed
+  (pre-existing, in `gen_wiki_guides.py`'s NPC row choice): a quest's NPC point can come from another expansion's row
+  of the NPC page (Midnight quests at Lor'themar's old Silvermoon spot, BfA micro-hub quests at Halford Wyrmbane's
+  Dragonblight spot); the achievement file now skips such quest points on old map copies, the wiki guides keep them.
+* **Tests.** All 18 `tools/test_*.lua` (`luajit -joff`; new `test_completion.lua`: the place rules on synthetic rows via
+  `gen_completion_guides.py --selfcheck`, and the reviewed defects in the generated files; it fails 12 checks on the
+  first-pass files), `validate_toc.lua`, `test_package.py` (2 more checks: achievement and quest-line files made from
+  the fallback wiki build fail `interop-derived`) and the ingest unit tests pass. vplayer sample (author order,
+  `--guidecap 20`, TOC build): retail 12 storyline + 6 achievement guides, mop 8 achievement + 8 wiki guides with item
+  quests, era/tbc/forever 10 wiki guides with item quests each: 0 stalls; 56 of 64 finished, the other 8 are big
+  achievement category guides stopped by vplayer's per-guide time cap. no_route steps there are travel-graph gaps
+  (Voidstorm and Harandar have no edges) and instance doors.
+* **Open:** a client check of zone-only and "Use <item>" accepts, the storyline guides and achievement criteria ticks;
+  the unlocated rows above; TWW / Midnight glyph points; the Pandaria Cup; Forever-only item quests (no wiki pages);
+  the NPC row choice above.
+
 ## 2026-11-10: Stable step keys (`stable-step-id`, IDEAS #6)
 
 Offline only. **Nothing here has run in a real WoW client.** Not merged, not installed. Details: [STEP_KEYS.md](STEP_KEYS.md).
