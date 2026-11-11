@@ -60,8 +60,17 @@ TaxiNodes position, so the file is shared under the same CC BY-SA 4.0 licence.
 ## Achievement guides
 
 `Imported_Achievements_mop.lua` and `Imported_Achievements_retail.lua` list Blizzard's achievements and criteria (client tables via
-wago.tools, facts only). Where a criterion has a place, its point comes from the quest's step in `Imported_Wiki_<flavor>.lua` or from a
-wiki NPC page, so these files are shared under the same CC BY-SA 4.0 licence. They are written by `tools/gen_completion_guides.py`.
+wago.tools, facts only). Where a criterion has a place, its point comes from the quest's step in `Imported_Wiki_<flavor>.lua`, from a
+wiki NPC, object, item or achievement page, or from Blizzard's own tables (quest map pins, exploration overlays, dungeon encounters),
+so these files are shared under the same CC BY-SA 4.0 licence. They are written by `tools/gen_completion_guides.py`.
+
+## Storyline guides
+
+`Imported_QuestLines_retail.lua` follows Blizzard's quest lines (QuestLine and QuestLineXQuest tables, facts only). Each quest's steps
+are its steps in `Imported_Wiki_retail.lua` (wiki text and points); a step the wiki leaves without a point takes Blizzard's quest map
+pin, and a quest with no wiki page is listed as "Quest <id>" with Blizzard's pins only. The file is shared under the same CC BY-SA 4.0
+licence and written by `tools/gen_completion_guides.py`. (The older `Imported_Storylines_retail.lua` copied lines from a non-wiki
+source; it is not loaded and never ships.)
 
 ## What this licence does not cover
 

@@ -8,13 +8,14 @@
     nice -n 10 venv/bin/python tools/gen_quest_deps.py [era tbc mop retail forever] [--no-crumbs] [--wiki-only]
 
     --wiki-only  the release build (tools/package_release.py, docs/RELEASE.md): read source 1 only. The default build
-                 also reads the gaps guides (Questie-derived) and the retail storylines (Questie names), says so in
+                 also reads the gaps guides (Questie-derived) and the retail storylines, says so in
                  its header, and the packager's gate fails it.
 
 Inputs : the generated quest guides the client loads (same files as its TOC), in priority order
            1. Guides/Imported_Wiki_<fl>.lua         Warcraft Wiki chains (CC BY-SA 4.0) - the source of truth
            2. Guides/Imported_Quests_<fl>_gaps.lua  quests the wiki lacks (older generated guides)
-           3. Guides/Imported_Storylines_<fl>.lua   Blizzard quest-line order (retail only)
+           3. Guides/Imported_QuestLines_<fl>.lua   Blizzard quest-line order (retail only; a checkout not regenerated
+              since 2026-11-11 has the older Imported_Storylines_<fl>.lua instead)
          A quest's prerequisites come from the FIRST source that has the quest at all, so a wiki quest with no
          `previous` link is not given one by a lower source.  WoW-Pro text is not read (its licence forbids
          derivatives); the addon falls back to the loaded guide's own PRE tags for quests this index lacks.
@@ -222,7 +223,9 @@ def lua_long(s):
 def build(fl, crumbs, soft_prev, titles, use_crumbs, wiki_only=False):
     sources = [GUIDES / f"Imported_Wiki_{fl}.lua"]
     if not wiki_only:
-        sources += [GUIDES / f"Imported_Quests_{fl}_gaps.lua", GUIDES / f"Imported_Storylines_{fl}.lua"]
+        story = GUIDES / f"Imported_QuestLines_{fl}.lua"
+        sources += [GUIDES / f"Imported_Quests_{fl}_gaps.lua",
+                    story if story.exists() else GUIDES / f"Imported_Storylines_{fl}.lua"]
     owner, pre, names = {}, {}, {}
     for rank, path in enumerate(sources):
         present, p, n = read_source(path)
@@ -329,7 +332,8 @@ def main():
             "-- Quest prerequisites (hard ones only) for quest-level skipping, Core/Skip.lua. Chains and names come from the",
             f"-- generated guides this client loads: Imported_Wiki_{fl}.lua (Warcraft Wiki, https://warcraft.wiki.gg, CC BY-SA 4.0,",
             "-- see Guides/WIKI_DATA_LICENSE.md)" + (". Sources: Warcraft Wiki only (release build, --wiki-only)." if wiki_only else
-            ", then the gaps guides (Questie-derived) and the retail storylines (Blizzard quest-line order, Questie names) for quests"
+            ", then the gaps guides (Questie-derived) and the retail storylines (Blizzard quest-line order" +
+            ("" if (GUIDES / f"Imported_QuestLines_{fl}.lua").exists() else ", Questie names") + ") for quests"
             "\n-- the wiki lacks. Local build: it never ships (tools/package_release.py needs the --wiki-only build)."),
             "-- Breadcrumbs (the wiki's own wording) are dropped from every prerequisite set. Generated, gitignored.",
             "-- pre: q:p1;p2 = any one of p1, p2 opens q; q:p1&p2 = all of them.  free: q:p1,p2 = soft predecessors of q the",

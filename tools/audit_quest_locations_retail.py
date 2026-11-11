@@ -17,7 +17,7 @@ Rules (docs/STATUS.md "Quest location audit"):
   C  -> the objective's POI area (inside the polygon, or within 40 yd of it); no QO = any objective.
   A  -> nearest Questie giver spawn.  Post-MoP quests have no giver reference: they are corrected only by
         cross-source consensus (2+ independent sources agree within 40 yd and this one is farther).
-        The three generated files (Quests/Storylines/Achievements) come from the same Blizzard data and
+        The generated files (Quests/QuestLines (older: Storylines)/Achievements) come from the same Blizzard data and
         count as ONE source for consensus; WoW-Pro is the other.
   A step is WRONG when it is > 40 yd from every reference (or on another continent/instance), its map
   is unknown, or its coordinates are outside 0-100.  It is corrected to the nearest reference.
@@ -31,7 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DB2 = ROOT / "tools" / "db2"
 TOL = 40.0
-GENERATED = {"Imported_Quests_retail", "Imported_Storylines_retail", "Imported_Achievements_retail"}
+GENERATED = {"Imported_Quests_retail", "Imported_Storylines_retail", "Imported_QuestLines_retail", "Imported_Achievements_retail"}
 
 
 def src_group(f):
