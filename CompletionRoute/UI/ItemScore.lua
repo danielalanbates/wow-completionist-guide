@@ -73,6 +73,36 @@ function IS.Compare(link)
     return score, worst, pct, ename
 end
 
+-- Quest reward choice (Core/QuestAuto.lua, option autoChooseReward): the index of the ONE choice that is a clear upgrade
+-- for this character, or nil and why.  choices[i] = { link = item link, usable = GetQuestItemInfo's isUsable }.
+-- Clear means: every choice's item data has arrived; the best choice the character can use beats what is equipped in
+-- its slot by IS.CLEAR_PCT or more; and it gains at least IS.CLEAR_RATIO times as much score as any other choice.
+-- Items the class cannot use (isUsable false) and items with no equip slot never win.  The weights are per class, not
+-- per spec (see the file header), which is why anything less than clear is left to the player.
+IS.CLEAR_PCT = 10
+IS.CLEAR_RATIO = 1.5
+function IS.ClearWinner(choices)
+    if type(choices) ~= "table" or #choices < 2 then return nil, "fewer than two choices" end
+    local best, bestGain, bestPct, second = nil, nil, nil, 0
+    for i, c in ipairs(choices) do
+        if not c.link or c.usable == nil then return nil, "item data not loaded yet" end
+        local gain, pct
+        if c.usable then
+            local ok, score, eq, p = pcall(IS.Compare, c.link)
+            if ok and score and eq and p then gain, pct = score - eq, p end
+        end
+        if gain then
+            if not bestGain or gain > bestGain then
+                if bestGain and bestGain > second then second = bestGain end
+                best, bestGain, bestPct = i, gain, pct
+            elseif gain > second then second = gain end
+        end
+    end
+    if not best or bestGain <= 0 or bestPct < IS.CLEAR_PCT then return nil, "no clear upgrade" end
+    if second > 0 and bestGain < second * IS.CLEAR_RATIO then return nil, "two upgrades too close to call" end
+    return best, bestPct
+end
+
 local function annotate(tooltip, link)
     if not link or not NS.db or NS.db.profile.itemScore == false then return end
     local score, eq, pct, ename = IS.Compare(link)
