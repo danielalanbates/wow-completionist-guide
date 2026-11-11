@@ -6,12 +6,17 @@
 --   * a report holds the client, character, guide, step (with its raw line), upcoming steps, progress, quest log,
 --     position, route legs, options, the last 30 log lines and the last addon Lua error, and never a character
 --     or realm name
---   * the error hook chains the previous handler and never swallows an error; only this addon's errors are kept
+--   * the error hook chains the previous handler and never swallows an error; only this addon's errors are kept (an
+--     error that merely names CompletionRouteDB, or another addon called CompletionRoute*, is not)
+--   * quests that only gate a step (PRE, ACTIVE, AVAILABLE) and profession skill (|P|, SKILL) are in the report, with
+--     the open steps; the replay restores the skill; a click makes no path search for the upcoming list
+--   * 2-letter character names and names typed in any case in the note are scrubbed, as whole words
 --   * the store keeps 50 reports newest first and stays under its size bound; an oversize report is trimmed
 --   * a section that fails is named and the rest of the report still saves
 --   * the SavedVariables -> JSON helper (tools/sv_to_json.lua) reads a WoW-style file back without changing it
 --   * round trip: vplayer --capture makes a report in the fake world, vplayer --repro --check replays it and must give
---     the same step and route (needs Guides/Imported_Wiki_era.lua; skipped without it)
+--     the same step and route (needs Guides/Imported_Wiki_era.lua; skipped without it); a step gated on a quest the
+--     guide never names replays as open, and a report missing that quest is a DIFF of the open steps
 -- Run: luajit tools/test_bug_report.lua   (from repo root)
 -- CR_WRITE_FIXTURE=path writes the SavedVariables fixture used by tools/test_ingest_beta_reports.py.
 package.path = "./?.lua;" .. package.path
@@ -21,6 +26,7 @@ print = function(...) local t = {} for i = 1, select("#", ...) do t[i] = tostrin
 local ADDON, NS = "CompletionRoute", {}
 dofile("tools/stubs.lua")
 local J = dofile("tools/json.lua")
+local REPRO = dofile("tools/vplayer_repro.lua")
 local z2w = z2w
 PLAYER = { map = 1429, x = 0.40, y = 0.60 }
 PLAYER.wx, PLAYER.wy, PLAYER.inst = z2w(PLAYER.x, PLAYER.y, PLAYER.map)
@@ -102,6 +108,19 @@ GetTime = function() return 101 end
 currentHandler("Interface/AddOns/CompletionRoute/Core/Farm.lua:1: repeated")
 t("a repeated error is counted, not duplicated", c1 == 1 and BR.lastError.count == 2, tostring(c1) .. " -> " .. tostring(BR.lastError.count))
 GetTime = t0
+-- another addon's error that only names this addon's globals, or comes from an addon whose folder starts the same
+local kept0, persisted0 = BR.lastError, CompletionRouteDB.lastError
+STACK = "Interface/AddOns/OtherAddon/Main.lua:5: in function <Interface/AddOns/OtherAddon/Main.lua:3>"
+currentHandler("Interface/AddOns/OtherAddon/Main.lua:5: attempt to index global 'CompletionRouteDB' (a nil value)")
+t("another addon's error that names CompletionRouteDB is not kept", BR.lastError == kept0, BR.lastError and BR.lastError.msg)
+STACK = "Interface/AddOns/CompletionRouteExtras/Core.lua:9: in function <Interface/AddOns/CompletionRouteExtras/Core.lua:3>"
+currentHandler("Interface/AddOns/CompletionRouteExtras/Core.lua:9: boom")
+t("an error from an addon named CompletionRoute* is not kept", BR.lastError == kept0, BR.lastError and BR.lastError.msg)
+-- the client shortens a long source name from the front: "...dOns/CompletionRoute/..." is still this addon
+STACK = ""
+currentHandler("...dOns\\CompletionRoute\\Guides\\Imported_WoWPro_retail.lua:9: shortened")
+t("an error whose shortened source names this addon's folder is kept", BR.lastError ~= kept0 and BR.lastError.msg:find("shortened", 1, true) ~= nil)
+BR.lastError, CompletionRouteDB.lastError = kept0, persisted0
 -- PLAYER_LOGIN: something replaced the handler; the hook wraps it again
 local intruder = function(err) return "intruder" end
 currentHandler = intruder
@@ -191,6 +210,73 @@ BR.Command("list")
 t("/cr bug list prints the stored reports", #printed > nPrinted and printed[nPrinted + 2] and printed[nPrinted + 2]:find(r.id, 1, true) ~= nil)
 BR.Command("second report from the slash command")
 t("/cr bug <note> saves with the note", CompletionRouteDB.bugReports[1].note == "second report from the slash command" and CompletionRouteDB.bugReports[2] == r)
+
+-- a click makes no path search for the upcoming list: the planner's kept costs, or nothing
+local TGs = NS.TravelGraph.stats
+local calls0 = TGs.calls
+local rw = BR.Snapshot("")
+t("a snapshot with the arrow's path fresh makes no path search", TGs.calls == calls0, TGs.calls - calls0)
+NS.TravelGraph.PathCacheWipe()   -- what a graph rebuild (a turn-in) does: the planner's kept costs are stale until it runs
+calls0 = TGs.calls
+local rc0 = BR.Snapshot("")
+local later = 0 for i = 2, #rc0.upcoming do if rc0.upcoming[i].secs ~= nil then later = later + 1 end end
+t("after a graph rebuild the upcoming list is left unpriced, not searched", TGs.calls == calls0 and later == 0 and type(rc0.upcoming[1].secs) == "number",
+    ("searches %d, priced %d"):format(TGs.calls - calls0, later))
+t("with the planner's costs in place the upcoming steps carry seconds", #rw.upcoming >= 2 and type(rw.upcoming[2].secs) == "number",
+    rw.upcoming[2] and tostring(rw.upcoming[2].secs))
+
+-- quests that only gate a step, and profession skill (verifier finding 2026-11-10: a replay hid a PRE-gated step and
+-- still said MATCH)
+local gatedLines = {
+    "A Gated Quest|QID|47|PRE|6623|M|42.1,65.9" .. Z,             -- PRE done: open
+    "A Gated Not Yet|QID|52|PRE|6629|M|42.5,65.0" .. Z,           -- PRE not done: hidden
+    "C While On|QID|48|ACTIVE|6624|M|43.3,65.7" .. Z,            -- on 6624: open
+    "A Until Done|QID|49|AVAILABLE|6625|M|44.0,66.0" .. Z,        -- 6625 done: hidden
+    "C Herb run|QID|50|P|Herbalism;75|M|45.0,67.0" .. Z,          -- Herbalism 50: hidden
+    "M Cook up|SKILL|Cooking;50|M|46.0,67.0" .. Z,                -- Cooking unknown to the client: open
+}
+G.Register({ id = "t:gated", name = "Gated sample", type = "Leveling", faction = "Alliance", minlevel = 5, maxlevel = 10,
+             source = "test", text = table.concat(gatedLines, "\n") })
+quests[6623], quests[6624], quests[6625] = "done", "log", "done"
+local Prof = NS.Professions
+local skill0, knows0 = Prof.Skill, Prof.KnowsSpell
+Prof.Skill = function(name) if name == "Herbalism" then return 50, 75 end return nil end
+P.Load("t:gated")
+local rg = BR.Snapshot("")
+t("gated guide: no section failed", rg.errors == nil, rg.errors and J.encode(rg.errors))
+t("the open steps are listed (PRE, ACTIVE, AVAILABLE, |P| gates applied)", rg.progress.open == "1,3,6" and rg.progress.pending == 3, rg.progress.open)
+t("quests that only gate a step are in the quest states", rg.quests.done == "6623,6625" and rg.quests.log == "6624" and rg.quests.named == 9,
+    J.encode(rg.quests))
+t("profession skill for |P| and SKILL steps: rank/max, false when unknown", rg.profs and rg.profs.Herbalism and rg.profs.Herbalism[1] == 50
+    and rg.profs.Herbalism[2] == 75 and rg.profs.Cooking == false, rg.profs and J.encode(rg.profs))
+-- the replay's side: the skill as the client read it
+Prof.Skill = skill0
+local Cond = NS.Cond
+t("replay restores a skill below the gate", REPRO.RestoreProfs({ profs = { Herbalism = { 50, 75 } } }, NS) and Cond.ProfMatch("Herbalism;75") == false)
+REPRO.RestoreProfs({ profs = { Herbalism = { 80, 150 } } }, NS)
+t("replay restores a skill at the gate", Cond.ProfMatch("Herbalism;75") == true)
+REPRO.RestoreProfs({ profs = { Herbalism = false, ["Cooking#2545"] = { 10, 100 } } }, NS)
+t("a skill the client could not read stays unknown; a tier skill is found by tier", Cond.ProfMatch("Herbalism;75") == true
+    and select(1, Prof.Skill("Cooking", 2545)) == 10 and Prof.Skill("Cooking") == nil)
+t("no profession skill in a report: nothing restored", REPRO.RestoreProfs({}, NS) == false)
+Prof.Skill, Prof.KnowsSpell = skill0, knows0
+quests[6623], quests[6624], quests[6625] = nil, nil, nil
+P.Load("t:elwynn")
+
+-- names: 2 letters, whole words only, any case in the note (verifier finding 2026-11-10)
+local name0 = NS.player.name
+NS.player.name = "Al"
+t("a 2-letter name is scrubbed as a whole word", BR.Scrub("Scope: Al only; Alliance, Halls and Kal stay") == "Scope: <char> only; Alliance, Halls and Kal stay",
+    BR.Scrub("Scope: Al only; Alliance, Halls and Kal stay"))
+t("the note is scrubbed in any letter case", BR.Scrub("Al got stuck; my main al too, AL!", true) == "<char> got stuck; my main <char> too, <char>!",
+    BR.Scrub("Al got stuck; my main al too, AL!", true))
+NS:Print("Scope: Al only")
+local ra = BR.Snapshot("Al got stuck here; my main al too")
+t("a report with a 2-letter name carries it nowhere in free text", ra.note == "<char> got stuck here; my main <char> too"
+    and ra.log[#ra.log]:find("Scope: <char> only", 1, true) ~= nil, ra.note .. " | " .. tostring(ra.log[#ra.log]))
+NS.player.name = "Andrè"
+t("a name ending in a non-ASCII letter is still scrubbed", BR.Scrub("Andrè was here") == "<char> was here", BR.Scrub("Andrè was here"))
+NS.player.name = name0
 
 -- ---------------------------------------------------------------------------
 -- 3. Failing sections, no guide, caps and size
@@ -333,6 +419,37 @@ else
         local btext = pb:read("*a") pb:close()
         t("a report that does not match is reported as a DIFF and fails --check", btext:find("RESULT DIFF", 1, true) ~= nil and btext:find("EXIT=1", 1, true) ~= nil,
             btext:sub(-600))
+    end
+    -- a step gated on a quest the guide never names (PRE): the report must carry that quest, the replay must show the
+    -- step open, and a report without that quest must be a DIFF of the open steps (not an ordering note and MATCH)
+    local GATED, GATE = "wiki:era:1417:Horde", 6623
+    local gcap = TMP .. "/gated.json"
+    local pg = io.popen(("luajit tools/vplayer.lua era --capture %s --capture-steps 0 --capture-done %d --capture-out '%s' 2>&1"):format(GATED, GATE, gcap))
+    local gtext = pg:read("*a") pg:close()
+    if gtext:find("capture: no guide", 1, true) then
+        realPrint("skip gated round trip: " .. GATED .. " is not in this Imported_Wiki_era.lua")
+    else
+        local fg = io.open(gcap)
+        local rgc = fg and J.decode(fg:read("*a"))
+        if fg then fg:close() end
+        local doneQ = {}
+        for _, q in ipairs(REPRO.Expand(rgc and rgc.quests and rgc.quests.done)) do if q ~= GATE then doneQ[#doneQ + 1] = q end end
+        t("the gate quest (PRE only, never a step's quest) is in the captured quest states",
+            rgc and #REPRO.Expand(rgc.quests.done) == #doneQ + 1, rgc and J.encode(rgc.quests) or gtext:sub(-400))
+        local pq = io.popen(("luajit tools/vplayer.lua --repro '%s' --check 2>&1; echo EXIT=$?"):format(gcap))
+        local qtext = pq:read("*a") pq:close()
+        t("the gated report replays with the same open steps and MATCH", qtext:find("open steps: same as the client", 1, true) ~= nil
+            and qtext:find("RESULT MATCH", 1, true) ~= nil and qtext:find("EXIT=0", 1, true) ~= nil, qtext:sub(-1200))
+        if rgc then
+            rgc.quests.done = table.concat(doneQ, ",")
+            local old = TMP .. "/gated_old.json"
+            local fo = assert(io.open(old, "w")) fo:write(J.encode(rgc)) fo:close()
+            local po = io.popen(("luajit tools/vplayer.lua --repro '%s' --check 2>&1; echo EXIT=$?"):format(old))
+            local otext = po:read("*a") po:close()
+            t("a report without the gate quest is a DIFF of the open steps and fails --check", otext:find("RESULT DIFF", 1, true) ~= nil
+                and otext:find("open steps", 1, true) ~= nil and otext:find("open in the client, not offline", 1, true) ~= nil
+                and otext:find("EXIT=1", 1, true) ~= nil, otext:sub(-900))
+        end
     end
     local ps = io.popen(("luajit tools/vplayer.lua --repro '%s' --show 2>&1; echo EXIT=$?"):format(cap))
     local stext = ps:read("*a") ps:close()

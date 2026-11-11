@@ -6,11 +6,12 @@
 -- Loaded by tools/vplayer.lua; not run on its own.
 --   luajit tools/vplayer.lua --repro <report id | latest | report.json> [--db docs/verification.sqlite] [--check] [--show]
 --   luajit tools/vplayer.lua <flavor> --capture [guide id | auto] [--capture-steps N] [--capture-from "Zone"] [--capture-out report.json]
+--                                        [--capture-done 6623,6624]   (quests already done in the fake world before playing)
 --
 -- --repro loads the report's flavor and guide, puts the virtual character where the report says (map/x/y, level,
 -- faction, class, race, quest log, done/skipped steps, flight paths known, hearth, speed, options), and prints the
 -- route and the next steps the addon gives offline next to what the client recorded.  --check exits 1 when the
--- current step or the route differ.  --show only prints the report (no world is loaded).
+-- current step, the set of open steps or the route differ.  --show only prints the report (no world is loaded).
 -- --capture plays N steps of a guide in the fake world, moves to --capture-from (auto: the faction capital, so the route
 -- has several legs) and saves a report with the real Core/BugReport.lua: the
 -- round trip (capture, then --repro --check) is the self-test in tools/test_bug_report.lua.
@@ -52,6 +53,7 @@ function RP.ParseArgs(argv)
         elseif a == "--capture-steps" then o.steps = tonumber(nxt)
         elseif a == "--capture-out" then o.out = nxt
         elseif a == "--capture-from" then o.from = nxt
+        elseif a == "--capture-done" then o.done = RP.Expand(nxt)
         elseif a == "--note" then o.note = nxt
         elseif a == "--db" then o.db = nxt
         elseif a == "--check" then o.check = true
@@ -160,7 +162,7 @@ function RP.Show(r)
     if a then out("  arrow (client): %s %q%s%s", tostring(a.mode), tostring(a.text), a.eta and ("  eta " .. fmtTime(a.eta)) or "",
         a.why and ("  why: " .. a.why) or "") end
     if r.upcoming and #r.upcoming > 0 then
-        out("  upcoming (client; travel from the step before, the first from the player):")
+        out("  upcoming (client; travel from the step before, the first from the player; ? = not priced by the planner yet):")
         for i, u in ipairs(r.upcoming) do
             out("    %d. %s [%s] %s  ~%s", i, tostring(u.index), tostring(u.action), tostring(u.title), fmtTime(u.secs))
         end
@@ -184,6 +186,24 @@ end
 -- ---------------------------------------------------------------------------
 -- Replaying
 -- ---------------------------------------------------------------------------
+-- Profession skill exactly as the client read it (|P| gates and SKILL steps); a skill the client could not read stays
+-- unknown (nil), as it was there.  Recipes count as not known: a known one had already finished its step (done).
+function RP.RestoreProfs(r, NS, load)
+    if type(r.profs) ~= "table" or not next(r.profs) then return false end
+    if not NS.Professions and load then pcall(load, "Core/Professions.lua") end
+    local Prof = NS.Professions
+    if not Prof then return false end
+    local profs = r.profs
+    Prof.Skill = function(name, tier)
+        local e = profs[tier and (tostring(name) .. "#" .. tostring(tier)) or tostring(name)]
+        if e == nil and tier then e = profs[tostring(name)] end
+        if type(e) == "table" then return e[1] or 0, e[2] or 0 end
+        return nil
+    end
+    Prof.KnowsSpell = function() return false end
+    return true
+end
+
 local function tryLoadGuide(ctx, gid, fl)
     local G = ctx.NS.Guide
     if G.registry[gid] then return true end
@@ -231,6 +251,7 @@ function RP.Restore(r, ctx)
         W.objectives[tonumber(qid)] = list
     end
     for id, n in pairs(r.items or {}) do if tonumber(id) and (tonumber(n) or 0) > 0 then W.bags[tonumber(id)] = tonumber(n) end end
+    if RP.RestoreProfs(r, NS, ctx.load) then notes.profs = true end
     -- hearth
     local cd = tonumber(tr.hearthCooldown) or 0
     U.HearthReady = function()
@@ -329,6 +350,7 @@ function RP.Run(r, ctx, opts)
     end
     out("  position: %s", type(notes.posDelta) == "number" and ("offline map puts the player %.1f yd from the client's world position"):format(notes.posDelta)
         or tostring(notes.posDelta))
+    if notes.profs then out("  profession skill: as the client read it (%d skill(s) in the report)", (function() local n = 0 for _ in pairs(r.profs) do n = n + 1 end return n end)()) end
     if not P.Load(gid) then out("  P.Load(%s) failed", gid) return 2 end
     -- the live planner's kept plan from the client is the baseline of its next refresh: restore it and refresh once
     if r.plan and r.plan ~= "" and NS.StepOrder then
@@ -348,6 +370,31 @@ function RP.Run(r, ctx, opts)
         out("  current step: none%s", want and ("  |DIFFERS| client: " .. tostring(want)) or "  (same as the client)")
     end
     if (cur and cur.index) ~= want then diffs[#diffs + 1] = "step" end
+    -- the steps open now (not done, and their PRE/ACTIVE/AVAILABLE/level/class/profession gates pass).  A step open in
+    -- the client but not here (or the reverse) means the report did not carry some state: that is a DIFF, not "order".
+    local offOpen, nOff = {}, 0
+    for _, s in ipairs(P.Pending(9999)) do offOpen[s.index] = true nOff = nOff + 1 end
+    local missing, extra = {}, {}
+    local pr = r.progress or {}
+    if type(pr.open) == "string" then
+        local cut = pr.open:find("...", 1, true) ~= nil   -- trimmed in the client: only check what it does list
+        local cOpen = set(pr.open)
+        for i in pairs(cOpen) do if not offOpen[i] then missing[#missing + 1] = i end end
+        if not cut then for i in pairs(offOpen) do if not cOpen[i] then extra[#extra + 1] = i end end end
+    else
+        -- an older report without the open list: its upcoming steps at least must be open here
+        for _, u in ipairs(r.upcoming or {}) do if u.index and not offOpen[u.index] then missing[#missing + 1] = u.index end end
+    end
+    table.sort(missing) table.sort(extra)
+    if #missing > 0 or #extra > 0 then
+        diffs[#diffs + 1] = "open steps"
+        local function list(t) local o = {} for i = 1, math.min(#t, 20) do o[i] = tostring(t[i]) end return table.concat(o, ",") .. (#t > 20 and ",..." or "") end
+        out("  open steps |DIFFER|: %d open offline, %s in the client", nOff, tostring(pr.pending or "?"))
+        if #missing > 0 then out("    open in the client, not offline: %s  (a quest, level, class or skill gate the replay sees differently)", list(missing)) end
+        if #extra > 0 then out("    open offline, not in the client: %s", list(extra)) end
+    else
+        out("  open steps: same as the client (%d)", nOff)
+    end
     -- route
     local path = cur and R.CurrentPath(true)
     local legs = legsOf(path)
@@ -382,7 +429,8 @@ function RP.Run(r, ctx, opts)
             clientIdx[i] and clientIdx[i] ~= s.index and ("   (client: " .. tostring(clientIdx[i]) .. ")") or "")
     end
     if not sameOrder then
-        out("  note: the upcoming order differs (the replay restores the client's kept plan, but not its 3 ms per-call budget or kept costs)")
+        out("  note: the upcoming order differs%s", (#missing > 0 or #extra > 0) and " (see the open steps above)"
+            or " (the open steps match; the replay restores the client's kept plan, but not its 3 ms per-call budget or kept costs)")
     end
     if #diffs == 0 then out("RESULT MATCH %s", r.id) else out("RESULT DIFF %s: %s", r.id, table.concat(diffs, ", ")) end
     return (#diffs == 0 or not opts.check) and 0 or 1
@@ -401,6 +449,7 @@ local function playInto(ctx, gid, n, from)
     ctx.setChar(faction, "WARRIOR", faction == "Horde" and "Orc" or "Human")
     NS.player.faction, NS.player.class, NS.player.race = faction, "WARRIOR", faction == "Horde" and "Orc" or "Human"
     ctx.wipeWorld(math.max(1, tonumber(g.minlevel) or 1))
+    for _, q in ipairs(ctx.captureDone or {}) do W.quests[q] = "done" end   -- --capture-done: history the guide does not play
     W.bags[NS.HEARTH_ITEM] = 1   -- a real character carries one; it puts the hearth leg in play
     NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened, NS.db.char.laps, NS.db.char.guide = {}, {}, {}, {}, nil
     NS.db.char.parked, NS.db.char.parkReturn = {}, nil
@@ -432,6 +481,7 @@ function RP.Capture(opts, ctx)
     local P, R, G = NS.Progress, NS.Router, NS.Guide
     local n = opts.steps or 6
     local gid = opts.capture
+    ctx.captureDone = opts.done
     local from = opts.from
     if gid == "auto" then
         -- the first Alliance-usable quest guide (wiki guides first, registry order: deterministic) that, after n steps,

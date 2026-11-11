@@ -93,6 +93,15 @@ function SO.Reset()
     SO.plan = nil
 end
 
+-- Read-only: the kept travel seconds a -> b, or nil when the planner has not priced that pair, or priced it before the
+-- graph was rebuilt or the speed changed (its next refresh drops those).  Never searches: Core/BugReport.lua uses it
+-- so that a report costs no path search for its upcoming list.
+function SO.KeptCost(a, b)
+    if not (a and b) or kept.tgCache ~= (NS.TravelGraph and NS.TravelGraph.pathCache) or kept.speed ~= U.TravelSpeed() then return nil end
+    local ca = kept.pair[a]
+    return ca and ca[b] or nil
+end
+
 local now = debugprofilestop or function() return 0 end
 
 -- located: anywhere Router.StepWorld can point, which includes the zone fallback for a step with no |M| (the arrow goes

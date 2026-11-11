@@ -6,9 +6,12 @@
 --
 -- A report holds: client flavor and build, addon version, class/race/level/faction (never the character or realm
 -- name), the guide and step (index, action, quest ids, raw guide line, how its location was found), the visible
--- upcoming steps, the window order, done/skipped steps, the state of the guide's quests, player map/x/y and world
+-- upcoming steps, the window order, done/skipped/open steps, the state of the guide's quests and of the quests that
+-- only gate a step (PRE, ACTIVE, AVAILABLE), profession skill for |P| and SKILL steps, player map/x/y and world
 -- position, the current route (legs, modes, seconds), the arrow's advice, travel settings (flight paths known, hearth),
 -- relevant options, the last 30 log lines and the last Lua error raised inside this addon.
+-- A click never starts a path search for the upcoming list (it reads the planner's kept costs); only the route to the
+-- current step is searched again, and only when the arrow's own path is stale.
 -- Offline: tools/ingest_beta_reports.py loads reports into SQL, `luajit tools/vplayer.lua --repro <id>` replays one.
 -- See docs/BETA_REPORTS.md.
 --
@@ -59,7 +62,9 @@ local function ranges(list)
 end
 BR.Ranges = ranges
 local function escapePattern(s) return (s:gsub("%p", "%%%0")) end
-local ADDON_PATH = "AddOns[/\\]" .. escapePattern(ADDON) .. "[/\\]"
+-- this addon's folder in a file path: "AddOns/CompletionRoute/..." or, when the client shortened a long source name,
+-- ".../CompletionRoute/...".  A bare "CompletionRoute" is not enough: another addon's error can name CompletionRouteDB.
+local ADDON_PATH = "[/\\]" .. escapePattern(ADDON) .. "[/\\]"
 local OWN_FILE = escapePattern(ADDON) .. "[/\\]Core[/\\]BugReport%.lua"
 
 -- Estimated serialized size of a value (what it adds to the SavedVariables file).
@@ -77,10 +82,23 @@ end
 
 -- Character and realm names must never reach a report.  The snapshot never reads them, but free text (log lines,
 -- error text, the note) can carry them, e.g. the /cr chars listing.  Every name this account knows is replaced.
+-- WoW names can be 2 letters long, so a name matches as a whole word only (%f frontiers; a side that starts or ends in
+-- a non-ASCII letter has no frontier there).  The addon writes names as the client spells them; the note is typed by
+-- the player, so it is matched in any letter case.
+local function namePattern(s, anyCase)
+    local p = escapePattern(s)
+    if anyCase then p = p:gsub("%a", function(c) return "[" .. c:lower() .. c:upper() .. "]" end) end
+    if s:sub(1, 1):find("^%w") then p = "%f[%w]" .. p end
+    if s:sub(-1):find("^%w") then p = p .. "%f[%W]" end
+    return p
+end
 local function scrubList()
     local names, seen = {}, {}
     local function add(s, tag)
-        if type(s) == "string" and #s >= 3 and not seen[s] then seen[s] = true names[#names + 1] = { s, tag } end
+        if type(s) == "string" and #s >= 2 and not seen[s] then
+            seen[s] = true
+            names[#names + 1] = { s, tag, namePattern(s), namePattern(s, true) }
+        end
     end
     local p = NS.player or {}
     if p.name and p.realm then add(p.name .. "-" .. p.realm, "<char>") end
@@ -99,12 +117,12 @@ local function scrubList()
     table.sort(names, function(a, b) return #a[1] > #b[1] end)   -- "Name-Realm" before "Name" before "Realm"
     return names
 end
-local function scrub(s, names)
+local function scrub(s, names, anyCase)
     if type(s) ~= "string" then return s end
-    for _, n in ipairs(names) do s = s:gsub(escapePattern(n[1]), n[2]) end
+    for _, n in ipairs(names) do s = s:gsub(anyCase and n[4] or n[3], n[2]) end
     return s
 end
-BR.Scrub = function(s) return scrub(s, scrubList()) end
+BR.Scrub = function(s, anyCase) return scrub(s, scrubList(), anyCase) end
 
 -- ---------------------------------------------------------------------------
 -- Lua errors raised inside this addon.  The hook chains the previous handler and always returns what it returns:
@@ -120,7 +138,7 @@ end
 function BR.NoteError(err, stack)
     local msg = tostring(err)
     stack = ownStack(tostring(stack or ""))
-    if not (msg:find(ADDON, 1, true) or stack:find(ADDON_PATH)) then return false end
+    if not (msg:find(ADDON_PATH) or stack:find(ADDON_PATH)) then return false end
     local last = BR.lastError
     local t = GetTime and GetTime() or 0
     -- the same error raised again (or seen twice through a chained copy of this hook): count it, do not re-record
@@ -174,7 +192,7 @@ local function grabberError()
         local e = db[i]
         if type(e) == "table" then
             local m, s = tostring(e.message or ""), tostring(e.stack or "")
-            if m:find(ADDON, 1, true) or s:find(ADDON_PATH) then
+            if m:find(ADDON_PATH) or s:find(ADDON_PATH) then
                 return { msg = trunc(m, 600), stack = trunc(ownStack(s), 1500), at = tostring(e.time or "?"),
                          count = tonumber(e.counter), source = "BugGrabber" }
             end
@@ -268,16 +286,17 @@ local function secStep(r)
                eraMapFixed = s.eraMapFixed or nil }
 end
 -- secs: travel from the step before (the first: from the player, the route's own cost).  Step-to-step costs are the
--- live planner's own pairs, already in the path cache; from-player searches (with the hearth) would cost a search each.
+-- live planner's kept pairs (StepOrder.KeptCost); a pair it has not priced, or priced before a graph rebuild or a
+-- speed change, is left out (nil) rather than searched: a search costs 20-50 ms of plain Lua on a big continent.
 local function secUpcoming(r)
-    local P, R = NS.Progress, NS.Router
+    local P, SO = NS.Progress, NS.StepOrder
     local list, prev = {}, nil
     for i, s in ipairs(P.Upcoming(BR.UPCOMING)) do
         local x, y = stepLoc(s)
         local secs
         if i == 1 then secs = r.route and r.route.secs
-        elseif R and R.TravelSeconds then
-            local ok, v = pcall(R.TravelSeconds, prev, s)
+        elseif SO and SO.KeptCost then
+            local ok, v = pcall(SO.KeptCost, prev, s)
             secs = ok and num(v, 1) or nil
         end
         list[i] = { index = s.index, action = s.action, title = trunc(s.title, 120), qid = qids(s), zone = s.zone,
@@ -289,7 +308,6 @@ local function secUpcoming(r)
     for i, s in ipairs(P.order or {}) do if i > 40 then break end order[i] = s.index end
     r.order = table.concat(order, ",")
     -- the live planner's kept plan: the baseline its next refresh must beat (the replay restores it)
-    local SO = NS.StepOrder
     if SO and type(SO.plan) == "table" and P.guide and SO.plan.guide == P.guide.id then
         local plan = {}
         for i, s in ipairs(SO.plan.steps or {}) do if i > 40 then break end plan[i] = s.index end
@@ -299,22 +317,36 @@ end
 local function secProgress(r)
     local P = NS.Progress
     if not (P.guide and P.steps) then return end
-    local done, skipped, reopened = {}, {}, {}
+    local done, skipped, reopened, closed = {}, {}, {}, {}
     local sk = (NS.Account and NS.Account.me and NS.Account.Skipped(P.guide.id)) or (NS.db.char.skipped[P.guide.id] or {})
     local ro = (NS.db.char.reopened and NS.db.char.reopened[P.guide.id]) or {}
     for _, s in ipairs(P.steps) do
-        if sk[s.index] then skipped[#skipped + 1] = s.index
-        elseif P.IsDone(s) then done[#done + 1] = s.index end
+        if sk[s.index] then skipped[#skipped + 1] = s.index closed[s] = true
+        elseif P.IsDone(s) then done[#done + 1] = s.index closed[s] = true end
         if ro[s.index] then reopened[#reopened + 1] = s.index end
     end
+    -- open: the steps the guide would show now (not done, and Conditions.StepApplies says yes).  The replay compares
+    -- its own open set with this one, so a gate the report did not carry shows up as a difference, not as "order".
+    local open = {}
+    for _, s in ipairs(P.Pending(9999)) do open[#open + 1] = s.index end
     r.progress = { done = ranges(done), skipped = ranges(skipped), reopened = ranges(reopened), doneCount = #done,
-                   skippedCount = #skipped, pending = #P.Pending(9999), scope = NS.db.profile.scope }
-    -- quest state for every quest the guide names (the replay rebuilds the quest log from it)
+                   skippedCount = #skipped, pending = #open, open = ranges(open), scope = NS.db.profile.scope }
+    -- quest state for every quest the guide names, and for every quest that only gates a step (PRE, ACTIVE, AVAILABLE
+    -- in Core/Conditions.lua): the replay rebuilds the quest log from it.  Steps still to do come first under the cap.
     local U = NS.Util
     local seen, ids = {}, {}
-    for _, s in ipairs(P.steps) do
-        for _, q in ipairs(s.qid or {}) do
-            if not seen[q] and #ids < BR.QUEST_IDS_MAX then seen[q] = true ids[#ids + 1] = q end
+    local function add(q)
+        q = tonumber(q)
+        if q and q > 0 and not seen[q] and #ids < BR.QUEST_IDS_MAX then seen[q] = true ids[#ids + 1] = q end
+    end
+    for pass = 1, 2 do
+        for _, s in ipairs(P.steps) do
+            if (pass == 1) ~= (closed[s] == true) then
+                for _, q in ipairs(s.qid or {}) do add(q) end
+                for _, q in ipairs(s.pre or {}) do add(q) end
+                if s.active then add(math.abs(s.active)) end
+                add(s.available)
+            end
         end
     end
     local st = { done = {}, log = {}, complete = {} }
@@ -353,6 +385,25 @@ local function secProgress(r)
         for _, l in ipairs(s.loot or {}) do noteItem(l.id) end
     end
     r.objectives, r.items = objectives, items
+    -- profession skill as the client reads it, for steps gated on one (|P|, Conditions.ProfMatch) or finished by one
+    -- (SKILL, Progress.SkillMet): { rank, max }, or false when the client could not tell
+    local Prof = NS.Professions
+    if Prof and Prof.Skill then
+        local profs, n = {}, 0
+        local function noteProf(name, tier)
+            if type(name) ~= "string" or name == "" or n >= 24 then return end
+            local key = tier and (name .. "#" .. tier) or name
+            if profs[key] ~= nil then return end
+            local rank, max = Prof.Skill(name, tier)
+            profs[key] = rank and { num(rank) or 0, num(max) or 0 } or false
+            n = n + 1
+        end
+        for _, s in ipairs(P.steps) do
+            if s.prof and Prof.ParseSpec then noteProf((Prof.ParseSpec(s.prof))) end
+            if type(s.skill) == "table" then noteProf(s.skill.name, s.skill.tier) end
+        end
+        if n > 0 then r.profs = profs end
+    end
 end
 local function legOut(l)
     return { mode = l.mode, title = trunc(l.title, 120), from = trunc(l.from and l.from.name, 80), to = trunc(l.to and l.to.name, 80),
@@ -475,7 +526,7 @@ function BR.Trim(r)
         function() if r.lastError then r.lastError.stack = trunc(r.lastError.stack, 400) end end,
         function() if r.quests then for k, v in pairs(r.quests) do if type(v) == "string" then r.quests[k] = cutList(v, 600) end end end end,
         function() if r.travel then r.travel.knownTaxi = cutList(r.travel.knownTaxi, 400) r.travel.transitFix = nil end end,
-        function() if r.progress then for _, k in ipairs({ "done", "skipped", "reopened" }) do r.progress[k] = cutList(r.progress[k], 600) end end end,
+        function() if r.progress then for _, k in ipairs({ "done", "skipped", "reopened", "open" }) do r.progress[k] = cutList(r.progress[k], 600) end end end,
         function() r.note = trunc(r.note, 200) if r.step then r.step.raw = trunc(r.step.raw, 200) r.step.note = nil end end,
         function() for _, u in ipairs(r.upcoming or {}) do u.title = trunc(u.title, 40) end end,
         function() r.log = nil r.stepOrder = nil r.objectives = nil end,
@@ -526,7 +577,7 @@ function BR.Snapshot(note)
     if not next(r.errors) then r.errors = nil end
     -- free text only: titles, zone names and map names are game data and stay as they are
     local names = scrubList()
-    r.note = scrub(r.note, names)
+    r.note = scrub(r.note, names, true)
     if r.log then for i, l in ipairs(r.log) do r.log[i] = scrub(l, names) end end
     if r.lastError then r.lastError.msg = scrub(r.lastError.msg, names) r.lastError.stack = scrub(r.lastError.stack, names) end
     if r.errors then scrubAll(r.errors, names, 0) end
@@ -573,7 +624,7 @@ function BR.SetNote(id, note)
     if not r then return false end
     note = note and note:match("^%s*(.-)%s*$") or ""
     if note == "" then return false end
-    r.note = scrub(trunc(note, BR.NOTE_MAX), scrubList())
+    r.note = scrub(trunc(note, BR.NOTE_MAX), scrubList(), true)
     return true
 end
 
