@@ -9,9 +9,12 @@
                                                       the gate, measure every zip layout, print the report. Writes
                                                       nothing (except the --db tables when --db is given).
     python3 tools/package_release.py --write [--version 2.0.0-beta1]
-                                                      also write dist/<version>/: the assembled add-on, provenance.json,
-                                                      gate.txt and, only when the gate passes, the zip(s). Older
-                                                      dist/<version> folders move to dist/archive/.
+                                                      also write the build. A passing build becomes dist/<version>/
+                                                      (the assembled add-on, its zip(s), provenance.json, gate.txt) and
+                                                      every earlier build in dist/, the same version included, moves
+                                                      to dist/archive/. A failing build writes only gate.txt and
+                                                      provenance.json, to dist/failed/<version>-<time>/, and moves
+                                                      nothing. Folders this packager did not write are never touched.
 
 Options: --layout universal|per-client|both (default: universal, see docs/RELEASE.md for the measured sizes),
 --data-root DIR (generated data taken from DIR first, same relative paths), --wow-dir DIR (WoW folder whose
@@ -36,7 +39,7 @@ names), holds a secret or key pattern, would be packaged through a symlink (the 
 is missing.
 
 This tool never creates a git tag, never pushes and never creates a GitHub release: public releases wait for Daniel's
-beta. Exit code: 0 gate passed, 1 gate failed, 2 usage error.
+beta. Exit code: 0 gate passed, 1 gate failed, 2 usage error, 3 the packager itself failed (traceback printed).
 """
 import argparse
 import datetime
@@ -62,6 +65,10 @@ GIT = "/usr/bin/git" if os.path.exists("/usr/bin/git") else "git"
 WOW_DIR = "/Volumes/x10/Video Games/Mac/World of Warcraft"      # same default as tools/install.sh
 PERSONAL_TERMS_FILE = TOOLS / "release" / "personal_terms.local.txt"   # gitignored (*.local.*): one term per line
 NEXT_VERSION = "2.0.0"      # the next public release (docs/FINISH_PLAN.md M8); dev builds get a -dev suffix
+PRODUCT = "Completionist's Guide (CompletionRoute add-on)"     # provenance.json "product": marks a folder as a build
+# the packager files that decide what a package says (LICENSE.txt, ATTRIBUTION.md, README.md, provenance text): an
+# uncommitted change to them makes the build dirty, like a change under CompletionRoute/
+PACKAGER_FILES = ("package_release.py", "release/ATTRIBUTION.md", "release/README.md")
 
 # client -> the TOC files it reads (Forever ships two identical TOCs, see tools/validate_toc.lua)
 CLIENTS = {
@@ -221,19 +228,30 @@ ALLOWED_EMAILS = {"help@batesai.org"}
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
 LOCAL_PATH = re.compile(r"/Users/(?!Shared\b)[A-Za-z0-9._-]+|/home/[A-Za-z0-9._-]+|[A-Za-z]:[\\/]+Users[\\/]+[A-Za-z0-9._-]+"
                         r"|/Volumes/[A-Za-z0-9._-]+")
+# names of a credential in an assignment; preceded by a non-alphanumeric, so OPENAI_API_KEY= and api_key= both count
+_CRED = r"(?:api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|auth[_-]?token|bot[_-]?token|password|passwd)"
 SECRETS = (
     ("private key block", re.compile(r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----")),
     ("AWS access key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("GitHub token", re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})")),
-    ("sk- API key", re.compile(r"(?<![A-Za-z0-9])sk-(?:ant-|proj-|live-)?[A-Za-z0-9_-]{24,}")),
+    # prefixed provider keys in one pass (one regex per provider took 0.7 s each on 42 MB); the label comes from the
+    # group that matched (KEY_LABELS)
+    ("API key", re.compile(r"(?<![A-Za-z0-9])(?:(?P<sk>sk-(?:ant-|proj-|live-)?[A-Za-z0-9_-]{24,})|"
+                           r"(?P<csk>csk-[A-Za-z0-9]{32,})|(?P<gsk>gsk_[A-Za-z0-9]{40,})|(?P<hf>hf_[A-Za-z0-9]{30,})|"
+                           r"(?P<xai>xai-[A-Za-z0-9]{40,})|(?P<npm>npm_[A-Za-z0-9]{36,})|"
+                           r"(?P<glpat>glpat-[A-Za-z0-9_-]{20,}))")),
     ("Slack token", re.compile(r"\bxox[abposr]-[A-Za-z0-9-]{10,}")),
     ("Google API key", re.compile(r"\bAIza[0-9A-Za-z_-]{35}")),
     ("Stripe key", re.compile(r"\b(?:sk|rk|pk)_live_[A-Za-z0-9]{16,}")),
     ("Telegram bot token", re.compile(r"\b\d{8,10}:AA[A-Za-z0-9_-]{33}\b")),
     ("JSON web token", re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}")),
-    ("credential assignment", re.compile(r"(?i)\b(?:api[_-]?key|secret[_-]?key|client[_-]?secret|access[_-]?token|"
-                                         r"auth[_-]?token|password|passwd)\b[\"']?\s*[:=]\s*[\"'][^\"'\s]{8,}[\"']")),
+    # quoted, or unquoted (an .env line, a shell export) when the value looks like a key: 16+ key characters with
+    # letters and digits
+    ("credential assignment", re.compile(r"(?i)(?<![A-Za-z0-9])" + _CRED + r"\b[\"']?\s*[:=]\s*(?:[\"'][^\"'\s]{8,}[\"']|"
+                                         r"(?=[A-Za-z0-9_+/=-]*[0-9])(?=[A-Za-z0-9_+/=-]*[A-Za-z])[A-Za-z0-9_+/=-]{16,})")),
 )
+KEY_LABELS = {"sk": "sk- API key", "csk": "Cerebras API key", "gsk": "Groq API key", "hf": "Hugging Face token",
+              "xai": "xAI API key", "npm": "npm token", "glpat": "GitLab token"}
 INTEROP_MARK = re.compile(r"(?i)questie|wow-?pro")
 NO_REDISTRIBUTE = re.compile(r"(?i)do not (?:redistribute|commit)|not for redistribution|local use only")
 TOC_FILE_LINE = re.compile(r"^\s*([^#\s][^\r\n]*?)\s*$")
@@ -262,8 +280,8 @@ class Finding:
     path: str
     detail: str
 
-    def text(self):
-        return redact(f"[{self.rule}] {self.path}: {self.detail}")
+    def text(self, red=redact):
+        return red(f"[{self.rule}] {self.path}: {self.detail}")
 
 
 @dataclass
@@ -282,6 +300,8 @@ class Result:
     layout: str = DEFAULT_LAYOUT
     stage: Path = None
     commit_time: int = 0
+    variants: dict = field(default_factory=dict)       # client -> {rel: bytes} that differ in its per-client zip
+    term_rx: object = None                              # personal terms, masked in every report and manifest string
 
     @property
     def ok(self):
@@ -289,6 +309,21 @@ class Result:
 
     def fail(self, rule, path, detail):
         self.failures.append(Finding(rule, path, detail))
+
+    def redact(self, s):
+        """report text: never the product name, never a personal term (a planted file name may hold either)"""
+        s = redact(s)
+        return self.term_rx.sub("[personal term]", s) if self.term_rx else s
+
+    def redact_all(self, v):
+        """the same for every string in a manifest structure"""
+        if isinstance(v, str):
+            return self.redact(v)
+        if isinstance(v, dict):
+            return {k: self.redact_all(x) for k, x in v.items()}
+        if isinstance(v, (list, tuple)):
+            return [self.redact_all(x) for x in v]
+        return v
 
 
 def git(repo, *args):
@@ -450,7 +485,7 @@ class Scanner:
         for label, rx in SECRETS:
             m = rx.search(text)
             if m:
-                res.fail("secret", rel, f"{label} pattern at line {lineno(text, m.start())}")
+                res.fail("secret", rel, f"{KEY_LABELS.get(m.lastgroup, label)} pattern at line {lineno(text, m.start())}")
 
 
 def render(template, values):
@@ -487,9 +522,16 @@ def assemble(opts):
     except RuntimeError as e:
         res.fail("no-provenance", ADDON, f"not a git checkout, so no file can be tied to a commit ({e})")
         tracked, commit_time, main_checkout = set(), 0, None
+    # the packager and its templates write LICENSE.txt, ATTRIBUTION.md, README.md and every provenance record, so an
+    # uncommitted edit to them changes the package too (checked in the checkout this script runs from)
+    try:
+        tool_status = git(TOOLS, "status", "--porcelain", "--untracked-files=normal", "--", *PACKAGER_FILES)
+        res.dirty = res.dirty or bool(tool_status.strip())
+    except RuntimeError:
+        res.warnings.append("the packager is not in a git checkout: its templates and rules cannot be tied to a commit")
     if res.dirty:
-        res.warnings.append("uncommitted changes to tracked files: provenance.json records sha256 per file, but the "
-                            "commit alone does not reproduce this build")
+        res.warnings.append("uncommitted changes to the add-on, LICENSE or the packager and its templates: "
+                            "provenance.json records sha256 per file, but the commit alone does not reproduce this build")
     short = res.commit[:7] or "nogit"
     res.version = opts.version or f"{NEXT_VERSION}-dev.{short}" + ("-dirty" if res.dirty else "")
     if not VERSION_RE.match(res.version):
@@ -670,25 +712,33 @@ def assemble(opts):
     missing = [s for s in LICENSE_MUST_SAY if s not in lic_text]
     if missing:
         res.fail("missing-notice", "LICENSE.txt", "the repository LICENSE is missing or lacks: " + "; ".join(missing))
-    by_cat = {}
-    for rel, rec in res.files.items():
-        by_cat.setdefault(rec["category"], []).append(rel)
-    libs = []
-    for d, (name, licence, authors, changes, lic_file) in LIBS.items():
-        if any(rel.startswith(d + "/") for rel in res.files):
-            libs.append(f"* **{name}** (`{d}/`) by {authors}. Licence: {licence}. Changes: {changes}.")
-            if lic_file and lic_file not in res.files:
-                res.fail("missing-notice", lic_file, f"{name} ships without its licence text")
-    vals = {
-        "VERSION": res.version,
-        "WIKI_FILES": bullet(sorted(by_cat.get("wiki-cc-by-sa", []))),
-        "CCBYSA_OWN_FILES": bullet(sorted(r for r in by_cat.get("own-data", []) if "CC BY-SA" in res.files[r]["licence"])),
-        "BLIZZARD_FILES": bullet(sorted(by_cat.get("blizzard-client-data", []))),
-        "LIBRARIES": "\n".join(libs) or "* (none)",
-        "PACKAGE_NOTE": "One `CompletionRoute` folder serves every client: each client loads only its own TOC's files. "
-                        "If you downloaded a per-client zip, it holds only that client's data.",
-    }
+    for d, (name, _, _, _, lic_file) in LIBS.items():
+        if any(rel.startswith(d + "/") for rel in res.files) and lic_file and lic_file not in res.files:
+            res.fail("missing-notice", lic_file, f"{name} ships without its licence text")
+
+    def notice_values(rels):
+        """template values for ATTRIBUTION.md and README.md, listing only the files in rels"""
+        by_cat = {}
+        for rel in sorted(rels):
+            by_cat.setdefault(res.files[rel]["category"], []).append(rel)
+        libs = [f"* **{name}** (`{d}/`) by {authors}. Licence: {licence}. Changes: {changes}."
+                for d, (name, licence, authors, changes, _) in LIBS.items() if any(r.startswith(d + "/") for r in rels)]
+        return {
+            "VERSION": res.version,
+            "WIKI_FILES": bullet(by_cat.get("wiki-cc-by-sa", [])),
+            "CCBYSA_OWN_FILES": bullet([r for r in by_cat.get("own-data", []) if "CC BY-SA" in res.files[r]["licence"]]),
+            "BLIZZARD_FILES": bullet(by_cat.get("blizzard-client-data", [])),
+            "LIBRARIES": "\n".join(libs) or "* (none)",
+            "PACKAGE_NOTE": "One `CompletionRoute` folder serves every client: each client loads only its own TOC's "
+                            "files. If you downloaded a per-client zip, it holds only that client's data.",
+        }
+    vals = notice_values(list(res.files))
     made = {"LICENSE.txt": lic_text, "ATTRIBUTION.md": render("ATTRIBUTION.md", vals), "README.md": render("README.md", vals)}
+    # a per-client zip carries an ATTRIBUTION.md that lists only the files in that zip
+    for c in per_client:
+        text = render("ATTRIBUTION.md", notice_values([r for r in per_client[c] & present if r in res.files]))
+        if text != made["ATTRIBUTION.md"]:
+            res.variants[c] = {"ATTRIBUTION.md": text.encode("utf-8")}
     for rel, text in made.items():
         data = text.encode("utf-8")
         (stage / rel).write_bytes(data)
@@ -702,8 +752,12 @@ def assemble(opts):
 
     # ---- gate: content of every staged file -----------------------------------------------------------------------
     scanner = Scanner(personal_terms(opts, res))
+    res.term_rx = scanner.term_rx
     for rel, rec in sorted(res.files.items()):
         scanner.scan(rel, (stage / rel).read_bytes(), rec["category"], res)
+    for c, files in sorted(res.variants.items()):
+        for rel, data in sorted(files.items()):
+            scanner.scan(rel, data, res.files[rel]["category"], res)
 
     # ---- gate: every TOC / XML line points at a file in that client's package -------------------------------------
     for client, rels in per_client.items():
@@ -737,17 +791,27 @@ def assemble(opts):
     return res
 
 
-def write_zip(path, stage, rels, commit_time):
+def write_zip(path, stage, rels, commit_time, variants=None):
+    """a reproducible zip of stage/<rels>; variants {rel: bytes} replace a staged file in this zip only"""
     ts = datetime.datetime.fromtimestamp(max(commit_time, 315532800), datetime.timezone.utc).timetuple()[:6]
+    variants = variants or {}
+    unpacked = 0
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         for rel in sorted(rels):
             zi = zipfile.ZipInfo(f"{ADDON}/{rel}", ts)
             zi.external_attr = 0o644 << 16
             zi.compress_type = zipfile.ZIP_DEFLATED
-            z.writestr(zi, (stage / rel).read_bytes(), compresslevel=9)
+            data = variants[rel] if rel in variants else (stage / rel).read_bytes()
+            unpacked += len(data)
+            z.writestr(zi, data, compresslevel=9)
     data = path.read_bytes()
-    return {"name": path.name, "files": len(rels), "bytes_unpacked": sum((stage / r).stat().st_size for r in rels),
-            "bytes_zip": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+    rec = {"name": path.name, "files": len(rels), "bytes_unpacked": unpacked, "bytes_zip": len(data),
+           "sha256": hashlib.sha256(data).hexdigest()}
+    if variants:
+        # these entries differ from the files[] record of the same path (a per-client ATTRIBUTION.md)
+        rec["differs"] = [{"path": f"{ADDON}/{rel}", "bytes": len(b), "sha256": hashlib.sha256(b).hexdigest()}
+                          for rel, b in sorted(variants.items()) if rel in rels]
+    return rec
 
 
 def build_zips(res, folder, layouts):
@@ -760,32 +824,35 @@ def build_zips(res, folder, layouts):
         out[rec["name"]] = rec
     if "per-client" in layouts:
         for c, rels in res.clients.items():
-            rec = write_zip(folder / f"{ADDON}-{res.version}-{c}.zip", res.stage, rels, res.commit_time)
+            rec = write_zip(folder / f"{ADDON}-{res.version}-{c}.zip", res.stage, rels, res.commit_time,
+                            res.variants.get(c))
             rec["client"] = c
             out[rec["name"]] = rec
     return out
 
 
 def manifest(res):
-    return {
+    """provenance.json; every string is redacted (product name, personal terms) except "product" and "version", which
+    mark a folder as a build (is_build)"""
+    return dict(res.redact_all({
         "format": 1,
-        "product": "Completionist's Guide (CompletionRoute add-on)",
+        "product": PRODUCT,
         "version": res.version, "commit": res.commit, "dirty": res.dirty,
         "built": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "layout": res.layout,
         "gate": {"result": "PASS" if res.ok else "FAIL",
-                 "failures": [{"rule": f.rule, "path": redact(f.path), "detail": redact(f.detail)} for f in res.failures],
+                 "failures": [{"rule": f.rule, "path": f.path, "detail": f.detail} for f in res.failures],
                  "warnings": res.warnings},
         "packages": res.packages,
-        "files": [dict(res.files[k], path=redact(res.files[k]["path"])) for k in sorted(res.files)],
+        "files": [res.files[k] for k in sorted(res.files)],
         "excluded": res.excluded,
         "toc_lines_stripped": res.stripped,
-        "not_packaged": [redact(f) for f in res.not_packaged],
-    }
+        "not_packaged": res.not_packaged,
+    }), product=PRODUCT, version=res.version)
 
 
 def report(res, measured, dry, out=sys.stdout):
-    p = lambda s="": print(s, file=out)  # noqa: E731
+    p = lambda s="": print(res.redact(s), file=out)  # noqa: E731
     p(f"Completionist's Guide release packager: {'DRY RUN, nothing written (--write builds dist/)' if dry else 'WRITE'}")
     p(f"version {res.version}, commit {res.commit[:12] or '-'}{' (uncommitted changes)' if res.dirty else ''}")
     cats = {}
@@ -799,7 +866,7 @@ def report(res, measured, dry, out=sys.stdout):
         p(f"TOC lines stripped from the packaged copy ({len(res.stripped)} lines in {len({s['toc'] for s in res.stripped})} "
           f"TOCs, {len(files)} files): " + ", ".join(files))
     if res.not_packaged:
-        p(f"not loaded by any TOC, not packaged ({len(res.not_packaged)}): " + redact(", ".join(res.not_packaged)))
+        p(f"not loaded by any TOC, not packaged ({len(res.not_packaged)}): " + ", ".join(res.not_packaged))
     if measured:
         w = max(len(r["name"]) for r in measured)
         p("sizes (zip = deflate level 9):")
@@ -817,7 +884,7 @@ def report(res, measured, dry, out=sys.stdout):
     else:
         p(f"GATE: FAIL ({len(res.failures)} problem(s))")
         for f in res.failures:
-            p("  " + f.text())
+            p("  " + f.text(res.redact))
 
 
 def parse_args(argv):
@@ -870,23 +937,52 @@ def write_db(path, res, man):
         con.close()
 
 
+def is_build(folder):
+    """a folder this packager wrote: named like a version and holding that version's provenance.json"""
+    if folder.is_symlink() or not folder.is_dir() or not VERSION_RE.match(folder.name):
+        return False
+    try:
+        man = json.loads((folder / "provenance.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(man, dict) and man.get("product") == PRODUCT and man.get("version") == folder.name
+
+
+def free_name(folder, name, stamp=None):
+    """folder/name when free, else folder/name-<stamp> (when given), then -2, -3 ...: nothing is ever overwritten"""
+    if not os.path.lexists(folder / name):
+        return folder / name
+    base = f"{name}-{stamp}" if stamp else name
+    target, n = folder / base, 1
+    while os.path.lexists(target):
+        n += 1
+        target = folder / f"{base}-{n}"
+    return target
+
+
+def dist_dir(opts):
+    return Path(opts.out).resolve() if opts.out else Path(opts.repo).resolve() / "dist"
+
+
 def write_dist(opts, res, man, measured, chosen, zdir):
-    """dist/<version>/. A passing build gets the assembled add-on and its zip(s), and every other dist/<version>
-    moves to dist/archive/ (one current build). A failing build gets only gate.txt and provenance.json and archives nothing."""
-    dist = Path(opts.out).resolve() if opts.out else Path(opts.repo).resolve() / "dist"
-    dest = dist / res.version
-    dist.mkdir(parents=True, exist_ok=True)
+    """A passing build becomes <out>/<version>/ (CompletionRoute/, the zip(s), provenance.json, gate.txt) and every
+    earlier build in <out>, the same version included, moves to <out>/archive/: one current build, nothing deleted.
+    A failing build writes only gate.txt and provenance.json, into <out>/failed/<version>-<time>/, and moves nothing,
+    so it never displaces the build being tested. Folders the packager did not write are never moved or changed."""
+    dist = dist_dir(opts)
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     if res.ok:
-        archive = dist / "archive"
+        dest = dist / res.version
+        if os.path.lexists(dest) and not is_build(dest):
+            raise SystemExit(f"package_release: {dest} exists and was not written by this packager; move it away")
+        dist.mkdir(parents=True, exist_ok=True)
         for old in sorted(dist.iterdir()):
-            if old.is_dir() and old.name not in ("archive", res.version):
-                archive.mkdir(exist_ok=True)
-                target = archive / old.name
-                if target.exists():
-                    target = archive / f"{old.name}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
-                shutil.move(str(old), str(target))
-    if dest.exists():
-        shutil.rmtree(dest)
+            if is_build(old):
+                (dist / "archive").mkdir(exist_ok=True)
+                shutil.move(str(old), str(free_name(dist / "archive", old.name, stamp)))
+    else:
+        (dist / "failed").mkdir(parents=True, exist_ok=True)
+        dest = free_name(dist / "failed", f"{res.version}-{stamp}")
     dest.mkdir()
     if res.ok:
         shutil.copytree(res.stage, dest / ADDON)
@@ -898,19 +994,38 @@ def write_dist(opts, res, man, measured, chosen, zdir):
     return dest
 
 
+def check_paths(opts):
+    """usage errors (exit 2) before any work: every folder option must be a folder, or (output folders) not exist yet"""
+    def is_dir_or_absent(flag, path):
+        if path and os.path.lexists(path) and not os.path.isdir(path):
+            raise SystemExit(f"package_release: {flag} {path} exists and is not a folder")
+    if opts.tmp and not os.path.isdir(opts.tmp):
+        raise SystemExit(f"package_release: --tmp {opts.tmp} is not a folder")
+    is_dir_or_absent("--out", opts.out)
+    if opts.write:
+        dist = dist_dir(opts)
+        is_dir_or_absent("--out", str(dist))
+        if opts.version and os.path.lexists(dist / opts.version) and not is_build(dist / opts.version):
+            raise SystemExit(f"package_release: {dist / opts.version} exists and was not written by this packager; "
+                             "move it away")
+    is_dir_or_absent("--stage-dir", opts.stage_dir)
+    if opts.stage_dir and os.path.isdir(opts.stage_dir) and any(Path(opts.stage_dir).iterdir()):
+        raise SystemExit(f"package_release: --stage-dir {opts.stage_dir} is not empty")
+    if opts.db:
+        if os.path.islink(opts.db):
+            # a git worktree's docs/verification.sqlite is a link into the main checkout: never write through it
+            raise SystemExit(f"package_release: --db {opts.db} is a symlink; pass the real file")
+        if os.path.isdir(opts.db) or not os.path.isdir(os.path.dirname(os.path.abspath(opts.db))):
+            raise SystemExit(f"package_release: --db {opts.db} is a folder or its folder does not exist")
+
+
 def run(argv=None, out=sys.stdout):
     """the whole build; returns (exit code, Result, manifest dict)"""
     opts = parse_args(argv)
-    if opts.db and os.path.islink(opts.db):
-        # a git worktree's docs/verification.sqlite is a link into the main checkout: never write through it
-        raise SystemExit(f"package_release: --db {opts.db} is a symlink; pass the real file")
+    check_paths(opts)
     tmp = tempfile.mkdtemp(prefix="cr-release-", dir=opts.tmp)
     try:
-        opts.stage = Path(tmp) / "stage"
-        if opts.stage_dir:
-            opts.stage = Path(opts.stage_dir).resolve()
-            if opts.stage.exists() and any(opts.stage.iterdir()):
-                raise SystemExit(f"package_release: --stage-dir {opts.stage} is not empty")
+        opts.stage = Path(opts.stage_dir).resolve() if opts.stage_dir else Path(tmp) / "stage"
         res = assemble(opts)
         res.layout = opts.layout
         layouts = {"universal", "per-client"} if opts.layout == "both" else {opts.layout}
@@ -928,7 +1043,8 @@ def run(argv=None, out=sys.stdout):
             write_db(opts.db, res, man)
         report(res, measured, not opts.write, out)
         if opts.write:
-            print(f"wrote {dest}" + ("" if res.ok else " (gate.txt and provenance.json only: the gate failed)"), file=out)
+            print(f"wrote {dest}" + ("" if res.ok else " (gate.txt and provenance.json only: the gate failed; no "
+                                     "earlier build was moved)"), file=out)
         if opts.db:
             print(f"wrote tables data_provenance and release_gate ({len(man['files'])} files) to {opts.db}", file=out)
         return (0 if res.ok else 1), res, man
@@ -944,6 +1060,11 @@ def main():
             print(e.code, file=sys.stderr)
             return 2
         raise
+    except Exception:       # a crash is not a gate result: exit 1 means only "the gate failed"
+        import traceback
+        traceback.print_exc()
+        print("package_release: internal error (exit 3); the gate did not run to the end", file=sys.stderr)
+        return 3
     return code
 
 

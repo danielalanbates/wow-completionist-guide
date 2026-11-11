@@ -21,7 +21,9 @@ that picks flight paths, boats, zeppelins, portals and your hearthstone, then po
 * `/cr route` explains the current route. `/cr order` shows the planned order of the next steps.
 * `/cr taxi` shows how many of your flight paths the add-on knows. `/cr hearth` shows where your hearthstone goes.
 * `/cr options` opens the settings.
-* In the guide window: tick a step (or Shift-click it) to complete it, right-click to skip it, `<` to undo.
+* The guide window shows one step at a time. Steps complete themselves from your quest log, bags, position,
+  flights and hearthstone. The right arrow marks a step done by hand, the left arrow goes back one step. Click
+  the step for its details and the Complete, Skip and Show on map buttons. `Route` turns reordering on or off.
 
 Open a flight master's map once on each continent so the router knows your flight paths. Hearth once, or bind at an
 inn, so it learns where your inn is.

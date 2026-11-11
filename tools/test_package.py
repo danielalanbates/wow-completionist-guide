@@ -12,9 +12,12 @@ and LICENSE, plus small clean stand-ins for every generated file the TOCs load, 
 fake WoW folder with one account and one character. It proves a clean build passes (interop files left out, their TOC
 lines stripped, version stamped, notices present, provenance for every zip entry, reproducible zips, dist/ archiving),
 then plants one bad file per gate rule and proves the gate fails with that rule. It also covers a git worktree whose
-generated files link into its main checkout (fails by default, passes with --allow-checkout-links), --data-root and the
---db tables. Nothing outside the temp folder is read or written, except reading the tracked files it copies.
+generated files link into its main checkout (fails by default, passes with --allow-checkout-links), --data-root, the
+--db tables, what --write may move (only its own builds; a failing build never displaces a passing one), the dirty
+flag for packager edits, per-client ATTRIBUTION.md and usage errors. Nothing outside the temp folder is read or
+written, except reading the tracked files it copies.
 """
+import contextlib
 import io
 import json
 import os
@@ -120,6 +123,25 @@ def has(res, rule, path=None):
     return any(f.rule == rule and (path is None or f.path == path) for f in res.failures)
 
 
+def usage_error(env, repo, *extra):
+    """the SystemExit text of a usage error, or None when pr.run did not stop with one"""
+    try:
+        env.run(repo, *extra)
+    except SystemExit as e:
+        return e.code if isinstance(e.code, str) else None
+    return None
+
+
+def zip_sha(path):
+    import hashlib
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def listed_files(attribution):
+    """the file paths an ATTRIBUTION.md lists as bullets"""
+    return [l[3:-1] for l in attribution.splitlines() if l.startswith("* `") and l.endswith("`")]
+
+
 def expect_fail(env, title, rule, path, plant, *extra):
     d = env.scenario()
     plant(d, d / pr.ADDON)
@@ -186,8 +208,16 @@ def main():
         check(f"{pr.ADDON}/Libs/CallbackHandler-1.0/LICENSE.txt" in znames, "Ace3 licence text ships with CallbackHandler")
         with zipfile.ZipFile(v1 / f"{pr.ADDON}-9.9.9-test1-era.zip") as z:
             era = set(z.namelist())
+            era_attr = z.read(f"{pr.ADDON}/ATTRIBUTION.md")
         check(f"{pr.ADDON}/Guides/Imported_Wiki_retail.lua" not in era and f"{pr.ADDON}/CompletionRoute.toc" not in era
               and f"{pr.ADDON}/CompletionRoute_Vanilla.toc" in era, "per-client era zip holds only the era TOC and data")
+        era_listed = listed_files(era_attr.decode())
+        check("Guides/Imported_Wiki_era.lua" in era_listed and all(f"{pr.ADDON}/{f}" in era for f in era_listed)
+              and "Guides/Imported_Wiki_retail.lua" in listed_files(attribution),
+              f"per-client era ATTRIBUTION.md lists only files in the era zip ({len(era_listed)}); the universal one lists all")
+        era_rec = next(r for r in json.loads((v1 / "provenance.json").read_text())["packages"] if r["client"] == "era")
+        check([d["sha256"] for d in era_rec.get("differs", [])] == [__import__("hashlib").sha256(era_attr).hexdigest()],
+              "provenance.json records the per-client ATTRIBUTION.md that differs from the files[] record")
         sha1 = {p["name"]: p["sha256"] for p in prov["packages"]}
         code, res, man, _ = env.run(d, "--version", "9.9.9-test1", "--layout", "both")
         check(code == 0 and {p["name"]: p["sha256"] for p in man["packages"]} == sha1, "zips are byte-for-byte reproducible")
@@ -196,10 +226,47 @@ def main():
               "a new --write moves the previous build to dist/archive/")
         bad = env.scenario()
         append(bad / pr.ADDON / "Guides" / "Imported_Wiki_era.lua", "A x|QID|1|M|1,1|Z|1; X|N|To X. (location: Questie data)|\n")
+        before = sorted(p.name for p in (dist / "archive").iterdir())
         code, res, man, _ = env.run(bad, "--write", "--out", str(dist), "--version", "9.9.9-test3")
-        v3 = dist / "9.9.9-test3"
-        check(code == 1 and sorted(p.name for p in v3.iterdir()) == ["gate.txt", "provenance.json"]
-              and (dist / "9.9.9-test2").is_dir(), "a failed --write writes only gate.txt + provenance.json and archives nothing")
+        failed = sorted((dist / "failed").glob("9.9.9-test3-*"))
+        check(code == 1 and len(failed) == 1 and sorted(p.name for p in failed[0].iterdir()) == ["gate.txt", "provenance.json"]
+              and not (dist / "9.9.9-test3").exists() and (dist / "9.9.9-test2").is_dir()
+              and sorted(p.name for p in (dist / "archive").iterdir()) == before,
+              "a failed --write writes only gate.txt + provenance.json to dist/failed/ and moves nothing")
+
+        print("write mode: what --write may move")
+        test2 = dist / "9.9.9-test2" / f"{pr.ADDON}-9.9.9-test2.zip"
+        sha2 = zip_sha(test2)
+        code, res, man, _ = env.run(bad, "--write", "--out", str(dist), "--version", "9.9.9-test2")
+        check(code == 1 and zip_sha(test2) == sha2 and len(list((dist / "failed").glob("9.9.9-test2-*"))) == 1
+              and sorted(p.name for p in (dist / "archive").iterdir()) == before,
+              "a failing rebuild of the same version leaves the passing build and its zip untouched")
+        code, res, man, _ = env.run(d, "--write", "--out", str(dist), "--version", "9.9.9-test2")
+        arch2 = sorted((dist / "archive").glob("9.9.9-test2*"))
+        check(code == 0 and len(arch2) == 1 and zip_sha(arch2[0] / test2.name) == sha2 and (dist / "9.9.9-test2" / test2.name).is_file(),
+              "a passing rebuild of the same version archives the earlier build instead of deleting it")
+        code, res, man, _ = env.run(d, "--write", "--out", str(dist), "--version", "9.9.9-test2")
+        check(code == 0 and len(list((dist / "archive").glob("9.9.9-test2*"))) == 2,
+              "... and a third build of it gets its own archive name (nothing overwritten)")
+        desk = tmp / "Desktop"
+        for sub in ("Photos", "Taxes 2025", "3.0.0", "archive"):
+            (desk / sub).mkdir(parents=True)
+            (desk / sub / "keep.txt").write_text("mine\n")
+        (desk / "notes.txt").write_text("mine\n")
+        (desk / "4.0.0").mkdir()
+        (desk / "4.0.0" / "provenance.json").write_text('{"product": "something else", "version": "4.0.0"}\n')
+        mine = sorted(p.name for p in desk.iterdir())
+        code, res, man, _ = env.run(d, "--write", "--out", str(desk), "--version", "9.9.9-desk1")
+        code2, res, man, _ = env.run(d, "--write", "--out", str(desk), "--version", "9.9.9-desk2")
+        check(code == 0 and code2 == 0 and sorted(p.name for p in desk.iterdir()) == sorted(mine + ["9.9.9-desk2"])
+              and sorted(p.name for p in (desk / "archive").iterdir()) == ["9.9.9-desk1", "keep.txt"]
+              and all((desk / s / "keep.txt").is_file() for s in ("Photos", "Taxes 2025", "3.0.0")),
+              "--out on a folder with other folders moves only the packager's own earlier build to archive/")
+        (desk / "9.9.9-mine").mkdir()
+        (desk / "9.9.9-mine" / "keep.txt").write_text("mine\n")
+        err = usage_error(env, d, "--write", "--out", str(desk), "--version", "9.9.9-mine")
+        check(err is not None and "not written by this packager" in err and (desk / "9.9.9-mine" / "keep.txt").is_file()
+              and (desk / "9.9.9-desk2").is_dir(), "a dist/<version> the packager did not write is a usage error, nothing moved")
 
         print("gate rules")
         def plant_mystery(d, a):
@@ -261,11 +328,40 @@ def main():
         check("zorblaxia" not in text.lower(), "the report does not print the character name")
         expect_fail(env, "--personal-term", "personal-data", "Guides/Imported_Wiki_tbc.lua",
                     lambda d, a: append(a / "Guides" / "Imported_Wiki_tbc.lua", "-- Zebulon Quux\n"), "--personal-term", "Zebulon Quux")
+        def plant_char_file(d, a):
+            (a / "Textures" / "Zorblaxia_arrow.tga").write_bytes(b"\0" * 18)
+            git(d, "add", "-A"); git(d, "commit", "-qm", "plant")
+        res, text = expect_fail(env, "WoW character name in a file name", "personal-data", "Textures/Zorblaxia_arrow.tga",
+                                plant_char_file)
+        man = pr.manifest(res)
+        check("zorblaxia" not in text.lower() and "zorblaxia" not in json.dumps(man).lower()
+              and any(f["path"] == "Textures/[personal term]_arrow.tga" for f in man["gate"]["failures"]),
+              "the report and provenance.json mask a personal term in a file name")
 
         expect_fail(env, "access key", "secret", "Data/RouteOrder_era.lua",
                     lambda d, a: append(a / "Data" / "RouteOrder_era.lua", '-- key = "' + "AKIA" + "Z" * 16 + '"\n'))
         expect_fail(env, "private key block", "secret", "Guides/Imported_Achievements_mop.lua",
                     lambda d, a: append(a / "Guides" / "Imported_Achievements_mop.lua", "--[[ -----BEGIN RSA " + "PRIVATE KEY----- ]]\n"))
+        # fake keys, built here so no key-shaped string sits in this file
+        for label, value, said in (("Cerebras key", "csk" + "-" + "a1b2c3d4" * 6, "Cerebras API key"),
+                                   ("Groq key", "gsk" + "_" + "A1b2C3d4" * 7, "Groq API key"),
+                                   ("Hugging Face token", "hf" + "_" + "AbCdEfGhIj" * 4, "Hugging Face token"),
+                                   ("xAI key", "xai" + "-" + "Ab1Cd2Ef3" * 9, "xAI API key"),
+                                   ("npm token", "npm" + "_" + "Ab1Cd2Ef3" * 5, "npm token"),
+                                   ("GitLab token", "glpat" + "-" + "Ab1Cd2Ef3" * 3, "GitLab token"),
+                                   ("OpenRouter key", "sk" + "-or-v1-" + "ab12" * 16, "sk- API key"),
+                                   ("unquoted api_key=", "api_key" + "=" + "Zq8" * 12, "credential assignment"),
+                                   ("env line OPENAI_API_KEY=", "export OPENAI_API" + "_KEY=" + "Zq8x" * 10, "credential assignment"),
+                                   ("quoted MY_PASSWORD", 'MY_PASSWORD = "' + "hunter2hunter2" + '"', "credential assignment")):
+            res, _ = expect_fail(env, f"secret: {label}", "secret", "Guides/Imported_Gold_era.lua",
+                                 lambda d, a, v=value: append(a / "Guides" / "Imported_Gold_era.lua", f"-- {v}\n"))
+            check(any(f.rule == "secret" and f.detail.startswith(said + " pattern") for f in res.failures),
+                  f"... reported as \"{said}\"")
+        d = env.scenario()
+        append(d / pr.ADDON / "Guides" / "Imported_Gold_era.lua", "-- api_key = NS.Config.apiKey; local token = GetToken()\n"
+               "-- passwords = 3; hf_max_level = 60; task-csk-1; password: see the options panel\n")
+        code, res, _, _ = env.run(d)
+        check(code == 0 and not has(res, "secret"), "code that names a key without holding one does not fail the secret rule")
 
         def plant_code_link(d, a):
             outside = env.tmp / "outside.lua"
@@ -361,6 +457,59 @@ def main():
         except SystemExit as e:
             refused = isinstance(e.code, str) and "symlink" in e.code
         check(refused, "--db refuses a path that is a symlink (a worktree's docs/verification.sqlite)")
+
+        print("dirty flag covers the packager and its templates")
+        d = env.scenario()
+        (d / "tools" / "release").mkdir(parents=True)
+        shutil.copyfile(TOOLS / "package_release.py", d / "tools" / "package_release.py")
+        for f in ("ATTRIBUTION.md", "README.md"):
+            shutil.copyfile(TOOLS / "release" / f, d / "tools" / "release" / f)
+        git(d, "add", "-A"); git(d, "commit", "-qm", "packager")
+
+        def own_packager(stage):
+            p = subprocess.run([sys.executable, "-B", str(d / "tools" / "package_release.py"), "--repo", str(d), "--tmp",
+                                str(tmp), "--wow-dir", str(env.wow), "--no-local-terms", "--no-measure", "--stage-dir",
+                                str(stage)], capture_output=True, text=True)
+            return p.returncode, p.stdout + p.stderr
+        code, text = own_packager(tmp / "own1")
+        check(code == 0 and "-dirty" not in text and "uncommitted" not in text, "a committed packager builds a clean version")
+        tpl = d / "tools" / "release" / "README.md"
+        tpl.write_text(tpl.read_text().replace("**Beta.**", "**Beta. UNCOMMITTED EDIT.**"))
+        code, text = own_packager(tmp / "own2")
+        check(code == 0 and "-dirty" in text and "uncommitted" in text
+              and "UNCOMMITTED EDIT" in (tmp / "own2" / pr.ADDON / "README.md").read_text(),
+              "an uncommitted edit to a release template makes the build -dirty, with a note")
+
+        print("usage errors exit 2, a crash exits 3")
+        d = env.scenario()
+        afile = tmp / "afile"
+        afile.write_text("x\n")
+        for flag, val in (("--stage-dir", afile), ("--out", afile), ("--tmp", tmp / "nowhere"), ("--db", tmp / "nowhere" / "p.sqlite")):
+            extra = ["--write"] if flag == "--out" else []
+            try:
+                code = pr.run(["--repo", str(d), "--no-local-terms", "--no-measure", "--wow-dir", str(env.wow), flag, str(val),
+                               *extra], out=io.StringIO())[0]
+                err = None
+            except SystemExit as e:
+                err = e.code if isinstance(e.code, str) else None
+            check(err is not None and flag in err, f"{flag} {val.name}: usage error before any work")
+        argv, err = sys.argv, io.StringIO()
+        sys.argv = ["package_release.py", "--stage-dir", str(afile)]
+        try:
+            with contextlib.redirect_stderr(err):
+                code = pr.main()
+        finally:
+            sys.argv = argv
+        check(code == 2, f"main() exits 2 on a usage error ({code})")
+        real = pr.assemble
+        pr.assemble = lambda opts: (_ for _ in ()).throw(OSError("planted crash"))
+        sys.argv = ["package_release.py", "--repo", str(d), "--tmp", str(tmp)]
+        try:
+            with contextlib.redirect_stderr(err):
+                code = pr.main()
+        finally:
+            sys.argv, pr.assemble = argv, real
+        check(code == 3 and "planted crash" in err.getvalue(), f"main() exits 3, not 1 (gate failed), on a crash ({code})")
     finally:
         if keep:
             print("kept " + str(tmp))
