@@ -10,12 +10,13 @@
 -- behaviour and other characters' data is left untouched.
 --
 -- Step marks are stored by stable step key (Core/Guide.lua "Stable step keys", docs/STEP_KEYS.md), so a guide
--- regenerated with lines added, removed or moved keeps every tick and skip on its step:
+-- regenerated with lines added, removed or moved keeps ticks and skips on their steps (STEP_KEYS.md: what still moves one):
 --   chars[k].stepDone[guide][key] = true       ticked (by hand or by the auto-completer)
 --   chars[k].stepSkipped[guide][key] = true    skipped as a step (quest-level skips: Core/Skip.lua questSkip)
 --   CompletionRouteCharDB.stepReopened[guide][key] = true   stepped back to (Progress.Undo)
 --   chars[k].stepMeta[guide] = { v = key version, sum = Guide.GuideSum when last loaded or migrated,
---                                mig = old marks imported, lost = old marks that matched no step }
+--                                mig = old marks imported, lost = old marks that matched no step,
+--                                ro = the character's own stepped-back marks imported (false: not yet, see A.Migrate) }
 -- The tables of earlier releases, chars[k].done / skipped and CompletionRouteCharDB.reopened, keyed by author step
 -- index, are read once per character and guide (A.Migrate) and then left alone, so the previous release still finds
 -- the progress made before the update if the addon is downgraded.  Reset clears both.
@@ -181,6 +182,10 @@ end
 -- those of this client's game type: a record copied in from another client by tools/sync_progress.lua was written
 -- against that client's guide data, and its own client migrates it.  Access-chain steps (negative indices) are not
 -- carried over: their numbers depended on which chains were locked at each load; their quests re-tick from the log.
+-- Stepped-back marks (CompletionRouteCharDB.reopened) live in the character's own file, so only that character can import
+-- them: a record another character migrated gets ro = false, and its owner imports its set on its own next load.
+-- During a bulk sweep (A.BeginScratch) the logged-in character is not migrated: its record's marks are swapped for empty
+-- ones but its character file is not, so the sweep would re-import old stepped-back marks the player has since moved on.
 local function baseType(t) return t and (t:gsub("%-hardcore$", "")) or nil end
 local function migratable(c, k)
     if c == A.me or k == A.key then return true end
@@ -208,15 +213,33 @@ local function importSet(old, dst, map)
     return n, lost
 end
 local function nonEmpty(t) return t ~= nil and next(t) ~= nil end
+-- This character's old stepped-back set (character file) into its keyed one; sets meta.ro.  Returns whether it had any.
+local function importReopened(meta, gid, steps, ctx)
+    local c = NS.db.char
+    local ro = c.reopened and c.reopened[gid]
+    meta.ro = true
+    if not nonEmpty(ro) then return false end
+    ctx.map = ctx.map or indexMap(steps)
+    c.stepReopened = c.stepReopened or {}
+    local dst = c.stepReopened[gid] or {}
+    local n, lost = importSet(ro, dst, ctx.map)
+    if next(dst) then c.stepReopened[gid] = dst end
+    meta.mig = (meta.mig or 0) + n
+    if lost > 0 then meta.lost = (meta.lost or 0) + lost end
+    return true
+end
 -- c: one character record; me: it is the logged-in character (its reopened set lives in the character file)
 local function migrateOne(c, gid, steps, me, touch, ctx)
     local meta = c.stepMeta and c.stepMeta[gid]
     if meta then
-        if me and touch then
+        if not me then return false end
+        -- migrated by another character of this client, which could not see this character's stepped-back marks
+        local now = meta.ro == false and importReopened(meta, gid, steps, ctx)
+        if touch then
             local sum = ctx.sum()
             if sum and meta.sum ~= sum then meta.sum = sum end
         end
-        return false
+        return now
     end
     local od, osk = c.done and c.done[gid], c.skipped and c.skipped[gid]
     local ro = me and NS.db.char.reopened and NS.db.char.reopened[gid] or nil
@@ -236,12 +259,9 @@ local function migrateOne(c, gid, steps, me, touch, ctx)
         end
         into(od, c.stepDone)
         into(osk, c.stepSkipped)
-        if ro then
-            NS.db.char.stepReopened = NS.db.char.stepReopened or {}
-            into(ro, NS.db.char.stepReopened)
-        end
         if lost > 0 then meta.lost = lost end
     end
+    if me then importReopened(meta, gid, steps, ctx) else meta.ro = false end
     c.stepMeta[gid] = meta
     return true
 end
@@ -258,7 +278,8 @@ function A.Migrate(gid, steps, touch)
         if sum == nil then sum = (G and G.registry[gid] and G.GuideSum(gid)) or false end
         return sum or nil
     end
-    if migrateOne(A.me, gid, steps, true, touch, ctx) then n = n + 1 end
+    -- not the logged-in character during a sweep (A.BeginScratch): it migrates on its first load after the sweep
+    if not A.scratch and migrateOne(A.me, gid, steps, true, touch, ctx) then n = n + 1 end
     for k, c in pairs(NS.db.global.chars or {}) do
         if c ~= A.me and k ~= A.key and type(c) == "table" and migratable(c, k) then
             if migrateOne(c, gid, steps, false, false, ctx) then n = n + 1 end

@@ -10,12 +10,15 @@
 --      a step stepped back to and a quest skip stay on their steps across a SavedVariables round trip; marks keyed by
 --      author index would have moved; a deleted step's tick counts nowhere; the saved re-plan is not applied to the new
 --      data; a baked route order (Data/RouteOrder) still applies by author index and checksum
---   3. migration from a fixture of the SavedVariables layout before step keys (tools/fixtures/progress_keys_*_SV.lua):
---      index marks of this character (done, skipped, reopened) and of other characters of this game type move to keys,
---      records of other clients and of unknown game type are left alone, marks with no step are counted, not placed
---   4. idempotence (twice in one session, after a reload, after a downgraded client wrote more index marks), a
---      re-plan saved under the old rebuild key, and the downgrade: the old tables are untouched and the previous
---      release's own code (git commit before this branch) still reads the progress made before the update
+--   3. migration from a fixture of the SavedVariables layout before step keys (tools/fixtures/progress_keys_*_SV.lua),
+--      on a baked guide (list order is not author order, as in game): index marks of this character (done, skipped,
+--      reopened) and of other characters of this game type move to keys, records of other clients and of unknown game
+--      type are left alone, marks with no step are counted, not placed; an alt whose record another character migrated
+--      still imports its own stepped-back marks when it logs in
+--   4. idempotence (twice in one session, after a reload, after a downgraded client wrote more index marks, a route
+--      sweep after a data update), a re-plan saved under the old rebuild key, and the downgrade: the old tables are
+--      untouched and the previous release's own code (git commit before this branch) still reads the progress made
+--      before the update
 --   5. tools/sync_progress.lua carries the keyed marks and migration records between client folders (temp files)
 --   6. every flavor's real guides: keys unique in every guide (0 collisions), no two different texts share a hash,
 --      parse results unchanged on a sample, key building cost (run with luajit -joff for the client's number)
@@ -193,6 +196,8 @@ for _, i in ipairs({ 6, 7, 8, 10, 11, 12, 16, 17, 18, 19 }) do V2[#V2 + 1] = V1[
 -- where each v1 step is in v2 (nil = deleted)
 local MOVE = { [1] = 2, [2] = 3, [3] = 4, [4] = 5, [5] = 6, [6] = 10, [7] = 11, [8] = 12, [10] = 13, [11] = 14, [12] = 15,
                [13] = 7, [14] = 8, [15] = 9, [16] = 16, [17] = 17, [18] = 18, [19] = 19 }
+-- a baked order of v1 for section 3: every list position but one (13) differs from the author index
+local BAKED = "19,1,18,2,17,3,16,4,15,5,14,6,13,7,12,8,11,9,10"
 local function register(NS, id, lines)
     local G = NS.Guide
     local g = G.registry[id]
@@ -401,9 +406,14 @@ local REAL = "wiki:era:1429:Alliance"
 local postUpgradeDB, postUpgradeChar
 do
     local db0, char0 = loadSV(FIX_ACCT, "CompletionRouteDB"), loadSV(FIX_CHAR, "CompletionRouteCharDB")
-    local NS = harness("era", { db = roundTrip(db0), chardb = roundTrip(char0), files = { "Guides/Imported_Wiki_era.lua" } })
+    local NS = harness("era", { db = roundTrip(db0), chardb = roundTrip(char0), files = { "Guides/Imported_Wiki_era.lua", "Data/RouteOrder_era.lua" } })
     local P, G, A = NS.Progress, NS.Guide, NS.Account
     register(NS, "t:keys:a", V1)
+    -- in game most guides are baked (Data/RouteOrder): the list the migration is handed is not in author order, so an
+    -- index -> key map built from list positions would put every mark on another step
+    NS.RouteOrder = NS.RouteOrder or {}
+    NS.RouteOrder["t:keys:a"] = { n = 19, sum = G.RouteChecksum(author(G.Steps("t:keys:a"))), o = BAKED }
+    G.registry["t:keys:a"].steps = nil
     A.Init()
     place(1429, 0.1, 0.9)
     W.level = 5
@@ -411,6 +421,9 @@ do
     t("fixture: nothing is migrated before a guide is opened", chars["Tester-Test"].stepMeta and next(chars["Tester-Test"].stepMeta) == nil)
     P.Load("t:keys:a")
     local s = author(P.baseSteps)
+    local moved = 0
+    for i, x in ipairs(P.baseSteps) do if x.index ~= i then moved = moved + 1 end end
+    t("the guide is loaded baked: " .. moved .. " of 19 list positions are not the author index", G.registry["t:keys:a"].baked == true and moved >= 17, moved)
     local me = A.me
     local function keysOf(set) local o = {} for k in pairs(set or {}) do o[#o + 1] = k end table.sort(o) return table.concat(o, " ") end
     local function keysAt(list) local o = {} for _, i in ipairs(list) do o[#o + 1] = s[i].key end table.sort(o) return table.concat(o, " ") end
@@ -442,12 +455,21 @@ do
     t("old reopened table (character file) is untouched", same(NS.db.char.reopened, char0.reopened))
     -- a real generated guide (when present): indices 1 2 4 of it land on its steps 1 2 4
     if G.registry[REAL] then
-        local n = A.GuideProgress(REAL, #G.Steps(REAL), "char")
-        local rs = author(G.Steps(REAL))
-        t("real guide " .. REAL .. ": old ticks 1 2 4 migrate on first view (guide list)", n == 3 and me.stepDone[REAL] and me.stepDone[REAL][rs[1].key] and me.stepDone[REAL][rs[2].key]
-            and me.stepDone[REAL][rs[4].key] and not me.stepDone[REAL][rs[3].key], n)
+        local list = G.Steps(REAL)
+        local n = A.GuideProgress(REAL, #list, "char")
+        local rs = author(list)
+        t("real guide " .. REAL .. ": old ticks 1 2 4 5 migrate on first view (guide list)", n == 4 and me.stepDone[REAL] and me.stepDone[REAL][rs[1].key] and me.stepDone[REAL][rs[2].key]
+            and me.stepDone[REAL][rs[4].key] and me.stepDone[REAL][rs[5].key] and not me.stepDone[REAL][rs[3].key], n)
+        -- with the real bake (Data/RouteOrder_era.lua, applied while its checksum matches the generated guide) author step 5
+        -- is further down the list than position 5
+        if G.registry[REAL].baked and list[5].index > 5 then
+            t(("real guide baked: list position 5 is author step %d; the old tick 5 is on author step 5, not on it"):format(list[5].index),
+                me.stepDone[REAL][rs[5].key] and not me.stepDone[REAL][list[5].key])
+        else
+            skip("real guide baked order", "Data/RouteOrder_era.lua does not apply to the current " .. REAL .. " or keeps position 5")
+        end
         P.Load(REAL)
-        t("...and show as done when it is loaded", P.IsDone(rs[1]) and P.IsDone(rs[4]) and not P.IsDone(rs[3]))
+        t("...and show as done when it is loaded", P.IsDone(rs[1]) and P.IsDone(rs[4]) and P.IsDone(rs[5]) and not P.IsDone(rs[3]))
         P.Load("t:keys:a")
     else
         skip("real guide migration", REAL .. " not generated here")
@@ -504,6 +526,83 @@ do
     for i, x in ipairs(P4.steps) do shown[i] = x.index end
     t("a re-plan saved under the old rebuild key is converted and applied", st.plans["t:keys:a"].k == S4.PlanKey(P4.baseSteps, gone)
         and table.concat(shown, ",") == "2,1,3,4,5,6,7,8,9,10,11,12,16,17,18,19" and not NS4.Replan.running, table.concat(shown, ","))
+end
+
+-- ---------------------------------------------------------------------------
+-- 3b) An alt's stepped-back marks live in the alt's own character file: another character that migrates the alt's
+--     account record cannot see them, so the alt imports them on its own next load
+-- 4c) A route sweep (/cr sweep, Core/Sweep.lua; /cr verifyall swaps the same scratch store) after the migration never
+--     imports old marks again, on the same data or after a data update
+-- ---------------------------------------------------------------------------
+do
+    local db0, char0 = loadSV(FIX_ACCT, "CompletionRouteDB"), loadSV(FIX_CHAR, "CompletionRouteCharDB")
+    local GID = "t:keys:a"
+    -- one session: log in as name (stubs.lua's own player is Tester), load the guide
+    local function login(name, db, chardb, lines, files)
+        local NS = harness("era", { db = db, chardb = chardb, files = files })
+        UnitName = function() return name end
+        NS.player.name, NS.player.realm = name, "Test"
+        register(NS, GID, lines or V1)
+        NS.Account.Init()
+        place(1429, 0.1, 0.9)
+        W.level = 5
+        NS.Progress.Load(GID)
+        return NS, author(NS.Progress.baseSteps)
+    end
+    -- the alt's character file, before step keys: it stepped back to A Beta (6); done / skipped are its record's copies
+    local altChar = { done = { [GID] = { [5] = true, [10] = true } }, skipped = { [GID] = {} }, reopened = { [GID] = { [6] = true } },
+                      laps = {}, parked = {}, knownTaxi = {}, bind = {} }
+    -- control: the alt logs in first
+    local NSa, sa = login("Alt", roundTrip(db0), roundTrip(altChar))
+    local wantKey = sa[6].key
+    t("alt first: its stepped-back step (6) is imported and stays open", NSa.db.char.stepReopened[GID][wantKey] == true and not NSa.Progress.IsDone(sa[6]))
+    -- the main logs in first and opens the guide: the alt's record is migrated (done 5 and 10), its reopened set cannot be
+    local NSm = login("Tester", roundTrip(db0), roundTrip(char0))
+    local altRec = NSm.db.global.chars["Alt-Test"]
+    t("main first: the alt's record is migrated, its stepped-back marks are left to the alt (ro = false)",
+        altRec.stepMeta[GID] and altRec.stepMeta[GID].ro == false and altRec.stepMeta[GID].mig == 2, ser(altRec.stepMeta[GID]))
+    t("...the main's own record has ro = true", NSm.Account.me.stepMeta[GID].ro == true)
+    local NSb, sb = login("Alt", roundTrip(CompletionRouteDB), roundTrip(altChar))
+    local metaB = NSb.Account.me.stepMeta[GID]
+    t("then the alt logs in: its stepped-back step (6) is imported and stays open", (NSb.db.char.stepReopened[GID] or {})[sb[6].key] == true
+        and not NSb.Progress.IsDone(sb[6]) and NSb.Progress.IsDone(sb[5]) and NSb.Progress.IsDone(sb[10]), sb[6].key)
+    t("...recorded once (ro = true, 3 imported in all), the old table untouched", metaB.ro == true and metaB.mig == 3 and NSb.db.char.reopened[GID][6] == true, ser(metaB))
+    t("...and not imported again (the alt steps forward, reloads)", (function()
+        NSb.Progress.MarkDone(sb[6], true)
+        local NSc, sc = login("Alt", roundTrip(CompletionRouteDB), roundTrip(CompletionRouteCharDB))
+        return NSc.Account.Migrate(GID, NSc.Progress.baseSteps, true) == 0 and next(NSc.db.char.stepReopened[GID] or {}) == nil and NSc.Progress.IsDone(sc[6])
+    end)())
+
+    -- 4c) the main migrates (step 4 stepped back to), ticks step 4 forward again, logs out
+    local NS1, s1 = login("Tester", roundTrip(db0), roundTrip(char0))
+    NS1.Progress.MarkDone(s1[4], true)
+    local afterDB, afterChar = roundTrip(CompletionRouteDB), roundTrip(CompletionRouteCharDB)
+    local function markTables(db, cdb)
+        local c = db.chars["Tester-Test"]
+        return ser({ c.stepDone, c.stepSkipped, c.stepMeta, cdb.stepReopened, c.done, c.skipped, cdb.reopened })
+    end
+    for _, case in ipairs({ { "same data", V1 }, { "after a data update", V2 } }) do
+        local NS, s = login("Tester", roundTrip(afterDB), roundTrip(afterChar), case[2], { "Core/Sweep.lua" })
+        local P = NS.Progress
+        local before = markTables(CompletionRouteDB, CompletionRouteCharDB)
+        local c1, c2
+        for _, x in ipairs(s) do if x.key == "C201.1" then c1 = x elseif x.key == "C201.2" then c2 = x end end
+        t("sweep, " .. case[1] .. ": before it, objectives 1 and 2 of Alpha are done, nothing stepped back to",
+            P.IsDone(c1) and P.IsDone(c2) and next(NS.db.char.stepReopened[GID] or {}) == nil)
+        -- run the real Core/Sweep.lua over this guide (its frame's OnUpdate pumped by hand)
+        local realCF, fr = CreateFrame, nil
+        CreateFrame = function(...) local f = realCF(...) fr = f return f end
+        NS.RunRouteSweep("keys " .. GID)
+        CreateFrame = realCF
+        local pumps = 0
+        while fr and fr.scripts.OnUpdate and pumps < 100 do fr.scripts.OnUpdate(fr, 0) pumps = pumps + 1 end
+        local res = CompletionRouteDB.routeSweep or {}
+        t("sweep, " .. case[1] .. ": the sweep ran over the guide and finished", res.finishedAt ~= nil and res.total == 1 and NS.Account.scratch == nil, ser(res))
+        t("sweep, " .. case[1] .. ": the old stepped-back mark is not imported again (no step stepped back to)",
+            next(NS.db.char.stepReopened[GID] or {}) == nil, ser(NS.db.char.stepReopened[GID]))
+        t("sweep, " .. case[1] .. ": objectives 1 and 2 of Alpha are still done", P.IsDone(c1) and P.IsDone(c2))
+        t("sweep, " .. case[1] .. ": every mark table and migration record is as before the sweep", markTables(CompletionRouteDB, CompletionRouteCharDB) == before)
+    end
 end
 
 -- ---------------------------------------------------------------------------
