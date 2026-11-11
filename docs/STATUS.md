@@ -182,7 +182,8 @@ Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** 
 |---|---:|---:|---:|---:|---:|
 | Gold guides | 165 | 204 | 258 | 335 | 168 |
 | Profession guides | 24 | 30 | 64 | 78 | 24 |
-| Quest guides with a baked route | 234 of 234 | 356 of 356 | 294 of 771 | 296 of 1,021 | 241 of 241 |
+| Quest guides optimized (bake of 2026-11-10, map fix redone) | 234 of 234 | 354 of 354 | 772 of 772 | 1,021 of 1,021 | 240 of 240 |
+| ...of which a baked order is kept (the rest stay in author order) | 168 | 260 | 501 | 854 | 170 |
 
 * **Gold** (`tools/wiki/gen_gold.py`, [GOLD_ROUTES.md](GOLD_ROUTES.md)): realm-independent, no prices shipped. Gathering circuits are still labelled
   coarse because no shippable node database exists; they sharpen as the player records nodes.

@@ -90,6 +90,11 @@ Every harness passes on `integration`. Phase 2b (#9 cost model, then #1 bake gat
 as workflow `beta-features-phase2b` in worktree `wt-cost` (branch `cost-model`, from `integration`). `wt-ids` and
 `wt-auto` were branched before these merges, so expect conflicts in Slash help, README and STATUS when they merge.
 
+**Update 2026-11-10, 23:00.** The map-fix bake pass is **done**: 235 guides, 0 failures, and every flavor's rows are
+current. All five RouteOrder files are installed in the five clients (route-bake-finish code, which is the current beta)
+and copied to Drive. STATUS has the counts. These orders become stale on purpose once #1 changes the checksum, and
+then the full rebake follows.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
