@@ -122,6 +122,10 @@ local function roundTrip(v) return assert(loadstring("return " .. ser(v)))() end
 
 local function idx(list) local o = {} for k, s in ipairs(list) do o[k] = s.index end return table.concat(o, ",") end
 local function setOf(list) local o = {} for _, s in ipairs(list) do o[s] = true end return o end
+-- progress marks are stored by stable step key (Core/Account.lua stepDone / stepSkipped, docs/STEP_KEYS.md)
+local function marks(NSx, field, gid) local all = NSx.Account.me[field] return (all and all[gid]) or {} end
+local function ticked(NSx, gid, step) return marks(NSx, "stepDone", gid)[step.key] == true end
+local function skippedStep(NSx, gid, step) return marks(NSx, "stepSkipped", gid)[step.key] == true end
 
 -- ---------------------------------------------------------------------------
 -- 1) Mechanics on a synthetic guide
@@ -225,11 +229,11 @@ do
     t("ACTIVE / PRE-only steps of dropped quests went", not setOf(P.steps)[base[23]] and not setOf(P.steps)[base[24]])
     t("counts follow the rebuild (7 steps)", #P.steps == 7 and P.baseSteps == base)
     t("current step moved off the dropped quest", P.current ~= cur0 and P.current and not (P.current.qid and S.IsRemoved(P.current.qid[1])), P.current and P.current.title)
-    t("ticks of dropped steps are kept but not counted", P.VisibleDone() == 0 and NS.db.char.done["t:skip:a"][3] == true)
-    local _, pct = A.GuideProgress("t:skip:a", #P.steps, "char", (function() local k = {} for _, s in ipairs(P.steps) do k[s.index] = true end return k end)())
+    t("ticks of dropped steps are kept but not counted", P.VisibleDone() == 0 and ticked(NS, "t:skip:a", base[3]))
+    local _, pct = A.GuideProgress("t:skip:a", #P.steps, "char", (function() local k = {} for _, s in ipairs(P.steps) do k[s.key] = true end return k end)())
     t("guide progress counts only kept steps", pct == 0, pct)
     local total, keep = S.ViewOf(G.registry["t:skip:a"])
-    t("guide list sees the rebuilt total", total == 7 and keep and keep[14] and not keep[1], total)
+    t("guide list sees the rebuilt total", total == 7 and keep and keep[base[14].key] and not keep[base[1].key], total)
     t("re-planning starts after the rebuild", RP.running == true)
     local guard = 0
     while RP.Step(1e9) and guard < 1000 do guard = guard + 1 end
@@ -243,7 +247,7 @@ do
     for _, s in ipairs(P.steps) do if s.action == "A" and s.qid[1] == 104 then a104 = s end end
     r = S.SkipStep(a104)
     t("per-step Skip on an accept with dependents warns", r == "asked" and #prompts == 1 and prompts[1]:find("Skipping this step", 1, true), r)
-    t("...and cancel leaves the step alone", not NS.db.char.skipped["t:skip:a"][a104.index] and not S.IsRemoved(104))
+    t("...and cancel leaves the step alone", not skippedStep(NS, "t:skip:a", a104) and not S.IsRemoved(104))
     -- per-step Skip on the accept of a quest nothing needs: that is not doing the quest, so the quest goes at once (its
     -- turn-in would otherwise be the next step, with the quest never accepted)
     local a105
@@ -252,7 +256,7 @@ do
     local left105 = false
     for _, s in ipairs(P.steps) do if s.qid and s.qid[1] == 105 then left105 = true end end
     t("per-step Skip on a leaf accept drops the quest at once (no warning)", r == "skipped" and S.IsRoot(105) and #prompts == 1, r)
-    t("...its turn-in left with it (nothing stranded)", not left105 and not NS.db.char.skipped["t:skip:a"][a105.index])
+    t("...its turn-in left with it (nothing stranded)", not left105 and not skippedStep(NS, "t:skip:a", a105))
     t("...and the current step is not a step of that quest", not (P.current and P.current.qid and P.current.qid[1] == 105), P.current and P.current.title)
     S.Unskip(105)
     t("...unskip brings the accept and the turn-in back", (function() local n = 0 for _, s in ipairs(P.steps) do if s.qid and s.qid[1] == 105 then n = n + 1 end end return n == 2 end)())
@@ -261,8 +265,8 @@ do
     for _, s in ipairs(P.steps) do if s.qid and s.qid[1] == 104 and s.action == "A" then c104 = s end end
     W.quests[104] = "log"
     r = S.SkipStep(c104)
-    t("per-step Skip on an accept already in the log is a plain step skip", r == "step" and NS.db.char.skipped["t:skip:a"][c104.index] == true, r)
-    NS.db.char.skipped["t:skip:a"][c104.index] = nil
+    t("per-step Skip on an accept already in the log is a plain step skip", r == "step" and skippedStep(NS, "t:skip:a", c104), r)
+    marks(NS, "stepSkipped", "t:skip:a")[c104.key] = nil
     W.quests[104] = nil
     while RP.Step(1e9) do end
 
@@ -309,7 +313,7 @@ do
     t("reload: same rebuilt guide, same order", idx(NS2.Progress.steps) == shown, idx(NS2.Progress.steps) .. " vs " .. shown)
     t("reload: no second re-plan for the same rebuild", not NS2.Replan.running)
     t("reload: skips and locks persisted", NS2.Skip.IsRoot(101) and NS2.Skip.IsRoot(109) and NS2.Skip.LockedBy(103) == 101)
-    t("reload: ticks persisted", NS2.Progress.VisibleDone() == 0 and NS2.db.char.done["t:skip:a"][3] == true)
+    t("reload: ticks persisted", NS2.Progress.VisibleDone() == 0 and ticked(NS2, "t:skip:a", base[3]))
     -- unskip on the reloaded character: the identical list, then a re-plan
     NS2.Skip.Unskip(101)
     NS2.Skip.Unskip(109)
@@ -841,8 +845,11 @@ local function realFlavor(fl)
         W.quests = {}
         S.Store(true).roots, S.Store(true).locks, S.Store(true).plans = {}, {}, {}
         S.version = S.version + 1
-        NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened = {}, {}, {}
-        if NS.Account.me then NS.Account.me.done, NS.Account.me.skipped = NS.db.char.done, NS.db.char.skipped end
+        NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened, NS.db.char.stepReopened = {}, {}, {}, {}
+        if NS.Account.me then
+            NS.Account.me.done, NS.Account.me.skipped = NS.db.char.done, NS.db.char.skipped
+            NS.Account.me.stepDone, NS.Account.me.stepSkipped, NS.Account.me.stepMeta = {}, {}, {}
+        end
         NS.player.faction = (g.faction == "Horde") and "Horde" or "Alliance"
         UnitFactionGroup = function() return NS.player.faction end
         W.level = math.max(1, tonumber(g.minlevel) or 1)
@@ -857,7 +864,7 @@ local function realFlavor(fl)
             if nt < 3 and not TURNIN[s.action] then P.MarkDone(s) nt = nt + 1 end
         end
         local ticks = {}
-        for i in pairs(NS.db.char.done[pk.id] or {}) do ticks[#ticks + 1] = i end
+        for k in pairs(marks(NS, "stepDone", pk.id)) do ticks[#ticks + 1] = k end
         local r = S.SkipQuest(pk.root)
         local removed = S.Removed()
         local nLocked = 0
@@ -869,7 +876,7 @@ local function realFlavor(fl)
         local proj = S.Project(base, removed)
         t(tag .. ": counts match the rebuild", #B == #proj and #B < #base and P.VisibleDone() <= #B, #B .. "/" .. #base)
         local ticksKept = true
-        for _, i in ipairs(ticks) do if not NS.db.char.done[pk.id][i] then ticksKept = false end end
+        for _, k in ipairs(ticks) do if not marks(NS, "stepDone", pk.id)[k] then ticksKept = false end end
         t(tag .. ": every tick survives the rebuild", ticksKept)
         -- re-plan, frame by frame, exactly as the client drives it
         -- planned: still to do and ever shown to this character (steps for another class / race / faction stay put)

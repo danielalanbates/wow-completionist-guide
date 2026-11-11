@@ -93,6 +93,17 @@ end
 
 STUB_MAPS = dofile("tools/maps_" .. flavor .. ".lua")
 local ADDON, NS = "CompletionRoute", {}
+-- a fresh character's progress marks: by step key (Core/Account.lua stepDone / stepSkipped / stepMeta, the character
+-- file's stepReopened) and the index-keyed tables of earlier releases
+local function wipeMarks()
+    local c = NS.db.char
+    c.stepDone, c.stepSkipped, c.stepReopened = {}, {}, {}
+    local me = NS.Account and NS.Account.me
+    if me then
+        me.done, me.skipped = c.done, c.skipped
+        me.stepDone, me.stepSkipped, me.stepMeta = {}, {}, {}
+    end
+end
 dofile("tools/stubs.lua")
 function GetBuildInfo() return "x", "0", "2026", TOC[flavor] end
 
@@ -413,6 +424,7 @@ local function playGuide(g)
     wipeWorld(math.max(1, tonumber(g.minlevel) or 1))
     NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened, NS.db.char.laps, NS.db.char.guide = {}, {}, {}, {}, nil
     NS.db.char.parked, NS.db.char.parkReturn = {}, nil
+    wipeMarks()
     R.Invalidate()
     NS.TravelGraph.Build()
     forgetTaxi()
@@ -530,6 +542,7 @@ if chainFaction then
     W.xpmax = 25 * (questsPerLevel or 25)   -- a turn-in is worth 25 xp (see act)
     NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened, NS.db.char.laps, NS.db.char.guide = {}, {}, {}, {}, nil
     NS.db.char.parked, NS.db.char.parkReturn = {}, nil
+    wipeMarks()
     local prefix = ("spine:%s:%s:"):format(flavor, chainFaction:sub(1, 1))
     local first
     for _, id in ipairs(G.list) do

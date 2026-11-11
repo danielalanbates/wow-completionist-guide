@@ -279,8 +279,8 @@ step whose quests are all removed or lost by this guide (a step serving any rema
 stays), steps shown only while on a removed quest (`|ACTIVE|`), quest-less steps waiting for removed prerequisites, run /
 fly / boat / portal / hearth / dungeon steps whose stretch up to the next kept travel step only served removed quests,
 and then the unlocated note / use / kill / loot steps riding with any removed step, travel steps included (the
-optimizer's block rule). Flight-path and hearth-bind steps always stay. Ticks stay keyed by author index, so nothing is
-lost; step numbers, "step x of y", done counts, the guide list percentage and the "guide complete" check all follow the
+optimizer's block rule). Flight-path and hearth-bind steps always stay. Ticks stay keyed by stable step key
+([STEP_KEYS.md](STEP_KEYS.md)), so nothing is lost; step numbers, "step x of y", done counts, the guide list percentage and the "guide complete" check all follow the
 rebuilt list. The current step is re-chosen at once (the arrow re-targets). Other guides are rebuilt when opened. Unskip
 gives back the identical list.
 
@@ -310,8 +310,10 @@ block's first.
   get longer: a zone centre only stands in for an objective, and a saving must not come from the stand-in alone. When the
   first search fails either test, a second search on the `|M|` steps alone gets its chance. So a kept re-plan never costs
   more than "baked order minus removed steps" by either measure; the test checks both with the live router, pair by
-  pair. The decision is saved under the rebuild key (step count, route checksum, quests out of the guide), so a reload
-  shows the same order without re-planning. The live window keeps working on top.
+  pair. The decision is saved under the rebuild key (a checksum of the guide's step keys and author indices in list
+  order, plus the quests out of the guide), so a reload shows the same order without re-planning, and a regenerated
+  guide never gets an order planned for its previous version. A key in the older format (step count, route checksum,
+  quests) is converted once when it still matches ([STEP_KEYS.md](STEP_KEYS.md)). The live window keeps working on top.
 
 **CPU.** The re-plan is a coroutine resumed from an OnUpdate with `RP.FRAME_MS` = 0.8 ms; the graph search yields after
 every settled node and every 64 walking links, and reuses its tables between searches (less work for the Lua

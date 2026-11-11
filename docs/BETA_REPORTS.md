@@ -30,11 +30,11 @@ named in `errors` and the rest still saves.
 | id, time | `id` (`<flavor>-<YYYYMMDD>-<HHMMSS>-<hex>`), `at`, `epoch`, `schema`, `note` |
 | client | `client.flavor`, `dataFlavor`, `isForever`, `build`, `buildNum`, `interface`, `locale`; `addon.version` |
 | character | `char.class`, `race`, `level`, `levelFrac`, `faction`, `speed`, `canFly`, `mounted`, `flying`, `dead`, `hardcore`. **No character or realm name.** |
-| guide | `guide.id`, `name`, `type`, `source`, `baked`, `steps`, `authored`, `sum` (author-order checksum, the same `G.RouteChecksum` the bake uses) |
-| step | `step.index`, `pos`, `action`, `title`, `line`, `raw` (the guide line as written), `qid`, `qo`, `zone`, `coords`, `locSource` (`guide`, `quest`, `zone`, `entrance`), `access`, `optional`, `item`, `pre` |
+| guide | `guide.id`, `name`, `type`, `source`, `baked`, `steps`, `authored`, `sum` (author-order checksum, the same `G.RouteChecksum` the bake uses), `keySum` (checksum of the guide's stable step keys, [STEP_KEYS.md](STEP_KEYS.md); added on branch `stable-step-id`) |
+| step | `step.index`, `key` (stable step key), `pos`, `action`, `title`, `line`, `raw` (the guide line as written), `qid`, `qo`, `zone`, `coords`, `locSource` (`guide`, `quest`, `zone`, `entrance`), `access`, `optional`, `item`, `pre` |
 | upcoming | the 8 visible steps: index, action, title, quest ids, zone, point, location source, seconds from the step before (the first: from the player's route; the others: the live planner's kept cost, left out when it has not priced the pair) |
 | order and plan | `order` (the window order the player saw), `plan` (the live planner's kept plan, the baseline of its next refresh) |
-| progress | done, skipped and reopened step indices of this guide (as ranges like `1..12,15`), `open` (the steps the guide would show now: not done, and every gate passes), counts, scope |
+| progress | done, skipped and reopened step indices of this guide (as ranges like `1..12,15`; read from the marks stored by step key and listed as author indices of the guide version named by `sum` / `keySum`), `open` (the steps the guide would show now: not done, and every gate passes), counts, scope |
 | quest log | `quests.done`, `log`, `complete` for every quest the guide names **and every quest that only gates a step** (`PRE`, `ACTIVE`, `AVAILABLE`, read by `Core/Conditions.lua`); steps still to do come first under the 600-quest cap; `objectives` (fulfilled, required, finished) for those in the log; `items` (bag counts of the hearthstone and the items the visible steps use) |
 | profession skill | `profs`: rank and max for each profession a `\|P\|` gate or a `SKILL` step names (`false` when the client could not read it) |
 | position | `player.map`, `mapName`, `x`, `y` (0 to 100), `wx`, `wy`, `inst`, `inInstance`, `instanceType`, zone text |

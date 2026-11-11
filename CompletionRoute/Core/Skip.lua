@@ -5,8 +5,8 @@
 -- Quest-level skipping (docs/ROUTING.md "Skipping quests").
 --   * A dropped quest leaves EVERY guide (quest ids are global): its accept, objectives and turn-in, and the steps that
 --     only existed for it.  The guide the player sees is REBUILT from the guide's own steps.  It is a projection: done
---     and skipped ticks stay keyed by the author step index, so nothing is lost, and bringing the quest back gives the
---     identical list again.
+--     and skipped ticks stay keyed by the stable step key (Core/Guide.lua), so nothing is lost, and bringing the quest
+--     back gives the identical list again.
 --   * Before a quest with dependents goes, the player is warned with the quests that need it, transitively
 --     (Data/QuestDeps_<flavor>.lua from tools/gen_quest_deps.py; the loaded guide's own |PRE| tags where that file cannot
 --     speak).  Confirming drops them too ("locked": they can no longer be accepted); cancelling changes nothing.
@@ -18,7 +18,11 @@
 -- Stored per character (Core/Account.lua A.me.questSkip) and never shared with other characters, whatever the progress
 -- scope: like a step skip, dropping a quest is one character's choice (Account.OtherDid never counts skips either).
 --   roots[q] = guide id the quest was dropped from     locks[q] = the dropped quest that blocks q
---   plans[guide id] = { k = rebuild key, o = saved re-planned order | false }
+--   plans[guide id] = { k = rebuild key, o = saved re-planned order (author indices) | false }
+-- Quest ids are the same in every data release, so roots and locks need no migration.  A rebuild key binds the guide's
+-- step keys and author indices (S.PlanKey), so a saved order is never applied to a regenerated guide; a key in the
+-- format of the release before step keys is converted once, under the same rule as the progress marks (Core/Account.lua
+-- A.Migrate: the data has not changed since it was written).
 local ADDON, NS = ...
 local U, G = NS.Util, NS.Guide
 local S = {}
@@ -501,10 +505,10 @@ function S.Project(steps, removed, gid)
     return out, n - #out, gone
 end
 
--- Rebuild key: the guide's own steps (count + route checksum) and which of its quests are gone (S.Project's third
--- result; by default worked out here).  A saved re-plan is only applied under the key it was made for.
-function S.PlanKey(base, removed, gid)
-    if not removed then removed = select(3, S.Project(base, nil, gid)) end
+-- Rebuild key: the guide's own steps (their step keys and author indices, in list order: G.KeySum) and which of its
+-- quests are gone (S.Project's third result; by default worked out here).  A saved re-plan is only applied under the key
+-- it was made for.  The checksum is cached per list (P.Rebuild asks on every change).
+local function goneQuests(base, removed)
     local qs, seen = {}, {}
     for _, s in ipairs(base) do
         if s.qid then
@@ -514,7 +518,18 @@ function S.PlanKey(base, removed, gid)
         end
     end
     table.sort(qs)
-    return ("%d:%d:%s"):format(#base, G.RouteChecksum(base), table.concat(qs, ","))
+    return table.concat(qs, ",")
+end
+local planSums = setmetatable({}, { __mode = "k" })
+function S.PlanKey(base, removed, gid)
+    if not removed then removed = select(3, S.Project(base, nil, gid)) end
+    local sum = planSums[base]
+    if not sum then sum = G.KeySum(base, true) planSums[base] = sum end
+    return ("k%d:%s:%s"):format(G.KEY_VERSION, sum, goneQuests(base, removed))
+end
+-- The rebuild key of the release before step keys: count + route checksum (S.Rebuild converts a saved plan under it)
+function S.LegacyPlanKey(base, removed)
+    return ("%d:%d:%s"):format(#base, G.RouteChecksum(base), goneQuests(base, removed))
 end
 
 local function encodeOrder(list)
@@ -565,6 +580,10 @@ function S.Rebuild(base, guideId)
     local plan = guideId and store().plans[guideId]
     local key
     if plan or cut > 0 then key = S.PlanKey(base, gone) end
+    -- a plan saved by the release before step keys: same guide, same quests gone -> the same decision, under the new key
+    if plan and plan.k ~= key and type(plan.k) == "string" and plan.k:match("^%d+:%d+:") and plan.k == S.LegacyPlanKey(base, gone) then
+        plan.k = key
+    end
     if plan and plan.o and plan.k == key then
         local re = applyOrder(list, plan.o)
         if re then list = re end
@@ -578,7 +597,7 @@ function S.HasPlan(guideId, key)
     return plan ~= nil and plan.k == key
 end
 
--- (steps, kept author indices or nil) of a guide whose steps are parsed, for counts and progress in the guide list
+-- (steps, kept step keys or nil) of a guide whose steps are parsed, for counts and progress in the guide list
 local viewCache = {}
 function S.ViewOf(g)
     if not (g and g.steps) then return nil end
@@ -589,7 +608,7 @@ function S.ViewOf(g)
     local keep
     if cut > 0 then
         keep = {}
-        for _, s in ipairs(list) do keep[s.index] = true end
+        for _, s in ipairs(list) do keep[s.key] = true end
     end
     viewCache[g.id] = { v = S.version, steps = g.steps, n = #list, keep = keep }
     return #list, keep

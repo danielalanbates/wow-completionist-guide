@@ -42,6 +42,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "skipped" then NS.Skip.List()
     elseif cmd == "undo" or cmd == "back" or cmd == "prev" then P.Undo()
     elseif cmd == "reset" then P.Reset() NS:Print("Guide progress reset.")
+    elseif cmd == "marks" then for _, line in ipairs(P.MarksReport()) do NS:Print(line) end   -- progress storage (docs/STEP_KEYS.md)
     elseif cmd == "arrow" then NS.db.profile.arrow.enabled = not NS.db.profile.arrow.enabled NS.Arrow.ApplySettings() NS:Print("Arrow " .. (NS.db.profile.arrow.enabled and "on" or "off"))
     elseif cmd == "pointer" then
         local a = NS.db.profile.arrow
@@ -142,9 +143,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         local g, st = P.guide, P.current
         NS:Print("--- why ---")
         if not g then NS:Print("No guide loaded. /cr guides") return end
-        local done = 0
-        for _ in pairs((NS.Account and NS.Account.me and NS.Account.me.done[g.id]) or {}) do done = done + 1 end
-        if P.steps and P.baseSteps and P.steps ~= P.baseSteps then done = P.VisibleDone() end
+        local done = P.VisibleDone()
         NS:Print(("Guide: %s (%s) - %d/%d steps done, %d still applicable"):format(
             g.name or g.id, g.source or "?", done, P.steps and #P.steps or 0, #P.Pending(999)))
         if P.baseSteps and #P.baseSteps > #(P.steps or {}) then
@@ -295,7 +294,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | import | farm | log | bug [note] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | undo | reset | marks | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | import | farm | log | bug [note] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 
@@ -462,7 +461,7 @@ function NS.RunFeatureVerify(quiet)
     chk("account", "per-guide progress math", function()
         if not P.guide or not P.steps then return false, "no guide loaded" end
         local keep
-        if P.baseSteps and P.steps ~= P.baseSteps then keep = {} for _, st in ipairs(P.steps) do keep[st.index] = true end end
+        if P.baseSteps and P.steps ~= P.baseSteps then keep = {} for _, st in ipairs(P.steps) do keep[st.key] = true end end
         local cn, cp = A.GuideProgress(P.guide.id, #P.steps, "char", keep)
         local an, ap = A.GuideProgress(P.guide.id, #P.steps, "account", keep)
         return an >= cn, ("char %d/%d (%d%%), account %d/%d (%d%%)"):format(cn, #P.steps, cp, an, #P.steps, ap)
@@ -471,7 +470,7 @@ function NS.RunFeatureVerify(quiet)
         -- with the opt-in OFF, another character's completion must never mark a step done
         local was = NS.db.profile.accountWide
         NS.db.profile.accountWide = false
-        local leaked = A.OtherDid(P.guide and P.guide.id or "none", 1)
+        local leaked = A.OtherDid(P.guide and P.guide.id or "none", P.steps and P.steps[1] and P.steps[1].key or "?")
         NS.db.profile.accountWide = was
         return leaked == false, "off => other characters ignored"
     end)

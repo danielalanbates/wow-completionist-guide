@@ -6,7 +6,8 @@
 Older builds ran the sweep against the live progress store, so loading all ~9000 guides
 auto-completed a step in nearly every one of them. Real progress re-derives from the quest log
 on the next login, so clearing these is safe. New builds sandbox the sweep (Account.BeginScratch),
-so this is a one-off cleanup.
+so this is a one-off cleanup. It clears the index-keyed tables of earlier releases (done, skipped) and the tables
+keyed by stable step key (stepDone, stepSkipped; docs/STEP_KEYS.md), which hold a copy of them once a guide is migrated.
 
 Heuristic: a character with progress recorded in more than THRESHOLD distinct guides was swept -
 a human plays a handful of guides, not four thousand.
@@ -30,10 +31,10 @@ def main(argv):
         for sv in (WOW / fl).glob("WTF/Account/*/SavedVariables/CompletionRoute.lua"):
             text = sv.read_text(errors="replace")
             out, changed = [], 0
-            # walk each ["done"] / ["skipped"] table and blank the swept ones
+            # walk each ["done"] / ["skipped"] / ["stepDone"] / ["stepSkipped"] table and blank the swept ones
             i = 0
             while True:
-                m = re.search(r'\["(done|skipped)"\]\s*=\s*{', text[i:])
+                m = re.search(r'\["(done|skipped|stepDone|stepSkipped)"\]\s*=\s*{', text[i:])
                 if not m:
                     out.append(text[i:])
                     break

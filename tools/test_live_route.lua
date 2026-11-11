@@ -296,7 +296,8 @@ C_QuestLog.IsQuestFlaggedCompleted = function(q) return DONE[q] == true end
 C_QuestLog.GetAllCompletedQuestIDs = function() local o = {} for q in pairs(DONE) do o[#o + 1] = q end return o end
 C_QuestLog.IsOnQuest = function(q) return ONLOG[q] == true end
 C_QuestLog.GetLogIndexForQuestID = function(q) return ONLOG[q] and 1 or nil end
-NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened = {}, {}, {}
+NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened, NS.db.char.stepReopened = {}, {}, {}, {}
+if NS.Account.me then NS.Account.me.stepDone, NS.Account.me.stepSkipped, NS.Account.me.stepMeta = {}, {}, {} end   -- marks by step key
 G.Register({ id = "p:wide", name = "Wide", type = "Leveling", zone = 1429, faction = "Alliance", minlevel = 1, maxlevel = 50, next = "p:b", text =
     "A Early|QID|101|M|40,40|Z|1429; Elwynn Forest|\nA Gated|QID|102|M|41,41|Z|1429; Elwynn Forest|LVL|10|\nA Beyond|QID|103|M|41,41|Z|1429; Elwynn Forest|LVL|300|" })
 G.Register({ id = "p:b", name = "B", type = "Leveling", zone = 1429, faction = "Alliance", minlevel = 1, maxlevel = 50, next = "p:c", text = "A B|QID|201|M|42,42|Z|1429; Elwynn Forest|" })
@@ -328,7 +329,11 @@ t("nothing parked once only steps above the cap remain", P.ParkedRecord("p:wide"
 -- below the gate the chain does not come back (no bouncing), and a player's own pick ends a detour
 LEVEL, DONE, ONLOG = 5, {}, {}
 NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened, NS.db.char.parked, NS.db.char.parkReturn = {}, {}, {}, {}, nil
-if NS.Account.me then NS.Account.me.done, NS.Account.me.skipped = {}, {} end
+NS.db.char.stepReopened = {}
+if NS.Account.me then
+    NS.Account.me.done, NS.Account.me.skipped = {}, {}
+    NS.Account.me.stepDone, NS.Account.me.stepSkipped, NS.Account.me.stepMeta = {}, {}, {}   -- marks by step key
+end
 P.Load("p:wide")
 local loads = 0
 local realLoad = P.Load

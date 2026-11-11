@@ -1,5 +1,61 @@
 # Status / handoff (2026-11-10, integration: skipping quests, beta bug reports, routing graph, release packager)
 
+## 2026-11-10: Stable step keys (`stable-step-id`, IDEAS #6)
+
+Offline only. **Nothing here has run in a real WoW client.** Not merged, not installed. Details: [STEP_KEYS.md](STEP_KEYS.md).
+
+* **What changed.** Done, skipped and stepped-back marks are stored by a stable step key instead of the author step
+  index: quest steps by action + quest ids + objective, other steps by a 45-bit hash of the title's words (plus
+  achievement, recipe, skill and mission ids), repeats numbered in author order, access-chain steps prefixed with their
+  chain. Coordinates, zone and note are never part of a key. Keys are built once per parse; parse results and the
+  RouteOrder checksum are unchanged. In a regenerated guide (or a WoW-Pro update read at runtime) marks stay on their
+  steps through added, removed and moved lines and moved points, with two exceptions: a step whose quest-less title is
+  reworded loses its mark (it is not given to another step), and among identical repeated steps (same quest and
+  objective, or same words; 2.4-4.0% of steps) adding or removing one ahead of the others shifts their marks to a
+  neighbouring identical step.
+* **Storage.** New `stepDone` / `stepSkipped` / `stepMeta` in each character record of `CompletionRouteDB.chars`, and
+  `stepReopened` in the character file. `stepMeta` keeps the guide's key checksum next to the marks for later
+  migrations. The old index tables are read once and kept for one release.
+* **Migration.** Once per character and guide, when the guide is loaded or its progress is shown: old index marks are
+  mapped with the guide as it is now (the data has not been re-ordered since they were written). Other characters of the
+  same game type are migrated too; records from other clients (copied by `tools/sync_progress.lua`) and records without
+  a game type on Era/Forever are left to their own client. Access-chain marks and indices with no step are counted, not
+  placed. A saved re-plan's rebuild key now binds the step keys; an old-format key is converted once.
+* **Everything that reads or writes marks follows:** Progress (done, skip, undo, reopen, reset, laps, auto-complete,
+  visible count), Account (scopes, OtherDid, guide %, "finished", roster, sweep scratch), Skip (rebuild, guide list
+  view, rebuild key), BugReport (keyed sets, plus `guide.keySum` and the step's `key`), Recommend, `/cr why`, the Back
+  button, `tools/vplayer.lua`, `tools/route_sweep.lua`, `tools/vplayer_repro.lua` (report marks put back by key,
+  current step found by key when the guide changed), `tools/sync_progress.lua` (unions the new tables). New
+  `/cr marks`. Fixed on the way (found by reading the code; no harness drives `/cr sweep`): a route sweep cleared the
+  character's real progress for every swept guide, because it wrote to `CompletionRouteCharDB.done`, which stays the
+  real table while the sweep's scratch sandbox swaps only the account record's fields.
+* **Review fixes (2026-11-11).** (1) A route sweep or `/cr verifyall` re-ran the one-time migration for the logged-in
+  character (the sweep's scratch store swaps out its record but not its character file) and put old stepped-back marks
+  back, by the current index, onto steps the player had since ticked forward: the logged-in character is no longer
+  migrated during a sweep. (2) An alt whose record another character migrated first never got its own stepped-back
+  marks (they live in the alt's file): such a record now carries `ro = false` and the alt imports them on its next
+  load. (3) The claim that every mark stays on its step was too strong (repeats, above). (4) The migration test now runs
+  on a baked guide, as in game. Neither bug touches live data yet: none of the 11 real character files read has a
+  stepped-back mark.
+* **Tests.** New `tools/test_progress_keys.lua`: 196 checks, all pass on all five flavors (`luajit -joff`, about 15-20 s, 260 MB).
+  A guide regenerated with one line inserted, one deleted, one point moved and one block moved keeps ticks, skips, a
+  stepped-back step and a quest skip on their steps (the same marks by index would sit on 3 wrong steps); the same on 3
+  wiki guides and 1 WoW-Pro guide per flavor; migration from a fixture of today's SavedVariables layout (placeholder
+  names) on a baked guide; an alt's stepped-back marks after another character migrated its record; a route sweep through
+  the real `Core/Sweep.lua` after the migration, on the same data and after a data update; idempotence; the downgrade, by loading the previous release's own code from git commit `b322bb6` on the new
+  files; `tools/sync_progress.lua` on temp files. Key collisions: **0** in 893,834 steps (5 flavors); no two different
+  texts share a hash in any guide. Cost (`-joff`): 0.9 microseconds per step on retail, 2.9-7.0% of parse time; the
+  largest retail guide (102,672 steps) 0.24 s on a 1.06 s parse. `tools/vplayer.lua` on 15 era and 15 retail guides:
+  byte-identical output before and after. Existing harnesses: all pass in the final run (2026-11-11, `test_skip.lua`
+  332 of 332). Earlier runs failed `test_skip.lua`'s frame-time checks now and then (1-2 re-plan frames of about
+  1,000-3,300 just over 2 ms). They fail the same way without this branch: in two back-to-back
+  runs each, the integration head and this branch each failed once and passed once, and the same guide's re-plan took
+  189-527 ms of CPU on the head and 212-946 ms on the branch for identical work (moves, pairs, searches). The spread is the
+  machine (nice-10 jobs next to other agents' work), not the change.
+* **Open:** a client check of `/cr marks` and of progress after the first data update; the previous release in the
+  downgrade check is the integration head, the installed beta may be older; sync unions marks, so a reset on one client
+  comes back from another client's older copy (as before).
+
 ## Skipping quests (`quest-skip`)
 
 Offline only. **Nothing here has run in a real WoW client.** Merged into `integration`, not installed. All 13 existing

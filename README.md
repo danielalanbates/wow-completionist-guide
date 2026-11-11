@@ -31,6 +31,7 @@ smart arrow — while the guide content is community-driven and open.
 | Guides listed by level | ✅ `Core/Recommend.lua`: a *For level N* section, *Only guides for this level* filter, *Group by level* tree, and profession guides matched to your real skill |
 | Dungeon guides | ✅ steps inside an instance route to the **entrance** (learned door + retail encounter journal), `Core/Instances.lua` |
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
+| Progress survives guide updates | Built, offline-tested only: ticks, skips and stepped-back steps are stored by a stable step key (quest + objective, or a hash of the step's words; never its line number or coordinates), so in a regenerated guide or an updated WoW-Pro guide marks stay on their steps when lines are added, removed or moved. Two exceptions: a step whose quest-less text is reworded loses its mark (it is not given to another step), and among identical repeated steps (same quest and objective, or same words: 2.4-4.0% of steps) adding or removing one ahead of the others shifts their marks to a neighbouring identical step. Old progress is carried over once per character and guide; the previous release still reads its own tables after a downgrade. `/cr marks` shows how the loaded guide's progress is stored — [docs/STEP_KEYS.md](docs/STEP_KEYS.md) |
 | Beta bug reports | Built, offline-tested only: `/cr bug [note]` or the guide window's **Report** button saves a snapshot (guide, step, open steps, position, route, quest log including quests that only gate a step, profession skill, last 30 log lines, last addon Lua error; no character or realm name). `tools/ingest_beta_reports.py` loads reports into SQL and `vplayer --repro <id>` replays one offline — [docs/BETA_REPORTS.md](docs/BETA_REPORTS.md) |
 | Release packager with a data-provenance gate | 🚧 `tools/package_release.py` ([docs/RELEASE.md](docs/RELEASE.md)): one universal zip, `provenance.json` for every file, `LICENSE.txt` + `ATTRIBUTION.md`; fails on WoW-Pro/Questie data, personal data, secrets, symlinks and broken TOC lines. Dry run by default, never tags or publishes. Today's local data fails it (fallback wiki points, old headers, baked orders of gaps guides). |
 
@@ -99,6 +100,7 @@ To rebuild and deploy:
 * `/cr skip [questID]` — skip a quest (default: the current step's); warns first when other quests need it · `/cr skipstep` — skip the current step (on an accept of a quest you do not have, that skips the quest, so its turn-in is not left behind)
 * `/cr unskip <questID|all>` — bring skipped quests back · `/cr skipped` — list them and what they lock
 * `/cr bug [what went wrong]` — save a bug report (also the **Report** button) · `/cr bug list` — stored reports · `/cr log` — the addon log
+* `/cr marks` — the loaded guide's progress: done, skipped and stepped-back steps, marks whose step a guide update removed, what was carried over from the previous release, and the guide's version checksum
 * Guide window: one step at a time, steps complete themselves · right arrow = mark done · left arrow = back one step · click the step = details with Complete / Skip / Skip quest / Show on map · right-click the step = skip menu · `Route` toggles reordering
 
 Open a flight master's map once on each continent so the router knows which flight paths you have.
@@ -140,6 +142,7 @@ luajit tools/vplayer.lua era --guides-file F --taxi learn       # fly only into 
 luajit -joff tools/vplayer.lua era --guides-file F --turnins    # time the QUEST_TURNED_IN handlers
 luajit tools/route_sweep.lua era     # route every guide from its own zone
 luajit tools/test_bug_report.lua     # /cr bug snapshot, error hook, caps, SavedVariables reader, capture/replay round trip
+luajit -joff tools/test_progress_keys.lua   # stable step keys: regenerated guides keep marks, migration, downgrade, collisions + cost on all five flavors
 python3 tools/test_ingest_beta_reports.py      # beta_reports ingest on a fixture (temp database)
 python3 tools/ingest_beta_reports.py           # Daniel's /cr bug reports -> beta_reports; then:
 luajit tools/vplayer.lua --repro <report id> --check   # replay one offline; exit 1 on a DIFF (docs/BETA_REPORTS.md)
