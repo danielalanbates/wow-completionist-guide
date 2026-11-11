@@ -1,7 +1,7 @@
 # Warcraft Wiki data: licence and attribution
 
-The files `Imported_Wiki_era.lua`, `Imported_Wiki_tbc.lua`, `Imported_Wiki_mop.lua` and `Imported_Wiki_retail.lua`
-in this folder hold quest data from **Warcraft Wiki** (<https://warcraft.wiki.gg>), written by the Warcraft Wiki
+The files `Imported_Wiki_era.lua`, `Imported_Wiki_tbc.lua`, `Imported_Wiki_mop.lua`, `Imported_Wiki_retail.lua` and
+`Imported_Wiki_forever.lua` in this folder hold quest data from **Warcraft Wiki** (<https://warcraft.wiki.gg>), written by the Warcraft Wiki
 contributors. That data covers quest names and ids, quest givers and enders, quest chains, objectives, faction, race,
 class and level requirements, and map coordinates.
 
@@ -17,6 +17,13 @@ class and level requirements, and map coordinates.
 * **ShareAlike:** if you redistribute these data files, or anything adapted from them, you must use CC BY-SA 4.0 (or
   a compatible licence) and keep this attribution.
 * **No endorsement:** Warcraft Wiki and its contributors do not endorse this project.
+
+## Leveling path
+
+`Imported_Spine_era.lua`, `Imported_Spine_tbc.lua`, `Imported_Spine_mop.lua`, `Imported_Spine_retail.lua` and
+`Imported_Spine_forever.lua` chain the wiki zone guides above into one leveling path (`tools/wiki/gen_spine.py`), by level
+band and the wiki's quest chains, and on retail also Blizzard's quest-line and campaign order (client tables, facts only).
+Each entry points at a wiki zone guide and copies no step text. They are shared under the same licence.
 
 ## Gold guides
 
@@ -41,14 +48,28 @@ Which recipes exist on a client, their skill thresholds and reagents, and the Ar
 `Data/QuestDeps_era.lua`, `Data/QuestDeps_tbc.lua`, `Data/QuestDeps_mop.lua`, `Data/QuestDeps_retail.lua` and `Data/QuestDeps_forever.lua`
 (written by `tools/gen_quest_deps.py`) hold the quest chains (`previous`/`next` links) and quest names of the files above, under the same
 licence, plus breadcrumb flags read from the wording of the quest pages ("is a breadcrumb", "(optional breadcrumb)", "previous = ... (optional)").
-For quests the wiki lacks they also hold chain order from the gaps guides and from Blizzard's quest-line tables (facts only).
+The released files are built with `--wiki-only`: wiki chains and names only. The local development build also takes chain order
+for quests the wiki lacks from the gaps guides and from Blizzard's quest-line tables, and is never released.
+
+## Teleports
+
+`Data/Teleports.lua` is a hand-authored list of class teleports and teleport items. Spell, item and toy ids are facts checked against
+Blizzard's client tables; each landing point comes from a Warcraft Wiki coordinate (the page is named in the entry) or a Blizzard
+TaxiNodes position, so the file is shared under the same CC BY-SA 4.0 licence.
+
+## Achievement guides
+
+`Imported_Achievements_mop.lua` and `Imported_Achievements_retail.lua` list Blizzard's achievements and criteria (client tables via
+wago.tools, facts only). Where a criterion has a place, its point comes from the quest's step in `Imported_Wiki_<flavor>.lua` or from a
+wiki NPC page, so these files are shared under the same CC BY-SA 4.0 licence. They are written by `tools/gen_completion_guides.py`.
 
 ## What this licence does not cover
 
-The rest of the add-on is *not* under CC BY-SA. That includes all Lua code, the routing engine, the tools and the
-hand-written guides. It is © 2026 Daniel Bates / Bates LLC, all rights reserved, and is licensed under PolyForm
+The rest of the add-on is *not* under CC BY-SA. That includes all Lua code, the routing engine and the tools. It is
+© 2026 Daniel Bates / Bates LLC, all rights reserved, and is licensed under PolyForm
 Noncommercial 1.0.0 with the 10% commercial rider (see `LICENSE` at the repository root, help@batesai.org,
-<https://batesai.org>). The wiki data files are kept separate from that code.
+<https://batesai.org>). The wiki data files are kept separate from that code. The hand-written guides in `Leveling/`
+are CC BY-SA 4.0 by the CompletionRoute contributors, as each file's header says.
 
 ## Steps that are not wiki data
 
@@ -57,4 +78,5 @@ Some steps come from a locally generated file that is *not* wiki data. A note in
 coordinate for a step. Those coordinates come from `Imported_Quests_<flavor>.lua`: Blizzard quest-POI client data
 on retail, and the Questie database on Classic. Like every `Imported_*` file, they are generated locally and never
 committed. To get a file that is wiki data only (the shippable variant), run
-`python3 tools/wiki/gen_wiki_guides.py --no-fallback`.
+`python3 tools/wiki/gen_wiki_guides.py --no-fallback`. A release package holds only that variant:
+`tools/package_release.py` fails any build whose wiki files still carry such steps (`docs/RELEASE.md`).

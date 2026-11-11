@@ -5,11 +5,12 @@
   `TaxiNodes/TaxiPath/TaxiPathNode` — world coordinates + real polyline flight lengths), transit endpoints
   (`Data/Transit.lua`), the character's hearth (`NS.db.char.bind` learned, else `Data/Inns.lua` seed via `GetBindLocation()`),
   virtual start (player) and goal.
-* **Edges**: taxi (`3s + length / taxiSpeed(32)`). Policy `routing.taxiPolicy`: **`faction` (default)** = every
-  flight master the faction can use is routable, learned or not - the route walks you to the right flight master and
-  labels a leg to an unlearned node "(new flight path)"; `known` = only learned nodes (the old behaviour, still
-  harvested at login / TAXIMAP_OPENED).
-  transit (`cost` seconds = avg wait + ride), hearth (`hearthCost(60) + cooldown remaining`, hidden if >15 min),
+* **Edges**: taxi (`3s + length / taxiSpeed(32)`). Policy `routing.taxiPolicy`: **`known` (default since 2026-11-10)**
+  = a flight may only land at a flight master this character has discovered; it may take off from an undiscovered
+  one, because walking there discovers it (see "Flight paths" below); `faction` = every flight master the faction can
+  use, discovered or not (the old default; a landing at an undiscovered one is labelled "(new flight path)").
+  transit (`cost` seconds = avg wait + ride; optional `cond`), hearth (`hearthCost(60) + cooldown remaining`, hidden
+  if >15 min), teleports (`Data/Teleports.lua`, same rule as the hearth, see "Teleports" below),
   implicit walking between any two nodes on the same continent instance: `dist * terrainFactor(1.25) / speed`.
   Speed = live `GetUnitSpeed` if moving, else guess from level (7 / 11.2 / 14 yd/s).
 * **Search**: Dijkstra with a binary heap; complete walking graph is relaxed lazily on pop (~200 nodes → cheap).
@@ -51,10 +52,13 @@ logic and fails on a bounce; `tools/test_parked.lua` and `tools/test_live_route.
 
 ## Arrow recommendation (`Routing/Router.lua`)
 1. step has `|U|item` in bags and you're within 40 yd (or step has no location) → **item button**
-2. step is `H` → **hearth button**
+2. step is `H` → **hearth button** (the Hearthstone, or a hearth toy when no stone is in the bags)
 3. first leg of the path is `hearth` → **hearth button** with "saves time" + ETA
-4. first leg walk → arrow to leg end (a flight master / dock / the goal); text explains what happens there
-5. first leg taxi/transit → arrow to that node with "Fly to X" / "Take the boat …"
+4. first leg is `teleport` → **teleport button**: casts the spell, uses the item, or uses the toy (secure `toy`
+   action) for that leg, "Click to teleport" + ETA
+5. first leg walk → arrow to leg end (a flight master / dock / the goal); text explains what happens there, including
+   "(pick up the flight path)" when the flight master there is not discovered yet
+6. first leg taxi/transit → arrow to that node with "Fly to X" / "Take the boat …"
 
 ## Roads: predetermined paths through zones (2026-08-20)
 * **Data**: `Data/Roads_ek.lua`, `Data/Roads_kalimdor.lua` — polylines in map percentages per zone
@@ -81,11 +85,10 @@ logic and fails on a bounce; `tools/test_parked.lua` and `tools/test_live_route.
 * Only ~40 seed roads exist (SW↔Redridge↔Burning Steppes corridor, Westfall, Duskwood, Dun Morogh/Loch Modan/
   Wetlands, Tirisfal/Silverpine, Durotar/Barrens/Mulgore, Teldrassil/Darkshore/Ashenvale) and they are approximate.
   Coverage grows automatically from play (recorder) or from traced map images; both produce exact data.
-* Faction policy assumes you can fly from any flight master to any other. In every WoW version you must have
-  DISCOVERED the destination flight master before you can fly there; the leg is labelled "(new flight path)" so
-  the player knows they may have to walk that last hop the first time. `known` policy is the strict option.
-* Elevator/instance portals, class teleports (mage portals, druid Moonglade taxi), summoning stones: add to `Transit.lua`
-  with `cond` (not yet supported → add `cond=function() end` evaluation in `TG.Build`).
+* The `faction` policy (now an option) assumes you can fly from any flight master to any other. In every WoW version
+  you must have DISCOVERED the destination flight master before you can fly there; that is why `known` is the default.
+* `cond` is supported on `Transit.lua` and `Access.lua` entries (2026-11-10, `TG.CondOK`): class, race, level, quest,
+  notQuest, spell, item, toy, or a function. Elevator/instance portals and summoning stones are still not authored.
 * Taxi speed is a constant; some TBC routes are faster. Fine for ranking.
 * Multi-coordinate steps use the nearest coordinate; the optimizer uses the first.
 
@@ -134,7 +137,8 @@ without a search. 37x fewer relaxations, identical routes (same TSV). `TG.stats`
 * the **steps** to do it, in guide format (quest ids, NPC, coordinates) - `Progress.Load` injects them in front
   of any guide whose first located step lies behind a locked chain (indices -k..-1, so the guide's own progress
   keys are untouched; chat: "Access: N steps to unlock ... first"). Comprehensive zone guides open the same way.
-The graph is rebuilt after a quest turn-in so a freshly unlocked chain switches to its `after` edge.
+When an `unlock` quest is turned in, only the access edges are rebuilt (2026-11-10, see "What changes the graph"), so
+a freshly unlocked chain switches to its `after` edge; any other turn-in leaves the graph alone.
 Offline check: `luajit tools/test_access.lua` (resolves, routes through, parses, injects, un-injects when done).
 Entries marked `approx = true` were written from memory / Wowhead (e.g. Horde
 Nazjatar) - verify in game. Not yet chained: Dalaran-Crater / scenario starts, pet-battle maps inside instances.
@@ -183,9 +187,17 @@ Bakes, per quest guide (wiki zone guides `wiki:*` + gaps guides `qdb:*`/`qpoi:*`
    spine entries look up their `part`). `s.index` stays the author index, so saved progress never moves;
    `P.Undo` compares display positions. Option "use the pre-computed fastest order" = `routing.baked`. The live
    12-step window (`Router.OrderSteps`) still runs on top.
+   The bake keeps the faction-wide flight rule (`cost_matrix.lua` pins `taxiPolicy = "faction"`; its `settle` copy
+   still has the old both-ends rule for `known`) and never sees teleports (it does not load `Routing/Teleports.lua`, and
+   pairwise costs exclude one-shot legs anyway). The cost-model rework (docs/IDEAS.md) decides whether that changes.
 4. Measure: `luajit tools/vplayer.lua <fl> --guides-file F --order author|baked --live on|off`, then
    `python3 tools/collect_routes.py collect` -> `route_compare`, `opt_violations` in `docs/verification.sqlite`.
    Check: `luajit tools/test_route_order.lua`.
+5. Release bake (2026-11-10, `docs/RELEASE.md`). The dev bake also orders the Questie-derived `qdb:`/`qpoi:` gaps
+   guides, and its costs use the fallback points and `Data/Imported_Entrances.lua`. `tools/package_release.py` fails a
+   `RouteOrder` row for a guide that never ships. A release bake runs `cost_matrix.lua <fl> --prefix wiki:` inside the
+   packager's staged add-on (`--stage-dir`), so only shipped files are loaded, and the packager reads the result
+   through `--data-root`.
 
 ## Skipping quests
 
@@ -331,3 +343,138 @@ own: on retail 122, before the latest bake, a kept re-plan plus the live window 
 alone on the baked order (the review's simulation), so the table's savings are against the baked order, not against
 what the live window already does. The baked orders are still being rebuilt by the offline bake and these numbers move with them (the same run
 before the 22:17 bake kept 10 of 30 and saved 6.0%).
+
+## Flight paths: only the ones the character has discovered (2026-11-10, branch routing-graph)
+
+Default `routing.taxiPolicy = "known"`. A taxi edge u→v is usable only when v is discovered. u may be undiscovered:
+the route walks there, the player talks to the flight master (that discovers it) and flies on. That walk leg gets
+`pickup = true`, the title "Walk to X and pick up the flight path", and `Describe` adds "(pick up the flight path)".
+Every hop of a multi-hop flight lands on a node, so each must be discovered, as in the client.
+
+Which flight paths count:
+* **Classic Era, TBC Anniversary, MoP Classic**: each character has its own (`CompletionRouteCharDB.knownTaxi`).
+* **Retail and WoW Forever**: the client shares discovered flight paths across the account, so the account-wide set
+  (`CompletionRouteDB.knownTaxi`) counts too (`NS.taxiShared`, set in `Core/Init.lua`).
+Older builds copied the account-wide set into every character on every client. On the first load of this build a
+Classic character's set starts empty once (the old copy is kept as `knownTaxiMerged`, unused); the next flight-master
+visit refills it. A profile still on the old `faction` default moves to `known` once (`routing.taxiKnown1`); Options
+still offers the old rule.
+
+Learning: `TAXIMAP_OPENED` (flight map open: `C_TaxiMap.GetAllTaxiNodes` states, the retail flight-map pins, the
+Classic `TaxiNodeGetType` list) and 8 s after login `C_TaxiMap.GetTaxiNodesForMap` on every continent, where only an
+explicit `isUndiscovered == false` counts. A node the client does not mark as discovered is never assumed. Not checked
+in a client: whether the Classic clients fill `isUndiscovered` at all. If they do not, a Classic character flies only
+after opening a flight master's map on each continent (the login hint says so).
+
+A learned flight path wipes the path cache (`TG.TaxiChanged`), so StepOrder recomputes its pair costs.
+
+Which rule each tool uses:
+
+| Tool | Flight rule |
+|---|---|
+| The client | `known` (Options: "fly to every flight master your faction can use" = `faction`) |
+| `tools/cost_matrix.lua` (the bake) | `faction`, pinned, unchanged (its output for `wiki:era:1416:Alliance` and `wiki:retail:76:Horde:1` is identical before and after this branch, apart from the run time) |
+| `tools/vplayer.lua` | `--taxi all` (default) = `faction`; `--taxi learn` = `known`, starting each guide with nothing known |
+| `tools/route_sweep.lua` | `faction`, pinned |
+| `tools/test_*.lua` | `assumeAllTaxi` or `faction`, except the taxi tests in `test_offline.lua` |
+
+`vplayer --taxi learn` discovers the flight master the route took off from (it walked there) and any flight master
+within 40 yd of each step the player stands on (an `f` step's included). The bake gain has not been re-measured under
+`learn`; that belongs to the cost-model rework.
+
+## What changes the graph (2026-11-10, branch routing-graph)
+
+A quest turn-in used to set `TG.built = false`: the next search rebuilt every taxi, transit and road node, replaced the
+path cache, and StepOrder then dropped every kept pair cost. Now each event drops only what it changes:
+
+| Event | What is rebuilt or dropped |
+|---|---|
+| Turn-in of an access chain's `unlock` quest (or a quest an Access `cond` reads) | the access edges only (`TG.RebuildAccess`); path cache, so StepOrder's kept costs |
+| Turn-in of a quest a Transit `cond` reads | the whole graph (lazily, `TG.Ensure`) |
+| A spell learned, item looted, level gained that flips a Transit/Access `cond` | the whole graph (`TG.RecheckConds`) |
+| A flight path learned | path cache (`TG.TaxiChanged`); StepOrder's kept costs |
+| Hearth re-bound (moved > 30 yd), a teleport or hearth item becomes usable or unusable | only the costs from the player (`TG.oneShotGen`, `TG.OneShotChanged`) |
+| Turn-in of a quest a teleport `cond` reads (the Garrison Hearthstone's) | what is usable is worked out again at once (`T.Recheck`; no bag, toy or spell event follows a turn-in); the costs from the player only when that changed what is offered |
+| An Options switch or slider: flights, comfort mode, the flight rule, transit, roads, terrain factor | path cache, so StepOrder's kept costs |
+| An Options switch or slider: hearth, teleports, hearth base cost | only the costs from the player |
+| Any other turn-in | nothing |
+
+The unlock set is collected at build time (`TG.unlockQuests`). Quests turned in this session (`TG.turnedIn`) count as
+completed at once, because `IsQuestFlaggedCompleted` can lag the `QUEST_TURNED_IN` event. Tests: `tools/test_access.lua`
+(an ordinary turn-in keeps the graph and the path cache; the K'aresh unlock rebuilds only the access edges and matches
+a full rebuild), `tools/test_live_route.lua` (kept costs survive a turn-in; a one-shot change re-prices only the
+from-player costs; every cost-changing Options control drops what it makes stale - comfort mode and the terrain slider
+used to leave the path cache alone, and the hearth base cost slider left the kept from-player costs).
+
+Measured with `luajit -joff tools/vplayer.lua <fl> --guides-file F --turnins --guidecap 300` on 12 wiki guides per flavor
+(every 7th wiki guide id; the ids are in docs/STATUS.md, 2026-11-10), before = the branch base's `Init`, `Util`, `Progress`,
+`TravelGraph`, `StepOrder`, `Router` loaded through `CR_OVERRIDE`. The handler time covers every `QUEST_TURNED_IN`
+handler, including the Progress refresh and live re-plan it starts:
+
+| Flavor | Turn-ins | Handler ms, mean / p50 / p95 / max | Graph builds in handlers | Router calls in handlers | Whole run, CPU s |
+|---|---:|---|---:|---:|---:|
+| era, before | 227 | 9.30 / 0.71 / 47.7 / 80.2 | 95 | 2,926 | 19 |
+| era, after | 227 | 5.24 / 0.62 / 32.5 / 66.8 | 0 | 2,067 | 5 |
+| retail, before | 293 | 90.4 / 25.4 / 300 / 784 | 225 | 10,409 | 193 |
+| retail, after | 293 | 37.6 / 7.5 / 180 / 524 | 0 | 9,911 | 43 |
+
+The whole-run CPU falls more than the handler time because every rebuild also emptied the path cache, so later
+searches outside the handler repeated Dijkstras that had been cached. Results: the 12 retail rows are identical before
+and after. 11 of 12 era rows are identical; `wiki:era:1431:Alliance` simulated 143 steps and 9,017 s instead of 144
+and 9,185 s. Re-running it with a path-cache wipe added to every turn-in reproduced the old row exactly, so the
+difference comes from costs now kept across a turn-in (most likely the from-player costs, which the existing 40-yd
+rule lets go a little stale), not from a changed cost model.
+
+The re-plan after a turn-in still costs something (the window moved by one step and the player moved), but it no longer
+rebuilds the graph or recomputes the pair costs the window already had.
+
+## Teleports (2026-11-10, branch routing-graph)
+
+`Data/Teleports.lua` (73 entries) + `Routing/Teleports.lua`. Kinds:
+* class spells: every mage teleport per faction and expansion (Classic cities, Exodar, Silvermoon, Theramore, Stonard,
+  Shattrath, Dalaran Northrend, Ancient Dalaran, Tol Barad, Vale of Eternal Blossoms, Stormshield, Warspear, Dalaran
+  Broken Isles, Boralus, Dazar'alor, Oribos, Valdrakken, Dornogal), Teleport: Moonglade, Death Gate (MoP Classic only);
+* engineering transporters (Everlook, Gadgetzan, Area 52, Toshley's Station): trinkets that must be worn on Classic Era
+  and TBC (ItemSparse InventoryType 12), bag items on Forever and MoP Classic, toys on MoP Classic and retail. They carry
+  `profession = 202` (Engineering, from ItemSparse `RequiredSkill`; on retail that is a tier line whose SkillLine parent
+  is 202). A character the client says has no Engineering is skipped (`Core/Professions.lua` `Prof.Knows`); when the
+  skill list cannot tell (no API, a collapsed header) the client's `IsUsableItem` / `C_ToyBox.IsToyUsable` decides, and
+  that answer also covers the Gnomish / Goblin specialisation;
+* the Dalaran and Garrison hearthstones (the garrison one needs "Establish Your Garrison");
+* 36 Hearthstone stand-ins (toys and items that share the Hearthstone's destination and cooldown). One is used only
+  when no Hearthstone is in the bags (`U.HearthReady`); its cast also counts for H steps and the bind recorder.
+
+Rule (the hearth's): an edge from the player when the spell is known (and its reagent, Rune of Teleportation on Era,
+Forever and TBC, is in the bags) or the item or toy is owned and usable (`C_ToyBox.IsToyUsable`, `IsUsableItem`), its
+`cond` holds, and its cooldown has at most 15 minutes left. Cost = `hearthCost - 10 + cast + cooldown left`. Never on a
+pairwise (`hearth = false`) query, so step-order costs and the bake are unchanged. What is usable is recomputed on
+`SPELLS_CHANGED`, `BAG_UPDATE_DELAYED`, `PLAYER_EQUIPMENT_CHANGED`, `NEW_TOY_ADDED`, `TOYS_UPDATED`, cooldown events and
+level-up, profession changes (1 s throttle) and at once on the turn-in of a quest a `cond` reads; a change bumps
+`TG.oneShotGen`. Option: "suggest class teleports, transporters and hub hearthstones". `/cr teleports` lists every
+candidate and why it is or is not offered (including "needs Engineering").
+
+Landing points are world coordinates `{ instance, x, y }`, so one entry serves every client: a wiki `{{Co|x|y|map}}` on
+the modern map (`cite`, converted with `tools/maps_retail.lua`) or a TaxiNodes position. Darnassus and Undercity land
+elsewhere on retail (the Battle for Azeroth phase Zidormi controls), so they have a retail entry each. The Orgrimmar
+spot is the modern city's; on Classic Era and TBC it is approximate. After a teleport cast the first jump that lands
+within 500 yd of the data point is stored (`CompletionRouteDB.teleportFix`) and used from then on.
+
+Checks: `tools/test_teleports.lua` (every landing point recomputed from its citation; Era mage with and without rune,
+cooldown, Options, arrow, learned landing; worn trinket; Engineering needed; retail hearth toy, Garrison Hearthstone
+quest, including the `QUEST_TURNED_IN` event alone making it usable), and `tools/check_teleports.py --fetch --wiki`
+(names in SpellName / ItemSparse per client, reagents in SpellReagents, use spells and cooldowns in ItemEffect, trinket
+slot, `profession` against ItemSparse `RequiredSkill` both ways, shared Hearthstone cooldown in SpellCategories, and
+every cited wiki page holding the id and coordinate). Last run (2026-11-10, after the fixes): 134 entry-client checks
+and 73 wiki checks, 0 failures; with one `profession` removed and one added where DB2 has none, 6 failures, exit 1.
+
+Not done: Zen Pilgrimage (the wiki gives no landing point, and the Peak of Serenity cannot be left on foot), retail
+Death Gate (which Acherus depends on Legion progress), Dreamwalk and class-hall teleports (the landing is a hub whose
+exits are not in the graph), Midnight's Teleport: Silvermoon City (no landing point on the wiki), Kirin Tor rings,
+Ruby Slippers (must be worn), random-destination wormholes, Ultrasafe Transporter: Mechagon (item 167075, use spell
+291981, a single fixed teleport in SpellEffect; not a toy and no `RequiredSkill` in retail DB2; a stack-of-100 consumable
+made with Junkyard Tinkering; the wiki says only "Rustbolt" and gives no coordinate, and the Rustbolt page has none
+either, so the landing point would need DB2 SpellTargetPosition, which the harness does not read yet).
+
+Nothing here has run in a client: the secure `toy` button type, `C_ToyBox.IsToyUsable`, the cooldown readings for
+toys, the Engineering check on each client's skill API and the landing spots all need Daniel's beta.
+

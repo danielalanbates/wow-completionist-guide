@@ -24,6 +24,9 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
     "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua" }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
+-- the flight rule these tests were written for (every flight master of the faction); Core/Init.lua's default is now
+-- "known", which with an empty knownTaxi would quietly make every route below walk-only
+NS.db.profile.routing.assumeAllTaxi = true
 NS.Print, NS.Debug = function() end, function() end
 local SO, P, G = NS.StepOrder, NS.Progress, NS.Guide
 
@@ -173,6 +176,114 @@ local h = { st(1, "A", 1, 10, 0), st(2, "A", 2, 20, 0), st(3, "A", 3, 5010, 0), 
 local ho = SO.Order(h, fake)
 t("off route: goes to the nearby block first", ho[1].index == 3 or ho[1].index == 4, ids(ho))
 t("off route: reported", SO.last and SO.last.offRoute == true)
+
+-- 9) what drops the kept costs (docs/ROUTING.md "What changes the graph"): an ordinary quest turn-in drops nothing, a
+--    one-shot change (hearth re-bound, a teleport usable or not) drops only the costs from the player, a graph change
+--    (the path cache is replaced: access unlock, flight path learned) drops everything
+do
+    reset()
+    local TG = NS.TravelGraph
+    local pairN, fromN = 0, 0
+    local counting = {
+        TravelSeconds = function(a, b) pairN = pairN + 1 return fake.TravelSeconds(a, b) end,
+        TravelSecondsFromPlayer = function(b) fromN = fromN + 1 return fake.TravelSecondsFromPlayer(b) end,
+    }
+    local w = {}
+    for i = 1, 8 do w[i] = st(i, "A", 100 + i, i * 30, (i % 3) * 20) end
+    SO.Plan(w, counting, {})
+    local p1, f1 = pairN, fromN
+    t("window costs computed once", p1 > 0 and f1 > 0, p1 .. " pair, " .. f1 .. " from")
+    TG.OnQuestTurnedIn(987654)               -- not an access unlock: nothing changes
+    SO.Plan(w, counting, {})
+    t("an ordinary turn-in keeps every kept cost", pairN == p1 and fromN == f1, (pairN - p1) .. " pair, " .. (fromN - f1) .. " from recomputed")
+    TG.OneShotChanged()
+    SO.Plan(w, counting, {})
+    t("a one-shot change re-prices only the costs from the player", pairN == p1 and fromN > f1, (pairN - p1) .. " pair, " .. (fromN - f1) .. " from")
+    local f2 = fromN
+    TG.TaxiChanged()
+    SO.Plan(w, counting, {})
+    t("a graph change (flight path learned) drops the pair costs too", pairN > p1 and fromN > f2, (pairN - p1) .. " pair")
+end
+
+-- 10) every Options switch or slider that changes a cost drops the kept costs it makes stale: a pair-cost input
+--     (flights, comfort mode, flight rule, transit, roads, terrain factor) replaces the path cache; a from-player input
+--     (hearth, teleports, hearth base cost) bumps TG.oneShotGen.  Comfort mode and the terrain slider used to leave
+--     the path cache alone, so a toggle changed nothing until something else wiped it.
+do
+    local TG, c = NS.TravelGraph, NS.db.profile.routing
+    local made, realCreateFrame = {}, CreateFrame
+    CreateFrame = function(kind, ...)
+        local f = realCreateFrame(kind, ...)
+        if f.Text then f.Text.SetText = function(_, s) f.label = s end end
+        if kind == "Slider" then        -- OptionsSliderTemplate's own font strings
+            f.slider, f.Low, f.High = true, { SetText = function() end }, { SetText = function() end }
+        end
+        made[#made + 1] = f
+        return f
+    end
+    assert(loadfile("CompletionRoute/UI/Options.lua"))(ADDON, NS)
+    CreateFrame = realCreateFrame
+    local function control(label)
+        for _, f in ipairs(made) do
+            if f.slider and f.scripts.OnShow then f.scripts.OnShow(f) end      -- a slider names itself on show
+            if f.label and f.label:find(label, 1, true) then return f end
+        end
+    end
+    local function click(label, on)
+        local f = assert(control(label), "no Options control " .. label)
+        f.GetChecked = function() return on end
+        f.scripts.OnClick(f)
+    end
+    local function slide(label, v) local f = assert(control(label), "no Options slider " .. label) f.scripts.OnValueChanged(f, v) end
+    local function pairStale(what, fn)
+        local before = TG.pathCache
+        fn()
+        t("Options: " .. what .. " drops the kept pair costs", TG.pathCache ~= before)
+    end
+    local function fromStale(what, fn)
+        local g = TG.oneShotGen
+        fn()
+        t("Options: " .. what .. " re-prices the costs from the player", TG.oneShotGen > g)
+    end
+    -- comfort mode, measured: Goldshire -> Swamp of Sorrows takes a flight; after the toggle the cost must be what a
+    -- fresh search gives, not the cached answer from before
+    TG.Build()
+    local sx, sy, si = z2w(0.42, 0.65, 1429)
+    local gx, gy, gi = z2w(0.50, 0.50, 1435)
+    local function cost() local p = TG.FindPath(sx, sy, si, gx, gy, gi, { hearth = false, speed = 7 }) return p and p.cost end
+    c.preferTaxi = false
+    local off = cost()
+    click("prefer flight paths (comfort mode)", true)
+    local on = cost()
+    TG.PathCacheWipe()
+    local fresh = cost()
+    t("Options: comfort mode on prices the flight at once (no stale cached path)", off and on and math.abs(on - fresh) < 0.01 and on < off,
+      ("off %.1f s, after the toggle %.1f s, fresh %.1f s"):format(off or -1, on or -1, fresh or -1))
+    pairStale("comfort mode off", function() click("prefer flight paths (comfort mode)", false) end)
+    pairStale("flight paths off", function() click("use flight paths", false) end)
+    click("use flight paths", true)
+    pairStale("the flight rule", function() click("fly to every flight master your faction can use", true) end)
+    c.assumeAllTaxi = true                      -- that handler clears it; the rest of this file wants it
+    pairStale("boats / zeppelins / portals off", function() click("use boats / zeppelins / portals / tram", false) end)
+    click("use boats / zeppelins / portals / tram", true)
+    pairStale("roads off", function() click("follow roads through zones", false) end)
+    click("follow roads through zones", true)
+    pairStale("the terrain detour slider", function() slide("Terrain detour factor", 140) end)
+    slide("Terrain detour factor", 125)
+    local kept = TG.pathCache
+    slide("Terrain detour factor", 125)        -- what the panel's OnShow does: the same value again
+    t("Options: showing the panel (same terrain factor) keeps the kept pair costs", TG.pathCache == kept)
+    fromStale("Hearthstone off", function() click("suggest Hearthstone when it is faster", false) end)
+    click("suggest Hearthstone when it is faster", true)
+    fromStale("teleports off", function() click("suggest class teleports", false) end)
+    click("suggest class teleports", true)
+    fromStale("the hearth base cost slider", function() slide("Hearth base cost", 90) end)
+    slide("Hearth base cost", 60)
+    local g = TG.oneShotGen
+    slide("Hearth base cost", 60)
+    t("Options: showing the panel (same hearth base cost) keeps the from-player costs", TG.oneShotGen == g)
+    c.preferTaxi = false
+end
 
 -- ---------------------------------------------------------------------------
 -- Parked guides

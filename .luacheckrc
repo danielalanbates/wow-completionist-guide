@@ -41,7 +41,8 @@ read_globals = {
     "GetBuildInfo", "GetTime", "GetLocale", "GetRealmName",
     "UnitName", "UnitLevel", "UnitClass", "UnitRace", "UnitFactionGroup", "UnitXP", "UnitXPMax", "UnitPosition", "UnitAffectingCombat", "UnitIsGhost", "UnitIsDeadOrGhost", "UnitOnTaxi", "UnitInParty", "UnitInRaid",
     "GetUnitSpeed", "IsMounted", "IsFlying", "IsSwimming", "IsIndoors", "InCombatLockdown", "GetPlayerFacing", "GetBindLocation", "GetZoneText", "GetSubZoneText", "GetMinimapZoneText",
-    "IsSpellKnown", "IsPlayerSpell", "GetSpellInfo", "GetSpellCooldown", "CastSpellByID", "GetShapeshiftForm",
+    "IsSpellKnown", "IsPlayerSpell", "GetSpellInfo", "GetSpellCooldown", "CastSpellByID", "GetShapeshiftForm", "C_SpellBook",
+    "PlayerHasToy", "C_ToyBox", "IsEquippedItem", "IsUsableItem",   -- teleports (Routing/Teleports.lua)
     "GetItemCount", "GetItemInfo", "GetItemInfoInstant", "GetItemIcon", "GetContainerNumSlots", "GetContainerItemLink", "GetInventoryItemLink", "GetInventoryItemTexture", "GetItemStats", "GetAverageItemLevel", "GetDetailedItemLevelInfo", "EquipItemByName", "UseContainerItem", "UseInventoryItem",
     -- Quests
     "GetNumQuestLogEntries", "GetQuestLogTitle", "SelectQuestLogEntry", "GetQuestLogQuestText", "GetQuestObjectiveInfo", "IsQuestFlaggedCompleted", "GetQuestID", "AcceptQuest", "CompleteQuest", "GetQuestReward", "GetNumQuestChoices", "QuestFrame", "QuestGetAutoAccept", "AcknowledgeAutoAcceptQuest", "GetNumAutoQuestPopUps", "GetAutoQuestPopUp", "ShowQuestOffer", "ShowQuestComplete", "GetQuestLogIndexByID",

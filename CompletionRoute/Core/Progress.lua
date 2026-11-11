@@ -705,7 +705,7 @@ NS:RegisterEvent("TAXIMAP_OPENED", function()
 end)
 NS:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, _, spellID)
     if unit ~= "player" then return end
-    if spellID == NS.HEARTH_SPELL or spellID == NS.ASTRAL_RECALL then
+    if spellID == NS.HEARTH_SPELL or spellID == NS.ASTRAL_RECALL or (NS.Teleports and NS.Teleports.IsHearthSpell(spellID)) then
         for _, s in ipairs(P.Pending(15)) do if s.action == "H" then charDone()[s.index] = true break end end
         refreshSoon()
     end

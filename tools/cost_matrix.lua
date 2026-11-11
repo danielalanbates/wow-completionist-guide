@@ -83,6 +83,10 @@ for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "Completion
 NS.db.profile.debug = false
 NS.Print, NS.Debug, NS.Error = function() end, function() end, function() end
 NS.db.profile.routing.baked = false          -- matrices are built on the AUTHOR order, never on a baked one
+-- The client now flies only into discovered flight paths (taxiPolicy "known", docs/ROUTING.md).  The bake keeps the
+-- faction-wide rule it was built with until the cost-model rework (docs/IDEAS.md) decides otherwise; `settle` below
+-- still implements the old "known" rule (both ends learned), so do not switch this without changing it too.
+NS.db.profile.routing.taxiPolicy = "faction"
 local G, R, U, TG = NS.Guide, NS.Router, NS.Util, NS.TravelGraph
 local FL = NS.dataFlavor or NS.flavor
 

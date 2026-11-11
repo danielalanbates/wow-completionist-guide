@@ -1,4 +1,4 @@
-# Status / handoff (2026-11-10, integration: skipping quests + beta bug reports)
+# Status / handoff (2026-11-10, integration: skipping quests, beta bug reports, routing graph, release packager)
 
 ## Auto accept and turn-in (`auto-quest`, 2026-11-10)
 
@@ -107,6 +107,102 @@ IDEAS #3, merged into `integration`. Offline only. **Nothing here has run in a r
   `tools/fixtures/beta_reports_SavedVariables.lua`). All existing harnesses pass (see the commit for the list).
 * **Not done.** The skip-reason menu, an opt-in for the character name, a companion app view, and any in-client run.
 
+## Routing graph: discovered flight paths, turn-in rebuilds, teleports (`routing-graph`)
+
+Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** Merged into `integration`, not
+installed. All 14 harnesses pass (the 13 below plus the new `tools/test_teleports.lua`), and `tools/check_teleports.py
+--fetch --wiki` reports 0 failures. Details: [ROUTING.md](ROUTING.md) "Flight paths", "What changes the graph", "Teleports".
+
+* **Discovered flight paths only (IDEAS #2).** Default flight rule is now `known`: a flight lands only at a flight master
+  the character has discovered; it may take off from a new one, and the walk there says "pick up the flight path".
+  Per character on Classic Era, TBC Anniversary and MoP Classic; account-wide on Retail and WoW Forever. On first load a
+  Classic character's flight paths start empty once (older builds had copied the whole account's set into it) and
+  fill again at the next flight-master visit. A profile on the old `faction` default moves to `known` once; Options
+  keeps the old rule. **Behaviour change Daniel will see:** a Classic alt walks until it has opened a flight master's map
+  on each continent, unless the login harvest (`isUndiscovered == false` from `C_TaxiMap.GetTaxiNodesForMap`) works on
+  that client, which is not verified.
+* **Which rule the tools use.** The bake (`cost_matrix.lua`) and `route_sweep.lua` are pinned to `faction`, so the bake is
+  unchanged (cost_matrix output for one era and one retail guide compared before/after: identical but for run time). `vplayer.lua` has `--taxi all|learn` (default `all`, unchanged). On the 12-guide samples below, `--taxi
+  learn` (each guide starts with no flight path) costs era 58,842 -> 75,444 s of travel (+28%) and retail 16,664 ->
+  19,083 s (+15%), with 8 and 29 flight paths discovered. The bake gain under `learn` was not re-measured.
+* **Turn-ins no longer rebuild the graph (IDEAS #4).** Only the access edges are rebuilt when an access chain's unlock quest
+  is turned in; a learned flight path wipes the path cache; a hearth re-bind or a teleport change drops only the costs
+  from the player; any other turn-in changes nothing. Measured under `luajit -joff` with the new `vplayer --turnins`
+  (12 guides per flavor, before = branch base code via `CR_OVERRIDE`): era handler time per turn-in 9.30 -> 5.24 ms mean
+  (p95 47.7 -> 32.5), 95 -> 0 graph builds, whole run 19 -> 5 CPU s; retail 90.4 -> 37.6 ms mean (p95 300 -> 180),
+  225 -> 0 builds, whole run 193 -> 43 CPU s. Retail results identical; one era guide differs slightly, explained in
+  ROUTING.md. Guides: era `wiki:era:` 1416:Alliance, 1417:Alliance, 1447:Horde, 1428:Both, 1443:Both, 1431:Alliance,
+  1423:Alliance, 1448:Both, 1455:Alliance:1, 1450:Both, 1433:Alliance, 1421:Both; retail `wiki:retail:` 648:Both,
+  885:Both, 1565:Both:3, 1408:Alliance, 2255:Both:1, 76:Horde:1, 630:Both:4, 15:Horde, 105:Both, 1161:Both, 114:Horde:1,
+  646:Both:4.
+* **Teleports as router edges (IDEAS #5).** `Data/Teleports.lua`, 73 entries: 30 class spells (every mage teleport per
+  faction and expansion, Teleport: Moonglade, Death Gate on MoP Classic), 4 engineering transporters, the Dalaran and
+  Garrison hearthstones, 36 Hearthstone stand-ins. Ids, names, reagents, use spells, cooldowns, trinket slots and the
+  shared Hearthstone cooldown are checked against each client's DB2; landing points come from Warcraft Wiki coordinates
+  (or TaxiNodes) and are recomputed by the test. Used like the hearth: a first leg only when known or owned and usable,
+  with at most 15 minutes of cooldown left; never in pairwise costs, so the bake is unchanged. The arrow's secure button
+  casts the spell, uses the item, or uses the toy (`type = "toy"`). `/cr teleports` lists them. `cond` now works on
+  Transit and Access entries.
+* **Fixed on the way:** a combat-queued arrow-button change is replayed with an explicit argument count (it relied on `#`
+  of a table with a nil hole); toggling taxi, transit or the flight rule in Options left StepOrder's kept costs stale.
+* **Fixed after review (same day):**
+  * Turning in "Establish Your Garrison" bumped the one-shot generation but did not re-check what is usable, so the
+    Garrison Hearthstone stayed unused until some later bag, spell or toy event. The turn-in now re-checks at once
+    (`T.Recheck`), and bumps only when what is offered changed. Test: the `QUEST_TURNED_IN` event alone, with no
+    manual re-check, makes the next route to Frostwall use it.
+  * `test_live_route.lua` and `test_parked.lua` had silently picked up the new `known` default with no flight paths
+    known (walk-only routing). Both now pin the faction rule, as the other harnesses do.
+  * Options: comfort mode and the terrain detour slider now wipe the path cache (they changed costs without dropping
+    cached paths); the hearth base cost slider now re-prices the from-player costs. The two sliders act only when the
+    value really changes, because opening the panel re-sets them. New test drives every cost-changing Options control
+    (`test_live_route.lua` section 10); 4 of its checks fail on the old handlers.
+  * Engineering transporters carry `profession = 202`, checked against ItemSparse `RequiredSkill` by
+    `check_teleports.py`; a character the client says has no Engineering is not offered them.
+  * Harness counts now: test_teleports 42 (was 35), test_live_route 52 (was 40), test_parked 26; all 14 pass, and
+    `check_teleports.py --wiki` reports 134 entry-client and 73 wiki checks, 0 failures. None of these fixes is on the
+    code path of `vplayer.lua` or `cost_matrix.lua` (neither loads `Routing/Teleports.lua` or `UI/Options.lua`), so the
+    turn-in measurements above and the bake are unchanged.
+* **Not done / unverified:** everything in-game (secure `toy` action, `C_ToyBox.IsToyUsable`, toy cooldowns, Classic
+  taxi harvest, landing spots); Zen Pilgrimage, retail Death Gate, Dreamwalk, class halls, Midnight's Teleport:
+  Silvermoon City, Ultrasafe Transporter: Mechagon (no landing coordinate on the wiki; DB2 SpellTargetPosition not read
+  yet); Orgrimmar's landing point on Classic Era and TBC is the modern city's; engineering malfunctions are
+  not priced; the bake and the cost-model rework (IDEAS #9) still use the faction rule.
+  Noticed, older than this branch: the return leg of a two-way portal reuses the outbound title ("Take the Orgrimmar
+  Portal Room portal to Silithus" when going from Silithus to Orgrimmar).
+
+## Release packager with a data-provenance gate (`release-packager`)
+
+Offline only. **Nothing here has run in a real WoW client, and no build has passed the gate on real data.** No tag, push
+or GitHub release was made. All 12 `tools/test_*.lua` harnesses, `validate_toc` and `tools/test_package.py` (97 checks,
+Python 3.12 and 3.9) pass.
+
+* **`tools/package_release.py`** ([RELEASE.md](RELEASE.md)) assembles the add-on from the tracked code plus the local
+  generated data, limited to what the TOCs load. It writes `provenance.json` (category, licence, source, generator per
+  file), `LICENSE.txt`, `ATTRIBUTION.md` and a player README, and stamps the version into the packaged TOCs only. WoW-Pro
+  and Questie-derived files never ship and their TOC lines are stripped (19 lines in 6 TOCs). Dry run by default.
+* **Layout:** one universal zip (6.06 MB, 43 MB unpacked on today's data) instead of per-client zips (0.56 to 4.07 MB,
+  7.27 MB together); each client loads only its own TOC's files. `--layout per-client` still builds them.
+* **Gate** fails on: no provenance, WoW-Pro/Questie data (by file, by content, or a baked order row for a gaps guide),
+  "do not redistribute", the replaced commercial product's name, personal data (e-mail, home paths, WoW account and
+  character names), secrets, any symlink (worktrees: `--allow-checkout-links`), TOC lines with no packaged file, missing
+  licence notices. `--db` writes `data_provenance` and `release_gate` tables.
+* **Today's local data fails with 13 problems:** the wiki files carry fallback points (`--no-fallback` build needed),
+  achievements and missions keep the old header (regenerate), and every `RouteOrder` file orders Questie-derived gaps
+  guides (era 56, tbc 101, mop 44, retail 29, forever 55 rows). RELEASE.md lists the steps to a passing build, including
+  a rebake inside the staged package; that rebake was smoke-tested on one era guide only.
+* The staged package (interop lines stripped) loads clean in `test_load_all.lua` on all six TOCs. Stub load only.
+* **Review fixes:** `--write` never deletes or displaces a build. A failing build goes to
+  `dist/failed/<version>-<time>/`, a same-version rebuild archives the earlier one, and only the packager's own build
+  folders are ever moved, so `--out` is safe anywhere. Per-client zips carry an `ATTRIBUTION.md` listing only their
+  files. The secret rule also catches Cerebras, Groq, Hugging Face, xAI, npm and GitLab keys and unquoted
+  `api_key=` lines. Personal terms in file names are masked in every report. Edits to the packager or its templates
+  make a build `-dirty`. Usage errors exit 2, crashes 3. The player README describes the real guide-window controls.
+* Also: CallbackHandler ships its Ace3 licence text; HereBeDragons is BSD as declared upstream (no upstream text);
+  `WIKI_DATA_LICENSE.md` lists the Forever wiki and spine files and no longer calls the hand-written guides non-CC BY-SA;
+  `release.yml` no longer publishes on a tag (manual run of the gate tests only).
+* **Next:** regenerate wiki `--no-fallback`, gold, professions, achievements and missions; rebake route orders in the
+  stage; `--write`; Daniel's beta; only then publish by hand.
+
 # Status / handoff (2026-11-09, gold guides, secondary professions, guides by level)
 
 Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** Installed on all five clients. All 13 harnesses pass
@@ -117,7 +213,8 @@ Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** 
 |---|---:|---:|---:|---:|---:|
 | Gold guides | 165 | 204 | 258 | 335 | 168 |
 | Profession guides | 24 | 30 | 64 | 78 | 24 |
-| Quest guides with a baked route | 234 of 234 | 356 of 356 | 294 of 771 | 296 of 1,021 | 241 of 241 |
+| Quest guides optimized (bake of 2026-11-10, map fix redone) | 234 of 234 | 354 of 354 | 772 of 772 | 1,021 of 1,021 | 240 of 240 |
+| ...of which a baked order is kept (the rest stay in author order) | 168 | 260 | 501 | 854 | 170 |
 
 * **Gold** (`tools/wiki/gen_gold.py`, [GOLD_ROUTES.md](GOLD_ROUTES.md)): realm-independent, no prices shipped. Gathering circuits are still labelled
   coarse because no shippable node database exists; they sharpen as the player records nodes.

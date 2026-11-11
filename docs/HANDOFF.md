@@ -67,6 +67,41 @@ started at 22:18 under `caffeinate -is`. If it dies, re-run
 `python3 tools/bake_resume.py --flavors era,tbc,forever --force-mapfix`. When it ends, install into
 `_classic_era_`, `_anniversary_` and `_forever_`, copy those three RouteOrder files to Drive, and refresh STATUS.
 
+**Update 2026-11-10, 22:45.** From here this file is kept on branch `integration` (worktree `wt-int`).
+* `quest-skip` is **done**. It was built, checked by two independent reviewers (1 major and 11 minor or performance
+  findings), and all of those were fixed. 542 skip checks pass.
+* `integration` (worktree `wt-int`) = `route-bake-finish` + `quest-skip` + `beta-bug-report`. Conflicts were in Slash help,
+  README and STATUS (both sides kept). Every harness passes on it, plus the ingest unit tests.
+* Phase 2a started as workflow `beta-features-phase2a`: #6 in worktree `wt-ids` (branch `stable-step-id`) and #7 in
+  `wt-auto` (branch `auto-quest`), both from `integration`. #9 then #1 wait for `routing-graph`, because they change
+  the same cost code.
+* Still running: `routing-graph` and `release-packager` (phase-1 resume), the data repo, and the map-fix bake.
+
+**Update 2026-11-10, 22:55.** `routing-graph` and `release-packager` are **done**, both built, verified and fixed, and both
+are merged into `integration`, merge order quest-skip → beta-bug-report → routing-graph → release-packager. Fix commit
+`472f8a4` resolved three break points between branches:
+* The quest-skip re-planner's `FindPaths` was ported to the discovered-flight-path rule.
+* `test_bug_report` now expects the new default policy, `known`.
+* The packager learned `Data/QuestDeps_*.lua`: only the new `gen_quest_deps.py --wiki-only` build ships, and the
+  local build names its sources (Questie-derived gaps guides, storylines) in its header, so the packager refuses
+  it. `Data/Teleports.lua` (wiki CC BY-SA) was added too.
+
+Every harness passes on `integration`. Phase 2b (#9 cost model, then #1 bake gate and coordinate-aware checksum) runs
+as workflow `beta-features-phase2b` in worktree `wt-cost` (branch `cost-model`, from `integration`). `wt-ids` and
+`wt-auto` were branched before these merges, so expect conflicts in Slash help, README and STATUS when they merge.
+
+**Update 2026-11-10, 23:00.** The map-fix bake pass is **done**: 235 guides, 0 failures, and every flavor's rows are
+current. All five RouteOrder files are installed in the five clients (route-bake-finish code, which is the current beta)
+and copied to Drive. STATUS has the counts. These orders become stale on purpose once #1 changes the checksum, and
+then the full rebake follows.
+
+**Update 2026-11-10, 23:15.** Phase 4 is **done**. `wow-completionist-data` was built, reviewed (4 major and 4 minor
+findings, all fixed: Classic coordinates read against Blizzard positions with a per-point `confidence`, retail turn-in
+pins beat drifting wiki points, shared quest ids, faction-alternative prerequisites), privacy-checked across all history,
+and **published** at https://github.com/danielalanbates/wow-completionist-data (public). That repo holds 49 tests, its
+own `docs/HANDOFF.md`, and the plan for the addon generators to read from it (not implemented). Its working tree, without
+`.git` and `build/`, is copied to Drive at My Drive/Code/wow-completionist-data. The addon README links to it.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
