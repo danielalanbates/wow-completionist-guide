@@ -51,6 +51,11 @@ regenerable**, so nothing here depends on a subscription staying alive:
 
 Generated guide files are gitignored: the *generators* ship, the third-party-derived data does not.
 
+**Open quest database.** The same wiki and Blizzard data, as plain JSON and SQLite for any addon or tool, is published
+separately at [wow-completionist-data](https://github.com/danielalanbates/wow-completionist-data) (CC BY-SA 4.0). It covers
+quests, givers and enders, prerequisites, NPCs, objects, achievements and missions for all five clients, and every record
+names its source and a confidence for its map point. Corrections are welcome there as pull requests.
+
 **Community data only.** Completionist's Guide is built from Warcraft Wiki, Blizzard client data, Questie (generated locally at install) and WoW-Pro (read at runtime). It ships no commercial guide content.
 
 ## Verification — no characters required

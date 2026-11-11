@@ -95,6 +95,13 @@ current. All five RouteOrder files are installed in the five clients (route-bake
 and copied to Drive. STATUS has the counts. These orders become stale on purpose once #1 changes the checksum, and
 then the full rebake follows.
 
+**Update 2026-11-10, 23:15.** Phase 4 is **done**. `wow-completionist-data` was built, reviewed (4 major and 4 minor
+findings, all fixed: Classic coordinates read against Blizzard positions with a per-point `confidence`, retail turn-in
+pins beat drifting wiki points, shared quest ids, faction-alternative prerequisites), privacy-checked across all history,
+and **published** at https://github.com/danielalanbates/wow-completionist-data (public). That repo holds 49 tests, its
+own `docs/HANDOFF.md`, and the plan for the addon generators to read from it (not implemented). Its working tree, without
+`.git` and `build/`, is copied to Drive at My Drive/Code/wow-completionist-data. The addon README links to it.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
