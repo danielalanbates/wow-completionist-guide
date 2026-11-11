@@ -36,7 +36,7 @@ Checked in this order; the first one that fails leaves the dialog alone:
 | The player did not skip an accept step (for accept) or a turn-in step (for turn-in) of that quest in this guide | yes | yes |
 | Costs no gold (`GetQuestMoneyToGet() == 0`) | yes | yes (on the progress page) |
 | Not a daily, weekly or repeatable, unless its window step is that daily: a `!` step, or the guide is a Dailies or Daily Gold guide | yes | - |
-| The quest log has room (`Router.QuestLog()`: count and `C_QuestLog.GetMaxNumQuestsCanAccept`); if not, one chat line says so | yes | - |
+| The quest log has room (`Router.QuestLog()`: count and `C_QuestLog.GetMaxNumQuestsCanAccept`); if not, one chat line per quest giver says so, naming the first quest and how many more ("Bravo and 2 more"), at most once a minute; the quest text that follows does not repeat it | yes | - |
 | Progress page: `IsQuestCompletable()` is true | - | yes |
 | Reward page: 0 or 1 choice. With 2 or more it stops, leaves the dialog open and says so in one chat line, unless `autoChooseReward` is on and `ItemScore.ClearWinner` finds a clear upgrade | - | yes |
 
@@ -44,10 +44,30 @@ Checked in this order; the first one that fails leaves the dialog alone:
 a gossip pick, the reward page after the progress page. The pause lasts while that NPC's dialogs keep coming at most
 10 s apart (`QA.PAUSE_GAP`), so letting go of the key mid-conversation does not start clicking.
 
-**Reward choice** (`UI/ItemScore.lua`, `IS.ClearWinner`). A choice wins only if every choice's item data has arrived, the
-class can use it (`GetQuestItemInfo`'s `isUsable`), it beats what is worn in that slot by 10% or more (`IS.CLEAR_PCT`),
-and it gains at least 1.5 times as much score as any other choice (`IS.CLEAR_RATIO`). The weights are per class, not
-per spec, and have no item level, which is why anything less than clear is left to the player.
+**Reward choice** (`UI/ItemScore.lua`, `IS.ClearWinner`). A choice wins only if every choice's item data has arrived,
+every usable choice can be weighed, the class can use it (`GetQuestItemInfo`'s `isUsable`), it beats what it would
+replace by 10% or more (`IS.CLEAR_PCT`), and it gains at least 1.5 times as much score as any other choice
+(`IS.CLEAR_RATIO`). The weights are per class, not per spec, and have no item level, which is why anything less than
+clear is left to the player.
+
+What a choice would replace (`IS.ChoiceGain`; the tooltip score line, `IS.Compare`, does not use these rules):
+
+* Armor, rings, trinkets, cloak: the worst item worn in its slots. An empty slot there is a real gain.
+* Two-hand weapon: the main hand plus the off hand.
+* One-hand weapon: the main hand. Only when `CanDualWield()` is true, the main hand holds a one-hand weapon and the off
+  hand holds a weapon, the weaker of the two. A dual wielder's empty off hand cannot be weighed.
+* Shield, off-hand weapon, held-in-off-hand item: with a two-hand weapon worn, the two-hand weapon (equipping it takes
+  that off); otherwise the off-hand item. An off-hand weapon without `CanDualWield()` is no contender.
+* Bow, gun, crossbow, wand, thrown, relic: the item in the ranged slot (18). MoP Classic and Retail have no ranged slot
+  (warcraft.wiki.gg Patch 5.0.4: "The slot in which ranged, relics, and thrown items were previously equipped has been
+  removed"), so there a ranged reward cannot be weighed.
+
+When a usable choice cannot be weighed (nothing in the main hand, an empty off hand next to a one-hand weapon, a main
+hand that is not a melee weapon, no ranged item, or a worn item whose stats the client does not return), nothing is
+picked, even if another choice looks like a clear upgrade: guessing that choice too low would let another one win
+wrongly. Titan's Grip (a two-hander in each hand) is not modelled; it can only make a reward look worse, so it never
+causes a pick. Before the 2026-11-11 review fix, an empty off hand counted as a +100% upgrade, so a two-hand warrior
+offered a shield or a one-hand sword would have taken it over a real upgrade.
 
 **No loops, one action per event.** Each dialog event makes at most one call that changes something. A quest picked from
 an NPC's list is not picked again at that NPC for 60 s (`QA.MEMORY_S`), so a quest that was declined, or refused when
@@ -96,6 +116,8 @@ Retail 12.1.5, forever = WoW Forever 1.60.1, mists = MoP Classic 5.5.4, tbc = TB
 | `QUEST_ACCEPT_CONFIRM` (`name`, `questTitle`), `ConfirmAcceptQuest` | yes | yes | yes | yes | yes | Escort shares. The third payload value `questID` was added in 12.0.5 (Retail); elsewhere the title is matched |
 | `C_QuestLog.GetMaxNumQuestsCanAccept` | yes | yes | yes | yes | yes | Log cap (`Routing/Router.lua` `R.QuestLog`, with a per-flavor fallback) |
 | `UnitGUID("npc")` | yes | yes | yes | yes | yes | "Is there a quest giver". Not confirmed for game-object quest givers (wanted posters); if it is nil there, those are left to the player |
+| `CanDualWield()` | yes | yes | yes | yes | yes | Reward weighing in the hands. The wiki page lists standard, forever, mists, tbc and vanilla (read 2026-11-11) |
+| Ranged slot 18 (`GetInventoryItemLink("player", 18)`) | no | ? | no | yes | yes | Removed in 5.0.4 (warcraft.wiki.gg Patch 5.0.4), so Era and TBC (older game versions) have it and MoP Classic and Retail do not. Not confirmed for Forever (the InventorySlotId page has no per-client column). Safe either way: a ranged reward is weighed only when something is worn there |
 
 Frequency values: `C_GossipInfo` and the greeting frame are read with `Enum.QuestFrequency` (Daily, Weekly,
 ResetByScheduler) where the client has it, the old gossip API with `LE_QUEST_FREQUENCY_*`. `QuestIsDaily()` on the quest
@@ -103,16 +125,20 @@ text decides in the end.
 
 ## Tests and measurements
 
-`luajit -joff tools/test_quest_auto.lua [flavors]` (1,154 checks on all five flavors on 2026-11-10, all pass). The real addon files
+`luajit -joff tools/test_quest_auto.lua [flavors]` (1,272 checks on all five flavors on 2026-11-11, all pass). The real addon files
 run on `tools/stubs.lua` with a fake dialog client per API family (`gossip`, `old`, `greeting`) on each flavor, with the
 optional APIs only where the real client has them. Each rule above has a check, and every event is checked to make at
 most one call. Thirteen deliberate breakages of `Core/QuestAuto.lua` (no window check, no skip check, no pause key, no
 completable check, no gold check, always take the reward, no Skip check, no pending read, no pick memory, no busy
-check, no popup guard, dailies always allowed, no log cap) each made the harness fail.
+check, no popup guard, dailies always allowed, no log cap) each made the harness fail. After the review on 2026-11-11,
+five more each fail it too: ignored gossip quests picked, an empty off hand counted as free, a sword-and-board dual
+wielder's shield weighed as the weaker hand, a worn item with unreadable stats counted as 0, and one log-full line per
+quest instead of per quest giver.
 
 CPU of one decision (`luajit -joff`, the biggest wiki guide of each flavor that leaves a window, 202 to 245 steps):
-about 0.01 ms per dialog event; right after a quest change (window from the pending steps) 0.06 ms (mop) to 0.34 ms
-(retail), max 0.34 ms over 30 calls each. Measured with a route bake running on the same Mac.
+about 0.01 ms per dialog event; right after a quest change (window from the pending steps) median 0.06 ms (mop) to
+0.35 ms (retail), max 0.36 ms over 30 calls each (two runs). `IS.ClearWinner` with four choices: 0.012 ms per call, max 0.03 ms
+over 2,000 calls. Measured on 2026-11-11 on a loaded Mac (load average about 2.5 to 3.7), not in a client.
 
 ## Not verified / open questions
 
@@ -123,4 +149,6 @@ about 0.01 ms per dialog event; right after a quest change (window from the pend
   quest name (when it knows it) and the guide's step titles, so it may miss on non-English clients.
 * `GetQuestMoneyToGet` at the quest-text stage: the check assumes it returns the money the quest needs.
 * A reward whose item data has not arrived yet is never chosen; the dialog stays open (no retry when the data arrives).
+* The tooltip score line (`IS.Compare`, older than this branch) still shows an item for an empty slot as "+100%
+  upgrade", also a shield or off-hand item next to a two-hand weapon. Only the reward pick uses the rules above.
 * Players who use another auto-quest addon at the same time get two addons answering the same dialog; nothing detects that.

@@ -10,24 +10,45 @@ not merged, not installed. Details and the client API matrix: [QUEST_AUTO.md](QU
 * **Only the live window:** a quest is accepted or handed in only if a step of it is among the next `routing.window + 5`
   pending steps (`P.order`). Never a quest `/cr skip` dropped or locked, never one whose accept or turn-in step the
   player skipped, never one that costs gold, never a daily, weekly or repeatable unless the step is that daily (`!`, or a
-  Dailies / Daily Gold guide). A full quest log is said in chat. Holding the pause key pauses that conversation.
+  Dailies / Daily Gold guide). A full quest log is said in one chat line per quest giver. Holding the pause key pauses
+  that conversation.
 * **Turn-in:** `CompleteQuest()` only when `IsQuestCompletable()`; the reward is taken with 0 or 1 choice. With more it
   stops with one chat line, unless "Auto choose reward" is on and the new `ItemScore.ClearWinner` sees a usable item 10%
-  over what is worn and 1.5x better than the other choices.
+  over what it would replace and 1.5x better than the other choices; if any usable choice cannot be weighed, it picks
+  nothing.
 * **Clients:** `C_GossipInfo` (all five clients, per warcraft.wiki.gg), the old gossip API (none of them; fallback for
   old builds) and the greeting frame, detected at call time. No dialog without a quest giver (popups), no world quests,
   nothing the game auto-accepted. One action per dialog event; no re-pick loop after a decline.
 * **UI:** Options > CompletionRoute > **Auto quests** page (three checkboxes and the pause-key dropdown), `/cr auto
   [accept|turnin|reward|on|off|key ...]` in the help line and README; `/cr bug` reports carry the settings and the last
   eight decisions.
-* **Tests:** new `tools/test_quest_auto.lua`, 1,154 checks on all five flavors x three API families; 13 deliberate
-  breakages of the module were each caught. All other harnesses, `validate_toc.lua` and the ingest unittest pass.
+* **Review fixes (2026-11-11):**
+  * Major, fixed: with "Auto choose reward" on, an empty off hand counted as a +100% upgrade, so a warrior with a
+    two-hand weapon offered a shield or a one-hand sword took it over a real upgrade (reproduced: `GetQuestReward 2`,
+    "took item:shield ... (+100%)"). New `IS.ChoiceGain` weighs the hands together: a shield or off-hand item is weighed
+    against the two-hander it takes off, a one-hand weapon against the main hand (the weaker weapon only for a dual
+    wielder holding two weapons), a two-hander against both hands; an empty off hand next to a one-hand weapon, a
+    ranged item with nothing in slot 18 (always so on MoP Classic and Retail) or a worn item whose stats cannot be read
+    means nothing is picked. New checks: 3 per flavor and API family through the reward dialog, plus 23 direct
+    `ChoiceGain`/`ClearWinner` checks (two-hand, sword and board, dual wield, staff caster, ranged, unreadable stats).
+  * Minor, fixed: a full log printed one line per window quest at one quest giver (3 lines for 3 quests); now one line
+    per quest giver ("Bravo and 2 more"), and the quest text that follows adds none.
+  * Minor, fixed: the Retail "ignored quest" flag had no check (breaking it still passed); now two gossip checks.
+  * Minor, fixed: merged the current `integration` (commit 22046c3); the 3 text conflicts kept both sides.
+  * Minor, fixed: `docs/BETA_REPORTS.md` lists `options.questAuto`.
+* **Tests:** new `tools/test_quest_auto.lua`, 1,272 checks on all five flavors x three API families (2026-11-11); 13
+  deliberate breakages of the module were each caught on 2026-11-10, and 5 more (ignored flag, empty off hand, shield as
+  the weaker hand, unreadable worn stats, per-quest log-full line) on 2026-11-11. All other harnesses, `validate_toc.lua`,
+  the ingest unittest and `tools/test_package.py` pass.
   Not this branch: `tools/test_skip.lua`'s two "re-plan frames never over 2 ms" timing checks fail now and then on this
   loaded Mac (route bake running, load average 4 to 13): 5 of 8 runs here (1 to 3 frames over, worst 2.16 to 2.39 ms,
   JIT on; the one `-joff` run passed), and 2 of 3 runs (worst 2.15 and 2.45 ms) with the integration versions of the two
   files this branch changes in its load list (`Core/Init.lua`, `Core/Progress.lua`). The re-planner is untouched.
-* **CPU** (`luajit -joff`, biggest real wiki guide per flavor): about 0.01 ms per dialog event, 0.06 to 0.34 ms right
-  after a quest change.
+  2026-11-11 (load average about 2.5): 3 of 4 JIT runs failed one such check (worst 2.20 to 2.48 ms), the `-joff` run
+  passed; with the integration versions of those two files, 1 of 2 runs failed (2.29 ms). The review fixes touch
+  neither file nor anything `test_skip.lua` loads.
+* **CPU** (`luajit -joff`, biggest real wiki guide per flavor): about 0.01 ms per dialog event, 0.06 to 0.36 ms right
+  after a quest change; `ClearWinner` with four choices 0.012 ms (max 0.03 ms).
 * **Open:** client test of every path; whether game-object quest givers give `UnitGUID("npc")`; quest ids from the
   greeting frame on the classic clients; reward data that arrives late is never chosen.
 

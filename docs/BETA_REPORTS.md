@@ -40,7 +40,7 @@ named in `errors` and the rest still saves.
 | position | `player.map`, `mapName`, `x`, `y` (0 to 100), `wx`, `wy`, `inst`, `inInstance`, `instanceType`, zone text |
 | route | `route.found`, `secs`, `desc`, and up to 12 legs with mode, title, from, to, world points, seconds, yards, new-flight-path flag; `arrow` (mode, text, why, ETA, distance, borrowed step); `stepOrder` (the planner's last info) |
 | travel | taxi policy, known flight paths (ranges), hearth (learned or seed, ready or cooldown, hearthstone in bags), learned portal and boat spots (`transitFix`), the learned dungeon door for this step |
-| options | the routing settings, scope, account-wide, arrow, beacon, auto-advance, debug |
+| options | the routing settings, scope, account-wide, arrow, beacon, auto-advance, debug; `questAuto`: the auto accept / turn-in settings (accept, turn-in, choose reward, pause key) and the last 8 decisions with their reasons (`Core/QuestAuto.lua`, branch `auto-quest`) |
 | log and errors | the last 30 lines of the addon log (`/cr log`, debug lines included), `lastError`, `luaErrorCount` |
 | cost | `captureMs` and `sectionMs` (what the click cost in the client) |
 
