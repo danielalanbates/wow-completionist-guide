@@ -9,8 +9,8 @@ Licensed under PolyForm Noncommercial 1.0.0 + 10% commercial-revenue rider (see 
 Builds a fake World of Warcraft folder in a temp directory from tools/fixtures/beta_reports_SavedVariables.lua (written by
 tools/test_bug_report.lua with CR_WRITE_FIXTURE), ingests it into a temp database twice, and checks: one row per report,
 dedupe by id across runs and across two client folders, triage columns kept, no account, character or realm name
-in the database, the SavedVariables bytes unchanged, a broken file skipped without stopping the run, and that
-`vplayer.lua --repro <id> --show` finds a report by id in the database.
+in the database, the SavedVariables bytes unchanged, a broken, missing or vanishing file skipped without stopping
+the run, and that `vplayer.lua --repro <id> --show` finds a report by id in the database.
 """
 import hashlib
 import io
@@ -22,6 +22,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from unittest import mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -112,6 +113,33 @@ class IngestTest(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("3 SavedVariables file(s), 1 with reports, 2 report(s) read", out)
         self.assertIn("skipped _retail_", out)
+
+    def test_missing_and_vanishing_files(self):
+        # a file named with --sv that is not there, next to a good one: a summary, a skip line, no traceback
+        nope = Path(self.dir) / "nope" / "CompletionRoute.lua"
+        code, out = self.run_ingest("--sv", str(nope), "--sv", str(self.files[0]), "--quiet")
+        self.assertEqual(code, 0, out)
+        self.assertIn("2 SavedVariables file(s), 1 with reports, 2 report(s) read", out)
+        self.assertIn("skipped " + str(nope) + ": cannot read it", out)
+        # only a missing file: still a summary, exit 1
+        code, out = self.run_ingest("--sv", str(nope))
+        self.assertEqual(code, 1, out)
+        self.assertIn("1 SavedVariables file(s), 0 with reports, 0 report(s) read", out)
+        # the game replaces the file between the read and the check after it
+        doomed = Path(self.dir) / "doomed.lua"
+        shutil.copy(FIXTURE, doomed)
+        real_run = ing.subprocess.run
+
+        def run_then_delete(cmd, *a, **kw):
+            res = real_run(cmd, *a, **kw)
+            if str(doomed) in cmd:
+                doomed.unlink()
+            return res
+        with mock.patch.object(ing.subprocess, "run", side_effect=run_then_delete):
+            code, out = self.run_ingest("--sv", str(doomed), "--sv", str(self.files[1]), "--quiet")
+        self.assertEqual(code, 0, out)
+        self.assertIn("file went away while it was read", out)
+        self.assertIn("2 SavedVariables file(s), 1 with reports, 2 report(s) read", out)
 
     def test_explicit_files_and_no_files(self):
         code, out = self.run_ingest("--sv", str(self.files[0]), "--quiet")

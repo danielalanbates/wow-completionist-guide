@@ -82,14 +82,22 @@ def where(path):
 
 
 def read_reports(path, luajit):
-    """-> (reports list, lastError or None, problem text or None).  Never writes the file."""
-    st0 = os.stat(path)
+    """-> (reports list, lastError or None, problem text or None).  Never writes the file.
+
+    A file that is missing, unreadable or replaced while it is read is a problem for that file only: the run goes on."""
+    try:
+        st0 = os.stat(path)
+    except OSError as e:
+        return [], None, f"cannot read it: {e.strerror or e}"
     try:
         proc = subprocess.run([luajit, str(ROOT / "tools" / "sv_to_json.lua"), path], cwd=str(ROOT),
                               capture_output=True, timeout=300)
     except (OSError, subprocess.TimeoutExpired) as e:
         return [], None, f"converter failed: {e}"
-    st1 = os.stat(path)
+    try:
+        st1 = os.stat(path)
+    except OSError as e:
+        return [], None, f"file went away while it was read (is the game writing it?): {e.strerror or e}"
     if (st0.st_size, st0.st_mtime_ns) != (st1.st_size, st1.st_mtime_ns):
         return [], None, "file changed while it was read (is the game writing it?); run again"
     if proc.returncode != 0:
