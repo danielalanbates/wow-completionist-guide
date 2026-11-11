@@ -636,16 +636,17 @@ def assemble(opts):
     for rel in res.files:
         if rel.startswith("Guides/") and rel.endswith(".lua"):
             shipped_ids.update(GUIDE_ID.findall((stage / rel).read_bytes()))
-    interop_ids = {}
-    for e in sorted(res.excluded, key=lambda e: (e["path"] not in strip, e["path"])):     # the TOC-listed file names it
+    interop_ids = {}            # guide id -> the never-shipped files that register it, TOC-listed files first
+    for e in sorted(res.excluded, key=lambda e: (e["path"] not in strip, e["path"])):
         src = source_of(e["path"])
         if src.is_file() and e["path"].endswith(".lua"):
             for gid in GUIDE_ID.findall(src.read_bytes()):
-                interop_ids.setdefault(gid, e["path"])
+                interop_ids.setdefault(gid, []).append(e["path"])
     for rel in sorted(res.files):
         if not match("Data/RouteOrder_*.lua", rel):
             continue
         rows = ORDER_ROW.findall((stage / rel).read_bytes())
+        fl = rel[len("Data/RouteOrder_"):-len(".lua")]
         res.files[rel]["order_rows"] = len(rows)
         derived = [g for g in rows if g not in shipped_ids and g in interop_ids]
         orphan = [g for g in rows if g not in shipped_ids and g not in interop_ids]
@@ -654,7 +655,7 @@ def assemble(opts):
             for g in derived:
                 p = g.split(b":", 1)[0].decode("utf-8", "replace") + ":"
                 prefixes[p] = prefixes.get(p, 0) + 1
-            files = sorted({interop_ids[g] for g in derived})
+            files = sorted({next((f for f in interop_ids[g] if f"_{fl}" in f), interop_ids[g][0]) for g in derived})
             res.fail("interop-derived", rel, f"{len(derived)} of {len(rows)} baked order row(s) order guides that never ship "
                      f"because they are Questie- or WoW-Pro-derived ({', '.join(f'{k} {v}' for k, v in sorted(prefixes.items()))}; "
                      f"from {', '.join(files[:3])}{' ...' if len(files) > 3 else ''}); rebake over the shipped guides only "
