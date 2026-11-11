@@ -36,6 +36,12 @@ recipe is learned, where reagents come from, skill books and rank quests, and fi
 Which recipes exist on a client, their skill thresholds and reagents, and the Archaeology dig sites come from Blizzard's client tables via wago.tools
 (facts only). See `docs/PROFESSIONS.md`.
 
+## Achievement guides
+
+`Imported_Achievements_mop.lua` and `Imported_Achievements_retail.lua` list Blizzard's achievements and criteria (client tables via
+wago.tools, facts only). Where a criterion has a place, its point comes from the quest's step in `Imported_Wiki_<flavor>.lua` or from a
+wiki NPC page, so these files are shared under the same CC BY-SA 4.0 licence. They are written by `tools/gen_completion_guides.py`.
+
 ## What this licence does not cover
 
 The rest of the add-on is *not* under CC BY-SA. That includes all Lua code, the routing engine, the tools and the
