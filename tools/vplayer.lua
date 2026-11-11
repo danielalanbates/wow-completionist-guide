@@ -18,6 +18,9 @@
 --                                  [--guide ID] [--faction Horde] [--guidecap 20] [--out PATH]
 --                                  [--order author|baked] [--live on|off]   (baked = Data/RouteOrder_<fl>.lua; live = 12-step window)
 --                                  [--chain Alliance|Horde] [--questsperlevel 25]   (play the whole spine with the real chain logic)
+--         luajit tools/vplayer.lua --repro <report id|latest|report.json> [--db PATH] [--check] [--show]   (replay a beta bug report)
+--         luajit tools/vplayer.lua <flavor> --capture [guide id|auto] [--capture-steps N] [--capture-out F]  (make one here)
+--         (tools/vplayer_repro.lua, docs/BETA_REPORTS.md)
 -- Then:   python3 tools/collect_vplayer.py   (folds the TSVs into docs/verification.sqlite)
 package.path = "./?.lua;" .. package.path
 
@@ -46,6 +49,17 @@ for i = 2, #arg do
     elseif a == "--order" then orderMode = arg[i + 1]      -- author | baked (Data/RouteOrder_<fl>.lua, tools/optimize_routes.py)
     elseif a == "--live" then liveWindow = arg[i + 1] ~= "off" -- the 12-step live reorder window on top (default on)
     elseif a == "--verbose" then verbose = true end
+end
+-- --repro / --capture: the report decides the flavor, the order mode, the live window and the spine (tools/vplayer_repro.lua)
+local REPRO, reproOpts, reproReport
+for i = 1, #arg do if arg[i] == "--repro" or arg[i] == "--capture" then REPRO = dofile("tools/vplayer_repro.lua") break end end
+if REPRO then
+    reproOpts = REPRO.ParseArgs(arg)
+    if reproOpts.spec then
+        reproReport = REPRO.Load(reproOpts.spec, reproOpts.db)
+        if reproOpts.show then REPRO.Show(reproReport) os.exit(0) end
+        flavor, orderMode, liveWindow, withSpine = REPRO.Settings(reproReport, withSpine)
+    end
 end
 outPath = outPath or ("docs/vplayer_" .. flavor .. (shardN > 1 and ("_" .. shardI) or "") .. ".tsv")
 local stallPath = outPath:gsub("%.tsv$", "") .. "_stalls.tsv"
@@ -310,6 +324,11 @@ local function levelGateBump()
     end
     if lowest then W.level = lowest return true end
     return false
+end
+
+if REPRO then
+    os.exit(REPRO.Main(reproOpts, reproReport, { NS = NS, W = W, place = place, wipeWorld = wipeWorld, walkTo = walkTo, act = act,
+        load = load, flavor = flavor, setChar = function(f, c, r) FACTION, CLASS, RACE = f, c, r end }))
 end
 
 -- ---------------------------------------------------------------------------
