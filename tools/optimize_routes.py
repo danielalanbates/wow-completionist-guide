@@ -5,7 +5,7 @@ Reads the per-guide travel matrices written by tools/cost_matrix.lua (real Trave
 bakes, per quest guide, the fastest step order that keeps every hard rule:
 
   * A before C before T per quest (several accepts / turn-ins of one quest keep their author order),
-  * PRE: a prerequisite's turn-in before the dependent accept (only edges the author order already keeps),
+  * PRE: a prerequisite's turn-in before every step that names it (only edges the author order already keeps),
   * quest-log capacity (era/forever 20, tbc/mop 25, retail 35 - raised to the author order's own peak
     if a guide already needs more), counting accepts minus turn-ins inside the guide,
   * level gates: a step whose |LVL| is above the guide's start level may only come after as many turn-ins
@@ -26,11 +26,19 @@ relaxation with precedence-impossible arcs removed, minimum spanning tree and He
 min(c_ij, c_ji)) - those ignore precedence and are loose.  opt_gap = (baked - bound) / baked.
 Multi-segment guides (anchors) sum per-segment bounds from the baked chain's segment starts (approximate).
 
-Output:
-  CompletionRoute/Data/RouteOrder_<flavor>.lua   (generated, gitignored; only guides the bake makes faster)
-  <job tmp>/routeopt/<flavor>.jsonl              (one result row per guide, read by tools/collect_routes.py)
+Costs: every constant and rule comes from the cost model (CompletionRoute/Routing/CostModel.lua) through the rows
+tools/cost_matrix.lua writes: the priced points (a step without one rides with the block before it), the matrix (each
+leg at the planning level of the step it leaves from) and "cm" (the no-route cost, the cost-model version, the offline
+flight-path rule).  This file holds no second copy of them; a row without "cm" is refused.
 
-Usage: venv/bin/python tools/optimize_routes.py <flavor> [--in PATH] [--limit-s 30] [--guide ID] [--no-write]
+Output:
+  --lua-out PATH (default CompletionRoute/Data/RouteOrder_<flavor>.lua; generated, gitignored; only guides the bake
+                 makes faster)
+  --out PATH     (default $CR_TMP/routeopt/<flavor>.jsonl; one result row per guide, read by tools/collect_routes.py)
+  CR_TMP defaults to TMP_DEFAULT below (the optimizer's job directory).
+
+Usage: venv/bin/python tools/optimize_routes.py <flavor> [--in PATH] [--out PATH] [--lua-out PATH] [--limit-s 30]
+                                               [--guide ID] [--no-write] [--merge]
 """
 import argparse
 import heapq
@@ -40,10 +48,12 @@ import os
 import sys
 import time
 
-TMP = "/Users/daniel/.claude/jobs/ff3c728a/tmp"
+TMP_DEFAULT = "/Users/daniel/.claude/jobs/ff3c728a/tmp"
+TMP = os.environ.get("CR_TMP") or TMP_DEFAULT
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_CAP = {"era": 20, "forever": 20, "tbc": 25, "mop": 25, "retail": 35}
-NOROUTE = 1800.0          # seconds charged for a leg the router cannot path (same in author and baked)
+NOROUTE = None            # seconds for a leg the router cannot path: the cost model's (row["cm"], use_cost_model)
+HEARTH = None             # seconds an H step (use the hearthstone) costs instead of the trip: the cost model's
 SCALE = 10                # OR-Tools works in integers: deciseconds
 MOD = 2147483647
 
@@ -60,6 +70,18 @@ def checksum(steps):
     for s in steps:
         c = (c * 31 + ord(s[0][0]) + (s[2] or 0)) % MOD
     return c
+
+
+def use_cost_model(rec):
+    """Take the cost model's constants from a cost_matrix row (there is no second copy here)."""
+    global NOROUTE, HEARTH
+    cm = rec.get("cm")
+    if not cm or "noroute" not in cm or "hearth" not in cm:
+        raise SystemExit("row %s has no cost model (\"cm\"): it was written before Routing/CostModel.lua - "
+                         "re-run tools/cost_matrix.lua" % rec.get("id"))
+    NOROUTE = float(cm["noroute"])
+    HEARTH = float(cm["hearth"])
+    return cm
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +181,13 @@ def precedence_edges(steps, blocks):
             add(x, y)
         for x, y in zip(tin, tin[1:]):
             add(x, y)
-    # PRE: every in-guide turn-in of a prerequisite before the dependent accept
+        # a quest with an objective step that ticks by itself (the cost model's PlanSteps, step[11]): its objective
+        # steps keep their author order, so the step that does the objective is the one walked to
+        if any(len(steps[i]) > 11 and steps[i][11] for i in obj):
+            for x, y in zip(obj, obj[1:]):
+                add(x, y)
+    # PRE: every in-guide turn-in of a prerequisite before any step that names it (the client hides such a step until
+    # the prerequisite is done: Core/Conditions.lua; the live window and the re-planner use the same rule)
     turnins = {}
     for i in where:
         s = steps[i]
@@ -167,7 +195,7 @@ def precedence_edges(steps, blocks):
             turnins.setdefault(s[2], []).append(i)
     for i in where:
         s = steps[i]
-        if s[1] == "A" and s[3]:
+        if s[3]:
             for p in s[3]:
                 for t in turnins.get(p, []):
                     add(t, i)
@@ -636,6 +664,7 @@ def ortools_solve(pb, init, time_limit):
 # Per guide
 # ---------------------------------------------------------------------------
 def solve_guide(rec, limit_s, flavor, dp_cap=400000, dp_time=6.0):
+    cm = use_cost_model(rec)
     steps = rec["steps"]
     m = rec["m"]
     start = rec["start"]
@@ -700,7 +729,7 @@ def solve_guide(rec, limit_s, flavor, dp_cap=400000, dp_time=6.0):
         if kind == "anchor":
             i = val[0]
             if steps[i][5] >= 0:
-                c = from_pt(last_pt)(steps[i][5])
+                c = HEARTH if steps[i][0] == "H" else from_pt(last_pt)(steps[i][5])
                 tot_author += c
                 tot_baked += c
                 tot_lb += c
@@ -775,7 +804,7 @@ def solve_guide(rec, limit_s, flavor, dp_cap=400000, dp_time=6.0):
         "opt_gap": round(max(0.0, gap), 4), "method": "+".join(sorted(methods)) or "none",
         "solve_s": round(time.time() - t0, 2), "violations": violations + v2, "dropped_edges": dropped,
         "lb_exact": int(exact_segs == len(segs)), "noroute_author": nr_author, "noroute_baked": nr_baked,
-        "sum": rec["sum"], "n": rec["n"], "order": order1,
+        "sum": rec["sum"], "n": rec["n"], "cmv": cm.get("version"), "taxi": cm.get("taxi"), "order": order1,
     }
 
 
@@ -786,6 +815,10 @@ def chain_cost(rec, order, count_noroute=False):
     for i in order:
         p = rec["steps"][i][5]
         if p < 0:
+            continue
+        if rec["steps"][i][0] == "H":      # use the hearthstone: the cost model's hearth cost, not the trip
+            t += HEARTH
+            prev = p
             continue
         v = start[p] if prev is None else m[prev][p]
         t += NOROUTE if v < 0 else v
@@ -816,14 +849,11 @@ def check_steps(rec, order):
         if s[1] == "T" and s[2]:
             tin.setdefault(s[2], []).append(i)
     for i, s in enumerate(steps):
-        if s[1] == "A" and s[3]:
+        if s[3]:
             for p in s[3]:
                 for t in tin.get(p, []):
                     if t < i and pos[t] > pos[i]:
                         bad += 1
-        if s[6] or s[1] == "O":
-            # an anchor keeps every step on its side
-            pass
     # anchors: the set of steps before each anchor must be the same as in the author order
     seen = set()
     for k, i in enumerate(order):
@@ -847,10 +877,16 @@ def encode(order):
     return ",".join(out)
 
 
+def model_keeps(r):
+    """the optimizer's own rule: no violation and more than 1 s faster in the model"""
+    return r["violations"] == 0 and r["baked_s"] < r["author_s"] - 1.0
+
+
 def write_lua(flavor, rows, path):
-    keep = [r for r in rows if r["violations"] == 0 and r["baked_s"] < r["author_s"] - 1.0]
-    keep.sort(key=lambda r: r["id"])
-    with open(path, "w") as f:
+    keep = sorted((r for r in rows if model_keeps(r)), key=lambda r: r["id"])
+    path = os.path.realpath(path)    # a linked RouteOrder file (a worktree's) is written where it lives, the link stays
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".part", "w") as f:
         f.write("-- Completionist's Guide :: RouteOrder_%s.lua - GENERATED %s by tools/optimize_routes.py\n" % (flavor, time.strftime("%Y-%m-%d")))
         f.write("-- Baked step order per quest guide (offline route optimizer, FINISH_PLAN W3). Own data: travel times from\n")
         f.write("-- the addon's TravelGraph (tools/cost_matrix.lua). Applied by Core/Guide.lua G.Steps only when the guide's step\n")
@@ -861,6 +897,7 @@ def write_lua(flavor, rows, path):
         f.write("NS.RouteOrder = NS.RouteOrder or {}\nlocal O = NS.RouteOrder\n")
         for r in keep:
             f.write("O[%s] = { n = %d, sum = %d, o = %s }\n" % (json.dumps(r["id"]), r["n"], r["sum"], json.dumps(encode(r["order"]))))
+    os.replace(path + ".part", path)
     return len(keep)
 
 
@@ -869,17 +906,19 @@ def main():
     ap.add_argument("flavor")
     ap.add_argument("--in", dest="inp")
     ap.add_argument("--out")
+    ap.add_argument("--lua-out", help="RouteOrder file to write (default CompletionRoute/Data/RouteOrder_<flavor>.lua)")
     ap.add_argument("--limit-s", type=float, default=None, help="cap the per-guide time limit (default min(30, 2+0.12*blocks))")
     ap.add_argument("--guide")
     ap.add_argument("--dp-time", type=float, default=6.0, help="seconds the exact metric DP may spend per segment")
     ap.add_argument("--dp-cap", type=int, default=400000, help="subset cap of the exact metric DP (lower bound)")
-    ap.add_argument("--no-write", action="store_true", help="do not write Data/RouteOrder_<flavor>.lua")
+    ap.add_argument("--no-write", action="store_true", help="do not write the RouteOrder file")
     ap.add_argument("--merge", action="store_true", help="keep rows from an earlier --out file for guides not in this input")
     a = ap.parse_args()
     fl = a.flavor
     inp = a.inp or os.path.join(TMP, "costmx", fl + ".jsonl")
     outp = a.out or os.path.join(TMP, "routeopt", fl + ".jsonl")
-    os.makedirs(os.path.dirname(outp), exist_ok=True)
+    lua_out = a.lua_out or os.path.join(REPO, "CompletionRoute", "Data", "RouteOrder_%s.lua" % fl)
+    os.makedirs(os.path.dirname(os.path.abspath(outp)), exist_ok=True)
     rows = []
     prev = {}
     if a.merge and os.path.exists(outp):
@@ -903,14 +942,15 @@ def main():
             if len(rows) % 10 == 0:
                 print("%d guides %.0fs last %s blocks=%d author=%.0f baked=%.0f lb=%.0f %s" % (
                     len(rows), time.time() - t0, r["id"], r["blocks"], r["author_s"], r["baked_s"], r["lower_bound_s"], r["method"]), file=sys.stderr)
-        for r in prev.values():
-            rows.append(r)
+    rows += list(prev.values())
+    with open(outp + ".part", "w") as fo:
+        for r in rows:
             fo.write(json.dumps(r) + "\n")
     os.replace(outp + ".part", outp)
     nviol = sum(r["violations"] for r in rows)
     if not a.no_write:
-        n = write_lua(fl, rows, os.path.join(REPO, "CompletionRoute", "Data", "RouteOrder_%s.lua" % fl))
-        print("wrote Data/RouteOrder_%s.lua: %d of %d guides baked" % (fl, n, len(rows)), file=sys.stderr)
+        n = write_lua(fl, rows, lua_out)
+        print("wrote %s: %d of %d guides baked" % (lua_out, n, len(rows)), file=sys.stderr)
     print("DONE %s: %d guides %.0fs, violations=%d -> %s" % (fl, len(rows), time.time() - t0, nviol, outp), file=sys.stderr)
 
 

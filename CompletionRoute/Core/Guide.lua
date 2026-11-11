@@ -248,6 +248,15 @@ end
 -- addon's own travel graph). Same checksum as the generator: a guide regenerated since the bake no longer
 -- matches and simply keeps its author order. Spine entries reuse their zone guide's text, so they look up
 -- `part`. The live window (Router.OrderSteps) still reorders the next steps on top of this order.
+-- A step's place as integers: zone id and first map point in 0.5 map percent steps (+1; 0 = no point).
+-- tools/cost_matrix.lua writes these into its rows next to the action and quest id.
+local function half(v) return math.floor(v * 200 + 0.5) + 1 end
+function G.RouteChecksumParts(s)
+    local p = s.coords and s.coords[1]
+    local hx, hy = 0, 0
+    if p and p.x and p.y then hx, hy = half(p.x), half(p.y) end
+    return s.action:byte(), (s.qid and s.qid[1]) or 0, tonumber(s.zone) or 0, hx, hy
+end
 function G.RouteChecksum(steps)
     local c = 0
     for _, s in ipairs(steps) do c = (c * 31 + s.action:byte() + ((s.qid and s.qid[1]) or 0)) % 2147483647 end

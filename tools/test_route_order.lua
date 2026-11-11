@@ -9,7 +9,7 @@
 --   * every generated RouteOrder file loads on its own client only (flavor gate; forever != era);
 --   * every baked guide (and every spine entry that reuses one) parses into a permutation of its steps that
 --     never breaks precedence: accept before objective before turn-in per quest, a prerequisite's turn-in before
---     the dependent accept, anchors (non-routable / sticky steps) with exactly the author's steps before them.
+--     every step that names it, anchors (non-routable / sticky steps) with exactly the author's steps before them.
 --     Only rules the author order itself keeps are checked - the same rule the optimizer is given.
 -- Generated files are gitignored, so a fresh clone runs only the mechanics part.
 -- Run: luajit tools/test_route_order.lua   (from repo root)
@@ -115,11 +115,11 @@ local function violations(baked)
         end
     end
     for _, s in ipairs(baked) do
-        if ACCEPT[s.action] and s.pre then
+        if s.pre then
             for _, p in ipairs(s.pre) do
                 for _, t in ipairs(tin[p] or {}) do
                     if t.index < s.index and pos[t.index] > pos[s.index] then
-                        bad = bad + 1 why = why or ("accept %s before PRE %d turn-in"):format(tostring(s.qid and s.qid[1]), p)
+                        bad = bad + 1 why = why or ("%s %s before PRE %d turn-in"):format(s.action, tostring(s.qid and s.qid[1]), p)
                     end
                 end
             end

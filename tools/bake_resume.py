@@ -23,7 +23,7 @@ Usage:
   python3 tools/bake_resume.py [--flavors mop,retail] [--dry-run] [--force-mapfix] [--force-file tbc=ids.txt]
                                [--batch 20] [--limit-s S] [--dp-time S]
 Default solver limits are optimize_routes.py's own (full quality). Results: <TMP>/routeopt/<flavor>.jsonl, where TMP is
-the optimizer's job directory (env CR_TMP, default the path hardcoded in tools/optimize_routes.py).
+the optimizer's job directory (env CR_TMP, default TMP_DEFAULT in tools/optimize_routes.py).
 """
 import argparse
 import json
@@ -48,7 +48,7 @@ def opt_tmp():
     if os.environ.get("CR_TMP"):
         return os.environ["CR_TMP"]
     src = open(os.path.join(REPO, "tools", "optimize_routes.py"), encoding="utf-8").read()
-    return re.search(r'^TMP = "([^"]+)"', src, re.M).group(1)
+    return re.search(r'^TMP_DEFAULT = "([^"]+)"', src, re.M).group(1)
 
 
 def python_bin():
