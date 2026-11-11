@@ -34,8 +34,13 @@ Step location priority (docs/WIKI_DATA_SPEC.md 3/4):
 Item-started quests (Blizzard ItemSparse.StartQuestID, tools/db2/<flavor>/ItemSparse.csv): the accept step is where the
 item is obtained.  Its point comes from the wiki item page (the {{Coords}} in its "found / fished / dropped" sentences,
 else the drop source pages), found through the questbox start link or, when the wiki starts the quest elsewhere or not
-at all, through the item id.  A source that is only a zone gives a zone-level accept (|Z| without |M|, "zone only" in the
-note).  The accept carries |U|<item>| so the arrow offers "Use <item>" once the item is in the bags.
+at all, through the item id; the note names the page the point came from.  A source page about a zone or continent
+(its {{co}} rows are neighbours and landmarks) or a topic page whose only {{co}} rows stand in body sections (a
+profession, holiday or system article) never gives a point: a zone source gives a zone-level accept (|Z| without |M|,
+"zone only" in the note).  The accept carries |U|<item>|: the arrow switches to "Use <item>" when the item is in the
+bags and the player is within 40 yd of the step's point (or the step has no location; Routing/Router.lua).  In the
+default (fallback) build, a point an item page gives (an accept, a turn-in or an objective) gives way to the client's
+own fallback point for the step when the two are more than 300 yd apart or on different continents.
 Chains: the questbox `previous` links become |PRE| (any one of them, ";"), and a `next` link adds the reverse edge.
 Only quests that exist on the same client are kept in PRE, so a chain never waits for a quest that cannot exist.
 World quests, callings and emissary quests are left out (time-limited, not completionist steps).
@@ -398,10 +403,28 @@ class Gen:
             return bool(classic) or (0 < (badge or 0) <= e)
         return (not classic) and 0 < (badge or 0) <= e
 
+    def zone_page(self, page, fl):
+        """is this the wiki page of a zone, city or continent?  Its {{co}} rows are neighbours, entrances and landmarks
+        ("Hellfire Peninsula" lists the Exodar portal, "Silithus" the road to Un'Goro Crater), never the zone itself"""
+        for S in (self.atlas.sets[fl], self.atlas.sets["retail"]):
+            mid = S.resolve(page)
+            if mid is not None and S.maps[mid]["type"] <= 3:
+                return True
+        return False
+
+    def topic_page(self, page):
+        """a 'place' page whose every {{co}} row stands in a body section: a profession, class, holiday, expansion or
+        system article ("Tailoring", "Noblegarden", "Pet tamer") listing other places, not a place an item drops in"""
+        pts = self.npc_pts.get(page) or []
+        return bool(pts) and all(str(p[3]).startswith("body:") for p in pts)
+
     def entity_coords(self, title, fl, added, home_name, depth=0):
-        """(mapID, 'x,y', how) for a linked page; items follow their drop sources"""
+        """(mapID, 'x,y', page, exact) for a linked page; items follow their drop sources (depth 1).  A zone's page
+        gives no point (a zone-level answer, item_zone), nor does a topic page reached as an item's source."""
         page, kind = self.resolve_title(title)
         if not page:
+            return None
+        if kind in ("place", None) and (self.zone_page(page, fl) or (depth and self.topic_page(page))):
             return None
         if kind in ("npc", "object", "place") or page in self.npc_pts:
             pts, ex = self.page_points(page, fl, home_name)
@@ -420,6 +443,20 @@ class Gen:
                 if r:
                     return r
         return None
+
+    def far_from_fallback(self, maps, c, f, limit=300.0):
+        """dev builds: is the wiki point c = (mapID, 'x,y;...') more than `limit` yd from the fallback record f =
+        ('x,y;...', 'mapID; name', source), or on another continent?"""
+        try:
+            fz = int(f[1].split(";")[0])
+            fx, fy = (float(v) for v in f[0].split(";")[0].split(","))
+            wx, wy = (float(v) for v in c[1].split(";")[0].split(","))
+        except (ValueError, TypeError, IndexError):
+            return False
+        a, b = maps.to_world(c[0], wx, wy), maps.to_world(fz, fx, fy)
+        if not a or not b or a[0] != b[0]:
+            return True
+        return ((a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2) ** 0.5 > limit
 
     def item_zone(self, page, fl, added):
         """a zone-only place for an item page whose sources name a zone but give no point: (mapID, zone name) or None"""
@@ -532,6 +569,18 @@ class Gen:
                                        if d >= 0 else "wiki point is for another game version; other continent"))
                 return (("Z", f), f" (location: {f[2]}; the wiki lists another version's position)", "fallback")
 
+            def item_point_ok(e, act, qo=None):
+                """a point an item page gave (its own {{co}} or a drop source's page) for this step: in the default build
+                it gives way to the client's fallback point for the step when the two are more than 300 yd apart or on
+                different continents (counted in st).  (Checking it against the quest's own zone was tried and dropped:
+                in a sample of 32 such points about half were right, e.g. Frozen Ectoplasm from Winterspring for a
+                Tanaris quest.)"""
+                f = fb.get(qid, act, qo) if fb else None
+                if f and self.far_from_fallback(maps, (e[0], e[1]), f):
+                    st["item_points_far_from_fallback"] += 1
+                    return False
+                return True
+
             def loc_tag(kind, ent_list, act, qo=None):
                 """-> (M/Z text, note suffix, source) for an A/T step"""
                 nonlocal first_map
@@ -543,6 +592,12 @@ class Gen:
                 for e in ent_list:
                     if e.get("title"):
                         c = self.entity_coords(e["title"], fl, added, home_name)
+                        if c and self.resolve_title(e["title"])[0] in self.items:
+                            # an item page: the point is where the item is found or dropped; say which page gave it
+                            if not item_point_ok(c, act, qo):
+                                continue
+                            v = versioned((c[0], c[1]), c[3], act, qo)
+                            return (v[0], v[1] + f" (point: the wiki's {clean(c[2], 60)} page)", v[2]) if v[2] == "wiki" else v
                         if c:
                             return versioned((c[0], c[1]), c[3], act, qo)
                 if fb:
@@ -576,7 +631,10 @@ class Gen:
                 utag = f"U|{starters[0][0]}|"
                 page = item and self.resolve_title(item)[0]
                 if not page:
-                    page = next((self.item_by_id[i] for i, _ in starters if i in self.item_by_id), None)
+                    # by item id, else the questbox start link when it is the item's page ("Gronnling Scale")
+                    page = next((self.item_by_id[i] for i, _ in starters if i in self.item_by_id), None) or next(
+                        (self.resolve_title(e["title"])[0] for e in starts
+                         if e.get("title") and self.resolve_title(e["title"])[0] in self.items), None)
                     if not who or not c:
                         item = page or starters[0][1] or None
                     else:
@@ -584,9 +642,13 @@ class Gen:
                         also = re.sub(r"\s*\(item\)$", "", page or starters[0][1] or "") or None
                 if page and (not c or src == "fallback"):
                     e = self.entity_coords(page, fl, added, home_name)
+                    if e and not item_point_ok(e, "A"):
+                        e = None    # default build: far from the client's own point for the accept
                     if e:
                         c, suf, src = versioned((e[0], e[1]), e[3], "A")
                         item, also = item or page, None
+                        if src == "wiki":
+                            suf += f" (point: the wiki's {clean(e[2], 60)} page)"
                     elif not c:
                         zone_only = self.item_zone(page, fl, added)
                 st["item_quests_point"] += 1 if c else 0
@@ -608,7 +670,7 @@ class Gen:
                     first_map = c[0]
             elif zone_only is not None:
                 lines.append(f"A {name}|QID|{qid}|{ptag}{utag}Z|{zone_only}; {maps.maps[zone_only]['name']}|{gate}"
-                             f"N|{note} (zone only: the wiki names where it drops but gives no point)|")
+                             f"N|{note} (zone only: the wiki's {clean(page, 60)} page names where it drops, with no point)|")
                 src = "zone"
             else:
                 lines.append(f"A {name}|QID|{qid}|{ptag}{utag}{gate}N|{note} No coordinates on the wiki.|")
@@ -638,6 +700,8 @@ class Gen:
                     cc = versioned(cc, page_exact, "C", qo) if cc else None
                 if not cc and b["target_title"]:
                     e = self.entity_coords(b["target_title"], fl, added, home_name)
+                    if e and self.resolve_title(b["target_title"])[0] in self.items and not item_point_ok(e, "C", qo):
+                        e = None    # default build: an item's drop point far from the client's objective pin
                     if e:
                         cc = versioned((e[0], e[1]), e[3], "C", qo)
                 if not cc and fb:
@@ -831,6 +895,9 @@ def main():
               f"({100*st['steps_none']/s:.1f}%); DB2-only gap {st['db2_only_gap']}; old guides: "
               f"{st['old_quests_now_wiki']} quests now from wiki, {st['gap_quests_kept']} kept in _gaps; {st['file_kb']} KB")
         print(f"       zone guides {st['zone_guides']} -> {st['guides']} guides after splitting (gen_spine.MAX_STEPS)")
+        print(f"       item-started quests {st['item_quests']}: accept point {st['item_quests_point']}, zone only "
+              f"{st['item_quests_zone']}; item-page points dropped for the fallback point (default build, over 300 yd): "
+              f"{st['item_points_far_from_fallback']}")
         if "--no-spine" not in sys.argv:
             gen_spine.build_spine(fl, flavor_gate(fl))
     c = g.write_conflicts(flavors)
