@@ -60,18 +60,97 @@ function P.Load(id)
         P.steps = merged
         NS:Print(("Access: %d steps to unlock %s first"):format(#prefix, prefix[1].accessTitle or "the area"))
     end
+    -- Quests this character dropped (/cr skip, Core/Skip.lua) leave every guide: show the guide rebuilt without them.
+    -- P.baseSteps keeps the guide's own list; progress stays keyed by author index either way.
+    if NS.Replan then NS.Replan.Cancel() end
+    P.baseSteps = P.steps
+    local cut, key
+    P.steps, cut, key = P.Rebuilt(P.baseSteps)
     NS.db.char.guide = id
     dirty = true
     P.cursor = nil
     if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
-    NS:Print("Guide: " .. (g.name or g.id) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")")
+    NS:Print("Guide: " .. (g.name or g.id) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")"
+        .. ((cut or 0) > 0 and (", %d left out for skipped quests"):format(cut) or ""))
     P.Refresh()
+    -- opened for the first time since quests were dropped from it: re-plan it once (the decision is saved)
+    if (cut or 0) > 0 and P.guide == g and NS.Skip and not NS.Skip.HasPlan(g.id, key) then P.StartReplan(key) end
     if g.loop then
         if NS.Farm and NS.Farm.OnLoad then pcall(NS.Farm.OnLoad, g) end
         P.StartAtNearest()
     end
     NS:Fire("GUIDE_LOADED", g)
     return true
+end
+
+-- ---------------------------------------------------------------------------
+-- Rebuilt guides (quest-level skips, Core/Skip.lua)
+-- ---------------------------------------------------------------------------
+-- The guide as this character sees it: its own steps minus every dropped or locked quest, in the re-planned order
+-- saved for exactly that set (if any).  Returns list, steps left out, rebuild key.
+function P.Rebuilt(base)
+    local Sk = NS.Skip
+    if not (Sk and base) or (P.guide and P.guide.loop) then return base, 0, nil end
+    return Sk.Rebuild(base, P.guide and P.guide.id)
+end
+
+-- Rebuild the loaded guide after quests were dropped or brought back: same steps minus the removed quests, the current
+-- step re-chosen by the route at once (the arrow follows), then a whole-guide re-plan in the background.
+function P.Rebuild(noReplan)
+    if not (P.guide and P.baseSteps) then return end
+    local g, old = P.guide, P.steps
+    if NS.Replan then NS.Replan.Cancel() end
+    local list, cut, key = P.Rebuilt(P.baseSteps)
+    P.steps = list
+    P.cursor = nil
+    dirty = true
+    if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
+    if NS.Router and NS.Router.Invalidate then NS.Router.Invalidate() end
+    -- the step set changed (a drop, or an unskip giving steps back): re-plan, unless this exact rebuild was decided before
+    local changed = #old ~= #list
+    if not changed then
+        local was = {}
+        for _, s in ipairs(old) do was[s] = true end
+        for _, s in ipairs(list) do if not was[s] then changed = true break end end
+    end
+    NS:Fire("GUIDE_REBUILT", g, cut)
+    P.Refresh()
+    if not noReplan and changed and P.guide == g and P.steps == list and not (g.loop or (NS.Skip and NS.Skip.HasPlan(g.id, key))) then
+        P.StartReplan(key or (NS.Skip and NS.Skip.PlanKey(P.baseSteps)))
+    end
+end
+
+-- Whole-guide travel-time re-plan (Routing/Replan.lua), time-sliced; the result is saved under the rebuild key so a
+-- /reload shows the same order without re-planning.
+function P.StartReplan(key)
+    local RPn = NS.Replan
+    if not (RPn and P.guide and P.steps and NS.Router) or P.guide.loop then return end
+    -- a bulk sweep (/cr verifyall) loads every guide in a row: nothing to plan for
+    if NS.Account and NS.Account.scratch then return end
+    local g, list = P.guide, P.steps
+    return RPn.Start({ guide = g.id, list = list, key = key, onDone = function(res)
+        if not res then return end
+        local Sk = NS.Skip
+        local t = Sk and Sk.Store(true)
+        if t and key then t.plans[g.id] = { k = key, o = res.accepted and Sk.EncodeOrder(res.list) or false } end
+        if res.accepted and P.guide == g and P.steps == list then
+            P.steps = res.list
+            P.cursor = nil
+            dirty = true
+            if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
+            NS:Debug(("re-plan: %s %.0fs -> %.0fs"):format(g.id, res.baseCost, res.newCost))
+            P.Refresh()
+        end
+    end })
+end
+
+-- How many steps of the list on screen are ticked done (ticks of steps left out for skipped quests do not count)
+function P.VisibleDone()
+    if not (P.guide and P.steps) then return 0 end
+    local d = charDone()
+    local n = 0
+    for _, s in ipairs(P.steps) do if d[s.index] then n = n + 1 end end
+    return n
 end
 
 function P.IsDone(step)
@@ -108,14 +187,16 @@ function P.Undo()
     local pos = {}
     for k, st in ipairs(P.steps or {}) do pos[st.index] = k end
     local function at(idx) return pos[idx] or idx end
+    -- a step left out of the rebuilt guide (its quest was skipped, Core/Skip.lua) is not on screen: never reopen it
+    local function shown(idx) return pos[idx] ~= nil or not (P.baseSteps and P.baseSteps ~= P.steps) end
     local limit = P.current and at(P.current.index) or math.huge
     local best
-    local function consider(idx) if at(idx) < limit and (not best or at(idx) > at(best)) then best = idx end end
+    local function consider(idx) if shown(idx) and at(idx) < limit and (not best or at(idx) > at(best)) then best = idx end end
     for idx in pairs(d) do consider(idx) end
     for idx in pairs(s) do consider(idx) end
     if not best then   -- nothing before the current step: fall back to the newest done step anywhere
-        for idx in pairs(d) do if not best or at(idx) > at(best) then best = idx end end
-        for idx in pairs(s) do if not best or at(idx) > at(best) then best = idx end end
+        for idx in pairs(d) do if shown(idx) and (not best or at(idx) > at(best)) then best = idx end end
+        for idx in pairs(s) do if shown(idx) and (not best or at(idx) > at(best)) then best = idx end end
     end
     if not best then return end
     charReopened()[best] = true
