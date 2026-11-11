@@ -25,7 +25,7 @@ import sqlite3
 import subprocess
 import sys
 
-TMP = "/Users/daniel/.claude/jobs/ff3c728a/tmp"
+TMP = os.environ.get("CR_TMP") or os.path.expanduser("~/.claude/jobs/ff3c728a/tmp")   # as tools/optimize_routes.py
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB = os.path.join(REPO, "docs", "verification.sqlite")
 FLAVORS = ["era", "tbc", "mop", "retail", "forever"]

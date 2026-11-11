@@ -48,7 +48,7 @@ for i = 2, #arg do
     elseif a == "--verify" then nverify = tonumber(arg[i + 1]) end
 end
 prefixes = prefixes or { "wiki:", "qdb:", "qpoi:" }   -- the quest guides: wiki zone guides + the _gaps guides
-outPath = outPath or ((os.getenv("CR_TMP") or "/Users/daniel/.claude/jobs/ff3c728a/tmp") .. "/costmx/" .. flavor .. ".jsonl")
+outPath = outPath or ((os.getenv("CR_TMP") or ((os.getenv("HOME") or ".") .. "/.claude/jobs/ff3c728a/tmp")) .. "/costmx/" .. flavor .. ".jsonl")
 
 local TOC = { era = 11507, tbc = 20506, mop = 50504, retail = 120100, forever = 16001 }
 local TAXI = { era = "Data/Taxi_era.lua", tbc = "Data/Taxi_tbc.lua", mop = "Data/Taxi_mop.lua", retail = "Data/Taxi_retail.lua",

@@ -65,7 +65,7 @@ import subprocess
 import sys
 import time
 
-TMP_DEFAULT = "/Users/daniel/.claude/jobs/ff3c728a/tmp"
+TMP_DEFAULT = os.path.expanduser("~/.claude/jobs/ff3c728a/tmp")
 TMP = os.environ.get("CR_TMP") or TMP_DEFAULT
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_CAP = {"era": 20, "forever": 20, "tbc": 25, "mop": 25, "retail": 35}

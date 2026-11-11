@@ -15,7 +15,7 @@ First Aid does not exist on retail (wiki: removed in patch 8.0.1).
 ## Regenerate
 
 ```
-/Users/daniel/.claude/jobs/<job>/tmp/heavy.sh python3 tools/wiki/gen_professions.py [era tbc mop retail forever]
+~/Downloads/CompletionistGuide-work/heavy.sh python3 tools/wiki/gen_professions.py [era tbc mop retail forever]
 luajit tools/test_professions.lua
 ```
 

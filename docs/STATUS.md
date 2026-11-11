@@ -898,7 +898,7 @@ Per operational directives ("Keep a .app version of any apps made in my applicat
 
 ## Storage & Headroom Compliance
 * Available disk space maintained comfortably above the 8 GB threshold (> 15 GiB available on `/System/Volumes/Data`).
-* Project boundary preserved (no code written directly to `/Users/daniel`).
+* Project boundary preserved (no code written directly to the home folder).
 
 # Status / handoff (2026-08-25)
 
