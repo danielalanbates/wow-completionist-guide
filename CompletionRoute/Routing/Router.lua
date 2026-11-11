@@ -99,7 +99,8 @@ end
 local WALK_ONLY_BELOW = 700  -- yards: below this, never bother with the full graph
 
 -- pairwise: seconds between two steps (no hearth — hearth is a one-shot resource)
-function R.TravelSeconds(a, b)
+-- tick (optional) is handed to TravelGraph.FindPath: the quest-skip re-planner yields from it (Routing/Replan.lua)
+function R.TravelSeconds(a, b, tick)
     local ax, ay, ai = R.StepWorld(a)
     local bx, by, bi = R.StepWorld(b)
     if not ax or not bx then return nil end
@@ -108,11 +109,11 @@ function R.TravelSeconds(a, b)
         local d = math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2)
         if d < WALK_ONLY_BELOW then return d * (NS.db.profile.routing.terrainFactor or 1.25) / speed end
     end
-    local p = TG.FindPath(ax, ay, ai, bx, by, bi, { hearth = false, speed = speed })
+    local p = TG.FindPath(ax, ay, ai, bx, by, bi, { hearth = false, speed = speed, tick = tick })
     return p and p.cost or nil
 end
 local EXIT_INSTANCE_SECONDS = 30
-function R.TravelSecondsFromPlayer(b)
+function R.TravelSecondsFromPlayer(b, tick)
     local map, x, y, inst, wx, wy = U.PlayerPos()
     local bx, by, bi = R.StepWorld(b)
     if not wx or not bx then return nil end
@@ -123,7 +124,7 @@ function R.TravelSecondsFromPlayer(b)
     if inst ~= bi and I and I.IsInstanceMap(map) then
         local ex, ey, ei = I.Entrance(map)
         if ex then
-            local p = TG.FindPath(ex, ey, ei, bx, by, bi, { speed = speed })
+            local p = TG.FindPath(ex, ey, ei, bx, by, bi, { speed = speed, tick = tick })
             return p and (p.cost + EXIT_INSTANCE_SECONDS) or nil
         end
     end
@@ -131,8 +132,61 @@ function R.TravelSecondsFromPlayer(b)
         local d = math.sqrt((wx - bx) ^ 2 + (wy - by) ^ 2)
         if d < WALK_ONLY_BELOW then return d * (NS.db.profile.routing.terrainFactor or 1.25) / speed end
     end
-    local p = TG.FindPath(wx, wy, inst, bx, by, bi, { speed = speed })
+    local p = TG.FindPath(wx, wy, inst, bx, by, bi, { speed = speed, tick = tick })
     return p and p.cost or nil
+end
+
+-- The player's position as a point for TravelRow (inside an instance: with its door, for goals outside it)
+function R.PlayerPoint()
+    local map, x, y, inst, wx, wy = U.PlayerPos()
+    if not wx then return nil end
+    local pt = { wx = wx, wy = wy, inst = inst }
+    local I = NS.Instances
+    if I and map and I.IsInstanceMap(map) then
+        local ex, ey, ei = I.Entrance(map)
+        if ex then pt.exit = { wx = ex, wy = ey, inst = ei } end
+    end
+    return pt
+end
+
+-- Seconds from point `a` to every point in `goals` ({ wx, wy, inst }) by TravelSeconds' rule - a walk below 700 yards,
+-- else the graph without the hearth - from ONE graph search (TravelGraph.FindPaths) instead of one per goal.  a.exit
+-- (R.PlayerPoint inside an instance): goals on another continent start from the door, plus the walk out, as
+-- TravelSecondsFromPlayer does.  opts: speed, walkFactor, graph, tick (TravelGraph.FindPaths) and terrainFactor (the
+-- short-walk factor).  The quest-skip re-planner (Routing/Replan.lua) fixes all of them for a whole job.
+function R.TravelRow(a, goals, opts, out)
+    opts = opts or {}
+    out = out or {}
+    local speed = opts.speed or U.TravelSpeed()
+    local tfShort = opts.terrainFactor or (NS.db.profile.routing.terrainFactor or 1.25)
+    local far, farAt, out2, out2At = {}, {}, {}, {}
+    for i = 1, #goals do
+        local g = goals[i]
+        out[i] = nil
+        if g and a then
+            if a.exit and g.inst ~= a.inst then
+                out2[#out2 + 1] = g out2At[#out2At + 1] = i
+            else
+                local short = false
+                if g.inst == a.inst then
+                    local dx, dy = a.wx - g.wx, a.wy - g.wy
+                    local d = math.sqrt(dx * dx + dy * dy)
+                    if d < WALK_ONLY_BELOW then out[i] = d * tfShort / speed short = true end
+                end
+                if not short then far[#far + 1] = g farAt[#farAt + 1] = i end
+            end
+        end
+    end
+    if #far > 0 then
+        local res = TG.FindPaths(a.wx, a.wy, a.inst, far, opts)
+        for j = 1, #far do out[farAt[j]] = res[j] end
+    end
+    if #out2 > 0 then
+        local e = a.exit
+        local res = TG.FindPaths(e.wx, e.wy, e.inst, out2, opts)
+        for j = 1, #out2 do out[out2At[j]] = res[j] and (res[j] + EXIT_INSTANCE_SECONDS) or nil end
+    end
+    return out
 end
 
 -- The quest log's size now and its capacity, for the repair's log check (nil when the client will not say).
@@ -151,6 +205,7 @@ local function questLog()
     end
     return quests or entries or 0, cap or QUEST_LOG_CAP[NS.isForever and "era" or NS.flavor]
 end
+R.QuestLog = questLog
 
 -- Reorder the upcoming window (Routing/StepOrder.lua): the baked order unless a repair wins by a real margin.
 function R.OrderSteps(steps)

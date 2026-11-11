@@ -515,11 +515,16 @@ function TG.InstReachable(a, b)
 end
 
 TG.stats = { calls = 0, pops = 0, relax = 0, capped = 0, skipped = 0 }   -- profiling counters (cheap; read by tools/route_sweep.lua)
+-- opts.tick (optional): called after every node the search settles.  The quest-skip re-planner (Routing/Replan.lua)
+-- runs inside a coroutine and passes a tick that yields when its frame budget is spent, so one long search (a retail
+-- continent is ~700 pops, tens of ms in plain Lua) is spread over several frames.  A search that yielded does not
+-- write its answer into the path cache if the graph was rebuilt while it waited.
 function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     TG.stats.calls = TG.stats.calls + 1
     if not TG.built then TG.Build() end
     if not (sx and gx and sinst and ginst) then return nil end
     opts = opts or {}
+    local tick, cache0 = opts.tick, TG.pathCache
     local c = cfg()
     local speed = opts.speed or U.TravelSpeed()
     local useHearth = (opts.hearth == nil) and (c.hearth ~= false) or opts.hearth
@@ -615,6 +620,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             if u == goal then break end
             iterations = iterations + 1
             TG.stats.pops = TG.stats.pops + 1
+            if tick then tick() end
             if iterations > 20000 then TG.stats.capped = TG.stats.capped + 1 break end
             -- explicit edges
             for _, e in ipairs(u.edges) do
@@ -634,6 +640,8 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
             relaxWalk(u, du)
         end
     end
+    -- a ticked search may have waited across a graph rebuild: answer, but keep it out of the new cache
+    if tick and TG.pathCache ~= cache0 then ckey = nil end
     if not d[goal] then return TG.PathCacheStore(ckey, best) end
     if best and best.cost <= d[goal] + 1 then return TG.PathCacheStore(ckey, best) end
     -- rebuild path
@@ -659,6 +667,224 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
         else merged[#merged + 1] = l end
     end
     return TG.PathCacheStore(ckey, { cost = d[goal], legs = merged })
+end
+
+-- ---------------------------------------------------------------------------
+-- One source, many goals (the quest-skip re-planner's cost rows, Routing/Replan.lua)
+-- ---------------------------------------------------------------------------
+-- The graph as it is now, for a job that runs over many frames: the node lists, the road grid, continent connectivity,
+-- the routing settings and which flight masters may be used.  TravelGraph.Build replaces these tables (a quest turn-in,
+-- a learned flight path), so a job priced on one snapshot never mixes costs from two graphs.
+function TG.Snapshot()
+    if not TG.built then TG.Build() end
+    local c = cfg()
+    local snap = { nodes = TG.nodes, byInst = TG.byInst or {}, roadGrid = TG.roadGrid, instFind = TG.instFind, instComp = TG.instComp,
+                   useTaxi = c.taxi ~= false, useTransit = c.transit ~= false, roadFactor = c.roadFactor or 1.0,
+                   preferTaxi = c.preferTaxi and true or false }
+    if TG.TaxiPolicy() ~= "faction" then
+        local ok = {}
+        for _, n in ipairs(TG.nodes) do if n.kind == "taxi" or n.taxiID then ok[n] = TG.TaxiUsable(n) and true or false end end
+        snap.taxiOK = ok
+    end
+    return snap
+end
+-- the off-road walking factor FindPath uses (flying flattens the terrain)
+function TG.WalkFactor() return (U.CanFly and U.CanFly()) and 1.05 or (cfg().terrainFactor or 1.25) end
+
+local function snapReachable(gr, a, b)
+    if a == b then return true end
+    if not gr.instFind then return true end
+    if not gr.instComp[a] or not gr.instComp[b] then return false end
+    return gr.instFind(a) == gr.instFind(b)
+end
+
+-- FindPaths(sx, sy, sinst, goals, opts, out) -> out[i] = seconds to goals[i] ({wx, wy, inst}), nil = no route.
+-- Exactly what FindPath(..., { hearth = false }) costs for each goal one by one (tools/test_skip.lua checks it), from ONE
+-- search: every goal is a node of it, reached by walking from any graph node on its continent, and the search stops
+-- when the last goal is settled.  opts: speed (yd/s), walkFactor (TG.WalkFactor), graph (TG.Snapshot), tick (called
+-- after every settled node and every 64 walking links: the re-planner yields from it), scratch (a table the caller keeps
+-- between searches: the search's own tables are reused instead of grown afresh, so the Lua collector has less to do in
+-- the frames a job runs in).  Allocates no per-link tables.
+function TG.FindPaths(sx, sy, sinst, goals, opts, out)
+    opts = opts or {}
+    out = out or {}
+    local gr = opts.graph or TG.Snapshot()
+    local tick = opts.tick
+    local speed = opts.speed or U.TravelSpeed()
+    local tf = opts.walkFactor or TG.WalkFactor()
+    local k = tf / speed
+    local sqrt = math.sqrt
+    local useTaxi, useTransit, roadFactor, taxiOK = gr.useTaxi, gr.useTransit, gr.roadFactor, gr.taxiOK
+    -- goals: the direct walk, and the ones the graph has to answer
+    local best, gnodes, byInstG, pending = {}, {}, {}, 0
+    for i = 1, #goals do
+        local g = goals[i]
+        out[i] = nil
+        if g and g.inst and sinst then
+            local b
+            if g.inst == sinst then
+                local dx, dy = sx - g.wx, sy - g.wy
+                local d = sqrt(dx * dx + dy * dy)
+                b = d * k
+                if d < 300 then out[i] = b b = nil best[i] = false end   -- nothing beats walking 300 yards
+            end
+            if best[i] == nil then
+                best[i] = b or false
+                if snapReachable(gr, sinst, g.inst) then
+                    local gn = { goal = i, inst = g.inst, wx = g.wx, wy = g.wy }
+                    gnodes[i] = gn
+                    local l = byInstG[g.inst] if not l then l = {} byInstG[g.inst] = l end
+                    l[#l + 1] = gn
+                    pending = pending + 1
+                else
+                    out[i] = b
+                end
+            end
+        end
+    end
+    if pending > 0 then
+        local INF = math.huge
+        local start = { inst = sinst, wx = sx, wy = sy, edges = {} }
+        local sc = opts.scratch
+        if sc and sc.busy then sc = nil end
+        local d, closed, hc, hn, seen
+        if sc then
+            sc.busy = true
+            sc.d, sc.closed, sc.hc, sc.hn, sc.seen = sc.d or {}, sc.closed or {}, sc.hc or {}, sc.hn or {}, sc.seen or {}
+            d, closed, hc, hn, seen = sc.d, sc.closed, sc.hc, sc.hn, sc.seen
+        else
+            d, closed, hc, hn, seen = {}, {}, {}, {}, {}
+        end
+        local ns = 1
+        d[start], seen[1] = 0, start
+        -- binary heap over parallel arrays
+        local hs = 1
+        hc[1], hn[1] = 0, start
+        local function push(cost, node)
+            hs = hs + 1
+            local i = hs
+            while i > 1 do
+                local p = (i - i % 2) / 2
+                if hc[p] <= cost then break end
+                hc[i], hn[i] = hc[p], hn[p]
+                i = p
+            end
+            hc[i], hn[i] = cost, node
+        end
+        local function pop()
+            if hs == 0 then return nil end
+            local tc, tn = hc[1], hn[1]
+            local lc, ln = hc[hs], hn[hs]
+            hc[hs], hn[hs] = nil, nil
+            hs = hs - 1
+            if hs > 0 then
+                local i = 1
+                while true do
+                    local l = 2 * i
+                    if l > hs then break end
+                    local r = l + 1
+                    if r <= hs and hc[r] < hc[l] then l = r end
+                    if hc[l] >= lc then break end
+                    hc[i], hn[i] = hc[l], hn[l]
+                    i = l
+                end
+                hc[i], hn[i] = lc, ln
+            end
+            return tc, tn
+        end
+        local function relax(v, nd)
+            local old = d[v]
+            if old == nil then ns = ns + 1 seen[ns] = v d[v] = nd push(nd, v)
+            elseif nd < old then d[v] = nd push(nd, v) end
+        end
+        local iterations = 0
+        while pending > 0 do
+            local du, u = pop()
+            if not u then break end
+            if not closed[u] then
+                closed[u] = true
+                if u.goal then
+                    pending = pending - 1
+                else
+                    iterations = iterations + 1
+                    if tick then tick() end
+                    if iterations > 20000 then break end
+                    -- explicit edges (taxi, transit, roads)
+                    local edges = u.edges
+                    for e = 1, #edges do
+                        local ed = edges[e]
+                        local v = ed.to
+                        local ok = true
+                        if ed.mode == "taxi" and (not useTaxi or (taxiOK and (not taxiOK[u] or not taxiOK[v]))) then ok = false end
+                        if v.kind == "transit" and not useTransit and ed.mode ~= "hearth" then ok = false end
+                        if ok and not closed[v] then
+                            local ecost = ed.cost
+                            if ed.mode == "road" then ecost = ed.data.dist * (ed.data.factor or roadFactor) / speed end
+                            if ed.mode == "taxi" and gr.preferTaxi then ecost = ecost * 0.6 end
+                            relax(v, du + ecost)
+                        end
+                    end
+                    local ux, uy, ui = u.wx, u.wy, u.inst
+                    -- nearby road vertices (3x3 grid cells, as TravelGraph.RoadNear)
+                    local grid = gr.roadGrid and gr.roadGrid[ui]
+                    if grid then
+                        local cx, cy = math.floor(ux / 1500), math.floor(uy / 1500)
+                        for dx = -1, 1 do
+                            for dy = -1, 1 do
+                                local cell = grid[(cx + dx) .. ":" .. (cy + dy)]
+                                if cell then
+                                    for i = 1, #cell do
+                                        local v = cell[i]
+                                        if v ~= u and not closed[v] then
+                                            local ax, ay = ux - v.wx, uy - v.wy
+                                            relax(v, du + sqrt(ax * ax + ay * ay) * k)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    -- walk to every other node on this continent
+                    local same = gr.byInst[ui] or gr.nodes
+                    for i = 1, #same do
+                        local v = same[i]
+                        if v.inst == ui and v ~= u and not v.road and not closed[v] then
+                            local usable = true
+                            if v.kind == "taxi" then usable = useTaxi and (not taxiOK or taxiOK[v]) and true or false end
+                            if v.kind == "transit" and not useTransit then usable = false end
+                            if usable then
+                                local ax, ay = ux - v.wx, uy - v.wy
+                                relax(v, du + sqrt(ax * ax + ay * ay) * k)
+                            end
+                        end
+                        if tick and i % 64 == 0 then tick() end
+                    end
+                    -- and on to the goals there (not from the start: that is the direct walk)
+                    local gl = u ~= start and byInstG[ui]
+                    if gl then
+                        for i = 1, #gl do
+                            local g = gl[i]
+                            if not closed[g] then
+                                local ax, ay = ux - g.wx, uy - g.wy
+                                relax(g, du + sqrt(ax * ax + ay * ay) * k)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        for i, gn in pairs(gnodes) do
+            local g, b = d[gn], best[i]
+            if not g then out[i] = b or nil
+            elseif b and b <= g + 1 then out[i] = b
+            else out[i] = g end
+        end
+        -- hand the tables back empty (their slots stay allocated for the next search)
+        for i = 1, ns do local v = seen[i] d[v], closed[v], seen[i] = nil, nil, nil end
+        for i = 1, hs do hc[i], hn[i] = nil, nil end
+        if sc then sc.busy = false end
+    end
+    return out
 end
 
 -- Human readable description of a path

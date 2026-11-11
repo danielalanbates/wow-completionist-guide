@@ -443,6 +443,13 @@ local function nodeCompletion(node)
     return done, total, pending
 end
 
+-- steps of a parsed guide as this character sees it (rebuilt without skipped quests, Core/Skip.lua), and the author
+-- indices it keeps (nil = all of them)
+local function viewOf(g)
+    if NS.Skip then return NS.Skip.ViewOf(g) end
+    return g.steps and #g.steps or nil, nil
+end
+
 -- completion badge, but only for guides whose steps are already parsed (never force a parse here:
 -- the quest DB has thousands of guides and the list refreshes on every keystroke)
 local function pctBadge(g)
@@ -457,7 +464,9 @@ local function pctBadge(g)
     local _, who = NS.Account.GuideCompletedBy(g)
     if who then return ("  |cff00ff00(%s)|r"):format(who) end
     if not g.steps then return "" end
-    local _, pct = NS.Account.GuideProgress(g.id, #g.steps, NS.Account.Scope())
+    -- a guide rebuilt without skipped quests (Core/Skip.lua) counts only the steps it still has
+    local total, keep = viewOf(g)
+    local _, pct = NS.Account.GuideProgress(g.id, total, NS.Account.Scope(), keep)
     if not pct or pct <= 0 then return "" end
     local color = pct >= 100 and "00ff00" or "ffd200"
     return ("  |cff%s%d%%|r"):format(color, pct)
@@ -541,9 +550,11 @@ function M.Refresh()
                 if NS.Account and NS.Account.me then
                     local okS, st = pcall(G.Steps, gg.id)
                     local total = okS and st and #st or 0
+                    local keep
+                    if total > 0 then total, keep = viewOf(gg) end
                     if total > 0 then
-                        local cn, cp = NS.Account.GuideProgress(gg.id, total, "char")
-                        local an, ap = NS.Account.GuideProgress(gg.id, total, "account")
+                        local cn, cp = NS.Account.GuideProgress(gg.id, total, "char", keep)
+                        local an, ap = NS.Account.GuideProgress(gg.id, total, "account", keep)
                         GameTooltip:AddLine(("This character: %d/%d (%d%%)"):format(cn, total, cp), 1, 0.82, 0)
                         GameTooltip:AddLine(("Whole account: %d/%d (%d%%)"):format(an, total, ap), 0.25, 0.78, 1)
                         GameTooltip:AddLine("Counting: " .. NS.Account.ScopeLabel() .. " (" .. NS.Account.ScopeDetail() .. ")", 0.6, 0.6, 0.6, true)
@@ -588,10 +599,10 @@ function M.Refresh()
             elseif v == nil then b.right:SetText("|cff666666...|r")
             elseif v then b.right:SetText("|cff00ff00completed|r")
             else
-                local total = g.steps and #g.steps or nil
+                local total, keep = viewOf(g)
                 local pct = 0
                 if total and total > 0 and NS.Account and NS.Account.me then
-                    _, pct = NS.Account.GuideProgress(g.id, total, scopeKey())
+                    _, pct = NS.Account.GuideProgress(g.id, total, scopeKey(), keep)
                 end
                 b.right:SetText(pct > 0 and ("|cffffd200%d%%|r"):format(pct) or "")
             end

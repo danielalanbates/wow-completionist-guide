@@ -22,7 +22,24 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         end
         NS:Print("No guide matches '" .. rest .. "'. /cr guides")
     elseif cmd == "next" or cmd == "done" then P.Forward()
-    elseif cmd == "skip" then if P.current then P.Skip(P.current) end
+    elseif cmd == "skip" then
+        -- /cr skip [questID] [confirm]: drop a whole quest (default: the current step's); quests that need it are
+        -- named first (Core/Skip.lua).  A current step without a quest is skipped as a step, as before.
+        local q, word = rest:match("^(%d+)%s*(%a*)")
+        local confirm = (word or rest):lower() == "confirm"
+        if not q then
+            if not P.current then NS:Print("No current step.") return end
+            if not P.current.qid then NS.Skip.SkipStep(P.current) return end
+            q = P.current.qid[1]
+        end
+        NS.Skip.SkipQuest(tonumber(q), { confirm = confirm })
+    elseif cmd == "skipstep" then if P.current then NS.Skip.SkipStep(P.current) end
+    elseif cmd == "unskip" then
+        local w = rest:lower():match("^%s*(%S*)")
+        if w == "all" then NS.Skip.Unskip("all")
+        elseif tonumber(w) then NS.Skip.Unskip(tonumber(w))
+        else NS:Print("Usage: /cr unskip <questID|all>   (/cr skipped lists them)") end
+    elseif cmd == "skipped" then NS.Skip.List()
     elseif cmd == "undo" or cmd == "back" or cmd == "prev" then P.Undo()
     elseif cmd == "reset" then P.Reset() NS:Print("Guide progress reset.")
     elseif cmd == "arrow" then NS.db.profile.arrow.enabled = not NS.db.profile.arrow.enabled NS.Arrow.ApplySettings() NS:Print("Arrow " .. (NS.db.profile.arrow.enabled and "on" or "off"))
@@ -119,8 +136,12 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         if not g then NS:Print("No guide loaded. /cr guides") return end
         local done = 0
         for _ in pairs((NS.Account and NS.Account.me and NS.Account.me.done[g.id]) or {}) do done = done + 1 end
+        if P.steps and P.baseSteps and P.steps ~= P.baseSteps then done = P.VisibleDone() end
         NS:Print(("Guide: %s (%s) - %d/%d steps done, %d still applicable"):format(
             g.name or g.id, g.source or "?", done, P.steps and #P.steps or 0, #P.Pending(999)))
+        if P.baseSteps and #P.baseSteps > #(P.steps or {}) then
+            NS:Print(("  rebuilt without skipped quests: %d of the guide's %d steps left out (/cr skipped)"):format(#P.baseSteps - #P.steps, #P.baseSteps))
+        end
         if NS.db.profile.accountWide then NS:Print("Account-wide is ON: steps another character finished count as done (/cr accountwide)") end
         if not st then
             NS:Print("No current step. Either the guide is finished, or every remaining step is filtered out by faction/class/race/level.")
@@ -265,7 +286,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | hearth | import | farm | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | hearth | import | farm | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 
@@ -431,8 +452,10 @@ function NS.RunFeatureVerify(quiet)
     end)
     chk("account", "per-guide progress math", function()
         if not P.guide or not P.steps then return false, "no guide loaded" end
-        local cn, cp = A.GuideProgress(P.guide.id, #P.steps, "char")
-        local an, ap = A.GuideProgress(P.guide.id, #P.steps, "account")
+        local keep
+        if P.baseSteps and P.steps ~= P.baseSteps then keep = {} for _, st in ipairs(P.steps) do keep[st.index] = true end end
+        local cn, cp = A.GuideProgress(P.guide.id, #P.steps, "char", keep)
+        local an, ap = A.GuideProgress(P.guide.id, #P.steps, "account", keep)
         return an >= cn, ("char %d/%d (%d%%), account %d/%d (%d%%)"):format(cn, #P.steps, cp, an, #P.steps, ap)
     end)
     chk("account", "opt-in gate honoured", function()

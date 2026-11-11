@@ -22,6 +22,7 @@ smart arrow — while the guide content is community-driven and open.
 | Travel system: flight paths, boats, zeppelins, portals | ✅ `Routing/TravelGraph.lua` Dijkstra over ~180 taxi nodes (real polyline lengths from game data) + `Data/Transit.lua` |
 | Only uses flight paths you have learned | ✅ learned when you open any flight map (`TAXIMAP_OPENED`), stored per character |
 | Optimal quest routing for the chosen guide | ✅ `Routing/StepOrder.lua` — precedence-constrained reordering of the next N steps (accept → complete → turn-in kept, anchors like *run to zone* respected) |
+| Skip quests | ✅ `Core/Skip.lua` — drop a quest from every guide; if other quests need it you are warned first, with their names, and confirming drops the whole chain. Breadcrumbs never block. The guide is rebuilt without those quests and without any quest it could then no longer offer (steps, counts and progress follow), then re-planned for travel time in the background (`Routing/Replan.lua`). `/cr unskip` brings everything back — [docs/ROUTING.md](docs/ROUTING.md#skipping-quests) |
 | Guide library | ✅ native guides in `Guides/` (WoW-Pro line syntax, CC BY-SA) + a **runtime adapter** that reads your installed **WoW-Pro** guides (interop only, nothing copied) |
 | Every quest in the game, covered | ✅ generated zone guides: Classic flavors from a local **Questie** checkout, **retail from Blizzard's own quest POI client data** (`tools/gen_quest_guides_retail.py` — 379 zone guides, 17,161 quests, 56,843 steps). No subscription required.
 | Gold guides | ✅ realm-independent money guides by level, on every client: gathering, mob farming and fishing **circuits** you walk with nothing to click, plus daily gold, instance runs and step-by-step methods. No prices are shipped; laps are priced in game from Auctionator if present, else vendor value — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
@@ -85,7 +86,9 @@ To rebuild and deploy:
 * `/cr farm` — farm circuits: status, `build`, `record`, `import`, `export`, `stats`, `radius`
 * `/cr list [level] [category]` — best guides for a level · `/cr gold [level]` — gold guides · `/cr prof` — profession guides for your current skill
 * `/or test` — routing self-test from your position to major cities · `/or import` — re-scan WoW-Pro guides
-* Checkbox / Shift-click a step = complete · right-click = skip · `<` undo · `>` skip · `Route` toggles reordering
+* `/cr skip [questID]` — skip a quest (default: the current step's); warns first when other quests need it · `/cr skipstep` — skip the current step (on an accept of a quest you do not have, that skips the quest, so its turn-in is not left behind)
+* `/cr unskip <questID|all>` — bring skipped quests back · `/cr skipped` — list them and what they lock
+* Click the step for details (Complete, Skip, Skip quest) · right-click = skip menu · `<` back · `>` done · `Route` toggles reordering
 
 Open a flight master's map once on each continent so the router knows which flight paths you have.
 Hearth once (or bind at an inn) so the router learns exactly where your inn is (a seed list covers common inns).

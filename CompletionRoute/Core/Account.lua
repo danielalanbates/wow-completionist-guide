@@ -184,10 +184,12 @@ end
 
 -- Per-guide completion, for the guide list / tooltips.
 -- scope "char" = this character, "account" = union across the account.
-function A.GuideProgress(guideid, total, scope)
+-- keep (optional): the author step indices still in the guide after quests were skipped (Core/Skip.lua ViewOf); ticks
+-- of steps left out do not count, so the numbers match the rebuilt guide.
+function A.GuideProgress(guideid, total, scope, keep)
     if not total or total == 0 then return 0, 0 end
     local seen = {}
-    local function eat(t) if t then for i in pairs(t) do seen[i] = true end end end
+    local function eat(t) if t then for i in pairs(t) do if not keep or keep[i] then seen[i] = true end end end end
     if scope and scope ~= "char" then
         for k, c in pairs(NS.db.global.chars) do
             if A.CharInScope(k, c, scope) then eat(c.done and c.done[guideid]) end
@@ -244,7 +246,10 @@ local function charFinished(ch, g, steps, qids, nq)
     if not ch or (ch.faction and g.faction and g.faction ~= "Both" and ch.faction ~= g.faction) then return false end
     if nq > 0 then
         if not ch.quests then return false end
-        for q in pairs(qids) do if not ch.quests[q] then return false end end
+        -- quests this character dropped (Core/Skip.lua) are not part of its guide any more, nor what this guide then
+        -- can no longer offer
+        local gone = (ch == A.me and NS.Skip and NS.Skip.Any()) and select(3, NS.Skip.Project(steps, nil, g.id)) or nil
+        for q in pairs(qids) do if not ch.quests[q] and not (gone and gone[q]) then return false end end
         return true
     end
     local d = ch.done and ch.done[g.id]

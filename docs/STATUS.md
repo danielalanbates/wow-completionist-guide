@@ -1,3 +1,38 @@
+# Status / handoff (2026-11-10, skipping quests)
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `quest-skip`, not merged, not installed. All 13 existing
+harnesses pass, plus the new `tools/test_skip.lua` (542 checks with 6 guides per flavor). A second round fixed what two
+reviewers found (below).
+
+* **Skip a quest** from the step details ("Skip quest"), the right-click menu on the step, or `/cr skip [questID]`. If other
+  quests need it, a confirmation names them (this guide / other guides, and which ones only this guide loses) and says what
+  the guide loses; confirming drops the chain. `/cr unskip <questID|all>`, `/cr skipped`. The per-step Skip on the accept of
+  a quest you do not have now drops the quest (it used to leave the turn-in behind); on a turn-in others need it warns.
+  Per character, never shared.
+* **The guide is rebuilt**, not just routed around: the dropped and locked quests, any quest this guide could then no
+  longer offer (its accepts wait on a dropped quest through the guide's own `|PRE|`), and the notes, use-item and travel
+  steps that only served them leave the list. Counts and progress follow; ticks are kept by author index; unskip gives back
+  the identical list; other guides rebuild when opened; a reload shows the same guide. Checked by dropping every accept
+  prerequisite one at a time on wiki, WoW-Pro and storyline guides: nothing stranded.
+* **Breadcrumbs never block**, end to end: the index leaves them out, and a guide step that waits on a skipped breadcrumb
+  stops waiting (era: skip Eagan Peltskinner, Wolves Across the Border's accept is next).
+* **Locks** grow "can still be had" from outside the dropped quest's dependents, so prerequisite cycles go too (retail 82863:
+  19 quests, was 1); exact against a whole-index reachability reference on all five clients. Quests for another class, race
+  or faction are locked but not named or counted.
+* **Re-plan for travel time** in the background (0.8 ms per frame, "re-planning..." in the title): one speed, position and
+  graph per job; one Dijkstra per block row instead of one per pair (13-23x faster; retail 122: 3.3 s CPU, was 14.4 s);
+  arrow-accurate costs (steps without `|M|` priced at the zone); two starts; kept only when it beats "baked order minus
+  removed steps" by the live window's margin on the arrow's route AND does not lengthen the route through the `|M|` steps.
+  On 30 sample guides (route orders as baked by 22:17): 7 kept, 2.7% less travel overall, 6 held back because the gain was
+  only at zone stand-ins. Frames: max 1.53 ms of 11,993 with the collector running, none over 2 ms.
+* **Data:** `tools/gen_quest_deps.py` -> `Data/QuestDeps_<flavor>.lua` (gitignored): hard prerequisites (era 2,163 quests,
+  tbc 3,237, mop 9,613, retail 18,071, forever 2,249), freed breadcrumb / optional edges, breadcrumb quests, and quests the
+  data never makes obtainable (retail 179).
+* **Open:** client test of the popup, right-click menu and frame times; applying a kept order is one normal refresh
+  (about 3 ms, the live window's own budget); heavy retail guides still re-plan for up to about 90 s in the background;
+  a storyline guide loses the rest of its storyline when one quest of it is dropped (the warning says so). Details in
+  `docs/ROUTING.md`, "Skipping quests".
+
 # Status / handoff (2026-11-09, gold guides, secondary professions, guides by level)
 
 Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** Installed on all five clients. All 13 harnesses pass
