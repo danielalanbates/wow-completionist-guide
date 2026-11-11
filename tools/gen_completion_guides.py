@@ -53,6 +53,19 @@ NOGEO_ROOTS = {"Player vs. Player": "pvp", "Reputation": "reputation", "Statisti
                "General": "general", "Guild": "guild"}
 # Criteria.Type with no place: reach level, skill, total quests, dailies, currency, title rank, bank slots, reputation
 NOGEO_TYPES = {"5", "7", "9", "10", "12", "14", "40", "44", "45", "46", "47"}
+# Blizzard's internal rows (trackers, flags, unfinished content): marked in the title or description.  They are left out
+# of the guides and of the coverage universe (tools/coverage.py), and counted apart.  Case matters: "Hidden Treasures"
+# and "A Test of Valor" are real achievements.
+INTERNAL = re.compile(r"\bDNT\b|<Hidden>|\[Hidden\]|\([Hh]idden\)|^Hidden Tracking\b|^Hidden - |\bUNUSED\b|\bDEPRECATED\b")
+# the storyline guides: built from wiki and Blizzard data since 2026-11-11.  The older file name holds the build whose
+# step lines were copied from Imported_Quests_retail.lua; it never ships and no TOC loads it any more.
+STORY_FILE = "Imported_QuestLines_{fl}.lua"
+OLD_STORY_FILE = "Imported_Storylines_{fl}.lua"
+
+
+def internal_achievement(r):
+    """an Achievement.csv row Blizzard marks as internal (never shown to players as an achievement to earn)"""
+    return bool(INTERNAL.search(r.get("Title_lang") or "") or INTERNAL.search(r.get("Description_lang") or ""))
 
 def rows(fl, table):
     p = DB2 / fl / f"{table}.csv"
