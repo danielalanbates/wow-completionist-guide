@@ -6,8 +6,9 @@ subscription.
 ```
 luajit tools/vplayer.lua <era|tbc|mop|retail> [--limit N] [--shard i/n] [--type Leveling]
                          [--guide ID] [--faction Horde] [--guidecap 20] [--out PATH] [--verbose]
-                         [--order author|baked] [--live on|off]
+                         [--order author|baked] [--live on|off] [--taxi all|learn] [--turnins]
 # --order baked loads Data/RouteOrder_<fl>.lua (tools/optimize_routes.py); --live off disables the 12-step window
+# --taxi learn: fly only into discovered flight paths, starting each guide with none; --turnins: time QUEST_TURNED_IN
 python3 tools/collect_vplayer.py       # -> docs/verification.sqlite
 ```
 
@@ -71,6 +72,24 @@ done
 ```
 
 Progress is flushed every 25 guides, so a long shard is watchable in `tail -f`.
+
+## Flight paths: `--taxi all|learn` (2026-11-10)
+
+The client now flies only into flight paths the character has discovered (docs/ROUTING.md). vplayer keeps the old
+faction-wide rule by default (`--taxi all`), so its numbers stay comparable with earlier runs and with the bake, which
+uses the same rule. `--taxi learn` uses the client's rule: each guide (or a whole `--chain`) starts with no flight
+path known, on the character and on the account. A flight master is discovered when the route the player took
+(`Router.TravelSecondsFromPlayer`) flew from it, which means the player walked there, and when it is within 40 yd of
+the step the player is placed on (an `f` step's flight master, for example). The `DONE` line reports how many were
+discovered. vplayer still models no teleports (its character is a warrior with no toys) and no Hearthstone in the bags.
+
+## Turn-in cost: `--turnins` (2026-11-10)
+
+vplayer used to complete turn-ins without the `QUEST_TURNED_IN` event, so the cost of what the addon does on that
+event was never measured. `--turnins` fires every registered handler at each turn-in, as the client does, and times them
+(the Progress refresh and live re-plan they start included). It also counts graph builds and router calls made while
+the handlers run, and prints a `TURNIN` line. Run it under `luajit -joff`, which is closer to the client's plain Lua 5.1;
+`CR_OVERRIDE` loads older copies of addon files for a before/after comparison (docs/ROUTING.md "What changes the graph").
 
 ## What it does not cover
 
