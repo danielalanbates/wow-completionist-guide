@@ -14,10 +14,12 @@ and first point rounded to 0.5 map percent, so a guide whose coordinates moved i
 --force-file still force guides by hand.
 
 Per batch: tools/cost_matrix.lua (travel matrices) -> tools/optimize_routes.py --merge --no-write --gate.  The gate
-(docs/ROUTING.md "Bake gate") plays author + live window and baked + live window in tools/vplayer.lua and keeps a baked
-order only when it is not slower by more than max(1%, 30 s); --no-gate skips it.  A row solved without a verdict (an
-earlier --no-gate run, or a run killed between the solve and the gate) is gated on the next start without solving it
-again.  At the end the RouteOrder_<flavor>.lua file of every flavor touched is rewritten from the merged rows, with
+(docs/ROUTING.md "Bake gate") plays author + live window and baked + live window in tools/vplayer.lua with a real
+character of the guide's planning character (a guide for both factions: as Alliance and as Horde) and keeps a baked
+order only when it is not slower by more than max(1%, 30 s); --no-gate skips it.  The optimizer saves a batch's solved
+rows before its gate starts, so a row solved without a verdict (an earlier --no-gate run, a run killed during the gate,
+or a vplayer failure) is gated on the next start without solving it again (tools/test_bake_gate.py).  At the end
+the RouteOrder_<flavor>.lua file of every flavor touched is rewritten from the merged rows, with
 entries only for guides that still match the current list (tools/optimize_routes.py --current).
 
 Guards (8 GB Mac): waits while memory is genuinely short (kernel level critical or < 10% free; level 2 "warn" is

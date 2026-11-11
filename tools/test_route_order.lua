@@ -17,7 +17,8 @@
 --     moved point or a changed zone changes it, a re-parse or a note change does not;
 --   * a STALE entry fails the test: an entry whose step count or checksum no longer matches its guide, or that names no
 --     guide at all.  G.Steps still plays such a guide in author order (checked for each one), but the bake is out of
---     date: re-bake with tools/bake_resume.py.  A gated entry's measured times (va, vb) must pass the gate.
+--     date: re-bake with tools/bake_resume.py.  A gated entry's measured times (va, vb, and vah, vbh for the Horde play of
+--     a guide for both factions) must pass the gate (Routing/CostModel.lua GATE_FRAC / GATE_ABS).
 -- Generated files are gitignored, so a fresh clone runs only the mechanics part.
 -- Run: luajit tools/test_route_order.lua   (from repo root)
 --      CR_ROUTE_ORDER_DIR=<folder> checks the RouteOrder_<flavor>.lua files in that folder instead of CompletionRoute/Data
@@ -25,6 +26,10 @@
 package.path = "./?.lua;" .. package.path
 local TOC = { era = 11508, tbc = 20506, mop = 50504, retail = 121500, forever = 16001 }
 local fail = 0
+-- the gate limits: the cost model's own (one definition, Routing/CostModel.lua)
+local CMNS = {}
+assert(loadfile("CompletionRoute/Routing/CostModel.lua"))("CompletionRoute", CMNS)
+local GATE_FRAC, GATE_ABS = CMNS.CostModel.GATE_FRAC, CMNS.CostModel.GATE_ABS
 local function check(ok, msg) if not ok then print("FAIL " .. msg) fail = fail + 1 end return ok end
 
 local function harness(flavor)
@@ -105,9 +110,10 @@ do
     check(idx(G.Steps("t:ro:1")) == "1,2,3,4,5,6", "run-length '1-6' decodes")
 
     -- a gated entry carries vplayer's measured times (va, vb) and may carry fields a later bake adds: all ignored
-    NS.RouteOrder["t:ro:1"] = { n = 6, sum = sum, o = "1,3,5,2,4,6", va = 1200, vb = 1100, gate = "keep", future = { 1, 2 } }
+    NS.RouteOrder["t:ro:1"] = { n = 6, sum = sum, o = "1,3,5,2,4,6", va = 1200, vb = 1100, vah = 1300, vbh = 1250, gate = "keep",
+                                future = { 1, 2 } }
     fresh()
-    check(idx(G.Steps("t:ro:1")) == "1,3,5,2,4,6", "an entry with extra fields (va, vb, unknown) applies normally")
+    check(idx(G.Steps("t:ro:1")) == "1,3,5,2,4,6", "an entry with extra fields (va, vb, vah, vbh, unknown) applies normally")
 
     for _, bad in ipairs({ { sum = sum + 1, o = "2,1,3,4,5,6", why = "checksum mismatch" }, { n = 5, sum = sum, o = "2,1,3,4,5", why = "step count mismatch" },
                            { sum = sum, o = "2,2,3,4,5,6", why = "duplicate index" }, { sum = sum, o = "1-5", why = "short order" },
@@ -297,9 +303,12 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
             entries = entries + 1
             if not G.registry[id] then missing = missing + 1 missingIds[#missingIds + 1] = id end
             -- a gated entry's measured times must pass the gate: baked + live no slower than author + live by more
-            -- than max(1%, 30 s) (tools/optimize_routes.py --gate)
-            if e.va or e.vb then
-                if not (tonumber(e.va) and tonumber(e.vb) and e.vb <= e.va + math.max(0.01 * e.va, 30) + 0.5) then gateBad[#gateBad + 1] = id end
+            -- than max(GATE_FRAC, GATE_ABS s) (tools/optimize_routes.py --gate), for each faction it was played as
+            for _, k in ipairs({ { "va", "vb" }, { "vah", "vbh" } }) do
+                local a, b = e[k[1]], e[k[2]]
+                if a or b then
+                    if not (tonumber(a) and tonumber(b) and b <= a + math.max(GATE_FRAC * a, GATE_ABS) + 0.5) then gateBad[#gateBad + 1] = id end
+                end
             end
         end
         local spines = 0
@@ -348,7 +357,7 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
             #missingIds > 3 and ", ..." or "", flavor))
         check(#broken == 0, ("%s: %d RouteOrder entries match their guide but their order does not decode: %s"):format(flavor, #broken,
             table.concat(broken, ", ", 1, math.min(3, #broken))))
-        check(#gateBad == 0, ("%s: %d gated entries whose measured times (va, vb) fail the gate: %s"):format(flavor, #gateBad,
+        check(#gateBad == 0, ("%s: %d gated entries whose measured times (va, vb / vah, vbh) fail the gate: %s"):format(flavor, #gateBad,
             table.concat(gateBad, ", ", 1, math.min(3, #gateBad))))
         if stale + missing > 0 then staleTotal[#staleTotal + 1] = ("%s %d"):format(flavor, stale + missing) end
         print(("%s %-7s %d entries, %d guides baked (%d spine), %d steps, %d moved, %d violations, %d stale, %d orphan"):format(
