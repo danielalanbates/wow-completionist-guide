@@ -32,6 +32,7 @@ smart arrow — while the guide content is community-driven and open.
 | Dungeon guides | ✅ steps inside an instance route to the **entrance** (learned door + retail encounter journal), `Core/Instances.lua` |
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
 | Beta bug reports | Built, offline-tested only: `/cr bug [note]` or the guide window's **Report** button saves a snapshot (guide, step, open steps, position, route, quest log including quests that only gate a step, profession skill, last 30 log lines, last addon Lua error; no character or realm name). `tools/ingest_beta_reports.py` loads reports into SQL and `vplayer --repro <id>` replays one offline — [docs/BETA_REPORTS.md](docs/BETA_REPORTS.md) |
+| Release packager with a data-provenance gate | 🚧 `tools/package_release.py` ([docs/RELEASE.md](docs/RELEASE.md)): one universal zip, `provenance.json` for every file, `LICENSE.txt` + `ATTRIBUTION.md`; fails on WoW-Pro/Questie data, personal data, secrets, symlinks and broken TOC lines. Dry run by default, never tags or publishes. Today's local data fails it (fallback wiki points, old headers, baked orders of gaps guides). |
 
 Not yet: primary profession guides, talent advisor, gear finder, model viewer, guide editor UI, Zen Pilgrimage / Dreamwalk / class-hall teleports, indoor/dungeon-aware walking, per-zone "wall" data.
 
@@ -69,6 +70,7 @@ tools/install.sh                     # copies CompletionRoute/ into _anniversary
 tools/install.sh _classic_era_ _retail_
 ```
 Or copy the `CompletionRoute/` folder into `Interface/AddOns/`.
+Release zips are built with `tools/package_release.py` (see [docs/RELEASE.md](docs/RELEASE.md)); none is published yet.
 
 ### macOS Companion App (`/Applications/Completionist's Guide.app`)
 A native, lightweight macOS AppKit companion application (400 KB, zero external dependencies) is maintained in `/Applications/Completionist's Guide.app`:
@@ -92,7 +94,7 @@ To rebuild and deploy:
 * `/cr skip [questID]` — skip a quest (default: the current step's); warns first when other quests need it · `/cr skipstep` — skip the current step (on an accept of a quest you do not have, that skips the quest, so its turn-in is not left behind)
 * `/cr unskip <questID|all>` — bring skipped quests back · `/cr skipped` — list them and what they lock
 * `/cr bug [what went wrong]` — save a bug report (also the **Report** button) · `/cr bug list` — stored reports · `/cr log` — the addon log
-* Click the step for details (Complete, Skip, Skip quest) · right-click = skip menu · `<` back · `>` done · `Route` toggles reordering
+* Guide window: one step at a time, steps complete themselves · right arrow = mark done · left arrow = back one step · click the step = details with Complete / Skip / Skip quest / Show on map · right-click the step = skip menu · `Route` toggles reordering
 
 Open a flight master's map once on each continent so the router knows which flight paths you have.
 Hearth once (or bind at an inn) so the router learns exactly where your inn is (a seed list covers common inns).
@@ -138,6 +140,9 @@ python3 tools/ingest_beta_reports.py           # Daniel's /cr bug reports -> bet
 luajit tools/vplayer.lua --repro <report id> --check   # replay one offline; exit 1 on a DIFF (docs/BETA_REPORTS.md)
 python3 tools/gen_quest_guides_retail.py       # regenerate the retail quest guides from client data
 python3 tools/gen_taxi.py tbc 2.5.6.69110 era 1.15.9.69109 mop 5.5.4.69155 retail 12.1.0.69382
+python3 tools/package_release.py               # release dry run: assemble, provenance gate, zip sizes (writes nothing)
+python3 tools/package_release.py --write --version 2.0.0-beta1   # dist/<version>/ (gitignored; a failing build: dist/failed/); never tags or publishes
+python3 tools/test_package.py                  # every release-gate rule fires on a planted bad file
 ```
 
 ## License

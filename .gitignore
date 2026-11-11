@@ -66,3 +66,5 @@ tools/db2/*/*.missing
 CompletionRoute/Data/QuestDeps_*.lua
 # tools/check_teleports.py: Blizzard client tables and Warcraft Wiki pages it downloads (regenerate with --fetch / --wiki)
 tools/teleports_db2/
+# release builds (tools/package_release.py --write); never committed
+dist/

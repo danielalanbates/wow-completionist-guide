@@ -193,6 +193,11 @@ Bakes, per quest guide (wiki zone guides `wiki:*` + gaps guides `qdb:*`/`qpoi:*`
 4. Measure: `luajit tools/vplayer.lua <fl> --guides-file F --order author|baked --live on|off`, then
    `python3 tools/collect_routes.py collect` -> `route_compare`, `opt_violations` in `docs/verification.sqlite`.
    Check: `luajit tools/test_route_order.lua`.
+5. Release bake (2026-11-10, `docs/RELEASE.md`). The dev bake also orders the Questie-derived `qdb:`/`qpoi:` gaps
+   guides, and its costs use the fallback points and `Data/Imported_Entrances.lua`. `tools/package_release.py` fails a
+   `RouteOrder` row for a guide that never ships. A release bake runs `cost_matrix.lua <fl> --prefix wiki:` inside the
+   packager's staged add-on (`--stage-dir`), so only shipped files are loaded, and the packager reads the result
+   through `--data-root`.
 
 ## Skipping quests
 
