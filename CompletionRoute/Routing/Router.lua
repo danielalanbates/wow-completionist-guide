@@ -5,6 +5,7 @@
 --   Router.Recommendation()    -> what the arrow should do right now (walk / hearth / teleport / item / taxi / transit)
 local ADDON, NS = ...
 local U, HBD, TG = NS.Util, NS.HBD, NS.TravelGraph
+local CM = assert(NS.CostModel, "Routing/CostModel.lua must load before Routing/Router.lua")
 local R = {}
 NS.Router = R
 
@@ -51,34 +52,35 @@ function R.EntranceFor(step)
     return ex, ey, ei
 end
 
+-- the step's own |M| point (the first one), or the dungeon door for one inside an instance: wx, wy, inst, source
+function R.OwnWorld(step)
+    if not (step and step.coords and step.zone) then return nil end
+    if step._wx and step._winst then return step._wx, step._wy, step._winst, "guide" end
+    local c = step.coords[1]
+    local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(c.x, c.y, step.zone)
+    if not wx then return nil end
+    -- Target inside a dungeon/raid we are not standing in? Route to the DOOR (Core/Instances.lua)
+    -- instead of reporting "no route": the player's job is to get there, the boss is inside.
+    local ex, ey, ei = R.EntranceFor(step)
+    if ex then return ex, ey, ei, "entrance" end
+    step._wx, step._wy, step._winst = wx, wy, inst
+    return wx, wy, inst, "guide"
+end
+
 function R.StepWorld(step)
     if not step then return nil end
     if step.coords and step.zone then
-        if step._wx and step._winst then return step._wx, step._wy, step._winst end
-        local c = step.coords[1]
-        local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(c.x, c.y, step.zone)
-        if wx then
-            -- Target inside a dungeon/raid we are not standing in? Route to the DOOR (Core/Instances.lua)
-            -- instead of reporting "no route": the player's job is to get there, the boss is inside.
-            local ex, ey, ei = R.EntranceFor(step)
-            if ex then return ex, ey, ei end
-            step._wx, step._wy, step._winst, step._locSource = wx, wy, inst, "guide"
-            return wx, wy, inst
-        end
+        local wx, wy, inst, src = R.OwnWorld(step)
+        if wx then step._locSource = src return wx, wy, inst end
     end
     -- no coordinates in the guide: fall back to the live quest objective
     local qx, qy, qi = R.QuestWorld(step)
     if qx then step._locSource = "quest" return qx, qy, qi end
-    if step.zone then
-        if step._zwx then step._locSource = "zone" return step._zwx, step._zwy, step._zwinst end
-        local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(0.5, 0.5, step.zone)
-        if wx then
-            step._zwx, step._zwy, step._zwinst, step._locSource = wx, wy, inst, "zone"
-            return wx, wy, inst
-        end
-    end
-    step._locSource = nil
-    return nil
+    -- then the cost model's point (Routing/CostModel.lua): the NPC's point from elsewhere in the guide, the step it rides
+    -- with (it is done where the player already is), or the centre of a zone the route is not in yet
+    local wx, wy, inst, src = CM.World(step, R.OwnWorld)
+    step._locSource = wx and src or nil
+    return wx, wy, inst
 end
 
 -- Nearest coordinate of a multi-coord step to the player
@@ -96,7 +98,10 @@ function R.NearestCoord(step)
     return best, bd
 end
 
-local WALK_ONLY_BELOW = 700  -- yards: below this, never bother with the full graph
+-- yards: below this, never bother with the full graph (Routing/CostModel.lua)
+local WALK_ONLY_BELOW = CM.WALK_ONLY_BELOW
+-- the walking factor of a short walk: the graph's own (Routing/CostModel.lua: flying flattens the terrain)
+local function shortFactor() return TG.WalkFactor() end
 
 -- pairwise: seconds between two steps (no hearth — hearth is a one-shot resource)
 -- tick (optional) is handed to TravelGraph.FindPath: the quest-skip re-planner yields from it (Routing/Replan.lua)
@@ -107,7 +112,7 @@ function R.TravelSeconds(a, b, tick)
     local speed = U.TravelSpeed()
     if ai == bi then
         local d = math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2)
-        if d < WALK_ONLY_BELOW then return d * (NS.db.profile.routing.terrainFactor or 1.25) / speed end
+        if d < WALK_ONLY_BELOW then return d * shortFactor() / speed end
     end
     local p = TG.FindPath(ax, ay, ai, bx, by, bi, { hearth = false, speed = speed, tick = tick })
     return p and p.cost or nil
@@ -130,7 +135,7 @@ function R.TravelSecondsFromPlayer(b, tick)
     end
     if inst == bi then
         local d = math.sqrt((wx - bx) ^ 2 + (wy - by) ^ 2)
-        if d < WALK_ONLY_BELOW then return d * (NS.db.profile.routing.terrainFactor or 1.25) / speed end
+        if d < WALK_ONLY_BELOW then return d * shortFactor() / speed end
     end
     local p = TG.FindPath(wx, wy, inst, bx, by, bi, { speed = speed, tick = tick })
     return p and p.cost or nil
@@ -152,13 +157,14 @@ end
 -- Seconds from point `a` to every point in `goals` ({ wx, wy, inst }) by TravelSeconds' rule - a walk below 700 yards,
 -- else the graph without the hearth - from ONE graph search (TravelGraph.FindPaths) instead of one per goal.  a.exit
 -- (R.PlayerPoint inside an instance): goals on another continent start from the door, plus the walk out, as
--- TravelSecondsFromPlayer does.  opts: speed, walkFactor, graph, tick (TravelGraph.FindPaths) and terrainFactor (the
--- short-walk factor).  The quest-skip re-planner (Routing/Replan.lua) fixes all of them for a whole job.
+-- TravelSecondsFromPlayer does.  opts: speed, walkFactor, graph, tick (TravelGraph.FindPaths); a short walk uses
+-- walkFactor too (Routing/CostModel.lua).  The quest-skip re-planner (Routing/Replan.lua) and the offline bake
+-- (tools/cost_matrix.lua) fix all of them for a whole job.
 function R.TravelRow(a, goals, opts, out)
     opts = opts or {}
     out = out or {}
     local speed = opts.speed or U.TravelSpeed()
-    local tfShort = opts.terrainFactor or (NS.db.profile.routing.terrainFactor or 1.25)
+    local tfShort = opts.walkFactor or shortFactor()
     local far, farAt, out2, out2At = {}, {}, {}, {}
     for i = 1, #goals do
         local g = goals[i]
@@ -302,7 +308,7 @@ function R.CorpseRecommendation()
     if wx and inst == cinst then
         rec.dist = math.sqrt((wx - cwx) ^ 2 + (wy - cwy) ^ 2)
         -- ghosts move faster than the living; do not promise a walking ETA off the live speed
-        rec.eta = rec.dist / ((NS.db.profile.routing.runSpeed or 7) * 1.5)
+        rec.eta = rec.dist / ((NS.db.profile.routing.runSpeed or CM.RUN_SPEED) * 1.5)
     end
     local delay = GetCorpseRecoveryDelay and GetCorpseRecoveryDelay() or 0
     if delay and delay > 0 then rec.why = ("resurrection sickness timer: %ds"):format(delay) end

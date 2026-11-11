@@ -164,14 +164,17 @@ Run in the main checkout (the generators write fixed paths there), one heavy job
 3. Rebake the route orders over the shipped guides only, without touching the dev bake:
    ```
    python3 tools/package_release.py --stage-dir /tmp/rel          # new folder; fails only on RouteOrder now
-   mkdir -p /tmp/rel/tools /tmp/rel-cost && cp tools/stubs.lua tools/maps_*.lua tools/optimize_routes.py /tmp/rel/tools/
+   mkdir -p /tmp/rel/tools /tmp/rel-cost && cp tools/stubs.lua tools/maps_*.lua tools/cm_offline.lua tools/vplayer.lua \
+       tools/optimize_routes.py /tmp/rel/tools/
    cd /tmp/rel                                                     # per flavor <fl>:
    luajit <repo>/tools/cost_matrix.lua <fl> --prefix wiki: --out /tmp/rel-cost/<fl>.jsonl
-   <venv>/bin/python tools/optimize_routes.py <fl> --in /tmp/rel-cost/<fl>.jsonl --out /tmp/rel-opt/<fl>.jsonl
+   <venv>/bin/python tools/optimize_routes.py <fl> --in /tmp/rel-cost/<fl>.jsonl --out /tmp/rel-opt/<fl>.jsonl --gate
    mkdir -p /tmp/rel-data/Data && cp /tmp/rel/CompletionRoute/Data/RouteOrder_*.lua /tmp/rel-data/Data/
    ```
-   The copied optimizer writes `RouteOrder_<fl>.lua` into the stage, not the checkout. In the stage the cost matrix
-   loads exactly the shipped files: no `_gaps` guides, no `Imported_Entrances.lua`, the `--no-fallback` wiki points.
+   The copied optimizer writes `RouteOrder_<fl>.lua` into the stage, not the checkout, and its gate plays the stage's
+   own guides in the copied vplayer. In the stage the cost matrix loads exactly the shipped files: no `_gaps` guides, no
+   `Imported_Entrances.lua`, the `--no-fallback` wiki points. Since the cost model (2026-11-10) `cost_matrix.lua` needs
+   `tools/cm_offline.lua` next to it in the folder it runs from.
    Smoke-tested 2026-11-10 on one era guide (cost matrix 0.3 s, optimizer 4 s, the gate then passed `RouteOrder_era`).
    A full rebake is the multi-hour job of `docs/ROUTING.md` tier A.
 4. `python3 tools/package_release.py --data-root /tmp/rel-data --write --version 2.0.0-beta1 --db docs/verification.sqlite`
@@ -183,10 +186,12 @@ Run in the main checkout (the generators write fixed paths there), one heavy job
 
 * The gate reads text. Questie or WoW-Pro data that carries no name (a bare coordinate copied without its note) is
   caught only by the file rules, not by content. The generators are what keep fallback points tagged.
-* A `RouteOrder` row for a wiki guide does not record which points its bake used. A bake run over the local fallback
-  wiki files gives rows the gate cannot tell apart; follow step 3 so the bake sees only shipped data.
-* The `RouteOrder` checksum covers only each step's action and first quest id, so a stale row can still apply. That
-  check belongs to the bake gate (IDEAS #1).
+* A `RouteOrder` row for a wiki guide does not record which points its bake used. Since checksum version 2
+  (2026-11-10) the checksum covers each step's zone and first point, so a row baked over other points no longer matches
+  the shipped guide and the client plays that guide in author order; this gate still does not compare checksums, so
+  follow step 3 so the bake sees only shipped data.
+* `tools/test_route_order.lua` fails on a stale `RouteOrder` row (step count or checksum no longer matching); run it on
+  the release data with `CR_ROUTE_ORDER_DIR=/tmp/rel-data/Data`.
 * Retail `--no-fallback` also drops the `(location: Blizzard data)` points, which are Blizzard quest-POI data and
   could ship if `gen_wiki_guides.py` kept them apart from the Questie giver points.
 * `.pkgmeta` (BigWigs packager) is unused since the release workflow stopped publishing on tags.

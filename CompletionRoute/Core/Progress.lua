@@ -894,6 +894,7 @@ function Access.ParseSteps(a, guideId)
     end
     -- progress keys (Core/Guide.lua "Stable step keys"): the chain's own, so they do not depend on what else is in front
     NS.Guide.AssignKeys(out, "@" .. tostring(a.key) .. "/")
+    if NS.CostModel then NS.CostModel.Locate(out) end
     return out
 end
 function Access.PrefixFor(steps, guideId)

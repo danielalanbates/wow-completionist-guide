@@ -5,7 +5,7 @@ Reads the per-guide travel matrices written by tools/cost_matrix.lua (real Trave
 bakes, per quest guide, the fastest step order that keeps every hard rule:
 
   * A before C before T per quest (several accepts / turn-ins of one quest keep their author order),
-  * PRE: a prerequisite's turn-in before the dependent accept (only edges the author order already keeps),
+  * PRE: a prerequisite's turn-in before every step that names it (only edges the author order already keeps),
   * quest-log capacity (era/forever 20, tbc/mop 25, retail 35 - raised to the author order's own peak
     if a guide already needs more), counting accepts minus turn-ins inside the guide,
   * level gates: a step whose |LVL| is above the guide's start level may only come after as many turn-ins
@@ -26,24 +26,51 @@ relaxation with precedence-impossible arcs removed, minimum spanning tree and He
 min(c_ij, c_ji)) - those ignore precedence and are loose.  opt_gap = (baked - bound) / baked.
 Multi-segment guides (anchors) sum per-segment bounds from the baked chain's segment starts (approximate).
 
-Output:
-  CompletionRoute/Data/RouteOrder_<flavor>.lua   (generated, gitignored; only guides the bake makes faster)
-  <job tmp>/routeopt/<flavor>.jsonl              (one result row per guide, read by tools/collect_routes.py)
+Costs: every constant and rule comes from the cost model (CompletionRoute/Routing/CostModel.lua) through the rows
+tools/cost_matrix.lua writes: the priced points (a step without one rides with the block before it), the matrix (each
+leg at the planning level of the step it leaves from) and "cm" (the no-route cost, the cost-model version, the offline
+flight-path rule).  This file holds no second copy of them; a row without "cm" is refused.
 
-Usage: venv/bin/python tools/optimize_routes.py <flavor> [--in PATH] [--limit-s 30] [--guide ID] [--no-write]
+Gate (--gate, docs/ROUTING.md "Bake gate"): a baked order is kept only when tools/vplayer.lua finds baked order + live
+window not slower than author order + live window by more than max(1%, 30 s) (the cost model's GATE_FRAC / GATE_ABS,
+read from the rows).  vplayer plays a real character of the planning character's faction, class and race (--who gate);
+a guide for both factions is played as an Alliance AND as a Horde character and must pass both.  The measured times go
+into the RouteOrder entry (va = author + live, vb = baked + live, seconds; vah / vbh = the Horde play of a guide for both
+factions); a rejected guide gets no entry, so the game plays it in author order with the live window.  The solved rows
+are saved to --out before the gate runs, so a run killed during the gate (or a vplayer failure, exit 3) loses no solve:
+--gate-only gates rows already in --out that have no verdict yet (resumable; --regate gates them all again).
+
+Output:
+  --lua-out PATH (default CompletionRoute/Data/RouteOrder_<flavor>.lua; generated, gitignored; only guides the bake
+                 makes faster and, when gated, that vplayer confirms)
+  --out PATH     (default $CR_TMP/routeopt/<flavor>.jsonl; one result row per guide, read by tools/collect_routes.py)
+  CR_TMP defaults to TMP_DEFAULT below (the optimizer's job directory).
+
+  --current F    (tools/cost_matrix.lua --list output) writes entries only for guides whose step count and checksum
+                 still match, so a guide changed or deleted since its row was solved gets no entry.
+
+Usage: venv/bin/python tools/optimize_routes.py <flavor> [--in PATH] [--out PATH] [--lua-out PATH] [--limit-s 30]
+                                               [--guide ID] [--no-write] [--merge] [--current F]
+                                               [--gate | --gate-only [--regate] [--gate-ids FILE]]
+                                               [--gate-work DIR] [--gate-cap S]
+       venv/bin/python tools/optimize_routes.py <flavor> --check-sums FILE   (cost_matrix --list --steps output)
 """
 import argparse
+import csv
 import heapq
 import json
 import math
 import os
+import subprocess
 import sys
 import time
 
-TMP = "/Users/daniel/.claude/jobs/ff3c728a/tmp"
+TMP_DEFAULT = "/Users/daniel/.claude/jobs/ff3c728a/tmp"
+TMP = os.environ.get("CR_TMP") or TMP_DEFAULT
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_CAP = {"era": 20, "forever": 20, "tbc": 25, "mop": 25, "retail": 35}
-NOROUTE = 1800.0          # seconds charged for a leg the router cannot path (same in author and baked)
+NOROUTE = None            # seconds for a leg the router cannot path: the cost model's (row["cm"], use_cost_model)
+HEARTH = None             # seconds an H step (use the hearthstone) costs instead of the trip: the cost model's
 SCALE = 10                # OR-Tools works in integers: deciseconds
 MOD = 2147483647
 
@@ -56,10 +83,27 @@ except Exception:  # pragma: no cover
 
 
 def checksum(steps):
+    """Core/Guide.lua G.RouteChecksum (version 2): per step the action and first quest id, the zone id and the first
+    map point in 0.5 % steps (+1; 0 = no point), folded from the parts tools/cost_matrix.lua writes (step[7..9])."""
     c = 0
     for s in steps:
         c = (c * 31 + ord(s[0][0]) + (s[2] or 0)) % MOD
+        c = (c * 31 + s[7]) % MOD
+        c = (c * 31 + s[8]) % MOD
+        c = (c * 31 + s[9]) % MOD
     return c
+
+
+def use_cost_model(rec):
+    """Take the cost model's constants from a cost_matrix row (there is no second copy here)."""
+    global NOROUTE, HEARTH
+    cm = rec.get("cm")
+    if not cm or "noroute" not in cm or "hearth" not in cm:
+        raise SystemExit("row %s has no cost model (\"cm\"): it was written before Routing/CostModel.lua - "
+                         "re-run tools/cost_matrix.lua" % rec.get("id"))
+    NOROUTE = float(cm["noroute"])
+    HEARTH = float(cm["hearth"])
+    return cm
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +203,13 @@ def precedence_edges(steps, blocks):
             add(x, y)
         for x, y in zip(tin, tin[1:]):
             add(x, y)
-    # PRE: every in-guide turn-in of a prerequisite before the dependent accept
+        # a quest with an objective step that ticks by itself (the cost model's PlanSteps, step[11]): its objective
+        # steps keep their author order, so the step that does the objective is the one walked to
+        if any(len(steps[i]) > 11 and steps[i][11] for i in obj):
+            for x, y in zip(obj, obj[1:]):
+                add(x, y)
+    # PRE: every in-guide turn-in of a prerequisite before any step that names it (the client hides such a step until
+    # the prerequisite is done: Core/Conditions.lua; the live window and the re-planner use the same rule)
     turnins = {}
     for i in where:
         s = steps[i]
@@ -167,7 +217,7 @@ def precedence_edges(steps, blocks):
             turnins.setdefault(s[2], []).append(i)
     for i in where:
         s = steps[i]
-        if s[1] == "A" and s[3]:
+        if s[3]:
             for p in s[3]:
                 for t in turnins.get(p, []):
                     add(t, i)
@@ -636,6 +686,7 @@ def ortools_solve(pb, init, time_limit):
 # Per guide
 # ---------------------------------------------------------------------------
 def solve_guide(rec, limit_s, flavor, dp_cap=400000, dp_time=6.0):
+    cm = use_cost_model(rec)
     steps = rec["steps"]
     m = rec["m"]
     start = rec["start"]
@@ -700,7 +751,7 @@ def solve_guide(rec, limit_s, flavor, dp_cap=400000, dp_time=6.0):
         if kind == "anchor":
             i = val[0]
             if steps[i][5] >= 0:
-                c = from_pt(last_pt)(steps[i][5])
+                c = HEARTH if steps[i][0] == "H" else from_pt(last_pt)(steps[i][5])
                 tot_author += c
                 tot_baked += c
                 tot_lb += c
@@ -775,7 +826,8 @@ def solve_guide(rec, limit_s, flavor, dp_cap=400000, dp_time=6.0):
         "opt_gap": round(max(0.0, gap), 4), "method": "+".join(sorted(methods)) or "none",
         "solve_s": round(time.time() - t0, 2), "violations": violations + v2, "dropped_edges": dropped,
         "lb_exact": int(exact_segs == len(segs)), "noroute_author": nr_author, "noroute_baked": nr_baked,
-        "sum": rec["sum"], "n": rec["n"], "order": order1,
+        "sum": rec["sum"], "n": rec["n"], "cmv": cm.get("version"), "taxi": cm.get("taxi"), "order": order1,
+        "faction": rec.get("faction"), "who": rec.get("who") or {}, "cm": cm,
     }
 
 
@@ -786,6 +838,10 @@ def chain_cost(rec, order, count_noroute=False):
     for i in order:
         p = rec["steps"][i][5]
         if p < 0:
+            continue
+        if rec["steps"][i][0] == "H":      # use the hearthstone: the cost model's hearth cost, not the trip
+            t += HEARTH
+            prev = p
             continue
         v = start[p] if prev is None else m[prev][p]
         t += NOROUTE if v < 0 else v
@@ -816,14 +872,11 @@ def check_steps(rec, order):
         if s[1] == "T" and s[2]:
             tin.setdefault(s[2], []).append(i)
     for i, s in enumerate(steps):
-        if s[1] == "A" and s[3]:
+        if s[3]:
             for p in s[3]:
                 for t in tin.get(p, []):
                     if t < i and pos[t] > pos[i]:
                         bad += 1
-        if s[6] or s[1] == "O":
-            # an anchor keeps every step on its side
-            pass
     # anchors: the set of steps before each anchor must be the same as in the author order
     seen = set()
     for k, i in enumerate(order):
@@ -847,21 +900,205 @@ def encode(order):
     return ",".join(out)
 
 
-def write_lua(flavor, rows, path):
-    keep = [r for r in rows if r["violations"] == 0 and r["baked_s"] < r["author_s"] - 1.0]
-    keep.sort(key=lambda r: r["id"])
-    with open(path, "w") as f:
+def model_keeps(r):
+    """the optimizer's own rule: no violation and more than 1 s faster in the model"""
+    return r["violations"] == 0 and r["baked_s"] < r["author_s"] - 1.0
+
+
+def kept(r):
+    """written to RouteOrder: the model keeps it and, when it was gated, vplayer confirmed it ("gate" absent = ungated)"""
+    return model_keeps(r) and r.get("gate", "keep") == "keep"
+
+
+def read_current(path):
+    """tools/cost_matrix.lua --list rows -> {id: (n, sum)}: the guides as they are now"""
+    cur = {}
+    for line in open(path):
+        r = json.loads(line)
+        cur[r["id"]] = (r["n"], r["sum"])
+    return cur
+
+
+def write_lua(flavor, rows, path, current=None):
+    """current ({id: (n, sum)}, optional): write only rows that still match the guides (no stale or orphan entry)"""
+    keep = sorted((r for r in rows if kept(r) and (current is None or current.get(r["id"]) == (r["n"], r["sum"]))),
+                  key=lambda r: r["id"])
+    path = os.path.realpath(path)    # a linked RouteOrder file (a worktree's) is written where it lives, the link stays
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".part", "w") as f:
         f.write("-- Completionist's Guide :: RouteOrder_%s.lua - GENERATED %s by tools/optimize_routes.py\n" % (flavor, time.strftime("%Y-%m-%d")))
         f.write("-- Baked step order per quest guide (offline route optimizer, FINISH_PLAN W3). Own data: travel times from\n")
         f.write("-- the addon's TravelGraph (tools/cost_matrix.lua). Applied by Core/Guide.lua G.Steps only when the guide's step\n")
         f.write("-- count and checksum still match; otherwise the author order is used. /cr options: routing.baked.\n")
-        f.write("-- n = steps, sum = checksum, o = 1-based author step indices in baked order (a-b = run).\n")
+        f.write("-- n = steps, sum = checksum (version 2), o = 1-based author step indices in baked order (a-b = run);\n")
+        f.write("-- gated entries: va / vb = tools/vplayer.lua seconds, author order + live window / baked order + live window;\n")
+        f.write("-- vah / vbh = the same for a Horde character in a guide for both factions (va / vb: Alliance).\n")
         f.write("local _, NS = ...\n")
         f.write("if (NS.dataFlavor or NS.flavor) ~= %s then return end\n" % json.dumps(flavor))
         f.write("NS.RouteOrder = NS.RouteOrder or {}\nlocal O = NS.RouteOrder\n")
         for r in keep:
-            f.write("O[%s] = { n = %d, sum = %d, o = %s }\n" % (json.dumps(r["id"]), r["n"], r["sum"], json.dumps(encode(r["order"]))))
+            meas = ""
+            if r.get("gate") == "keep":
+                meas = ", va = %d, vb = %d" % (round(r["gate_author_live_s"]), round(r["gate_baked_live_s"]))
+                if r.get("gate_author_live_h_s") is not None:
+                    meas += ", vah = %d, vbh = %d" % (round(r["gate_author_live_h_s"]), round(r["gate_baked_live_h_s"]))
+            f.write("O[%s] = { n = %d, sum = %d, o = %s%s }\n" % (json.dumps(r["id"]), r["n"], r["sum"],
+                                                                json.dumps(encode(r["order"])), meas))
+    os.replace(path + ".part", path)
     return len(keep)
+
+
+# ---------------------------------------------------------------------------
+# Gate: play author + live and baked + live in tools/vplayer.lua
+# ---------------------------------------------------------------------------
+def read_tsv(path):
+    out = {}
+    if os.path.exists(path):
+        with open(path, newline="") as f:
+            for r in csv.DictReader(f, delimiter="\t"):
+                out[r["guide"]] = r
+    return out
+
+
+VPLAYER_TAXI = {"faction": "all", "band": "band"}   # the bake's offline flight rule (row "taxi") -> vplayer --taxi
+
+
+def run_vplayer(flavor, ids_file, order, out_tsv, cap, route_order=None, taxi=None, both_as=None):
+    """vplayer with a real character of the planning character's faction, class and race (--who gate), live window on"""
+    cmd = ["luajit", "tools/vplayer.lua", flavor, "--guides-file", ids_file, "--order", order, "--live", "on",
+           "--guidecap", str(int(cap)), "--taxi", VPLAYER_TAXI.get(taxi, "model"), "--who", "gate", "--out", out_tsv]
+    if both_as:
+        cmd += ["--both-as", both_as]
+    if route_order:
+        cmd += ["--route-order", route_order]
+    p = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
+    if p.returncode != 0:
+        raise RuntimeError("vplayer %s failed (%d): %s" % (order, p.returncode, (p.stderr or "")[-600:]))
+    return read_tsv(out_tsv)
+
+
+def gate_limits(rows):
+    """(fraction, seconds) the baked order may be slower by: the cost model's, from the rows (no copy here)"""
+    for r in rows:
+        cm = r.get("cm") or {}
+        if "gate_frac" in cm and "gate_abs" in cm:
+            return float(cm["gate_frac"]), float(cm["gate_abs"])
+    raise SystemExit("rows have no gate limits (\"cm\".gate_frac / gate_abs): they were solved before cost model version 2 - "
+                     "re-solve them (tools/bake_resume.py)")
+
+
+def gate_verdict(a, b, limits):
+    """(verdict, why, author+live s, baked+live s) from the two vplayer rows of one guide"""
+    if not a or not b:
+        return "reject", "vplayer did not play it", None, None
+    sa, sb = float(a["seconds"]), float(b["seconds"])
+    if a.get("error") or b.get("error"):
+        return "reject", "vplayer error: %s" % (a.get("error") or b.get("error")), sa, sb
+    if a.get("finished") != "1" or b.get("finished") != "1":
+        return "reject", "did not finish (author %s, baked %s)" % (a.get("finished"), b.get("finished")), sa, sb
+    allowed = max(limits[0] * sa, limits[1])
+    if sb <= sa + allowed:
+        return "keep", "baked %+.0f s (allowed +%.0f)" % (sb - sa, allowed), sa, sb
+    return "reject", "baked %+.0f s slower than author (allowed +%.0f)" % (sb - sa, allowed), sa, sb
+
+
+GATE_KEYS = ("gate", "gate_why", "gate_author_live_s", "gate_baked_live_s", "gate_author_live_h_s", "gate_baked_live_h_s")
+
+
+def for_both(r):
+    """a guide for both factions (a row without a faction counts as one: it is gated as both)"""
+    return r.get("faction") not in ("Alliance", "Horde")
+
+
+def gate(flavor, rows, work, cap=600):
+    """Gate every row in `rows` (in place): the ones the model would bake get vplayer's verdict, the others "skip".
+    vplayer plays author + live and baked + live with a real character of the planning character's faction, class and
+    race and the bake's own flight rule; a guide for both factions is played as Alliance and as Horde and must pass both.
+    A row keeps no earlier verdict while it is gated: if vplayer fails (RuntimeError), the candidates stay ungated."""
+    os.makedirs(work, exist_ok=True)
+    cands = [r for r in rows if model_keeps(r)]
+    for r in rows:
+        for k in GATE_KEYS:
+            r.pop(k, None)
+        if not model_keeps(r):
+            r["gate"], r["gate_why"] = "skip", "no baked order to check"
+    if not cands:
+        return 0, 0
+    limits = gate_limits(cands)
+    ids = os.path.join(work, "gate_%s_ids.txt" % flavor)
+    with open(ids, "w") as f:
+        f.write("\n".join(r["id"] for r in cands) + "\n")
+    both = [r for r in cands if for_both(r)]
+    ids_h = os.path.join(work, "gate_%s_ids_horde.txt" % flavor)
+    with open(ids_h, "w") as f:
+        f.write("\n".join(r["id"] for r in both) + "\n")
+    ro = os.path.join(work, "RouteOrder_%s.lua" % flavor)
+    probe = [dict(r, gate="keep", gate_author_live_s=0, gate_baked_live_s=0) for r in cands]
+    write_lua(flavor, probe, ro)
+    taxi = cands[0].get("taxi")
+    va = run_vplayer(flavor, ids, "author", os.path.join(work, "gate_%s_author_on.tsv" % flavor), cap, taxi=taxi, both_as="Alliance")
+    vb = run_vplayer(flavor, ids, "baked", os.path.join(work, "gate_%s_baked_on.tsv" % flavor), cap, route_order=ro, taxi=taxi,
+                     both_as="Alliance")
+    vah, vbh = {}, {}
+    if both:
+        vah = run_vplayer(flavor, ids_h, "author", os.path.join(work, "gate_%s_author_on_h.tsv" % flavor), cap, taxi=taxi, both_as="Horde")
+        vbh = run_vplayer(flavor, ids_h, "baked", os.path.join(work, "gate_%s_baked_on_h.tsv" % flavor), cap, route_order=ro, taxi=taxi,
+                          both_as="Horde")
+    keep = 0
+    for r in cands:
+        verdict, why, sa, sb = gate_verdict(va.get(r["id"]), vb.get(r["id"]), limits)
+        r["gate_author_live_s"], r["gate_baked_live_s"] = sa, sb
+        if for_both(r):
+            vh, why_h, sah, sbh = gate_verdict(vah.get(r["id"]), vbh.get(r["id"]), limits)
+            r["gate_author_live_h_s"], r["gate_baked_live_h_s"] = sah, sbh
+            why = "Alliance: %s; Horde: %s" % (why, why_h)
+            if vh != "keep":
+                verdict = "reject"
+        r["gate"], r["gate_why"] = verdict, why
+        keep += verdict == "keep"
+    return len(cands), keep
+
+
+def gate_summary(rows):
+    """one line: gated rows, kept / rejected, and vplayer's author+live minus baked+live seconds over each group"""
+    g = [r for r in rows if r.get("gate") in ("keep", "reject")]
+    kept_rows = [r for r in g if r["gate"] == "keep"]
+    rej = [r for r in g if r["gate"] == "reject"]
+
+    def saved(rs):
+        t = 0.0
+        for r in rs:
+            for a, b in (("gate_author_live_s", "gate_baked_live_s"), ("gate_author_live_h_s", "gate_baked_live_h_s")):
+                if r.get(a) is not None and r.get(b) is not None:
+                    t += r[a] - r[b]
+        return t
+    unfinished = sum(1 for r in rej if (r.get("gate_why") or "").startswith(("did not finish", "vplayer")))
+    return ("%d baked orders checked: %d kept (vplayer saves %.0f s), %d rejected (%d slower: they would have cost %.0f s; "
+            "%d not finished or not played)" % (len(g), len(kept_rows), saved(kept_rows), len(rej), len(rej) - unfinished,
+                                                -saved([r for r in rej if not (r.get("gate_why") or "").startswith(("did not finish", "vplayer"))]),
+                                                unfinished))
+
+
+def save_rows(path, rows):
+    """write result rows atomically (a reader never sees half a file)"""
+    with open(path + ".part", "w") as fo:
+        for r in rows:
+            fo.write(json.dumps(r) + "\n")
+    os.replace(path + ".part", path)
+
+
+def check_sums(path):
+    """tools/cost_matrix.lua --list --steps rows: does the Python fold of the parts give the Lua checksum?"""
+    n = bad = 0
+    for line in open(path):
+        rec = json.loads(line)
+        n += 1
+        if checksum(rec["steps"]) != rec["sum"]:
+            bad += 1
+            if bad <= 5:
+                print("MISMATCH %s: python %d, lua %d" % (rec["id"], checksum(rec["steps"]), rec["sum"]))
+    print("checksums: %d guides, %d mismatches" % (n, bad))
+    return 2 if bad else 0
 
 
 def main():
@@ -869,48 +1106,83 @@ def main():
     ap.add_argument("flavor")
     ap.add_argument("--in", dest="inp")
     ap.add_argument("--out")
+    ap.add_argument("--lua-out", help="RouteOrder file to write (default CompletionRoute/Data/RouteOrder_<flavor>.lua)")
     ap.add_argument("--limit-s", type=float, default=None, help="cap the per-guide time limit (default min(30, 2+0.12*blocks))")
     ap.add_argument("--guide")
     ap.add_argument("--dp-time", type=float, default=6.0, help="seconds the exact metric DP may spend per segment")
     ap.add_argument("--dp-cap", type=int, default=400000, help="subset cap of the exact metric DP (lower bound)")
-    ap.add_argument("--no-write", action="store_true", help="do not write Data/RouteOrder_<flavor>.lua")
+    ap.add_argument("--no-write", action="store_true", help="do not write the RouteOrder file")
     ap.add_argument("--merge", action="store_true", help="keep rows from an earlier --out file for guides not in this input")
+    ap.add_argument("--gate", action="store_true", help="gate the guides solved in this run with tools/vplayer.lua")
+    ap.add_argument("--gate-only", action="store_true", help="no solving: gate the rows in --out that have no verdict yet")
+    ap.add_argument("--regate", action="store_true", help="with --gate-only: gate every row again")
+    ap.add_argument("--gate-ids", help="with --gate-only: only these guide ids (one per line)")
+    ap.add_argument("--gate-work", help="directory for the gate's vplayer files (default <out dir>/gate)")
+    ap.add_argument("--gate-cap", type=float, default=600, help="vplayer seconds per guide in the gate (--guidecap)")
+    ap.add_argument("--check-sums", help="verify the checksum of tools/cost_matrix.lua --list --steps rows and exit")
+    ap.add_argument("--current", help="tools/cost_matrix.lua --list output: write RouteOrder entries only for guides that "
+                                      "still match it (step count and checksum), so a stale or deleted guide gets none")
     a = ap.parse_args()
     fl = a.flavor
+    if a.check_sums:
+        sys.exit(check_sums(a.check_sums))
     inp = a.inp or os.path.join(TMP, "costmx", fl + ".jsonl")
     outp = a.out or os.path.join(TMP, "routeopt", fl + ".jsonl")
-    os.makedirs(os.path.dirname(outp), exist_ok=True)
+    lua_out = a.lua_out or os.path.join(REPO, "CompletionRoute", "Data", "RouteOrder_%s.lua" % fl)
+    work = a.gate_work or os.path.join(os.path.dirname(os.path.abspath(outp)), "gate")
+    os.makedirs(os.path.dirname(os.path.abspath(outp)), exist_ok=True)
     rows = []
     prev = {}
-    if a.merge and os.path.exists(outp):
+    if (a.merge or a.gate_only) and os.path.exists(outp):
         for line in open(outp):
             r = json.loads(line)
             prev[r["id"]] = r
     t0 = time.time()
-    with open(outp + ".part", "w") as fo:
-        for k, line in enumerate(open(inp)):
-            rec = json.loads(line)
-            if a.guide and rec["id"] != a.guide:
-                continue
-            if checksum(rec["steps"]) != rec["sum"]:
-                print("checksum mismatch (Lua vs Python) for", rec["id"], file=sys.stderr)
-                sys.exit(2)
-            r = solve_guide(rec, a.limit_s, fl, a.dp_cap, a.dp_time)
-            rows.append(r)
-            prev.pop(r["id"], None)
-            fo.write(json.dumps(r) + "\n")
-            fo.flush()
-            if len(rows) % 10 == 0:
-                print("%d guides %.0fs last %s blocks=%d author=%.0f baked=%.0f lb=%.0f %s" % (
-                    len(rows), time.time() - t0, r["id"], r["blocks"], r["author_s"], r["baked_s"], r["lower_bound_s"], r["method"]), file=sys.stderr)
-        for r in prev.values():
-            rows.append(r)
-            fo.write(json.dumps(r) + "\n")
-    os.replace(outp + ".part", outp)
+    gate_failed = None
+    if a.gate_only:
+        only = set(l.strip() for l in open(a.gate_ids) if l.strip()) if a.gate_ids else None
+        todo = [r for r in prev.values() if (only is None or r["id"] in only) and (a.regate or "gate" not in r)]
+        try:
+            gate(fl, todo, work, a.gate_cap)
+            print("gate %s: %d rows; %s" % (fl, len(todo), gate_summary(todo)), file=sys.stderr)
+        except RuntimeError as e:
+            gate_failed = str(e)
+        rows = list(prev.values())
+    else:
+        with open(outp + ".part", "w") as fo:
+            for k, line in enumerate(open(inp)):
+                rec = json.loads(line)
+                if a.guide and rec["id"] != a.guide:
+                    continue
+                if checksum(rec["steps"]) != rec["sum"]:
+                    print("checksum mismatch (Lua vs Python) for", rec["id"], file=sys.stderr)
+                    sys.exit(2)
+                r = solve_guide(rec, a.limit_s, fl, a.dp_cap, a.dp_time)
+                rows.append(r)
+                prev.pop(r["id"], None)
+                fo.write(json.dumps(r) + "\n")
+                fo.flush()
+                if len(rows) % 10 == 0:
+                    print("%d guides %.0fs last %s blocks=%d author=%.0f baked=%.0f lb=%.0f %s" % (
+                        len(rows), time.time() - t0, r["id"], r["blocks"], r["author_s"], r["baked_s"], r["lower_bound_s"], r["method"]), file=sys.stderr)
+        if a.gate:
+            # save the solves before the gate: a run killed during the gate (or a vplayer failure) loses no solve, and
+            # the next --gate-only (tools/bake_resume.py) gates these rows without solving them again
+            save_rows(outp, rows + list(prev.values()))
+            try:
+                gate(fl, rows, work, a.gate_cap)
+                print("gate %s: %s" % (fl, gate_summary(rows)), file=sys.stderr)
+            except RuntimeError as e:
+                gate_failed = str(e)
+        rows += list(prev.values())
+    save_rows(outp, rows)
+    if gate_failed:
+        print("gate %s FAILED, rows saved without a verdict (re-run --gate-only): %s" % (fl, gate_failed), file=sys.stderr)
+        sys.exit(3)
     nviol = sum(r["violations"] for r in rows)
     if not a.no_write:
-        n = write_lua(fl, rows, os.path.join(REPO, "CompletionRoute", "Data", "RouteOrder_%s.lua" % fl))
-        print("wrote Data/RouteOrder_%s.lua: %d of %d guides baked" % (fl, n, len(rows)), file=sys.stderr)
+        n = write_lua(fl, rows, lua_out, read_current(a.current) if a.current else None)
+        print("wrote %s: %d of %d guides baked" % (lua_out, n, len(rows)), file=sys.stderr)
     print("DONE %s: %d guides %.0fs, violations=%d -> %s" % (fl, len(rows), time.time() - t0, nviol, outp), file=sys.stderr)
 
 

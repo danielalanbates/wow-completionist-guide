@@ -12,7 +12,7 @@ local function load(path)
     end
     local fn = assert(loadfile("CompletionRoute/" .. path)) fn(ADDON, NS)
 end
-for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Sweep.lua", "Adapters/WoWPro.lua", "Guides/Imported_WoWPro_tbc.lua", "Guides/Imported_WoWPro.lua" }) do load(f) end
+for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Sweep.lua", "Adapters/WoWPro.lua", "Guides/Imported_WoWPro_tbc.lua", "Guides/Imported_WoWPro.lua" }) do load(f) end
 -- fake ADDON_LOADED
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end

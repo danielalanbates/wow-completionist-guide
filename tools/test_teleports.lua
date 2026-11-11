@@ -117,7 +117,7 @@ local function boot(flavor, toc, faction, class, race)
     local taxi = { era = "Data/Taxi_era.lua", retail = "Data/Taxi_retail.lua" }
     for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Core/Professions.lua", taxi[flavor], "Data/Transit.lua",
         "Data/Teleports.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
-        "Routing/TravelGraph.lua", "Routing/Teleports.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua",
+        "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Teleports.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua",
         "Core/Account.lua", "Core/Progress.lua" }) do load(f) end
     CompletionRouteDB, CompletionRouteCharDB = nil, nil
     for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
