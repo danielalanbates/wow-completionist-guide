@@ -35,8 +35,10 @@ a baked route order is applied:
 
 **What still moves a mark.** A step whose quest-less title is reworded gets a new key (its tick is lost, never put on
 another step). Inserting a step with exactly the same key in front of another one (two identical `N Talk to the guard`
-lines, or a second objective-less `C` step of the same quest) renumbers the repeats behind it; on real data 2.4-4.0% of
-steps are such repeats (table below).
+lines, or a second objective-less `C` step of the same quest) renumbers the repeats behind it, so their marks shift to a
+neighbouring identical step (a tick on the second `Talk to the guard` lands on the new second one); deleting one does
+the same the other way. On real data 2.4-4.0% of steps are such repeats (table below). Every other mark stays on its
+step.
 
 ## Collisions on the real guides
 
@@ -75,6 +77,8 @@ digits with a loop of concatenations (0.4 s on that guide); one `string.char` ca
 Loading a guide also sums its keys once (`G.GuideSum`, stored next to the marks): 76 ms on that guide, about
 0.7 microseconds per step, cached per parse. A guide with skipped quests sums keys and indices for its rebuild key
 once per rebuilt list (89 ms there).
+A re-run after the review fixes (2026-11-11) gave the same figures within 3% (retail: 7,857 ms parse, 547.6 ms keys,
+7.0%; the largest guide 233 ms of keys on a 1,054 ms parse).
 Absolute times on this Mac vary up to about 4x between runs (jobs run at nice 10 next to other agents' work and can land
 on efficiency cores), so the share of parse time is the steadier figure; the client's own Lua 5.1 differs from
 `luajit -joff` by a factor that was not measured.
@@ -88,7 +92,7 @@ before and after this branch.
 |---|---|---|
 | account file, `CompletionRouteDB.chars[<Name-Realm>]` | `stepDone[guide][key] = true` | ticked (by hand or by the auto-completer) |
 | | `stepSkipped[guide][key] = true` | skipped as a step |
-| | `stepMeta[guide] = { v, sum, mig, lost }` | key version; `G.GuideSum` (checksum of the guide's keys in author order) when last loaded or migrated; how many old marks were imported; how many matched no step |
+| | `stepMeta[guide] = { v, sum, mig, lost, ro }` | key version; `G.GuideSum` (checksum of the guide's keys in author order) when last loaded or migrated; how many old marks were imported; how many matched no step; `ro`: the character's own stepped-back marks were imported (`false`: another character migrated this record, the owner imports them on its next load) |
 | character file, `CompletionRouteCharDB` | `stepReopened[guide][key] = true` | stepped back to (`Progress.Undo`) |
 | both (unchanged, read only) | `done`, `skipped`, `reopened` | the index-keyed tables of earlier releases |
 
@@ -109,6 +113,16 @@ read for the guide list (`GuideProgress`, `GuideIsComplete` / `GuideCompletedBy`
 - It runs once: `stepMeta[guide]` records that it ran, and is written for the logged-in character on every guide it
   loads, even without old marks, so index marks that a downgraded client writes later (perhaps on older data) are never
   mapped onto this data.
+- Not during a bulk sweep (`/cr sweep`, `/cr verifyall`: `Account.BeginScratch`). The sweep swaps the logged-in
+  character's record tables (`stepMeta` included) for empty ones, but not its character file, so a migration there
+  would find no record and import the old stepped-back set again, pinning steps the player has since ticked forward
+  (or, after a data update, other steps). The logged-in character is skipped while the scratch store is in place;
+  other characters' records migrate as usual. Found in review; the test drives the real `Core/Sweep.lua`.
+- Stepped-back marks (`CompletionRouteCharDB.reopened`) live in the character's own file, which only that character
+  can read. When another character of the same client migrates an alt's record, it sets `ro = false`; the alt imports
+  its own stepped-back marks on its next load and sets `ro = true`. (Before this fix those marks were dropped for an
+  alt migrated by another character first.) Like the rest, they are mapped with the guide as it is when the alt loads
+  it.
 - Other characters' records are migrated too (account-wide progress counts their marks), but only those of this
   client's game type (`gametype`, hardcore folded in; a record from before game types counts by its `flavor` unless it
   is `era`, which Classic Era and WoW Forever both report). A record copied in from another client by
@@ -142,7 +156,7 @@ marks; nothing written while downgraded is imported for a guide that was already
 
 ## Tests
 
-`luajit -joff tools/test_progress_keys.lua [era tbc mop retail forever]` (178 checks, about 15-20 s, 260 MB):
+`luajit -joff tools/test_progress_keys.lua [era tbc mop retail forever]` (196 checks, about 15-20 s, 260 MB):
 
 1. The recipe on a synthetic guide (quest, objective, several quest ids, repeats, words, coordinates, access chains,
    parse unchanged).
@@ -151,11 +165,16 @@ marks; nothing written while downgraded is imported for a guide that was already
    its quest's steps, the deleted step's tick counts nowhere, the old re-plan is not applied, account-wide marks follow,
    a baked order still applies by author index and checksum. The same marks by author index would sit on 3 wrong steps.
 3. Migration from `tools/fixtures/progress_keys_account_SV.lua` and `..._character_SV.lua` (the real files' structure,
-   placeholder names): this character's done, skipped and reopened marks, another character of the same game type,
-   records of other clients and of unknown game type left alone, empty old tables, marks with no step, a real era
-   guide, untouched old tables.
-4. Idempotence (twice in a session, after a reload, after a downgraded client wrote more index marks), an old-format
-   re-plan key converted and applied, and the downgrade with the previous release's own code.
+   placeholder names) on a baked guide, as in game (18 of 19 list positions differ from the author index): this
+   character's done, skipped and reopened marks, another character of the same game type, records of other clients and
+   of unknown game type left alone, empty old tables, marks with no step, a real era guide with its real bake from
+   `Data/RouteOrder_era.lua` (old tick 5 sits at list position 8; skipped with a message if the bake no longer matches
+   the generated guide), untouched old tables. An alt whose record the main migrated first still imports its own
+   stepped-back mark when it logs in, once.
+4. Idempotence (twice in a session, after a reload, after a downgraded client wrote more index marks, and a route sweep
+   through the real `Core/Sweep.lua` on the same data and after a data update: no old stepped-back mark comes back, every
+   mark table is as before), an old-format re-plan key converted and applied, and the downgrade with the previous
+   release's own code.
 5. `tools/sync_progress.lua` on temp copies of two client folders: keyed marks and migration records reach the other
    file; a second run changes nothing.
 6. All five flavors' real guides: the table above, parse results unchanged on a sample, access-chain keys unique.
@@ -163,7 +182,9 @@ marks; nothing written while downgraded is imported for a guide that was already
    every mark on its step, no other step marked, the inserted step open, the skipped quest still out.
 
 A mutation check (keys from author index; coordinates inside the key; migration off; every record migrated) makes the
-test fail in each case.
+test fail in each case. After the review fixes, four more mutations of `Core/Account.lua`, era only: the code before
+the fixes (10 failures), the index map built from list positions instead of author indices (8), the logged-in
+character migrated during a sweep (6), and no stepped-back import for a record another character migrated (2).
 
 ## Open
 
@@ -172,3 +193,8 @@ test fail in each case.
   beta may be older.
 - `tools/sync_progress.lua` unions marks, so a reset or a step taken back on one client comes back from another client's
   older copy of the same character. That was already so for the old tables.
+- An alt whose record another character migrated imports its stepped-back marks on its first load on this release,
+  mapped with the guide as it is then. If that alt played a downgraded client in between, those marks may have been
+  written on older data; a wrong one only keeps a step open until it is ticked forward.
+- During a sweep the logged-in character's stepped-back marks are still the real ones (they were never part of the
+  scratch store, before or after this branch): the sweep reads them, and does not write them.

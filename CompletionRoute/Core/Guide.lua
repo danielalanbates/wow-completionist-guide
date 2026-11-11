@@ -249,7 +249,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Progress marks (done, skipped, reopened: Core/Account.lua, Core/Progress.lua) are stored by a key that survives a
 -- regenerated guide: an inserted or deleted line, a moved coordinate or a reordered block leave every other step's key
--- as it was.
+-- as it was, except the repeat number of identical steps behind an inserted or deleted identical step.
 --   quest step     <action><quest ids, sorted, "+" between>[.<objective>]        "A123", "C123.2", "T123+124"
 --   other step     <action>~<hash of the title's words + achievement/recipe/skill/mission ids>   "N~2bq9z0k1f"
 --   repeats        "#2", "#3"... on the 2nd, 3rd step with the same key above, counted in the guide's own order
