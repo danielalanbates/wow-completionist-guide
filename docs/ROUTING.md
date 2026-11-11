@@ -498,11 +498,37 @@ lowest level's speed.
 | Speed | ground speed by level band (7, 11.2 from 40, 14 from 60 yd/s on Classic clients; 14 from 10 on retail), retail flies from 10 at 45 yd/s; offline a leg is priced at the planning level of the step it leaves from (the guide's start level raised by every `|LVL|` up to that step). | U.TravelSpeed in game, cost_matrix and vplayer offline |
 | Walking factor | 1.25 off road (the Options slider in game), 1.05 when flying, the same for a short walk below 700 yd as for the graph's walks (a short walk used the ground factor even when flying). | TravelGraph, Router.TravelSeconds and TravelRow |
 | Offline flight paths | `CM.OFFLINE_TAXI` = `faction` (see below). | cost_matrix, vplayer `--taxi model` |
-| Planning character | one baked order serves every class and race: the bake plans for the steps every character of the guide's faction takes (`CM.Takes`: no class, race or profession condition, no other faction's tag; in a guide for both factions no faction tag) and that it walks to (`CM.PlanSteps`: a second accept or turn-in, or an objective already done, ticks by itself). The rest ride along. | cost_matrix; vplayer `--who plan` plays exactly this character |
+| Planning character | one baked order serves everyone who plays the guide, so it is planned for one character (`CM.Persona`): the guide's faction (in a guide for both factions: the faction at least half of its located steps are tagged for, else none), then the class, race and profession at least half of the located steps it takes so far name (else none). The bake walks to the steps that character takes (`CM.Takes`) and that do not tick by themselves (`CM.PlanSteps`: a second accept or turn-in, an objective already done). The rest ride along. | cost_matrix; vplayer `--who plan` plays exactly this character, `--who gate` a real character of its faction, class and race |
+| Gate limits | `CM.GATE_FRAC` = 1%, `CM.GATE_ABS` = 30 s (see "Bake gate"). | optimize_routes (row `cm`), test_route_order |
 
 The Python optimizer holds no copy of these: every cost_matrix row carries `"cm"` (version, no-route and hearth cost,
-flight rule) and `optimize_routes.py` refuses a row without it. `CM.VERSION` is stamped into every row; bump it when a rule
-changes and `tools/bake_resume.py` treats every row as stale.
+flight rule, gate limits) and `optimize_routes.py` refuses a row without it. `CM.VERSION` is stamped into every row; bump it
+when a rule changes and `tools/bake_resume.py` treats every row as stale. It is 2 since the planning character change
+below. The client files read the constants straight from `NS.CostModel` (no fallback copies: StepOrder, Replan and Router
+assert that it loaded first, and `tools/validate_toc.lua` checks the order in all six TOCs).
+
+**Planning character per guide (2026-11-11 fix).** The first version planned every guide for a character with no class,
+race or profession and, in a guide for both factions, no faction tag. A guide whose steps all carry such a condition then
+had nothing to bake: a race's starting zone (The Lost Isles, every step `R|Goblin`), a class campaign, a guide for both
+factions whose steps are all Alliance-tagged. `CM.Persona` now plans each guide for the character most of its located
+steps are written for. Over every quest guide (located steps the planning character walks to, faction-only rule -> per
+guide; "no bake" = at least 2 located steps but fewer than 2 walked to; "v1 entry" = the guide has an entry in today's
+stale RouteOrder file, so it would have lost its bake in the rebake):
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Quest guides (for both factions) | 234 (80) | 354 (122) | 772 (316) | 1,021 (683) | 240 (82) |
+| Guides with a planning character other than the faction-only one | 4 | 7 | 18 | 140 | 4 |
+| Located steps walked to (of all located) | 9,112 -> 9,131 (10,725) | 14,591 -> 14,694 (16,664) | 36,852 -> 38,056 (40,695) | 60,961 -> 67,131 (74,856) | 9,337 -> 9,348 (11,057) |
+| No bake (with a v1 entry) | 1 (0) -> 0 | 0 -> 0 | 7 (5) -> 2 (1) | 78 (70) -> 10 (9) | 3 (0) -> 0 |
+
+Retail's 140: faction 83, class 35, race 12, faction and class 8, class and race 2. The 12 guides still without a bake
+are split between classes with no class covering half of the located steps (`wiki:mop:327:Both`, `qdb:mop:10024:Both`,
+`wiki:retail:327:Both` and 9 retail `qpoi:` class-trainer guides): one order cannot serve them, and they play in author
+order with the live window. A guide for both factions with a tagged minority (for example 72 Alliance, 14 Horde and 68
+untagged located steps) keeps the untagged steps; the gate then checks the bake for both factions. `cost_matrix --list`
+reports `nl`, `np` and `who` per guide; `tools/test_cost_parity.lua` checks the rule on synthetic guides and on five real
+guides that need it, and lists the guides left without a bake.
 
 **Why this located rule.** `tools/cost_holdout.lua` takes quest steps whose point is known (3,000 per client, every third
 quest guide), hides the point, and predicts the detour prev -> step -> next with each candidate rule. Mean absolute error
@@ -537,9 +563,11 @@ over the quest guides with at least 10 steps) with short solver limits. One kind
 author order that breaks its own rules (an accept listed before the in-guide turn-in of its prerequisite, the optimizer's
 `dropped_edges`; only Questie-derived `qdb:` gaps guides have them). The client cannot play such an order as written: it
 shows the hidden step later, or, when the quest is turned in first, never. A miss on such a guide is listed with that
-reason and does not fail the test; any other miss fails it. Last run: 28 of 30 inside 2%, most to the second; the two
+reason and does not fail the test; any other miss fails it. First run: 28 of 30 inside 2%, most to the second; the two
 misses are both of that kind and both in the author order only (`qdb:era:357:Horde` -3.9%, forever `qdb:era:15:Alliance`
--26.6%); 4 more guides of that kind agreed anyway.
+-26.6%); 4 more guides of that kind agreed anyway. Since 2026-11-11 the harness samples only guides with at least 2 steps
+the planning character walks to (a guide priced at 0 s "agreed" at 0 = 0 before: 4 of 60 in a 20-per-client run) and
+fails on a sampled guide predicted at 0 s; last run (cost model v2): 30 of 30 inside 2%, none excused.
 
 **Predicted against measured** (20 guides per client, evenly spread over the quest guide ids; vplayer's default warrior;
 seconds summed over the sample; "before" = branch base 472f8a4 with its own bake and vplayer, "after" = this branch):
@@ -553,8 +581,14 @@ seconds summed over the sample; "before" = branch base 472f8a4 with its own bake
 | After: vplayer, live window off | 21,459 | 27,194 | 10,965 | 10,421 | 30,228 |
 | After: vplayer, live window on | 2,943 | 4,873 | 3,937 | 9,067 | 9,073 |
 | After: vplayer `--who plan`, live window off | = predicted within 2% per guide | | | | |
+| After review fixes (2026-11-11, cost model v2): saving the model predicts | 33,818 | 35,620 | 13,038 | 17,573 | 45,446 |
+| After review fixes: vplayer, live window off | 21,459 | 27,169 | 10,965 | 10,421 | 30,228 |
+| After review fixes: vplayer, live window on | 2,943 | 4,261 | 3,937 | 9,067 | 9,073 |
+| After review fixes: `--who plan`, live window off, inside 2% | 20/20 | 20/20 | 20/20 | 20/20 | 20/20 |
 
-Measured over predicted (live window off) went from 0.59 / 0.62 / 0.42 / 0.12 / 0.53 to 0.63 / 0.76 / 0.88 / 0.60 / 0.67.
+Measured over predicted (live window off) went from 0.59 / 0.62 / 0.42 / 0.12 / 0.53 to 0.63 / 0.76 / 0.88 / 0.60 / 0.67
+(0.63 / 0.76 / 0.84 / 0.59 / 0.67 with the planning character per guide; the sample has 0 / 1 / 1 / 4 / 0 guides it
+changes, so era and forever are unchanged to the second).
 The author order alone: retail predicted 72,563 s against 20,168 s measured before (vplayer hearthed home and walked to
 zone centres), 57,451 s against 50,867 s after. The gap that remains with the warrior is not the cost model: it levels by
 experience, so `|LVL|` steps open later than the bake assumes and the order it plays differs; it takes its own class and
@@ -583,9 +617,25 @@ always uses the character's discovered flight paths, and the live window re-pric
 **CPU** (`luajit -joff`, the same windows on both trees). The live window, one `Router.OrderSteps` call on 340 era and 364
 retail windows of the sample guides, unbudgeted: era cold (no kept costs) mean 61.7 -> 39.1 ms, warm mean 1.64 -> 1.25 ms
 (p95 3.37 -> 3.17); retail cold 320 -> 190 ms, warm 1.64 -> 1.18 ms (p95 2.89 -> 2.58). Steps that ride along make fewer
-blocks, and a search fixes its walking factor once. In game each call still stops at 3 ms. The re-planner's slices
-(`tools/test_skip.lua`): collector paused p50 0.80 ms both, p99 0.83 -> 0.84 ms, max 0.97 -> 1.13 ms; collector running
-p99 0.88 -> 0.87 ms, max 1.43 -> 1.46 ms; none over 2 ms.
+blocks, and a search fixes its walking factor once. In game each call still stops at 3 ms (a 2026-11-11 re-run of the
+budgeted client loop after the review fixes, mean per call / total to converge: era 3.92 / 44 ms against 4.15 / 66 ms on
+the base, retail 8.49 / 138 ms against 11.1 / 243 ms).
+
+The re-planner (`tools/test_skip.lua` under `luajit -joff`; corrected 2026-11-11, the first version of this paragraph
+compared against one base run whose 1.43 ms maximum was a mop outlier). Three runs per tree, then two more on the final
+code: per-frame p50 0.80-0.81 ms and p99 0.82-0.89 ms on both trees; collector paused max 0.99-1.06 ms base, 0.96-1.21 ms
+branch; collector running max 0.96-0.98 ms base, 1.42-1.47 ms branch, always on retail. No frame is over 2 ms. Total work
+went up on retail: its re-plans take 4,548-4,663 frames against 3,354-3,496, and `wiki:retail:111:Both:1` 2,740-2,803 ms of
+CPU against 1,912-1,949 ms (+41%). Why, from a probe that prints both search passes of every re-plan in the test (22
+re-plans per tree): (1) the test guides now play in author order, because checksum version 2 makes their baked entries
+stale, so the re-planner starts from a worse order and accepts 20 re-plans instead of 10; (2) the cost model makes NPC-point
+and new-zone steps start blocks, so 111:Both:1 has 109 blocks instead of 77; (3) on 2 of the 3 retail re-plans the first
+search (all priced steps) saves a lot but lengthens the legs between firm points (111:Both:1: 16,293 -> 10,889 s, firm legs
+10,354 -> 10,541 s), so the firm-only second search runs, as designed (10 of 22 re-plans ran it on the base, 5 on the
+branch). Summed over the 22 re-plans: 6,979 ms base, 8,650 ms branch (+24%), all of it retail (+1,830 ms; era, tbc, mop and
+forever together -120 ms). The worst frame with the collector running is most likely a collector step inside a slice (the
+branch allocates more on retail; the reviewer's instrumented copy moved that frame away, not re-checked here). Accepted as is: the slices keep their 0.8 ms budget, a
+re-plan runs once per skip in the background, and the extra work comes from more blocks and the stand-in guard.
 
 **Not covered.** The speed bands are the client's old guess and are the same on every Classic client (MoP Classic and
 TBC Anniversary riding levels differ); Classic characters never fly offline. Multi-point steps are still priced at the
@@ -608,18 +658,33 @@ match, so a stale guide plays in author order with the live window on top. `tool
 for every stale guide and then FAILS, naming the flavor, the count, the first ids and the re-bake command; an entry for a
 guide that no longer exists fails too. `CR_ROUTE_ORDER_DIR=<folder>` points it at a fresh bake before it is installed.
 
-**Gate.** `optimize_routes.py --gate` plays author order + live window and baked order + live window in vplayer (default
-warrior, the bake's flight rule) for every guide the model would bake, and keeps the bake only when it is not slower by
-more than max(1%, 30 s). A guide vplayer cannot finish in both orders is rejected. A kept entry stores both measurements:
-`O[id] = { n, sum, o, va = <author + live s>, vb = <baked + live s> }`; `G.BakedOrder` reads only `n`, `sum` and `o`, so
-the extra fields are ignored on every client (tested), and `tools/package_release.py` reads only the id. A rejected guide
-gets no entry. `--gate-only [--regate] [--gate-ids F]` gates rows already solved. `--current F` (a `cost_matrix --list`)
-writes entries only for guides that still match.
+**Gate.** `optimize_routes.py --gate` plays author order + live window and baked order + live window in vplayer for
+every guide the model would bake, and keeps the bake only when it is not slower by more than max(`CM.GATE_FRAC`,
+`CM.GATE_ABS`) = max(1%, 30 s); the limits come from the rows' `"cm"`, never from a copy. The character is a real one
+(`vplayer --who gate`, the real condition rules) of the guide's planning character's faction, class and race, a Human or
+Orc warrior where it has none, with the bake's flight rule. A guide for both factions is played twice, as Alliance and
+as Horde (`--both-as`), and must pass both: Horde players get the same order. A guide vplayer cannot finish in both
+orders is rejected. A kept entry stores the measurements: `O[id] = { n, sum, o, va = <author + live s>, vb = <baked +
+live s> }`, plus `vah`, `vbh` for the Horde play of a guide for both factions (`va`, `vb` are then Alliance's).
+`G.BakedOrder` reads only `n`, `sum` and `o`, so the extra fields are ignored on every client (tested), and
+`tools/package_release.py` reads only the id. A rejected guide gets no entry. `--gate-only [--regate] [--gate-ids F]` gates
+rows already solved. `--current F` (a `cost_matrix --list`) writes entries only for guides that still match.
 
-`tools/bake_resume.py` runs the gate in every batch (`--no-gate` skips it). A row solved but not gated (a `--no-gate` run,
-or a run killed between the solve and the gate) is gated on the next start without being solved again; rows solved under
-another cost-model version are stale. The final write keeps only entries for guides that match the current list.
-`--lua-dir` writes the RouteOrder files elsewhere, `--only-file FLAVOR=ids` limits a run to some guides.
+`tools/bake_resume.py` runs the gate in every batch (`--no-gate` skips it). The optimizer saves a batch's solved rows
+before the gate starts (fixed 2026-11-11: they were written only after it, so a run killed during the gate solved the
+batch again), and a vplayer failure leaves them saved without a verdict and exits 3. A row solved but not gated (a
+`--no-gate` run, a run killed during the gate, a vplayer failure) is gated on the next start without being solved again
+(`tools/test_bake_gate.py`; also checked end to end by killing a 4-guide era run while the gate's vplayer was playing:
+the restart gated the 4 rows without solving them). Rows solved under another cost-model version are stale. The final
+write keeps only entries for guides that match the current list. `--lua-dir` writes the RouteOrder files elsewhere,
+`--only-file FLAVOR=ids` limits a run to some guides.
+
+**Saved quest-skip re-plans reset once.** `Core/Skip.lua` saves a re-plan under `S.PlanKey`, which includes
+`G.RouteChecksum` of the guide's list in its current (baked or author) order. Checksum version 2 changes that value for
+every guide (all 234 era guides checked), and so does any rebake that changes a guide's order. After this update, a guide
+with skipped quests shows its rebuilt list without the saved re-plan, and `Core/Progress.lua` re-plans it once in the
+background the next time it is opened (the decision is saved again). Nothing is lost but that one re-plan; keeping the
+old key would not help, because the rebake changes the baked order the saved re-plan was made from.
 
 Measured on the same 20 sample guides per client (this branch's bake, the gate's own vplayer runs):
 
@@ -631,6 +696,33 @@ Measured on the same 20 sample guides per client (this branch's bake, the gate's
 | Rejected: would have cost (s) | 1,524 | 973 | 0 | 133 | 178 |
 
 The same gate on the base branch's bake and vplayer (old cost model) would have rejected 5 of 13, 3 of 14, 2 of 11, 3 of
-16 and 2 of 16. The gate adds two vplayer runs per batch (live window on). On these samples one 20-guide run took 4 to 10 s,
-mostly start-up; the largest zone guides take much longer, and a guide vplayer cannot finish within `--gate-cap` (600 s
-of CPU per guide) is rejected.
+16 and 2 of 16.
+
+After the review fixes (2026-11-11: planning character per guide, the gate plays that character and both factions of a
+guide for both), the same 20 guides per client, full solver:
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Baked orders checked (of them for both factions, played twice) | 13 (7) | 13 (6) | 11 (5) | 14 (10) | 15 (5) |
+| Kept / rejected | 7 / 6 | 11 / 2 | 11 / 0 | 13 / 1 | 13 / 2 |
+| Kept: vplayer saves (s, both plays summed) | 3,045 | 10,249 | 7,441 | 12,744 | 12,060 |
+| Rejected: net effect if kept (s, + = slower) | -620 | +120 | 0 | +133 | -570 |
+| Gate time for the 20 (s) | 17 | 16 | 23 | 32 | 17 |
+
+Rejected only because of the Horde play: `wiki:era:1452:Both` (Alliance -2,336 s, Horde +302 s) and `wiki:forever:1452:Both`
+(-1,259 / +332). Rejected only because of the Alliance play: `wiki:era:1448:Both` (+281 / -159) and `wiki:tbc:1449:Both`
+(+1,547 / -1,465). The rule is "no player slower than author order + live window by more than the allowance", so a bake
+that saves one faction a lot and costs the other more than 1% is dropped; that is why the net effect of the rejected bakes
+is negative on era and forever.
+
+A second sample, the guides the planning character changes (all of them on era 4, tbc 5, forever 4; 17 on mop; 20 of 134
+on retail, evenly spread): 50 guides, `--who plan` parity 50/50 inside 2%, 40 baked, 30 kept by the gate (vplayer saves
+24,153 s), 10 rejected (mop 3, retail 7: mostly a guide for both factions planned for one faction whose other faction then
+plays it slower, e.g. `wiki:retail:1355:Both:5`, Horde-planned, Alliance +3,438 s). Before the fix, 21 of these 50 had at
+most one step to bake. The gate does not play a character without the planning character's class or race; on this sample
+the default warrior was never slower with a kept bake than with author order (largest +2 s), and the four bakes that made
+it slower by more than the allowance (+364 to +3,438 s) were all rejected by the gate's own plays.
+
+The gate's vplayer runs: two per batch, four when the batch holds guides for both factions (the Horde runs play only
+those). On these samples a 20-guide gate took 16 to 32 s (4 to 10 s before the Horde runs); the largest zone guides take
+much longer, and a guide vplayer cannot finish within `--gate-cap` (600 s of CPU per guide) is rejected.

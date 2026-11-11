@@ -6,11 +6,13 @@ subscription.
 ```
 luajit tools/vplayer.lua <era|tbc|mop|retail|forever> [--limit N] [--shard i/n] [--type Leveling]
                          [--guide ID] [--faction Horde] [--guidecap 20] [--out PATH] [--verbose]
-                         [--order author|baked] [--route-order PATH] [--live on|off] [--who warrior|plan]
-                         [--taxi model|all|band|learn] [--turnins]
+                         [--order author|baked] [--route-order PATH] [--live on|off] [--who warrior|plan|gate]
+                         [--both-as Alliance|Horde] [--taxi model|all|band|learn] [--turnins]
 # --order baked loads Data/RouteOrder_<fl>.lua (tools/optimize_routes.py), or --route-order PATH; --live off disables
-# the live window; --who plan plays the character the bake plans for; --taxi learn: fly only into discovered flight
-# paths, starting each guide with none; --turnins: time QUEST_TURNED_IN; CR_TRACE=F writes one line per visited step
+# the live window; --who plan plays the character the bake plans for, --who gate a real character of its faction, class
+# and race (the bake gate); --both-as plays guides for both factions as that faction; --taxi learn: fly only into
+# discovered flight paths, starting each guide with none; --turnins: time QUEST_TURNED_IN; CR_TRACE=F writes one line
+# per visited step
 python3 tools/collect_vplayer.py       # -> docs/verification.sqlite
 ```
 
@@ -109,10 +111,15 @@ through `tools/cm_offline.lua`:
 * an objective step finishes only its own `|QO|` objective; the quest is complete once every numbered objective the
   guide names is done. A second objective somewhere else is now walked to, as in the client.
 
-`--who plan` plays the character the bake plans for instead of the warrior: no class, race or profession steps, no other
-faction's steps (none with a faction tag in a guide for both factions), every prerequisite that no step it takes turns in
-counts as done before the guide, and every level gate is open. With `--live off` it walks exactly the order it is given,
-which is what `tools/test_cost_parity.lua` compares with the optimizer. `--route-order PATH` plays another RouteOrder file
+`--who plan` plays the character the bake plans for instead of the warrior (`CostModel.Persona`, docs/ROUTING.md "One
+cost model"): the guide's faction, or in a guide for both factions the faction at least half of the located steps are
+tagged for; then the class, race and profession at least half of the located steps it takes name. It takes exactly the
+steps that character takes, every prerequisite that no step it takes turns in counts as done before the guide, and every
+level gate is open. With `--live off` it walks exactly the order it is given, which is what `tools/test_cost_parity.lua`
+compares with the optimizer. `--who gate` (2026-11-11) is a real character for the bake gate: the planning character's
+faction, class and race (a Human or Orc warrior where it has none), the real condition rules and levelling.
+`--both-as Alliance|Horde` plays a guide for both factions as that faction (not with `--who plan`); the gate plays such
+guides both ways. `--route-order PATH` plays another RouteOrder file
 (the bake gate's own, a test bake). `--repro` and `--capture` still replay the client's own way (from the player's spot,
 hearth allowed).
 
