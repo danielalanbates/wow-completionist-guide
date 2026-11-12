@@ -23,24 +23,33 @@ or a vplayer failure) is gated on the next start without solving it again (tools
 the RouteOrder_<flavor>.lua file of every flavor touched is rewritten from the merged rows, with
 entries only for guides that still match the current list (tools/optimize_routes.py --current).
 
+--jobs N runs N batches at a time (default 1).  A batch is one cost_matrix + optimizer + gate chain, single-threaded
+and about 100 to 300 MB, so several fit this Mac; each has its own scratch files, and the optimizer puts its rows into
+the shared rows file under a lock, re-reading it first (tools/optimize_routes.py save_rows own=), so no batch
+overwrites another's rows.  The solver's time limits are wall-clock: with more jobs than fast cores a solve gets less
+done in its time, and the gate still decides what is kept.
+
 Guards (8 GB Mac): waits while memory is genuinely short (kernel level critical or < 10% free; level 2 "warn" is
 sticky with a game open and is NOT a gate), stops when free disk < 11 GB. Runs at nice 15.
 
 Usage:
   python3 tools/bake_resume.py [--flavors mop,retail] [--dry-run] [--force-mapfix] [--force-file tbc=ids.txt]
                                [--only-file tbc=ids.txt] [--batch 20] [--limit-s S] [--dp-time S] [--no-gate]
-                               [--gate-cap S] [--lua-dir DIR]
+                               [--gate-cap S] [--lua-dir DIR] [--jobs N]
 Default solver limits are optimize_routes.py's own (full quality). Results: <TMP>/routeopt/<flavor>.jsonl, where TMP is
 the optimizer's job directory (env CR_TMP, default TMP_DEFAULT in tools/optimize_routes.py).  --lua-dir (default
 CompletionRoute/Data) is where the RouteOrder files are written.
 """
 import argparse
+import concurrent.futures
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -144,6 +153,10 @@ def main():
     ap.add_argument("--min-free-gb", type=float, default=11.0,
                     help="stop before a batch when the disk has less free space than this (owner's floor is 8 GB)")
     ap.add_argument("--lua-dir", help="where RouteOrder_<flavor>.lua is written (default CompletionRoute/Data)")
+    ap.add_argument("--jobs", type=int, default=1,
+                    help="batches run at once (default 1). Each batch is single-threaded and small in memory (about "
+                         "100 to 300 MB), so 3 or 4 fit an 8-core, 8 GB Mac; tools/optimize_routes.py merges its rows "
+                         "into the shared file under a lock")
     a = ap.parse_args()
     os.chdir(REPO)
     tmp, py = opt_tmp(), python_bin()
@@ -188,20 +201,32 @@ def main():
         ids = togate.get(fl, [])
         queue += [(fl, "gate", ids[i:i + a.batch]) for i in range(0, len(ids), a.batch)]
     total = sum(len(b) for _, _, b in queue)
-    done = failed = 0
+    jobs = max(1, a.jobs)
+    state = {"done": 0, "failed": 0}
     touched, t0 = set(), time.time()
+    mu, stop = threading.Lock(), threading.Event()
     extra_args = (["--limit-s", str(a.limit_s)] if a.limit_s else []) + (["--dp-time", str(a.dp_time)] if a.dp_time else [])
-    gate_args = (["--gate-work", os.path.join(work, "gate")] + (["--gate-cap", str(a.gate_cap)] if a.gate_cap else []))
-    for fl, what, ids in queue:
+
+    def run_batch(k, fl, what, ids):
+        """one batch; every file it writes has the batch number in its name, so batches never share a file except the
+        rows file, which tools/optimize_routes.py updates under a lock (save_rows own=)"""
+        if stop.is_set():
+            return
         if free_gb() < a.min_free_gb:
-            log("STOP: free disk", round(free_gb(), 1), "GB"); break
+            if not stop.is_set():
+                stop.set()
+                log("STOP: free disk", round(free_gb(), 1), "GB")
+            return
         waited = 0
-        while tight() and waited < 1800:
+        while tight() and waited < 1800 and not stop.is_set():
             if waited == 0:
                 log("memory tight - waiting")
             time.sleep(30); waited += 30
-        gf, cj = os.path.join(work, f"batch_{fl}.txt"), os.path.join(work, f"batch_{fl}.jsonl")
-        open(gf, "w").write("\n".join(ids) + "\n")
+        gf, cj = os.path.join(work, f"batch_{k}_{fl}.txt"), os.path.join(work, f"batch_{k}_{fl}.jsonl")
+        gdir = os.path.join(work, f"gate_{k}")
+        gate_args = ["--gate-work", gdir] + (["--gate-cap", str(a.gate_cap)] if a.gate_cap else [])
+        with open(gf, "w") as f:
+            f.write("\n".join(ids) + "\n")
         if what == "gate":
             p = subprocess.run(["nice", "-n", "15", py, "tools/optimize_routes.py", fl, "--gate-only", "--gate-ids", gf,
                                 "--no-write"] + gate_args, capture_output=True, text=True)
@@ -209,16 +234,37 @@ def main():
             p = subprocess.run(["nice", "-n", "15", "luajit", "tools/cost_matrix.lua", fl, "--guides-file", gf, "--out", cj,
                                 "--verify", "20"], capture_output=True, text=True)
             if p.returncode != 0:
-                log("cost_matrix FAILED", fl, p.stderr[-400:]); failed += len(ids); continue
+                with mu:
+                    state["failed"] += len(ids)
+                log("cost_matrix FAILED", fl, p.stderr[-400:]); return
             p = subprocess.run(["nice", "-n", "15", py, "tools/optimize_routes.py", fl, "--in", cj, "--merge", "--no-write"]
                                + (["--gate"] + gate_args if gating else []) + extra_args, capture_output=True, text=True)
         if p.returncode != 0:
-            log(what, "FAILED", fl, p.stderr[-400:]); failed += len(ids); continue
-        touched.add(fl); done += len(ids)
+            with mu:
+                state["failed"] += len(ids)
+            log(what, "FAILED", fl, p.stderr[-400:]); return
+        # a finished batch's scratch files are not needed again (a failed one keeps them for a look)
+        shutil.rmtree(gdir, ignore_errors=True)
+        for path in (gf, cj):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+        with mu:
+            touched.add(fl); state["done"] += len(ids)
+            d = state["done"]
         el = time.time() - t0
         info = [l for l in (p.stderr or "").strip().splitlines() if l.startswith(("gate ", "DONE"))]
-        log(f"{fl} {what} batch ok  {done}/{total}  eta {(total - done) * el / max(done, 1) / 60:.0f} min |",
+        log(f"{fl} {what} batch ok  {d}/{total}  eta {(total - d) * el / max(d, 1) / 60:.0f} min |",
             " | ".join(info)[:220])
+
+    if jobs > 1:
+        log(f"{jobs} batches at a time")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+        futs = [pool.submit(run_batch, k, fl, what, ids) for k, (fl, what, ids) in enumerate(queue)]
+        for f in futs:
+            f.result()          # a programming error in run_batch stops the run here instead of passing silently
+    done, failed = state["done"], state["failed"]
     empty = os.path.join(work, "empty.jsonl")
     open(empty, "w").close()
     for fl in sorted(touched):
