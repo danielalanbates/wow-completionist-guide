@@ -44,19 +44,17 @@ for f in "$SRC"/Data/QuestDeps_*; do
   esac
 done
 flavor_of() { case "$1" in _retail_) echo retail;; _classic_) echo mop;; _classic_era_) echo era;; _anniversary_) echo tbc;; _forever_) echo forever;; *) echo retail;; esac; }
-# WoW Forever runs the era code path (Core/Init.lua) with its own wiki/gaps guides, taxi and map fix; it still
-# loads the era WoW-Pro adapter file (Guides/Imported_WoWPro_era.lua, see CompletionRoute_Forever.toc).
-wowpro_of() { case "$1" in forever) echo era;; *) echo "$1";; esac; }
+# WoW Forever runs the era code path (Core/Init.lua) with its own wiki/gaps guides, taxi and map fix.
 # Allowlist: only community-sourced generated guides and known adapters may be installed or shipped
 # (Daniel, 2026-11-07). Anything else in Guides/ or Adapters/ stops the install.
 for f in "$SRC"/Guides/Imported_*; do
   case "$(basename "$f")" in
-    Imported_Wiki_*|Imported_Spine_*|Imported_Professions_*|Imported_Gold_*|Imported_Quests_*|Imported_WoWPro_*|Imported_Achievements_*|Imported_QuestLines_*|Imported_Storylines_*|Imported_Missions_*|Imported_Entrances_*) ;;
+    Imported_Wiki_*|Imported_Spine_*|Imported_Professions_*|Imported_Gold_*|Imported_Quests_*|Imported_Achievements_*|Imported_QuestLines_*|Imported_Storylines_*|Imported_Missions_*|Imported_Entrances_*) ;;
     *) echo "install.sh: unknown generated guide $f is not on the allowlist - delete it first" >&2; exit 1;;
   esac
 done
 for f in "$SRC"/Adapters/*; do
-  case "$(basename "$f")" in DynamicQuests.lua|WoWPro.lua) ;;
+  case "$(basename "$f")" in DynamicQuests.lua) ;;
     *) echo "install.sh: unknown adapter $f is not on the allowlist - delete it first" >&2; exit 1;;
   esac
 done
@@ -75,7 +73,6 @@ for fl in "${@:-_anniversary_}"; do
   for tier in era tbc mop retail forever; do EXCL+=(--exclude "Guides/Imported_Storylines_$tier.lua"); done
   for other in era tbc mop retail forever; do
     [ "$other" = "$MINE" ] && continue
-    [ "$other" != "$(wowpro_of "$MINE")" ] && EXCL+=(--exclude "Guides/Imported_WoWPro_$other.lua")
     EXCL+=(--exclude "Guides/Imported_Wiki_$other.lua" --exclude "Guides/Imported_Spine_$other.lua" --exclude "Guides/Imported_Professions_$other.lua" --exclude "Guides/Imported_Gold_$other.lua" --exclude "Guides/Imported_Quests_${other}_gaps.lua"
            --exclude "Guides/Imported_Achievements_$other.lua" --exclude "Guides/Imported_QuestLines_$other.lua"
            --exclude "Guides/Imported_Missions_$other.lua" --exclude "Data/RouteOrder_$other.lua" --exclude "Data/QuestDeps_$other.lua")

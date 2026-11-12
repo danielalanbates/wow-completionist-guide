@@ -74,7 +74,7 @@ function S.LockedBy(q) return q and store().locks[q] end
 -- Dependency index: who needs whom
 -- ---------------------------------------------------------------------------
 -- Guide families tools/gen_quest_deps.py reads (wiki zone guides, the gaps guides, the spine that reuses them, retail
--- storylines).  For any other guide (WoW-Pro, native) the loaded guide's own PRE tags fill in quests the file lacks.
+-- storylines).  For any other guide (hand-written, live) the loaded guide's own PRE tags fill in quests the file lacks.
 local INDEXED = { wiki = true, qdb = true, qpoi = true, spine = true, story = true }
 local function idSet(str)
     local set = {}

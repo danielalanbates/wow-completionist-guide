@@ -25,16 +25,16 @@ smart arrow — while the guide content is community-driven and open.
 | Optimal quest routing for the chosen guide | ✅ `Routing/StepOrder.lua` — precedence-constrained reordering of the next N steps (accept → complete → turn-in kept, anchors like *run to zone* respected) |
 | Skip quests | ✅ `Core/Skip.lua` — drop a quest from every guide; if other quests need it you are warned first, with their names, and confirming drops the whole chain. Breadcrumbs never block. The guide is rebuilt without those quests and without any quest it could then no longer offer (steps, counts and progress follow), then re-planned for travel time in the background (`Routing/Replan.lua`). `/cr unskip` brings everything back — [docs/ROUTING.md](docs/ROUTING.md#skipping-quests) |
 | Auto accept and turn-in (guide's quests only) | Built, offline-tested only: `Core/QuestAuto.lua`, off by default. Accepts and hands in only the quests of the guide's next steps, never skipped or dropped quests, never quests that cost gold, dailies the guide does not ask for, or a reward choice (unless the gear score sees a clear upgrade and you allow it). Hold Shift (or your chosen key) to do a quest giver yourself. Options > Auto quests, `/cr auto` — [docs/QUEST_AUTO.md](docs/QUEST_AUTO.md) |
-| Guide library | ✅ native guides in `Guides/` (WoW-Pro line syntax, CC BY-SA) + a **runtime adapter** that reads your installed **WoW-Pro** guides (interop only, nothing copied) |
+| Guide library | ✅ every guide is built by this project: generated from the Warcraft Wiki and Blizzard client data, plus hand-written starter guides in `Guides/Leveling/`. No other addon's guides are read or needed |
 | Every quest in the game, covered | ✅ generated zone guides: Classic flavors from a local **Questie** checkout, **retail from Blizzard's own quest POI client data** (`tools/gen_quest_guides_retail.py` — 379 zone guides, 17,161 quests, 56,843 steps). No subscription required.
 | Gold guides | ✅ realm-independent money guides by level, on every client: gathering, mob farming and fishing **circuits** you walk with nothing to click, plus daily gold, instance runs and step-by-step methods. No prices are shipped; laps are priced in game from Auctionator if present, else vendor value — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
 | Secondary professions | ✅ Cooking, Fishing, First Aid and Archaeology by client, with nearest trainer, a computed recipe path, skill targets that tick themselves, and live Archaeology dig-site circuits — [docs/PROFESSIONS.md](docs/PROFESSIONS.md) |
 | Guides listed by level | ✅ `Core/Recommend.lua`: a *For level N* section, *Only guides for this level* filter, *Group by level* tree, and profession guides matched to your real skill |
 | Dungeon guides | ✅ steps inside an instance route to the **entrance** (learned door + retail encounter journal), `Core/Instances.lua` |
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
-| Progress survives guide updates | Built, offline-tested only: ticks, skips and stepped-back steps are stored by a stable step key (quest + objective, or a hash of the step's words; never its line number or coordinates), so in a regenerated guide or an updated WoW-Pro guide marks stay on their steps when lines are added, removed or moved. Two exceptions: a step whose quest-less text is reworded loses its mark (it is not given to another step), and among identical repeated steps (same quest and objective, or same words: 2.4-4.0% of steps) adding or removing one ahead of the others shifts their marks to a neighbouring identical step. Old progress is carried over once per character and guide; the previous release still reads its own tables after a downgrade. `/cr marks` shows how the loaded guide's progress is stored — [docs/STEP_KEYS.md](docs/STEP_KEYS.md) |
+| Progress survives guide updates | Built, offline-tested only: ticks, skips and stepped-back steps are stored by a stable step key (quest + objective, or a hash of the step's words; never its line number or coordinates), so in a regenerated guide marks stay on their steps when lines are added, removed or moved. Two exceptions: a step whose quest-less text is reworded loses its mark (it is not given to another step), and among identical repeated steps (same quest and objective, or same words: 2.4-4.0% of steps) adding or removing one ahead of the others shifts their marks to a neighbouring identical step. Old progress is carried over once per character and guide; the previous release still reads its own tables after a downgrade. `/cr marks` shows how the loaded guide's progress is stored — [docs/STEP_KEYS.md](docs/STEP_KEYS.md) |
 | Beta bug reports | Built, offline-tested only: `/cr bug [note]` or the guide window's **Report** button saves a snapshot (guide, step, open steps, position, route, quest log including quests that only gate a step, profession skill, last 30 log lines, last addon Lua error; no character or realm name). `tools/ingest_beta_reports.py` loads reports into SQL and `vplayer --repro <id>` replays one offline — [docs/BETA_REPORTS.md](docs/BETA_REPORTS.md) |
-| Release packager with a data-provenance gate | 🚧 `tools/package_release.py` ([docs/RELEASE.md](docs/RELEASE.md)): one universal zip, `provenance.json` for every file, `LICENSE.txt` + `ATTRIBUTION.md`; fails on WoW-Pro/Questie data, personal data, secrets, symlinks and broken TOC lines. Dry run by default, never tags or publishes. Today's local data fails it (fallback wiki points, old headers, baked orders of gaps guides). |
+| Release packager with a data-provenance gate | 🚧 `tools/package_release.py` ([docs/RELEASE.md](docs/RELEASE.md)): one universal zip, `provenance.json` for every file, `LICENSE.txt` + `ATTRIBUTION.md`; fails on third-party guide data, personal data, secrets, symlinks and broken TOC lines. Dry run by default, never tags or publishes. Today's local data fails it (fallback wiki points, old headers, baked orders of gaps guides). |
 
 Not yet: primary profession guides, talent advisor, gear finder, model viewer, guide editor UI, Zen Pilgrimage / Dreamwalk / class-hall teleports, indoor/dungeon-aware walking, per-zone "wall" data.
 
@@ -48,7 +48,6 @@ regenerable**, so nothing here depends on a subscription staying alive:
 | **Warcraft Wiki** (warcraft.wiki.gg, CC BY-SA 4.0) — **the source of truth** | era, tbc, mop, retail, forever | `tools/wiki/` (fetch → parse → `gen_wiki_guides.py`) writes `Guides/Imported_Wiki_<flavor>.lua`: per-zone guides with the wiki's givers, enders, chains (`PRE`), objectives and coordinates. Flavor membership is checked against each client's QuestV2. See [tools/wiki/README.md](tools/wiki/README.md) |
 | Blizzard quest POI client data (wago.tools `QuestPOIBlob`/`QuestPOIPoint`) | retail | `tools/gen_quest_guides_retail.py`. Now fills wiki gaps only: coordinates for steps the wiki has none for, plus `Imported_Quests_retail_gaps.lua` for quests the wiki lacks |
 | **Questie** database (local checkout) | era, tbc, mop | `tools/gen_quest_guides.lua`. Local-only fallback where the wiki has no coordinate, plus `Imported_Quests_<flavor>_gaps.lua` for quests the wiki lacks |
-| **WoW-Pro** guides installed on your machine | all | `Adapters/WoWPro.lua` (runtime interop) |
 | Hand-authored native guides | all | `Guides/` |
 
 Generated guide files are gitignored: the *generators* ship, the third-party-derived data does not.
@@ -58,7 +57,7 @@ separately at [wow-completionist-data](https://github.com/danielalanbates/wow-co
 quests, givers and enders, prerequisites, NPCs, objects, achievements and missions for all five clients, and every record
 names its source and a confidence for its map point. Corrections are welcome there as pull requests.
 
-**Community data only.** Completionist's Guide is built from Warcraft Wiki, Blizzard client data, Questie (generated locally at install) and WoW-Pro (read at runtime). It ships no commercial guide content.
+**Community data only.** Completionist's Guide is built from the Warcraft Wiki and Blizzard client data. On the developer's machine a local build also fills gaps from a Questie checkout; that data never ships. No guide from any other addon, free or commercial, is read, imported or shipped.
 
 ## Verification — no characters required
 
@@ -97,7 +96,7 @@ To rebuild and deploy:
 * `/cr teleports` — every teleport, transporter and hearth toy the router knows for your class, and whether it is offered
 * `/cr farm` — farm circuits: status, `build`, `record`, `import`, `export`, `stats`, `radius`
 * `/cr list [level] [category]` — best guides for a level · `/cr gold [level]` — gold guides · `/cr prof` — profession guides for your current skill
-* `/or test` — routing self-test from your position to major cities · `/or import` — re-scan WoW-Pro guides
+* `/or test` — routing self-test from your position to major cities
 * `/cr skip [questID]` — skip a quest (default: the current step's); warns first when other quests need it · `/cr skipstep` — skip the current step (on an accept of a quest you do not have, that skips the quest, so its turn-in is not left behind)
 * `/cr unskip <questID|all>` — bring skipped quests back · `/cr skipped` — list them and what they lock
 * `/cr bug [what went wrong]` — save a bug report (also the **Report** button) · `/cr bug list` — stored reports · `/cr log` — the addon log
@@ -110,7 +109,7 @@ Hearth once (or bind at an inn) so the router learns exactly where your inn is (
 
 ## Guide format
 
-See [docs/GUIDE_FORMAT.md](docs/GUIDE_FORMAT.md). It is the WoW-Pro community syntax
+See [docs/GUIDE_FORMAT.md](docs/GUIDE_FORMAT.md). It is a one-step-per-line syntax
 (`A Quest|QID|123|M|48.1,42.9|Z|1429; Elwynn Forest|N|note|`) plus CompletionRoute-only tags `|ROUTE|`, `|FIXED|`, `|RAD|` and the `G` farm-waypoint action.
 Guides are plain Lua files registered in `CompletionRoute/Guides/Guides.xml`.
 
@@ -122,7 +121,7 @@ CompletionRoute/            the addon (copy this folder into Interface/AddOns)
   Routing/            TravelGraph (Dijkstra), Teleports (teleport legs), StepOrder (optimizer), Router (facade + arrow recommendation)
   Data/               Taxi_<flavor>.lua (generated), Transit.lua (hand-authored), Teleports.lua (DB2 ids + wiki landing points), Inns.lua (seed)
   UI/                 Arrow, GuideFrame, GuideMenu, Options
-  Adapters/           WoWPro.lua (runtime import of an installed WoW-Pro)
+  Adapters/           DynamicQuests.lua (Retail: live per-zone quest lists from the client)
   Guides/             native community guides (CC BY-SA)
   Libs/               LibStub, CallbackHandler, HereBeDragons-2.0
 tools/                gen_taxi.py (wago.tools → Data), gen_textures.py, install.sh, test_offline.lua (luajit smoke test)
@@ -165,4 +164,4 @@ use is free; any commercial use requires a separate licence from Bates LLC, stan
 royalty of **10% of gross revenue** attributable to the product incorporating this software. See
 [LICENSE](LICENSE). Ask for a commercial licence at **help@batesai.org** · <https://batesai.org>.
 
-Not affiliated with Blizzard, commercial guide publishers, or WoW-Pro. Third-party guide data is never redistributed here.
+Not affiliated with Blizzard or any guide publisher. No third-party guide data is used or redistributed here.

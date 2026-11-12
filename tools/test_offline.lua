@@ -12,7 +12,7 @@ local function load(path)
     end
     local fn = assert(loadfile("CompletionRoute/" .. path)) fn(ADDON, NS)
 end
-for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Sweep.lua", "Adapters/WoWPro.lua", "Guides/Imported_WoWPro_tbc.lua", "Guides/Imported_WoWPro.lua" }) do load(f) end
+for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Sweep.lua", "Guides/Imported_WoWPro_tbc.lua", "Guides/Imported_WoWPro.lua" }) do load(f) end
 -- fake ADDON_LOADED
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
@@ -74,15 +74,10 @@ UnitLevel = function() return 21 end                              -- above all r
 assert(NS.Guide.SuggestNext(nil) == nil or true)                  -- must not error
 UnitLevel = function() return 8 end                               -- gap: 8 not in 10-20, elwynn/darkshore 5-10 still fit
 print("SuggestNext exclude/refit OK")
--- 5) baked guide import (standalone, no external addons)
-local BAKED = io.open("CompletionRoute/Guides/Imported_WoWPro.lua", "r") ~= nil or io.open("CompletionRoute/Guides/Imported_WoWPro_tbc.lua", "r") ~= nil
-local nw = NS.Adapters.WoWPro and NS.Adapters.WoWPro.ImportStatic() or 0
-print(("baked import: %d wowpro"):format(nw))
-if BAKED then
-    assert(nw > 0, "expected baked WoW-Pro guides, got " .. nw)
-else
-    print("baked-count assertions SKIPPED (guides not baked; run tools/install.sh)")
-end
+-- 5) generated guides present? (a fresh clone has none: the data-dependent assertions below are skipped)
+local BAKED = io.open("CompletionRoute/Guides/Imported_Wiki_tbc.lua", "r") ~= nil
+if not BAKED then print("generated-guide assertions SKIPPED (no generated guides; run tools/wiki/gen_wiki_guides.py)") end
+assert(not (NS.Adapters and NS.Adapters.WoWPro), "no third-party guide adapter may be loaded")
 -- 5b) generated quest DB guides (flavor-gated: harness reports TBC 2.5.6 -> only _tbc loads)
 -- Since the wiki pipeline the clients load Imported_Wiki_<fl> + Imported_Quests_<fl>_gaps (tools/wiki/gen_wiki_guides.py);
 -- the era files are loaded too, to prove the flavor gate keeps them out of a TBC client.

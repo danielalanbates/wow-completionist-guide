@@ -38,7 +38,7 @@ rows in the `prof_guides` table of `docs/verification.sqlite`.
 | Fishing | Wiki `Fishing locations` (zone, 100% catch skill, fish) and the `Fishing` skill table |
 | Archaeology | Wiki `Archaeology trainers` (rank levels), `Archaeology` (skill ranges); client `ResearchSite`, `QuestPOIBlob`, `QuestPOIPoint` |
 
-Nothing comes from any commercial guide, WoW-Pro or Questie.
+Nothing comes from any other guide addon or from Questie.
 
 ## Trainer rules
 

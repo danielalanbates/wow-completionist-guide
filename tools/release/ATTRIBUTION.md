@@ -46,5 +46,5 @@ Blizzard Entertainment. Files built only from these tables:
 
 ## Not included
 
-No commercial guide content, no WoW-Pro guide text and no Questie data are in this package. If you have the WoW-Pro
-add-on installed yourself, Completionist's Guide can show its guides at runtime; nothing is copied.
+No guide content from any other add-on, free or commercial, and no Questie data are in this package. The add-on
+does not read other add-ons' guides either.

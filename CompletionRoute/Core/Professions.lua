@@ -105,7 +105,7 @@ local function keyFor(name)
 end
 Prof.KeyFor = keyFor
 
--- "Herbalism;75" (this addon) or the WoW-Pro forms "Cooking;185;0+1;true" and "Tailoring;197" (name;skill line[;exp+level]).
+-- "Herbalism;75", or the longer forms "Cooking;185;0+1;true" and "Tailoring;197" (name;skill line[;exp+level]).
 -- Returns name, level needed.  The old reader took the second field as the level, so 185 meant "skill 185".
 function Prof.ParseSpec(spec)
     local parts = {}

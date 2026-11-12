@@ -531,7 +531,7 @@ local function parkedReady(exceptId)
     for id in pairs(set) do keys[#keys + 1] = id end
     table.sort(keys)
     for _, id in ipairs(keys) do
-        -- a guide not registered yet keeps its record: the WoW-Pro import runs seconds after this can first be asked
+        -- a guide not registered yet keeps its record: live guides (Adapters/DynamicQuests.lua) register seconds after this can first be asked
         local rec, g = set[id], G.registry[id]
         if g and id ~= exceptId and lvl >= rec.level and (not bestRec or rec.level < bestRec.level) then
             best, bestRec = g, rec

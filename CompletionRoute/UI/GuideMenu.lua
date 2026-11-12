@@ -1,6 +1,6 @@
 -- CompletionRoute :: UI/GuideMenu.lua
 -- Guide browser: collapsible tree of Category (type) -> area/sub-folder -> guide.
--- Imported guides use their original folder paths (from the title); WoW-Pro guides group by zone.
+-- Guides whose title carries a folder path use it; the rest group by zone.
 -- Typing in the filter box switches to a flat search across all guides.
 -- The level box under the search field drives Core/Recommend.lua: the "For level N" section, the "Only guides for this
 -- level" filter and the "Group by level" tree all read the same cached per-level ranking, which never parses guide steps.
@@ -212,7 +212,6 @@ expanded[FOR_LEVEL_PATH .. "\\Leveling"] = true
 
 local function srcColor(src)
     if src == "CompletionRoute" then return "|cff3ec6ff" end
-    if src == "WoWPro" then return "|cffff9900" end
     return "|cffaaaaaa"
 end
 

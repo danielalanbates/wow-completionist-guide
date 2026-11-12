@@ -118,7 +118,7 @@ currentHandler("Interface/AddOns/CompletionRouteExtras/Core.lua:9: boom")
 t("an error from an addon named CompletionRoute* is not kept", BR.lastError == kept0, BR.lastError and BR.lastError.msg)
 -- the client shortens a long source name from the front: "...dOns/CompletionRoute/..." is still this addon
 STACK = ""
-currentHandler("...dOns\\CompletionRoute\\Guides\\Imported_WoWPro_retail.lua:9: shortened")
+currentHandler("...dOns\\CompletionRoute\\Guides\\Imported_Wiki_retail.lua:9: shortened")
 t("an error whose shortened source names this addon's folder is kept", BR.lastError ~= kept0 and BR.lastError.msg:find("shortened", 1, true) ~= nil)
 BR.lastError, CompletionRouteDB.lastError = kept0, persisted0
 -- PLAYER_LOGIN: something replaced the handler; the hook wraps it again

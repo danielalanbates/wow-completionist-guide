@@ -99,11 +99,10 @@ outPath = outPath or ("docs/vplayer_" .. flavor .. (shardN > 1 and ("_" .. shard
 local stallPath = outPath:gsub("%.tsv$", "") .. "_stalls.tsv"
 
 -- forever = WoW Forever (wowf 1.60.x, Interface 16001): the era code path (NS.flavor "era", NS.isForever) on
--- Forever's own maps (tools/maps_forever.lua), taxi network, map fix and wiki/gaps guides, plus the era WoW-Pro file.
+-- Forever's own maps (tools/maps_forever.lua), taxi network, map fix and wiki/gaps guides.
 local TOC = { era = 11507, tbc = 20506, mop = 50504, retail = 120100, forever = 16001 }
 local TAXI = { era = "Data/Taxi_era.lua", tbc = "Data/Taxi_tbc.lua", mop = "Data/Taxi_mop.lua", retail = "Data/Taxi_retail.lua",
                forever = "Data/Taxi_forever.lua" }
-local WOWPRO = { forever = "era" }
 local EXTRA = { forever = "Data/MapFix_forever.lua" }
 
 -- ---------------------------------------------------------------------------
@@ -197,8 +196,6 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
     "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
     "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
     "Core/Account.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
-    "Adapters/WoWPro.lua",
-    ("Guides/Imported_WoWPro_" .. (WOWPRO[flavor] or flavor) .. ".lua"),
     -- quest guides exactly as the flavor TOC loads them: wiki guides + the older generated guides' gaps
     ("Guides/Imported_Wiki_" .. flavor .. ".lua"), ("Guides/Imported_Quests_" .. flavor .. "_gaps.lua"),
     ("Guides/Imported_Achievements_" .. flavor .. ".lua"), ("Guides/Imported_QuestLines_" .. flavor .. ".lua"),
@@ -229,7 +226,6 @@ local TAXI_POLICY = { model = nil, all = "faction", band = "band", learn = "know
 if TAXI_POLICY[taxiMode] == nil and taxiMode ~= "model" then error("vplayer --taxi must be model, all, band or learn") end
 NS.db.profile.routing.taxiPolicy = (taxiMode == "learn") and "known" or "faction"
 NS.Print, NS.Debug, NS.Error = function() end, function() end, function() end
-pcall(NS.Adapters.WoWPro.ImportStatic)
 NS.TravelGraph.Build()
 
 local G, P, R, U, Cond, CM = NS.Guide, NS.Progress, NS.Router, NS.Util, NS.Cond, NS.CostModel
@@ -329,7 +325,7 @@ local function autoable(step)
     elseif a == "U" then
         if step.item then return true end
         if step.qid then
-            -- WoW-Pro stamps profession "Learn Recipe" steps with synthetic qids (skill*10^6+level);
+            -- a profession "Learn Recipe" step may carry a synthetic qid (skill*10^6+level);
             -- no client API ever completes those, so in game they are a manual click
             for _, q in ipairs(step.qid) do if q < 1000000 then return true end end
             return false, "synthetic profession QID"

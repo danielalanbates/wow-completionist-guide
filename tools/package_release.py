@@ -112,7 +112,7 @@ RULES = (
     # ---- runtime / install-time interop: never shipped, TOC lines stripped from the packaged copy -----------------
     R("Guides/Imported_WoWPro_*.lua", "interop-wowpro", "WoW-Pro guides: CC BY-NC-ND", "guide text exported from the "
       "WoW-Pro add-on installed on this machine (file header: do not redistribute)", "local export (script retired)",
-      "generated", "WoW-Pro-derived. Players who install WoW-Pro get its guides at runtime through Adapters/WoWPro.lua"),
+      "generated", "WoW-Pro-derived. The add-on no longer reads or loads these (removed 2026-11-11); a leftover file never ships"),
     R("Guides/Imported_Quests_*_gaps.lua", "interop-questie", "Questie: GPL-3.0", "Imported_Quests_<flavor>.lua minus "
       "the quests the wiki covers: Questie on Classic clients, Blizzard quest POI plus Questie giver points, names and "
       "level gates on retail", "tools/wiki/gen_wiki_guides.py", "generated",

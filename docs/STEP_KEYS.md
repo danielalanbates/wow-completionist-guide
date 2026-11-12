@@ -5,7 +5,7 @@ IDEAS #6, branch `stable-step-id`. Offline only: **nothing here has run in a rea
 ## The problem
 
 Done, skipped and stepped-back marks were stored by guide id and **author step index** (`done[guide][7] = true`).
-Every regeneration of the guide data (a wiki fix, a new quest, a WoW-Pro update read at runtime) shifts the indices
+Every regeneration of the guide data (a wiki fix, a new quest) shifts the indices
 after the first changed line, so manual ticks and skips moved onto the wrong steps. Quest steps re-ticked themselves
 from the quest log; notes, run-to steps, skips and stepped-back steps did not.
 
@@ -43,7 +43,7 @@ step.
 ## Collisions on the real guides
 
 `tools/test_progress_keys.lua` parses every guide of every flavor (generated wiki, gaps, spine, professions, gold,
-achievements, storylines, missions, native guides, and the WoW-Pro guides as the runtime adapter imports them from the
+achievements, storylines, missions, and native guides, read from the
 locally baked file). Keys are unique within a guide by construction (the repeat number); the test checks it, and checks
 that no two **different** texts share a hash inside a guide (which would make them count as repeats of each other).
 Equal keys in different guides do not matter: marks are stored per guide.
@@ -178,7 +178,7 @@ marks; nothing written while downgraded is imported for a guide that was already
 5. `tools/sync_progress.lua` on temp copies of two client folders: keyed marks and migration records reach the other
    file; a second run changes nothing.
 6. All five flavors' real guides: the table above, parse results unchanged on a sample, access-chain keys unique.
-7. Per flavor, three wiki guides and one WoW-Pro guide regenerated the same way as in 2 with 8 marks and a quest skip:
+7. Per flavor, three wiki guides regenerated the same way as in 2 with 8 marks and a quest skip:
    every mark on its step, no other step marked, the inserted step open, the skipped quest still out.
 
 A mutation check (keys from author index; coordinates inside the key; migration off; every record migrated) makes the

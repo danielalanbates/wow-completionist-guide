@@ -84,7 +84,7 @@ function U.MapIDByName(name)
     -- old guide text: a zone this client renamed or split (The Barrens -> Northern Barrens)
     local alts = NS.ZoneNameAliases and NS.ZoneNameAliases[t]
     if alts then for _, alt in ipairs(alts) do if nameToMap[alt] then return nameToMap[alt] end end end
-    -- punctuation / spacing variants: "Zul Aman" for Zul'Aman, WoW-Pro's CamelCase "TheWanderingIsle"
+    -- punctuation / spacing variants: "Zul Aman" for Zul'Aman, CamelCase "TheWanderingIsle"
     local hit2 = normToMap[normName(t)]
     if hit2 then return hit2 end
     -- Trailing map disambiguators ("Shadowmoon Valley D", "Dalaran L", "Uldum New", "UBRS 2")

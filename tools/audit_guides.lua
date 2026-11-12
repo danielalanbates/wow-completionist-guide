@@ -22,12 +22,10 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
     "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua",
     "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua",
     "Routing/Router.lua", "Routing/Loop.lua", "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua",
-    "Data/Farm_routes.lua", "Core/Instances.lua", "Adapters/WoWPro.lua",
-    ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
+    "Data/Farm_routes.lua", "Core/Instances.lua",
     ("Guides/Imported_Wiki_" .. flavor .. ".lua"), ("Guides/Imported_Quests_" .. flavor .. "_gaps.lua") }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
-pcall(NS.Adapters.WoWPro.ImportStatic)
 pcall(NS.Farm.RegisterSeeds)
 
 local G = NS.Guide

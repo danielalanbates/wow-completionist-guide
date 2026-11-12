@@ -24,10 +24,9 @@ local function loadG(path, tag)
     if NS.Guide then for i = before + 1, #NS.Guide.list do SRC[NS.Guide.list[i]] = tag end end
 end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua",
-    "Data/ZoneAliases.lua", "Data/QuestCoordFixes_" .. flavor .. ".lua", "Adapters/WoWPro.lua" }) do load(f) end
+    "Data/ZoneAliases.lua", "Data/QuestCoordFixes_" .. flavor .. ".lua" }) do load(f) end
 local print0 = print
 print = function() end
-loadG("Guides/Imported_WoWPro_" .. flavor .. ".lua", "x")
 loadG("Guides/Imported_Quests_" .. flavor .. ".lua", "Imported_Quests_" .. flavor)
 loadG("Guides/Imported_Achievements_" .. flavor .. ".lua", "Imported_Achievements_" .. flavor)
 loadG("Guides/Imported_QuestLines_" .. flavor .. ".lua", "Imported_QuestLines_" .. flavor)
@@ -35,8 +34,6 @@ for _, lv in ipairs({ "Alliance_Human_01_06_Northshire", "Horde_Orc_Troll_01_06_
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs((NS.wowHandlers or {}).ADDON_LOADED or {}) do pcall(h, "ADDON_LOADED", "CompletionRoute") end
 local nb = #NS.Guide.list
-pcall(NS.Adapters.WoWPro.ImportStatic)
-for i = nb + 1, #NS.Guide.list do SRC[NS.Guide.list[i]] = "Imported_WoWPro_" .. flavor end
 print = print0
 if mode == "nofix" then NS.QuestCoordFixes = nil end
 local G = NS.Guide
