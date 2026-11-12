@@ -246,6 +246,25 @@ and button; the travel line names only non-walking legs; **Contribute** (`Core/C
 * `repo/` data is still the dev build (gaps guides and fallback points) and its route orders are partial and stale.
   The clients therefore still load Questie-derived extras until `public-build-only` lands.
 
+**Update 2026-11-12, 05:30. The public build is live locally; rebake running.**
+* PR #14 (simpler step window, Recent, Start over, auto-advance) and PR #15 (one build: the developer's install is
+  the public release) are merged and pushed. `repo/` holds the public data (byte-identical to the checked worktree);
+  every harness passes there and the release gate passes (106 files).
+* **Installed** on all five clients at 05:20 (each client folder is now the whole add-on folder, about 45 MB, the
+  same set the packager ships). **Drive** matches master; the retired guide files and Questie tools there were moved
+  to `My Drive/Code/_archive-2026-11-11/Completionist's Guide/dev-build/`. Local copies of the retired files:
+  `~/Downloads/CompletionistGuide-work/archive/dev-build-2026-11-11/` and `repo/tools/measure/questie/` (gitignored).
+* **Rebake running** since 05:17 on the public data: 1,611 wiki guides, gate on, log in the session scratchpad
+  (`bake/bake-public.log`). If it died: `caffeinate -is nice -n 10 venv/bin/python tools/bake_resume.py
+  --min-free-gb 10` from `repo/`. Afterwards: `test_route_order`, `test_cost_parity`, the gate, `tools/install.sh`
+  for the five clients, copy the five `Data/RouteOrder_*.lua` to Drive, refresh `docs/status_table.txt`
+  (STATUS top section, "To apply", step 6).
+* **Running (the one background agent):** the saved-progress fixer, continuing in `wt-state`
+  (`state-review-fixes`); it merges master into its branch first.
+* **Next after that:** a generator step that reads `contributions/areas/<flavor>.json` from the data repository and
+  gives steps without a point their contributed place; then the first real contribution through the issue form
+  (the Action has never run).
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
