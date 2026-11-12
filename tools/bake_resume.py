@@ -140,6 +140,8 @@ def main():
     ap.add_argument("--dp-time", type=float)
     ap.add_argument("--no-gate", action="store_true", help="skip the vplayer gate (rows stay without a verdict)")
     ap.add_argument("--gate-cap", type=float, help="vplayer seconds per guide in the gate (optimize_routes --gate-cap)")
+    ap.add_argument("--min-free-gb", type=float, default=11.0,
+                    help="stop before a batch when the disk has less free space than this (owner's floor is 8 GB)")
     ap.add_argument("--lua-dir", help="where RouteOrder_<flavor>.lua is written (default CompletionRoute/Data)")
     a = ap.parse_args()
     os.chdir(REPO)
@@ -190,7 +192,7 @@ def main():
     extra_args = (["--limit-s", str(a.limit_s)] if a.limit_s else []) + (["--dp-time", str(a.dp_time)] if a.dp_time else [])
     gate_args = (["--gate-work", os.path.join(work, "gate")] + (["--gate-cap", str(a.gate_cap)] if a.gate_cap else []))
     for fl, what, ids in queue:
-        if free_gb() < 11:
+        if free_gb() < a.min_free_gb:
             log("STOP: free disk", round(free_gb(), 1), "GB"); break
         waited = 0
         while tight() and waited < 1800:
