@@ -382,7 +382,12 @@ end
 local scanned = {}          -- [guideid] = true|false (complete for the CURRENT scope)
 local scanQueue, scanPos = nil, 1
 local scanFrame = CreateFrame("Frame")
-local PER_FRAME = 40        -- guides per frame; ~4s for a full retail catalogue, once
+local PER_FRAME = 40        -- most guides per frame
+-- ...and a time budget: under the client's plain Lua 5.1 forty guides cost 30-60 ms a frame (measured 2026-11-11, p95
+-- 127 ms on MoP and 211 ms on Retail), a visible stutter for as long as the list scans.  A slice now stops after
+-- SCAN_MS; one guide is always done, so a single huge guide can still overrun it.
+local SCAN_MS = 4
+local clock = debugprofilestop or function() return os.clock() * 1000 end
 local scanDirty = false
 
 local function scopeKey() return (NS.Account and NS.Account.Scope()) or "char" end
@@ -398,6 +403,7 @@ local function scanSlice()
     if not scanQueue then scanQueue, scanPos = G.Available(), 1 end
     local sk = scopeKey()
     local active = P.guide and P.guide.id
+    local t0 = clock()
     for _ = 1, PER_FRAME do
         local g = scanQueue[scanPos]
         if not g then scanQueue = nil return true end
@@ -409,6 +415,7 @@ local function scanSlice()
             -- do not hold on to step tables we only parsed to answer this question
             if not hadSteps and g.id ~= active and g.steps then g.steps = nil end
             scanDirty = true
+            if clock() - t0 >= SCAN_MS then break end
         end
     end
     return false

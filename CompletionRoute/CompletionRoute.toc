@@ -1,4 +1,4 @@
-## Interface: 120007, 120100, 121000, 121500
+## Interface: 120007, 120100, 120105
 ## Title: |cff7ddf8fCompletionist's|r |cffffd200Guide|r
 ## Notes: The completionist's guide: community-driven guides for every quest, with optimal travel routing (flight paths, boats, portals, hearthstone) and a smart arrow that becomes the quest item / hearthstone when you should click it.
 ## Author: Daniel Bates (BatesAI) + contributors

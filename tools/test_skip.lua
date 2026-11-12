@@ -391,7 +391,13 @@ local function routeCost(NS, list, plannable, exact)
     local t, prev = 0, nil
     local cache = {}
     for _, s in ipairs(list) do
-        if plannable[s] and s.zone and (s.coords or not exact) and R.StepWorld(s) then
+        -- which steps count is the cost model's rule (Routing/CostModel.lua), the one the re-planner prices with:
+        -- every step the arrow visits (Located), or only those with a firm point (Firm: own |M| or an NPC's)
+        local CM = NS.CostModel
+        local counts
+        if CM then counts = exact and CM.Firm(s) or (not exact and CM.Located(s))
+        else counts = s.zone and (s.coords or not exact) end
+        if plannable[s] and counts and R.StepWorld(s) then
             local c
             if not prev then c = R.TravelSecondsFromPlayer(s) else
                 cache[prev] = cache[prev] or {}
@@ -921,7 +927,7 @@ local function realFlavor(fl)
             P.Refresh(true)
             applyMs[#applyMs + 1] = debugprofilestop() - a0
             NS.db.profile.routing.liveBudgetMs = lb
-            t(tag .. ": an accepted re-plan beats the margin", (cb - cn) >= (last.margin or 0) - 0.01, cb - cn)
+            t(tag .. ": an accepted re-plan beats the margin", (cb - cn) >= (last.margin or 0) - 0.01, ("test %.1f -> %.1f (saves %.1f); planner %s -> %s, margin %s"):format(cb, cn, cb - cn, tostring(last.baseCost), tostring(last.newCost), tostring(last.margin)))
         else
             t(tag .. ": a re-plan that did not win leaves the order alone", N == B)
         end

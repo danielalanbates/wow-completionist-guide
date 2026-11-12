@@ -219,7 +219,7 @@ end
 
 local function hookTip(tip)
     if not tip then return end
-    if tip.HookScript and TooltipDataProcessor == nil then
+    if tip.HookScript then
         tip:HookScript("OnTooltipSetItem", function(self)
             if not self.GetItem then return end
             local _, link = self:GetItem()
@@ -227,7 +227,10 @@ local function hookTip(tip)
         end)
     end
 end
-if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum.TooltipDataType then
+-- Choose by what the tooltip itself supports, not by the global: TBC Anniversary and MoP Classic define
+-- TooltipDataProcessor but their tooltips still fire OnTooltipSetItem and never run the processor.
+local classicTip = GameTooltip and GameTooltip.HasScript and GameTooltip:HasScript("OnTooltipSetItem")
+if not classicTip and TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum.TooltipDataType then
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, function(tooltip)
         if tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip and tooltip ~= ShoppingTooltip1 and tooltip ~= ShoppingTooltip2 then return end
         if not tooltip.GetItem then return end

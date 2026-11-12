@@ -143,6 +143,7 @@ end
 
 local function markPlate(plate, unit)
     local name = UnitName(unit)
+    if U.IsSecret(name) then return end   -- Retail hides NPC names in combat: leave the mark as it is
     if not name or not wanted[name:lower()] then
         local m = plateMarks[plate]
         if m then m:Hide() m.anim:Stop() m.__parked = nil end
@@ -283,6 +284,7 @@ local function updateUnitFrame(unit, anchorName, key)
     local m = frameMark(anchor, key)
     if not m then return end
     local name = UnitExists(unit) and UnitName(unit)
+    if U.IsSecret(name) then return end
     if anchor and name and wanted[name:lower()] and NS.db.profile.beacon.enabled then
         if m.__parked ~= anchor then
             m:ClearAllPoints(); m:SetPoint("RIGHT", anchor, "LEFT", -2, 0); m:SetScale(0.7)

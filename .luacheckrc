@@ -40,7 +40,7 @@ read_globals = {
     -- Client info & state
     "GetBuildInfo", "GetTime", "GetLocale", "GetRealmName",
     "UnitName", "UnitLevel", "UnitClass", "UnitRace", "UnitFactionGroup", "UnitXP", "UnitXPMax", "UnitPosition", "UnitAffectingCombat", "UnitIsGhost", "UnitIsDeadOrGhost", "UnitOnTaxi", "UnitInParty", "UnitInRaid",
-    "GetUnitSpeed", "IsMounted", "IsFlying", "IsSwimming", "IsIndoors", "InCombatLockdown", "GetPlayerFacing", "GetBindLocation", "GetZoneText", "GetSubZoneText", "GetMinimapZoneText",
+    "GetUnitSpeed", "IsMounted", "IsFlying", "IsSwimming", "IsIndoors", "InCombatLockdown", "issecretvalue", "GetPlayerFacing", "GetBindLocation", "GetZoneText", "GetSubZoneText", "GetMinimapZoneText",
     "IsSpellKnown", "IsPlayerSpell", "GetSpellInfo", "GetSpellCooldown", "CastSpellByID", "GetShapeshiftForm", "C_SpellBook",
     "PlayerHasToy", "C_ToyBox", "IsEquippedItem", "IsUsableItem",   -- teleports (Routing/Teleports.lua)
     "GetItemCount", "GetItemInfo", "GetItemInfoInstant", "GetItemIcon", "GetContainerNumSlots", "GetContainerItemLink", "GetInventoryItemLink", "GetInventoryItemTexture", "CanDualWield", "GetItemStats", "GetAverageItemLevel", "GetDetailedItemLevelInfo", "EquipItemByName", "UseContainerItem", "UseInventoryItem",

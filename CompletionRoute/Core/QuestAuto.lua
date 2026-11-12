@@ -258,7 +258,11 @@ end
 -- ---------------------------------------------------------------------------
 -- Reading the quest giver
 -- ---------------------------------------------------------------------------
-local function npcGUID() return safe(api("UnitGUID"), "npc") or safe(api("UnitGUID"), "questnpc") end
+local function npcGUID()
+    local g = safe(api("UnitGUID"), "npc") or safe(api("UnitGUID"), "questnpc")
+    if NS.Util.IsSecret(g) then return nil end   -- Retail hides NPC identity under combat restrictions
+    return g
+end
 
 -- Daily or weekly by the client's own frequency constants (C_GossipInfo and the greeting frame use Enum.QuestFrequency
 -- where it exists; the old gossip API used LE_QUEST_FREQUENCY_*).  QUEST_DETAIL's QuestIsDaily() decides in the end.

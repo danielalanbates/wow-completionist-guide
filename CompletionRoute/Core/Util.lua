@@ -248,14 +248,30 @@ end
 -- ---------------------------------------------------------------------------
 function U.ItemCount(itemID) return (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID)) or (GetItemCount and GetItemCount(itemID)) or 0 end
 function U.HasItem(itemID) return U.ItemCount(itemID) > 0 end
+-- Retail 12.x hands addons "secret" values for some reads while combat restrictions are on (cooldowns, NPC names and
+-- GUIDs, unit speed).  Comparing, adding, indexing or using one as a table key is a Lua error, so every such read is
+-- tested first.  issecretvalue does not exist on the Classic clients: nothing is ever secret there.
+function U.IsSecret(v)
+    return issecretvalue ~= nil and issecretvalue(v) and true or false
+end
+-- Cooldowns: when the client hides the numbers, answer with what was last seen (the time each cooldown ends).
+local cdEnds = { item = {}, spell = {} }
+local function cooldownLeft(kind, id, start, dur)
+    if U.IsSecret(start) or U.IsSecret(dur) then
+        local ends = cdEnds[kind][id]
+        return ends and math.max(ends - GetTime(), 0) or 0
+    end
+    local left = (start and start > 0 and dur) and (start + dur - GetTime()) or 0
+    if left < 0 then left = 0 end
+    cdEnds[kind][id] = left > 0 and (GetTime() + left) or nil
+    return left
+end
 function U.ItemCooldown(itemID)
     local start, dur
     if C_Container and C_Container.GetItemCooldown then start, dur = C_Container.GetItemCooldown(itemID)
     elseif C_Item and C_Item.GetItemCooldown then start, dur = C_Item.GetItemCooldown(itemID)
     elseif GetItemCooldown then start, dur = GetItemCooldown(itemID) end
-    if not start or start == 0 or not dur then return 0 end
-    local left = start + dur - GetTime()
-    return left > 0 and left or 0
+    return cooldownLeft("item", itemID, start, dur)
 end
 function U.ItemIcon(itemID)
     local tex = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID)) or (GetItemIcon and GetItemIcon(itemID))
@@ -297,8 +313,7 @@ function U.SpellCooldown(spellID)
     local start, dur
     if C_Spell and C_Spell.GetSpellCooldown then local c = C_Spell.GetSpellCooldown(spellID); start, dur = c and c.startTime, c and c.duration
     elseif GetSpellCooldown then start, dur = GetSpellCooldown(spellID) end
-    local left = (start and start > 0 and dur) and (start + dur - GetTime()) or 0
-    return math.max(left, 0)
+    return cooldownLeft("spell", spellID, start, dur)
 end
 
 -- Hearthstone: item 6948; Astral Recall (shaman) spell 556.  Hearthstone stand-ins (Data/Teleports.lua, `hearth = true`) share
@@ -343,6 +358,7 @@ end
 function U.CanFly()
     if IsFlying and IsFlying() then return true end
     local cur = GetUnitSpeed and GetUnitSpeed("player") or 0
+    if U.IsSecret(cur) then cur = 0 end
     if cur > 15 then return true end
     -- Classic Era has no flying anywhere
     if NS.flavor == "era" then return false end
@@ -396,6 +412,7 @@ end
 function U.TravelSpeed()
     local p = NS.db and NS.db.profile.routing or {}
     local cur = GetUnitSpeed and GetUnitSpeed("player") or 0
+    if U.IsSecret(cur) then cur = 0 end
     if cur and cur > 15 then return cur end
     if U.CanFly() then
         return U.FlySpeed()

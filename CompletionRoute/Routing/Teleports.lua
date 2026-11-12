@@ -193,7 +193,11 @@ function T.Recheck()
     return sig
 end
 if NS.RegisterEvent then
-    local function soon() if NS.Throttle then NS:Throttle("teleports", 1, T.Recheck) else T.Recheck() end end
+    -- Cooldown events fire on every global cooldown in a fight, and the numbers may be hidden then (U.IsSecret): the
+    -- usable set is not re-read in combat, once when it ends instead.
+    local function recheck() if InCombatLockdown and InCombatLockdown() then return end T.Recheck() end
+    local function soon() if NS.Throttle then NS:Throttle("teleports", 1, recheck) else recheck() end end
+    NS:RegisterEvent("PLAYER_REGEN_ENABLED", soon)
     for _, ev in ipairs({ "SPELLS_CHANGED", "LEARNED_SPELL_IN_TAB", "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED", "NEW_TOY_ADDED",
                           "TOYS_UPDATED", "SPELL_UPDATE_COOLDOWN", "BAG_UPDATE_COOLDOWN", "PLAYER_LEVEL_UP", "SKILL_LINES_CHANGED" }) do
         NS:RegisterEvent(ev, soon)

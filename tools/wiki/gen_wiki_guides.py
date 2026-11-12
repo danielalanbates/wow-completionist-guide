@@ -680,7 +680,7 @@ class Gen:
         S = self.atlas.sets[fl]
         return a == b or S.is_ancestor(a, b) or S.is_ancestor(b, a) or S.home(a) == S.home(b)
 
-    def entity_maps(self, title, fl, added, draenor=False):
+    def entity_maps(self, title, fl, added, draenor=False, seen=None):
         """the zone-type maps (UiMap type 3 or more) on this client that a linked page names: the page itself when it is
         a place that is a map (an objective "Travel to Dalaran"), else the links of an NPC/object page's location
         field (place_links), in the page's order (most specific first).  When those links name no map at all, a linked
@@ -708,8 +708,14 @@ class Gen:
                 if m is not None and m not in out:
                     out.append(m)
         if not out and page in self.items:
+            # item pages name each other as sources ("dropped by <container>", "contains <item>"): never walk a page twice
+            seen = seen if seen is not None else set()
+            seen.add(page)
             for src in self.items[page][1][:3]:
-                for m in self.entity_maps(src, fl, added, draenor) if src != page else []:
+                sp = self.resolve_title(src)[0]
+                if not sp or sp in seen:
+                    continue
+                for m in self.entity_maps(src, fl, added, draenor, seen):
                     if m not in out:
                         out.append(m)
         return out

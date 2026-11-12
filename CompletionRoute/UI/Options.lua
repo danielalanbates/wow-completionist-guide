@@ -12,8 +12,16 @@ local d = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 d:SetPoint("TOPLEFT", t, "BOTTOMLEFT", 0, -6); d:SetWidth(560); d:SetJustifyH("LEFT")
 d:SetText("The completionist's guide: community-driven guides for every quest, with open travel routing.\nSlash: /cr   Guides: /cr guides   What can I do now: /cr guides -> For level N   Debug route: /cr route")
 
-local y = -70
-local host = panel     -- the page check() adds to (the "Auto quests" page below switches it)
+-- The main page is taller than the Settings canvas (about 600 px; 22 checkboxes and 6 sliders need about 830), so its
+-- controls sit in a scroll frame.  The template exists on all five clients.
+local scroll = CreateFrame("ScrollFrame", "CompletionRouteOptionsScroll", panel, "UIPanelScrollFrameTemplate")
+scroll:SetPoint("TOPLEFT", 0, -64); scroll:SetPoint("BOTTOMRIGHT", -30, 8)
+local content = CreateFrame("Frame", nil, scroll)
+content:SetSize(620, 10)
+scroll:SetScrollChild(content)
+
+local y = -4
+local host = content   -- the page check() and slider() add to (the "Auto quests" page below switches it)
 local function check(label, get, set, tip)
     local tmpl = (C_XMLUtil and C_XMLUtil.GetTemplateInfo and C_XMLUtil.GetTemplateInfo("InterfaceOptionsCheckButtonTemplate")) and "InterfaceOptionsCheckButtonTemplate" or "SettingsCheckBoxTemplate"
     local okcb, cb = pcall(CreateFrame, "CheckButton", nil, host, tmpl)
@@ -26,7 +34,7 @@ local function check(label, get, set, tip)
     return cb
 end
 local function slider(label, min, max, step, get, set)
-    local s = CreateFrame("Slider", nil, panel, "OptionsSliderTemplate")
+    local s = CreateFrame("Slider", nil, host, "OptionsSliderTemplate")
     s:SetPoint("TOPLEFT", 24, y - 10); y = y - 46
     s:SetMinMaxValues(min, max); s:SetValueStep(step); s:SetObeyStepOnDrag(true); s:SetWidth(200)
     s.Low:SetText(min); s.High:SetText(max)
@@ -80,6 +88,8 @@ end)
 slider("Beacon scale x100", 50, 200, 5, function() return math.floor((P().beacon.scale or 1) * 100 + 0.5) end, function(v) P().beacon.scale = v / 100 NS.Beacon.RescanPlates() end)
 slider("Arrow scale x100", 50, 200, 5, function() return math.floor((P().arrow.scale or 1) * 100 + 0.5) end, function(v) P().arrow.scale = v / 100 NS.Arrow.ApplySettings() end)
 slider("Guide window scale x100", 50, 200, 5, function() return math.floor((P().frame.scale or 1) * 100 + 0.5) end, function(v) P().frame.scale = v / 100 NS.GuideFrame.ApplySettings() end)
+
+content:SetHeight(-y + 24)
 
 local category
 if Settings and Settings.RegisterCanvasLayoutCategory then

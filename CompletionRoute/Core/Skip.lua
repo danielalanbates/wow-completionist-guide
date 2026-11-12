@@ -302,7 +302,10 @@ end
 -- be had are grown from what lies outside them (least fixpoint, so a prerequisite cycle whose only way in was removed
 -- goes too).  A quest the data never made obtainable (QuestDeps never) is not this removal's doing.  `removed` gets the
 -- quests added; `label` (optional) maps each to the seed it came from.  Returns them nearest first.
-function S.Closure(idx, seeds, removed, label)
+-- strict (one guide's own rebuild, strands()): a quest the index calls unobtainable goes too when its accept in this
+-- guide waits on a removed quest.  The wiki's chains hold loops (retail 38649 <- 45260 <- 45271 ...), the guide still
+-- lists the quest, and without this its accept step would wait for ever.
+function S.Closure(idx, seeds, removed, label, strict)
     local F = idx.F or fileIndex()
     local D, order, queue, head = {}, {}, {}, 1
     for i = 1, #seeds do queue[i] = seeds[i] end
@@ -345,7 +348,7 @@ function S.Closure(idx, seeds, removed, label)
     end
     local out = {}
     for _, q in ipairs(order) do
-        if not ok[q] and not F.never[q] then out[#out + 1] = q end
+        if not ok[q] and (strict or not F.never[q]) then out[#out + 1] = q end
     end
     for _, q in ipairs(out) do removed[q] = true end
     if label then
@@ -437,7 +440,7 @@ local function strands(steps, removed, gid)
     local seeds, gone = {}, {}
     for q in pairs(removed) do seeds[#seeds + 1] = q gone[q] = true end
     table.sort(seeds)
-    local out = S.Closure(S.Index({ { id = gid, steps = steps } }, true), seeds, gone)
+    local out = S.Closure(S.Index({ { id = gid, steps = steps } }, true), seeds, gone, nil, true)
     if #out == 0 then return nil end
     return gone
 end

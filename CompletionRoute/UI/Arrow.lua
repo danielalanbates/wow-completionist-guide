@@ -16,7 +16,11 @@ f:SetSize(160, 110)
 f:SetPoint("TOP", UIParent, "TOP", 0, -180)
 f:SetMovable(true); f:EnableMouse(true); f:SetClampedToScreen(true)
 f:RegisterForDrag("LeftButton")
-f:SetScript("OnDragStart", function(self) if not NS.db.profile.arrow.lock then self:StartMoving() end end)
+-- The two secure buttons (the item/spell button below, the target button in UI/Beacon.lua) are children of this frame
+-- and anchored to it, which makes the frame itself protected: in combat the client blocks Show, Hide, SetPoint,
+-- SetScale and StartMoving on it ("Interface action failed because of an AddOn").  So none of those run in combat;
+-- what was wanted is remembered and applied when combat ends.
+f:SetScript("OnDragStart", function(self) if not NS.db.profile.arrow.lock and not InCombatLockdown() then self:StartMoving() end end)
 f:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
     local p, _, _, x, y = self:GetPoint()
@@ -67,6 +71,15 @@ btn:SetScript("OnEnter", function(self)
 end)
 btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
+-- Show or hide the arrow frame.  Never touches a protected frame in combat: the wish is kept in wantShown and applied
+-- on PLAYER_REGEN_ENABLED (below).  Showing a frame that is already shown is blocked too, so it is only called on change.
+local wantShown
+local function setShown(want)
+    wantShown = want
+    if f:IsShown() == want or InCombatLockdown() then return end
+    if want then f:Show() else f:Hide() end
+end
+
 -- pending secure changes while in combat
 local pending
 -- isToy: the item is used from the toy box (retail and MoP Classic hearth toys, transporters): the secure "toy" action
@@ -95,7 +108,14 @@ local function applyButton(mode, itemID, spellID, reason, isToy)
     btn.reason = reason
     btn:Show()
 end
-NS:RegisterEvent("PLAYER_REGEN_ENABLED", function() if pending then applyButton(unpack(pending, 1, 5)) end end)
+local settingsPending
+NS:RegisterEvent("PLAYER_REGEN_ENABLED", function()
+    if settingsPending then settingsPending = nil A.ApplySettings() end
+    if wantShown ~= nil and f:IsShown() ~= wantShown then if wantShown then f:Show() else f:Hide() end end
+    if pending then applyButton(unpack(pending, 1, 5)) end
+    -- a hidden frame runs no OnUpdate: draw once so an arrow wanted during the fight appears with content
+    if f:IsShown() then pcall(A.Update) end
+end)
 
 local function updateCooldown()
     if not btn:IsShown() then return end
@@ -104,12 +124,12 @@ local function updateCooldown()
         if C_Container and C_Container.GetItemCooldown then start, dur = C_Container.GetItemCooldown(btn.itemID)
         elseif C_Item and C_Item.GetItemCooldown then start, dur = C_Item.GetItemCooldown(btn.itemID)
         elseif GetItemCooldown then start, dur = GetItemCooldown(btn.itemID) end
-        if start and dur then cd:SetCooldown(start, dur) end
+        if start and dur and not U.IsSecret(start) and not U.IsSecret(dur) then cd:SetCooldown(start, dur) end
     elseif btn.spellID then
         local start, dur
         if C_Spell and C_Spell.GetSpellCooldown then local c = C_Spell.GetSpellCooldown(btn.spellID) start, dur = c and c.startTime, c and c.duration
         elseif GetSpellCooldown then start, dur = GetSpellCooldown(btn.spellID) end
-        if start and dur then cd:SetCooldown(start, dur) end
+        if start and dur and not U.IsSecret(start) and not U.IsSecret(dur) then cd:SetCooldown(start, dur) end
     end
 end
 
@@ -156,11 +176,15 @@ end
 A.SetPointer = setPointer
 
 function A.Update()
-    if not NS.db or not NS.db.profile.arrow.enabled then f:Hide() return end
+    if not NS.db or not NS.db.profile.arrow.enabled then setShown(false) return end
     -- while dead the pointer still has a job (get back to the body) even with no step loaded
     local dead = NS.Router and NS.Router.IsDead()
-    if not NS.Progress.current and not dead then f:Hide() return end
-    f:Show()
+    if not NS.Progress.current and not dead then
+        setShown(false)
+        if f:IsShown() then arrow:Hide() title:SetText("") sub:SetText("") eta:SetText("") end   -- in combat: stays up, empty
+        return
+    end
+    setShown(true)
     local rec = NS.Router and NS.Router.Recommendation()
     if not rec then arrow:Hide() applyButton("hide") title:SetText("") sub:SetText("") eta:SetText("") return end
     title:SetText(rec.text or "")
@@ -194,7 +218,9 @@ function A.Update()
         applyButton("show", rec.item, rec.spell, rec.text, rec.toy)
         updateCooldown()
         if rec.mode ~= "item" and rec.eta then eta:SetText("ETA ~" .. U.FmtTime(rec.eta)) else eta:SetText("") end
-        sub:SetText(rec.mode == "item" and "Click to use" or (rec.mode == "teleport" and "Click to teleport" or "Click to hearth"))
+        -- in combat the secure button cannot be changed: it still holds its earlier action (or none), so do not offer it
+        sub:SetText(pending and "|cffff9900button updates after combat|r"
+            or (rec.mode == "item" and "Click to use" or (rec.mode == "teleport" and "Click to teleport" or "Click to hearth")))
         lastMode = rec.mode
         return
     end
@@ -244,10 +270,13 @@ f:SetScript("OnUpdate", function(_, el)
 end)
 
 function A.ApplySettings()
+    if InCombatLockdown() then settingsPending = true return end   -- protected frame: applied when combat ends
     local p = NS.db.profile.arrow
     f:ClearAllPoints(); f:SetPoint(p.point or "TOP", UIParent, p.point or "TOP", p.x or 0, p.y or -180)
     f:SetScale(p.scale or 1); f:SetAlpha(p.alpha or 1)
-    if p.enabled then f:Show() else f:Hide() end
+    setShown(p.enabled and true or false)
 end
 NS:On("PLAYER_READY", A.ApplySettings)
-NS:On("STEP_CHANGED", function() acc = 1 end)
+-- a hidden frame runs no OnUpdate, so a step that arrives while the arrow is hidden (a guide loaded with none open
+-- before, the next guide after one ends) has to draw it from here
+NS:On("STEP_CHANGED", function() acc = 1 if not f:IsShown() then pcall(A.Update) end end)
