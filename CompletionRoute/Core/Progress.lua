@@ -154,18 +154,31 @@ local function markCount(id)
     return n
 end
 P.MarkCount = markCount
--- The routes this character has finished at least one step in, most recently used first: { { g = guide, done =, total = } }
+-- Does this character have any mark in the route?  One table read, nothing counted (the list asks for every record).
+local function hasMarks(id)
+    local A = NS.Account
+    if A and A.me then
+        local d, s = A.me.stepDone[id], A.me.stepSkipped[id]
+        return (d ~= nil and next(d) ~= nil) or (s ~= nil and next(s) ~= nil)
+    end
+    local c = NS.db.char
+    for _, f in ipairs({ "stepDone", "stepSkipped" }) do
+        if c[f] and c[f][id] and next(c[f][id]) ~= nil then return true end
+    end
+    return false
+end
+-- The routes this character has finished at least one step in, most recently used first: { { g = guide, total = } }.
+-- Costs one pass over the saved records (at most RECENT_KEEP) and a sort of them: no guide is parsed and no mark is
+-- counted, so the list opens as fast as it did without the section.  A record whose route is gone from this version
+-- of the data is passed over (and ages out of the table).
 function P.RecentList(limit)
     local out = {}
     if not (NS.db and NS.db.char) then return out end
     local store = recentStore()
     local rows = {}
     for id, rec in pairs(store) do
-        local g = G.registry[id]
-        if g and not g.empty then
-            local done = markCount(id)
-            if done > 0 or P.Lap(id) > 0 then rows[#rows + 1] = { g = g, done = done, total = rec.n, s = rec.s or 0 } end
-        end
+        local g = type(rec) == "table" and G.registry[id]
+        if g and not g.empty and (hasMarks(id) or P.Lap(id) > 0) then rows[#rows + 1] = { g = g, total = rec.n, s = rec.s or 0 } end
     end
     table.sort(rows, function(a, b) if a.s ~= b.s then return a.s > b.s end return a.g.id < b.g.id end)
     for i = 1, math.min(limit or RECENT_SHOWN, #rows) do out[i] = rows[i] end
@@ -913,31 +926,88 @@ end)
 -- Every handler looks at the step on screen only (never a later one), does a table read or two, and leaves when the
 -- step has nothing for it, so it costs nothing on the common events it listens to.
 --
--- An NPC's window opened.  UnitName("npc") is the NPC being talked to on all five clients; Retail hands out a secret
--- value for it under combat restrictions, which must not be compared (U.IsSecret).
+-- An NPC's window opened.  UnitName("npc") is the NPC being talked to (the gossip and merchant frames of all four
+-- Blizzard UI sources title themselves with it); the quest panes use "questnpc", read when "npc" answers nothing.
+-- Retail hands out a secret value for the name under combat restrictions, which must not be compared (U.IsSecret).
+local QUEST_WINDOW = { QUEST_GREETING = true, QUEST_DETAIL = true, QUEST_PROGRESS = true, QUEST_COMPLETE = true }
+local function npcName(evt)
+    if not UnitName then return nil end
+    local name = UnitName("npc")
+    if U.IsSecret(name) then return nil end
+    if name == nil and QUEST_WINDOW[evt] then
+        name = UnitName("questnpc")
+        if U.IsSecret(name) then return nil end
+    end
+    return type(name) == "string" and name or nil
+end
+-- One conversation finishes one step.  A single click on an NPC fires several of these events (GOSSIP_SHOW and
+-- PLAYER_INTERACTION_MANAGER_FRAME_SHOW for the same window; then MERCHANT_SHOW or QUEST_DETAIL as the player goes
+-- from the gossip pane to the vendor or a quest), and two steps in a row can name the same NPC ("Talk to Bob", then
+-- "Talk to Bob" again after an errand): without this the second step went with the first.  After a step is finished
+-- here, the same NPC (any NPC, when the name could not be read) finishes nothing more until its windows have been
+-- closed for TALK_GAP seconds; a pane-to-pane change closes and opens in the same moment.
+local TALK_GAP = 2
+local talk = {}     -- who: lower-case name of the NPC that finished a step (true = unreadable); closed: when its window closed
+local function clock() return GetTime and GetTime() or 0 end
+local function sameConversation(name)
+    if talk.who == nil then return false end
+    if talk.who ~= true and name and talk.who ~= name:lower() then return false end
+    if talk.closed and clock() - talk.closed >= TALK_GAP then return false end
+    talk.closed = nil       -- a window of that NPC is open again: it has to close again before anything counts
+    return true
+end
+local function talked(name) talk.who, talk.closed = name and name:lower() or true, nil end
+P._talk = talk          -- tools/test_flow.lua
 local function npcWindow(evt)
     local s = P.current
     if not s then return end
-    if evt == "MERCHANT_SHOW" and Sig.MerchantCompletes(s) then P.MarkDone(s) return end
-    if not Sig.TalkNames(s) then return end
-    local name = UnitName and UnitName("npc")
-    if U.IsSecret(name) then return end
-    if Sig.TalkMatches(s, name) then P.MarkDone(s) end
+    local merchant = evt == "MERCHANT_SHOW" and Sig.MerchantCompletes(s)
+    if not merchant and not Sig.TalkNames(s) then return end
+    local name = npcName(evt)
+    if merchant then
+        -- a step that is only about repairing needs a merchant who repairs
+        if Sig.NeedsRepairer(s) and not (CanMerchantRepair and CanMerchantRepair()) then return end
+        if sameConversation(name) then return end
+        talked(name)
+        P.MarkDone(s)
+        return
+    end
+    if not Sig.TalkMatches(s, name) or sameConversation(name) then return end
+    talked(name)
+    P.MarkDone(s)
 end
 P.OnNpcWindow = npcWindow
 -- The windows an NPC opens: gossip, the quest greeting and the three quest panes (a giver with one quest opens
 -- straight into it), merchant, trainer, flight master, bank, auctioneer.  PLAYER_INTERACTION_MANAGER_FRAME_SHOW is the
--- modern clients' one event for all of them; the older names still fire there.  NS:RegisterEvent is pcall-guarded,
--- so a name a client does not have is simply not listened to.
+-- one event for all of them and the older names still fire beside it.  All of these are in the generated API
+-- documentation of the four Blizzard UI sources (live 12.1.5, 1.15.9, 2.5.6, 5.5.4); NS:RegisterEvent is
+-- pcall-guarded, so a name a client does not have is simply not listened to.
 for _, e in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING", "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE", "MERCHANT_SHOW", "TRAINER_SHOW",
     "TAXIMAP_OPENED", "BANKFRAME_OPENED", "AUCTION_HOUSE_SHOW", "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" }) do
     NS:RegisterEvent(e, npcWindow)
 end
--- A treasure step with a spot: something was looted while standing there
+local function npcClosed() if talk.who ~= nil then talk.closed = clock() end end
+for _, e in ipairs({ "GOSSIP_CLOSED", "QUEST_FINISHED", "MERCHANT_CLOSED", "TRAINER_CLOSED", "TAXIMAP_CLOSED", "BANKFRAME_CLOSED",
+    "AUCTION_HOUSE_CLOSED", "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" }) do
+    NS:RegisterEvent(e, npcClosed)
+end
+-- A treasure step with a spot: a chest was looted while standing there.  The loot has to come from a game object
+-- (GetLootSourceInfo's GUID starts with "GameObject-"): a corpse looted beside the chest, or a fish, is not the
+-- treasure.  A client that cannot say where the loot came from leaves the step manual.
+local function lootFromObject()
+    if IsFishingLoot and IsFishingLoot() then return false end
+    if not (GetNumLootItems and GetLootSourceInfo) then return false end
+    for slot = 1, GetNumLootItems() or 0 do
+        local guid = GetLootSourceInfo(slot)
+        if U.IsSecret(guid) then return false end
+        if type(guid) == "string" and guid:sub(1, 11) == "GameObject-" then return true end
+    end
+    return false
+end
 local function lootWindow()
     local s = P.current
     if not (s and Sig.LootAtSpot(s)) then return end
-    if nearCoords(s, s.radius or 25) then P.MarkDone(s) end
+    if nearCoords(s, s.radius or 25) and lootFromObject() then P.MarkDone(s) end
 end
 P.OnLootWindow = lootWindow
 NS:RegisterEvent("LOOT_OPENED", lootWindow)

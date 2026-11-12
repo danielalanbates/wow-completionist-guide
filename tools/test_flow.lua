@@ -23,10 +23,22 @@ end
 local BAGS, ON_QUEST, NPC, SECRET, NPC_READS = {}, {}, nil, false, 0
 C_Item.GetItemCount = function(id) return BAGS[id] or 0 end
 C_QuestLog.IsOnQuest = function(q) return ON_QUEST[q] or false end
+local QUESTNPC = nil
 UnitName = function(unit)
     if unit == "npc" then NPC_READS = NPC_READS + 1 return NPC end
+    if unit == "questnpc" then return QUESTNPC end
     return "Tester"
 end
+-- a clock the test moves (the conversation lock reads GetTime); it creeps so nothing sees the same instant twice
+local NOW = 1000
+GetTime = function() NOW = NOW + 0.001 return NOW end
+local function wait(sec) NOW = NOW + sec end
+-- what the loot window holds, and what the merchant can do
+local LOOT, FISHING, CAN_REPAIR = { "GameObject-0-3299-0-1-2843-0000001234" }, false, false
+GetNumLootItems = function() return #LOOT end
+GetLootSourceInfo = function(slot) return LOOT[slot], 1 end
+IsFishingLoot = function() return FISHING end
+CanMerchantRepair = function() return CAN_REPAIR end
 issecretvalue = function(v) return SECRET and v == NPC end
 -- events this fake client does not have: registering them must not break the load (NS:RegisterEvent is pcall-guarded)
 UNKNOWN_EVENTS = { AUCTION_HOUSE_SHOW = true, PLAYER_INTERACTION_MANAGER_FRAME_SHOW = true, GARRISON_MISSION_COMPLETE_RESPONSE = true, LOOT_READY = true }
@@ -69,6 +81,21 @@ local GUIDES = {
         "N Table mission|MISSION|753|",
         "N Other mission|MISSION|754|",
         "N Last|" }, "\n") },
+    -- what a wrong rule would skip (the skeptic's cases)
+    { id = "f:twice", name = "Twice", type = "Professions", text = table.concat({
+        "N Talk to Innkeeper Farley|",
+        "N Ask him again|T|Innkeeper Farley|",
+        "N And once more|N|Speak with Innkeeper Farley.|",
+        "N Then his neighbour|T|Smith Argus|",
+        "N Last|" }, "\n") },
+    { id = "f:shop", name = "Shop", type = "Professions", text = table.concat({
+        "r Sell junk|",
+        "N Talk to Godric Rothgar|",
+        "r Repair|",
+        "r Repair and sell|",
+        "N Last|" }, "\n") },
+    { id = "f:quest", name = "Quest pane", type = "Professions", text = "N Report to the marshal|T|Marshal Dughan|\nN Last|" },
+    { id = "f:chest", name = "Chest", type = "Professions", text = "$ Hidden chest|M|40.0,60.0|Z|1429; Elwynn Forest|\nN Last|" },
     { id = "f:loop", name = "Loop", type = "Gold", loop = true, text = "G Stop 1|M|10,10|Z|1429; Elwynn Forest|RAD|60|\nG Stop 2|M|60,60|Z|1429; Elwynn Forest|RAD|60|\nG Stop 3|M|90,20|Z|1429; Elwynn Forest|RAD|60|" },
     { id = "f:hearth", name = "Hearth", type = "Professions", text = "h Goldshire|M|43.7,65.8|Z|1429; Elwynn Forest|\nN After|" },
 }
@@ -105,7 +132,8 @@ local function topNode() return T.buildTree().kids[1] end
 -- ---------------------------------------------------------------------------
 for _, e in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING", "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE", "MERCHANT_SHOW", "TRAINER_SHOW",
     "TAXIMAP_OPENED", "BANKFRAME_OPENED", "AUCTION_HOUSE_SHOW", "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", "LOOT_OPENED", "LOOT_READY",
-    "GARRISON_MISSION_COMPLETE_RESPONSE" }) do
+    "GARRISON_MISSION_COMPLETE_RESPONSE", "GOSSIP_CLOSED", "QUEST_FINISHED", "MERCHANT_CLOSED", "TRAINER_CLOSED", "TAXIMAP_CLOSED",
+    "BANKFRAME_CLOSED", "AUCTION_HOUSE_CLOSED", "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" }) do
     check(NS.wowHandlers[e] ~= nil and #NS.wowHandlers[e] > 0, "event " .. e .. " has a handler registered through NS:RegisterEvent")
 end
 do
@@ -189,6 +217,40 @@ do
     check(parsed == 0, "building Recent and its progress parses no guide (" .. parsed .. " parsed)")
     check(topNode().recent and #topNode().guides == 12, "the reloaded list has the Recent section on top")
 end
+-- a record whose route is gone from this version of the data (a renamed or dropped guide) does not break the section
+do
+    local before = recentIds()
+    CompletionRouteCharDB.recent["gone:route"] = { s = (CompletionRouteCharDB.recentSeq or 0) + 50, t = 0, n = 9 }
+    NS.Account.me.stepDone["gone:route"] = { k1 = true }
+    local ok, err = pcall(function() return recentIds() end)
+    check(ok and err == before, "a record of a route that no longer exists is passed over: " .. tostring(err))
+    local okT, node = pcall(topNode)
+    check(okT and node and node.recent and #node.guides == 12, "and the list still builds with it in the saved table")
+    local okR = pcall(NS.GuideMenu.Refresh)
+    check(okR, "and the list window still draws")
+    -- the table stays bounded with the stale record in it
+    for i = 1, 40 do P.Load(("f:many%02d"):format(i)) P.Forward() end
+    local n = 0
+    for _ in pairs(NS.db.char.recent) do n = n + 1 end
+    check(n <= 30, "the saved table stays at 30 records at most with a stale record in it, got " .. n)
+    CompletionRouteCharDB.recent["gone:route"] = nil
+    NS.Account.me.stepDone["gone:route"] = nil
+end
+-- building the list counts no marks: a route with thousands of finished steps costs the same as one with two
+do
+    local id = P.RecentList()[1].g.id
+    local set = NS.Account.me.stepDone[id]
+    local keep = {}
+    for k, v in pairs(set) do keep[k] = v end
+    for i = 1, 5000 do set["big" .. i] = true end
+    local realPairs, walked = pairs, false
+    pairs = function(t) if t == set then walked = true end return realPairs(t) end
+    local list = P.RecentList()
+    local okT = pcall(T.buildTree)
+    pairs = realPairs
+    check(list[1] and list[1].g.id == id and okT and not walked, "Recent (and the tree with it) is built without walking a route's marks")
+    for k in pairs(set) do if not keep[k] then set[k] = nil end end
+end
 -- first run of the feature on a character that already has progress: seeded from its marks
 do
     CompletionRouteCharDB.recent, CompletionRouteCharDB.recentSeq = nil, nil
@@ -213,6 +275,23 @@ check(P.StartOver() == true, "P.StartOver reports that it reset")
 check(P.guide.id == "f:a" and P.current and P.current.title == "One", "Start over is back at the first step: " .. tostring(P.current and P.current.title))
 check(P.VisibleDone() == 0, "and the marks are gone")
 check(P.RecentRecord("f:a") ~= nil, "the route stays in the saved record")
+-- only this route, only this character
+do
+    P.Load("f:b") P.Forward()
+    local A = NS.Account
+    local otherKey = "Otherchar-" .. tostring(A.key)
+    NS.db.global.chars[otherKey] = { stepDone = { ["f:a"] = { x1 = true, x2 = true } }, stepSkipped = { ["f:a"] = { x3 = true } }, done = {}, skipped = {} }
+    local bDone = 0
+    for _ in pairs(A.me.stepDone["f:b"] or {}) do bDone = bDone + 1 end
+    P.Load("f:a") P.Forward() P.Forward()
+    check(P.StartOver() == true and P.VisibleDone() == 0, "Start over clears the loaded route")
+    local bAfter = 0
+    for _ in pairs(A.me.stepDone["f:b"] or {}) do bAfter = bAfter + 1 end
+    check(bDone == 1 and bAfter == 1, "another route's marks are untouched (" .. bDone .. " -> " .. bAfter .. ")")
+    local o = NS.db.global.chars[otherKey]
+    check(o.stepDone["f:a"].x1 and o.stepDone["f:a"].x2 and o.stepSkipped["f:a"].x3, "another character's marks in the same route are untouched")
+    NS.db.global.chars[otherKey] = nil
+end
 -- a step finished by an event flag does not finish itself again
 P.Load("f:hearth")
 fire(NS, "HEARTHSTONE_BOUND")
@@ -350,6 +429,111 @@ fire(NS, "GARRISON_MISSION_COMPLETE_RESPONSE", 754, true, true)
 check(P.IsDone(P.steps[5]) and titleNow() == "Table mission", "a mission's success finishes the step that names it, wherever it is")
 fire(NS, "GARRISON_MISSION_COMPLETE_RESPONSE", 753, true, true)
 check(titleNow() == "Last", "and the one on screen: " .. titleNow())
+
+-- 3c2. what a wrong rule would skip
+-- one conversation finishes one step, even when two steps in a row name the same NPC
+P.Load("f:twice")
+NPC = "Innkeeper Farley"
+fire(NS, "GOSSIP_SHOW")
+fire(NS, "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 3)       -- the same window, reported by the modern event too
+check(titleNow() == "Ask him again", "the second event of one window does not finish the next step naming the same NPC: " .. titleNow())
+fire(NS, "GOSSIP_CLOSED") fire(NS, "MERCHANT_SHOW")        -- from the gossip pane to his goods
+check(titleNow() == "Ask him again", "going from pane to pane of the same NPC is still the same conversation")
+wait(30)
+fire(NS, "MERCHANT_CLOSED") fire(NS, "QUEST_DETAIL")       -- a long look at the goods, then one of his quests
+check(titleNow() == "Ask him again", "however long a pane stayed open")
+fire(NS, "QUEST_FINISHED")
+wait(1)
+fire(NS, "GOSSIP_SHOW")
+check(titleNow() == "Ask him again", "a window reopened within two seconds of closing is not a new conversation")
+wait(30)
+fire(NS, "QUEST_PROGRESS")                                  -- another pane without a close in between
+check(titleNow() == "Ask him again", "and a reopened window has to close again before anything counts")
+fire(NS, "GOSSIP_CLOSED")
+wait(3)
+fire(NS, "GOSSIP_SHOW")
+check(titleNow() == "And once more", "talking to him again later finishes the second step: " .. titleNow())
+fire(NS, "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 3)
+check(titleNow() == "And once more", "and again only one step per conversation")
+fire(NS, "GOSSIP_CLOSED") wait(3) fire(NS, "GOSSIP_SHOW")
+check(titleNow() == "Then his neighbour", "third conversation, third step: " .. titleNow())
+NPC = "Smith Argus"                                          -- another NPC needs no wait
+fire(NS, "GOSSIP_SHOW")
+check(titleNow() == "Last", "a different NPC is a different conversation at once: " .. titleNow())
+-- a merchant window that finished a sell step does not also finish "talk to" that merchant
+P.Load("f:shop")
+wait(10)
+NPC = "Godric Rothgar"
+fire(NS, "MERCHANT_SHOW")
+fire(NS, "PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 5)
+check(titleNow() == "Talk to Godric Rothgar", "one merchant window: the sell step, not the talk step after it: " .. titleNow())
+fire(NS, "MERCHANT_CLOSED") wait(3) fire(NS, "GOSSIP_SHOW")
+check(titleNow() == "Repair", "talking to him afterwards finishes it: " .. titleNow())
+-- a step that is only about repairing needs a merchant who repairs
+NPC = "Brog Hamfist"
+CAN_REPAIR = false
+fire(NS, "MERCHANT_SHOW")
+check(titleNow() == "Repair", "a merchant who cannot repair does not finish a repair step")
+fire(NS, "MERCHANT_CLOSED") wait(3)
+CAN_REPAIR = true
+NPC = "Kurran Steele"
+fire(NS, "MERCHANT_SHOW")
+check(titleNow() == "Repair and sell", "one who repairs does: " .. titleNow())
+CAN_REPAIR = false
+NPC = "Brog Hamfist"
+fire(NS, "MERCHANT_SHOW")
+check(titleNow() == "Last", "\"Repair and sell\" is done at any merchant: " .. titleNow())
+-- the quest panes name their NPC as "questnpc" when "npc" answers nothing
+P.Load("f:quest")
+NPC, QUESTNPC = nil, "Marshal Dughan"
+fire(NS, "GOSSIP_SHOW")
+check(titleNow() == "Report to the marshal", "a gossip window with no readable NPC finishes nothing")
+fire(NS, "QUEST_DETAIL")
+check(titleNow() == "Last", "a quest pane reads questnpc when npc is empty: " .. titleNow())
+QUESTNPC = nil
+-- treasure: only a chest (a game object) looted at the spot
+P.Load("f:chest")
+standAt(1429, 0.40, 0.60)
+LOOT = { "Creature-0-3299-0-1-299-0000001234" }
+fire(NS, "LOOT_READY") fire(NS, "LOOT_OPENED")
+check(titleNow() == "Hidden chest", "a corpse looted beside the chest is not the treasure")
+LOOT, FISHING = { "GameObject-0-3299-0-1-35591-0000001234" }, true
+fire(NS, "LOOT_OPENED")
+check(titleNow() == "Hidden chest", "nor is a fish caught there")
+FISHING, LOOT = false, {}
+fire(NS, "LOOT_OPENED")
+check(titleNow() == "Hidden chest", "nor an empty loot window")
+do
+    local keep = GetLootSourceInfo
+    GetLootSourceInfo = nil
+    LOOT = { "GameObject-0-3299-0-1-2843-0000001234" }
+    fire(NS, "LOOT_OPENED")
+    check(titleNow() == "Hidden chest", "a client that cannot say where loot came from leaves the step manual")
+    GetLootSourceInfo = keep
+end
+LOOT = { "Creature-0-3299-0-1-299-0000001234", "GameObject-0-3299-0-1-2843-0000001234" }
+fire(NS, "LOOT_READY")
+check(titleNow() == "Last", "the chest's loot finishes it: " .. titleNow())
+standAt(1429, 0.487, 0.42)
+LOOT = { "GameObject-0-3299-0-1-2843-0000001234" }
+-- words that are not the step itself name nobody
+do
+    local function names(line) local s = G.ParseLine(line, 1) return Sig.TalkNames(s), s end
+    for _, line in ipairs({
+        "N Wolves|N|After you talk to Marshal Dughan, kill ten wolves.|",
+        "N Flasks|N|Talk to Marshal Dughan and buy five flasks.|",
+        "N Ride|N|Speak with Marshal Dughan, then ride to Lakeshire.|",
+        "N Two things|N|Speak with Marshal Dughan. Kill ten wolves on the way back.|",
+        "N Kill ten wolves, then talk to Marshal Dughan|",
+        "N Errand|N|From Marshal Dughan. Then kill ten wolves.|",
+    }) do
+        local set, s = names(line)
+        check(not Sig.TalkMatches(s, "Marshal Dughan"), "no talk rule for a step that asks for more than the talk: " .. line)
+        check(set == nil and (Sig.Of(s)) == nil, "and it is counted as manual: " .. line)
+    end
+    local _, s = names("N Report|N|Speak with Marshal Dughan about the missing shipment (location: Questie data)|")
+    check(Sig.TalkMatches(s, "Marshal Dughan"), "\"Speak with X about ...\" with a source note still names X")
+end
 
 -- 3d. the rule table (census, docs) agrees with what just happened
 do

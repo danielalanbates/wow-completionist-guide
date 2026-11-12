@@ -196,6 +196,7 @@ end
 -- The card leaves such a tail off; the step's tooltip and Details panel show the note whole, and the guide data is
 -- untouched.  Returns the card text and what was cut ("" when nothing).  Cached on the step: the window asks
 -- every second.  tools/audit_step_text.lua counts what this saves; tools/test_step_window.lua checks the cases.
+G.ASIDE_MIN = 150
 local SOURCE_TAIL = { "^%(location:", "^%(zone only", "^%(wiki:", "^%(point:", "^%(Blizzard " }
 function G.CardNote(step)
     local note = step and step.note
@@ -215,11 +216,14 @@ function G.CardNote(step)
     -- An aside that is a sentence of its own, "(This item drops from most wolves under level 20.)": the wiki's
     -- words on where a reagent comes from.  Profession notes carry one per reagent and ran to ten lines; the card
     -- keeps the list and says there is more.
-    local asides
-    short, asides = short:gsub("%s*%(%u[^()]-%.+%)", "")
-    if asides > 0 then
-        short = short:gsub("%s+([;,%.])", "%1") .. "  |cff888888(click for more)|r"
-        tail = (tail ~= "" and (tail .. " ") or "") .. "(asides)"
+    -- Only a long note is shortened this way (ASIDE_MIN characters is about two lines of the card): in a short one a
+    -- sentence in brackets may be the instruction itself ("Kill wolves. (Leave the alpha alone.)") and it fits anyway.
+    if #short > G.ASIDE_MIN then
+        local cut, asides = short:gsub("%s*%(%u[^()]-%.+%)", "")
+        if asides > 0 then
+            short = cut:gsub("%s+([;,%.])", "%1") .. "  |cff888888(click for more)|r"
+            tail = (tail ~= "" and (tail .. " ") or "") .. "(asides)"
+        end
     end
     step._cardNote, step._cardNoteOf, step._cardTail = short, note, tail
     return short, tail
@@ -688,33 +692,37 @@ local function add(set, name)
     name = clean(name)
     if name then set[name] = true end
 end
--- "Marshal Dughan in Goldshire" names Marshal Dughan: offer the whole text and every cut at a joining word.  A cut
--- that is not a name matches no NPC (names are compared whole), so offering too many costs nothing.
-local JOINERS = { " in ", " at ", " inside ", " outside ", " near ", " behind ", " on ", " by ", " to ", " and ", " about ", " for ", " again", " once ", " then " }
+-- "Talk to X" / "Speak with X" (and "From X." / "To X.") count only when they ARE the step: the words open the title
+-- or the note, and what follows is one name, optionally with where the NPC stands ("Marshal Dughan in Goldshire",
+-- "Guard Thomas at the bridge").  A second sentence or clause is a second thing to do that no window reports
+-- ("Talk to Bob and buy five flasks", "Speak with Bob, then ride to Lakeshire", "Talk to Bob. Kill ten wolves."), and
+-- words in the middle of a note are not an instruction for now ("After you talk to Bob, ..."): such a step offers no
+-- name and stays manual.  A cut that is not a name matches no NPC (names are compared whole).
+local PLACE = { " in ", " at ", " inside ", " outside ", " near ", " behind ", " on ", " by ", " about ", " again" }
 local function addPhrase(set, text)
     if not text or text == "" then return end
-    text = text:gsub("%s*%b()", "")                      -- "(the innkeeper)"
-    local sentence = text:match("^(.-)[%.!;]%s") or text  -- up to the end of the sentence...
-    add(set, sentence)
-    add(set, text)                                        -- ...and whole, for "Dr. Weavil"
-    add(set, sentence:match("^(.-),") )
-    local low = lower(sentence)
-    for _, j in ipairs(JOINERS) do
+    text = text:gsub("%s*%b()", "")                      -- "(the innkeeper)", a trailing source note
+    text = text:gsub("^%s+", ""):gsub("%s+$", "")
+    local low = lower(text)
+    if text:find("[%.!%?;:]%s") or text:find(",", 1, true) or low:find(" and ", 1, true) or low:find(" then ", 1, true) then
+        -- more than one clause: only a short text can still be one name ("Dr. Weavil.", "Tooga and Torta")
+        local _, words = text:gsub("%S+", "")
+        if words <= 3 then add(set, text) end
+        return
+    end
+    add(set, text)                                        -- the whole text, then each cut at where the NPC stands
+    for _, j in ipairs(PLACE) do
         local at = low:find(j, 1, true)
-        if at and at > 1 then add(set, sentence:sub(1, at - 1)) end
+        if at and at > 1 then add(set, text:sub(1, at - 1)) end
     end
 end
-local WORDS = { "[Tt]alk to ", "[Tt]alk with ", "[Ss]peak with ", "[Ss]peak to " }
+local WORDS = { "talk to ", "talk with ", "speak with ", "speak to " }
 local function addWords(set, text)
     if not text then return end
+    text = text:gsub("^%s+", "")
+    local low = lower(text)
     for _, w in ipairs(WORDS) do
-        local init = 1
-        while true do
-            local _, e = text:find(w, init)
-            if not e then break end
-            addPhrase(set, text:sub(e + 1))
-            init = e + 1
-        end
+        if low:sub(1, #w) == w then addPhrase(set, text:sub(#w + 1)) return end
     end
 end
 -- The lower-case names of the NPCs whose window finishes this step (a set), or nil.  Cached on the step.
@@ -751,7 +759,14 @@ end
 function Sig.MerchantCompletes(step)
     return step.action == "r" and not (step.qid or step.ach or step.loot)
 end
--- Treasure with a spot and nothing else to read: finished by looting something while standing at the spot
+-- ...unless the step is about repairing only ("Repair", not "Repair and sell"): then the merchant has to be one who
+-- repairs (CanMerchantRepair), or a grocer's window would tick a repair that did not happen
+function Sig.NeedsRepairer(step)
+    local t = lower(step.title or "")
+    return t:find("repair", 1, true) ~= nil and not t:find("sell", 1, true)
+end
+-- Treasure with a spot and nothing else to read: finished by looting a chest (a game object, not a corpse and not a
+-- fishing bobber) while standing at the spot
 function Sig.LootAtSpot(step)
     return step.action == "$" and step.coords ~= nil and not (step.qid or step.ach or step.loot)
 end

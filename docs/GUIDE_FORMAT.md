@@ -25,8 +25,8 @@ h Goldshire|M|43.7,65.8|Z|1429; Elwynn Forest|N|Set hearth at the Lion's Pride I
 | `L` | reach level N | level ≥ N |
 | `U` | use item `|U|id` | item consumed / quest complete |
 | `B` | buy | the `L` items are in the bags; without `L`, the `U`/`ITEM` item is (`COUNT` of them, 1 without `COUNT`) |
-| `r` | repair-sell | a merchant window opens (any merchant) |
-| `$` | treasure | with `M`: something is looted while you stand within 25 yd of the spot (`RAD` changes the distance); with `QID` or `L`: see below; otherwise manual |
+| `r` | repair-sell | a merchant window opens (any merchant; a step whose title says repair and not sell needs a merchant who repairs) |
+| `$` | treasure | with `M`: a chest or other game object (not a corpse, not a fishing catch) is looted while you stand within 25 yd of the spot (`RAD` changes the distance); with `QID` or `L`: see below; otherwise manual |
 | `N` | note | the named NPC's window opens (see "Talking"), the `L` items are in the bags, or the `MISSION` succeeds; a note with nothing to read stays manual |
 | `=` / `M` | train at a trainer (label **Train**) / make or do (label **Make**) | the step's `SKILL` or `RECIPE` tag; manual without one |
 | `G` | farm waypoint (gold circuits) | you stand within `RAD` yards of it — nothing to click |
@@ -38,12 +38,17 @@ the forward arrow (`tools/census_step_kinds.lua` lists them per guide family). B
 | rule | applies to | completes when |
 |---|---|---|
 | Items | every action except accept and turn-in, when the step has `L|id qty|` with every `qty` of 1 or more | the bags hold every count. With a `QID` the count is read only while the character is on the quest. |
-| Talking | `N` and `R` steps with no `QID`, `ACH`, `SKILL`, `RECIPE`, `L` or `MISSION` | a gossip, quest, merchant, trainer, flight-master, bank or auctioneer window opens and the NPC's name is, whole and in any letter case, the step's `T` tag, one of its `ALT` names (without a trailing `(place)`), the name in a note that reads `From <name>.` or `To <name>.`, or the name after `Talk to` / `Speak with` in the note or the title. Only the step on screen. `C` and `l` steps without a quest use the `Talk to` / `Speak with` words only. |
+| Talking | `N` and `R` steps with no `QID`, `ACH`, `SKILL`, `RECIPE`, `L` or `MISSION` | a gossip, quest, merchant, trainer, flight-master, bank or auctioneer window opens and the NPC's name is, whole and in any letter case, the step's `T` tag, one of its `ALT` names (without a trailing `(place)`), or the name in a title or note that **is** `Talk to <name>` / `Speak with <name>` / `From <name>.` / `To <name>.` (the words open the text; after the name only where the NPC stands: `in`, `at`, `near`, ... or `about ...`). Only the step on screen. `C` and `l` steps without a quest use the `Talk to` / `Speak with` words only. |
+| One conversation, one step | every step finished by an NPC's window (talking, merchant) | after such a step, the same NPC finishes nothing more until its windows have been closed for two seconds. One click on an NPC fires several window events, and two steps in a row may name the same NPC: the second needs a second conversation. |
 | Mission | a step with `MISSION|id|` (Retail) | the client reports that mission as completed with success. Not limited to the step on screen: the id is exact. |
 | Quest generic | any step but an accept that has a `QID` | the quest is flagged complete. |
 
 Talking never completes an accept, a turn-in or any step with a quest id (the quest log does that), a train or buy
 step (the recipe or the item does), a hearth step (the bind does) or a kill step (its `T` tag is the thing to kill).
+A text that asks for more than the talk names nobody and stays manual: `Talk to Bob and buy five flasks`, `Speak with
+Bob, then ride to Lakeshire`, a second sentence after the name, or the words in the middle of a note (`After you talk
+to Bob, ...`). The name is read from `UnitName("npc")` (`"questnpc"` in a quest pane when that is empty); a name the
+client keeps secret (Retail, in combat) is never compared.
 
 ## Tags
 `QID` (`^` or, `&` and) · `PRE` prereq quests · `ACTIVE` only while on quest (negative = while not on) · `AVAILABLE` hide when done · `M` `x,y;x,y` · `Z` `mapID; name` (name only also works) · `N` note (`\n`, `[color=RRGGBB]`) · `L` `itemID qty;itemID qty` · `QO` objective index · `T` target name · `U`/`ITEM` item id (drives the arrow's item button) · `C` class list (`;`), `-` prefix = not · `R` race · `P` profession `Name;skill` · `LVL` min level (negative = max) · `FACTION` · `S` sticky, `US` unsticky, `S!US` · `O` optional · `NC` non-combat · `RANK` · `SPELL` · `BUFF`.
