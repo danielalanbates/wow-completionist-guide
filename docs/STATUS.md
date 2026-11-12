@@ -144,9 +144,10 @@ them in `--force-file` to solve them again. No bake was run here.
 5. Rebake: `caffeinate -is $W/heavy.sh python3 tools/bake_resume.py --dry-run`, then without `--dry-run` (gate on).
 6. Clients (none running): `tools/install.sh _classic_era_ _anniversary_ _classic_ _retail_ _forever_`. Its
    `rsync --delete` removes the gaps guides and the door table from each client.
-7. Drive copy: copy the tree without `--delete`, then delete by hand there the 12 `Imported_Quests_*` files and
-   `Data/Imported_Entrances.lua` under `CompletionRoute/`, and the ten tools that moved to
-   `archive/questie-tooling/` from `tools/`. Until then the app's install from Drive stops with a clear message.
+7. Drive copy: copy the tree without `--delete`, then remove there, under `CompletionRoute/`, the 11
+   `Guides/Imported_Quests_*` files, `Data/Imported_Entrances.lua` and `Guides/Imported_Storylines_retail.lua` if it
+   is still there, and from `tools/` the ten tools that moved to `archive/questie-tooling/`. Until those files are
+   gone the app's install from Drive stops with a message that names the file.
 
 ## 2026-11-12: readable step window, Recent, Start over, more steps that finish themselves (`recents-restart-autoadvance`)
 
