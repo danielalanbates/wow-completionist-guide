@@ -82,9 +82,13 @@ Measured 2026-11-12 on the build (dry run, deflate level 9):
 Default: **one universal zip**. The project is one add-on for five clients, and a client loads only the files its
 own TOC lists, so the other clients' data costs disk space (about 40 MB for a Classic-only player), not memory or
 load time. One download covers a player with several clients. Daniel tests one artifact in beta. Nobody can install
-the wrong client's zip. `tools/install.sh` (and the companion app, which runs it) installs the same files, but copies
-each client only its own flavor's data, because it installs into known client folders. `--layout per-client` or
-`both` builds per-client zips for a host that wants one file per game version.
+the wrong client's zip. `tools/install.sh` (and the companion app, which runs it) installs that same universal set
+into every client folder: the whole `CompletionRoute` folder, about 45 MB per client. Checked on 2026-11-12 with a
+scratch `WOW_DIR`: each of the five installed folders differs from the staged universal package by nine things
+only, the three files the packager writes (`LICENSE.txt`, `ATTRIBUTION.md`, `README.md`) and the `## Version` line
+of the six TOCs. (Until that day the installer copied each client only its own flavor's data, so a client folder
+held 72 to 78 files: neither the universal zip nor a per-client zip.) `--layout per-client` or `both` builds
+per-client zips for a host that wants one file per game version.
 
 ## Where each file comes from (provenance)
 
@@ -147,7 +151,8 @@ character names were checked, links read with `--allow-checkout-links`, uncommit
 `heavy.sh python3 tools/package_release.py` on the worktree's regenerated data, with no step that differs from the
 everyday workflow: **gate PASS**, exit 0, no problem and no stale-row note. 106 files (own code 40, own data 19, own
 docs 4, wiki CC BY-SA 29, Blizzard client data 8, libraries 6), universal zip 7.13 MB. The packaged TOCs differ from
-the source TOCs by the `## Version` line only. One WoW account name and 43 character names were checked as personal
+the source TOCs by the `## Version` line only (re-run on commit `c381177` after the independent check: same result,
+same sizes). One WoW account name and 43 character names were checked as personal
 data. The route orders in that data hold 7 rows (the rest waits for the rebake), so the package would ship almost
 unbaked guides: bake before a release.
 

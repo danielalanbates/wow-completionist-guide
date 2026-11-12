@@ -1,7 +1,11 @@
-flavor   guides      quests         covered  located  ach located  vplayer             route gain  slower  violations  gold  prof
--------  ----------  -------------  -------  -------  -----------  ------------------  ----------  ------  ----------  ----  ----
-era      137 (180)   3565 / 4807    74.2%    97.8%    -            131/131 (0 stalls)  6.4%        22/150  0           165   24  
-tbc      185 (247)   5845 / 6160    94.9%    95.7%    -            150/150 (0 stalls)  9.1%        7/150   0           204   30  
-mop      338 (479)   16562 / 17140  96.6%    91.1%    9.8%         150/150 (0 stalls)  12.7%       16/150  0           258   64  
-retail   814 (1256)  34299 / 66552  51.5%    83.8%    12.6%        135/150 (0 stalls)  6.5%        26/150  0           335   78  
-forever  143 (188)   3752 / 6616    56.7%    97.2%    -            293/293 (0 stalls)  5.0%        16/150  0           168   24  
+flavor   guides      quests         covered  located  zone only  no location  ach located  item quests  vplayer             route gain  slower  violations  gold  prof
+-------  ----------  -------------  -------  -------  ---------  -----------  -----------  -----------  ------------------  ----------  ------  ----------  ----  ----
+era      137 (182)   3302 / 4807    68.7%    73.6%    23.3%      3.0%         -            101/269      131/131 (0 stalls)  6.4%        22/150  0           168   24  
+tbc      189 (254)   5024 / 6160    81.6%    76.7%    22.2%      1.1%         -            179/213      150/150 (0 stalls)  9.1%        7/150   0           208   30  
+mop      336 (475)   11155 / 17140  65.1%    77.3%    18.7%      4.0%         84.9%        267/418      150/150 (0 stalls)  12.7%       16/150  0           265   64  
+retail   836 (1317)  32452 / 66552  48.8%    76.4%    13.5%      10.2%        82.7%        1034/1458    135/150 (0 stalls)  6.5%        26/150  0           342   82  
+forever  142 (189)   3489 / 6616    52.7%    74.4%    22.6%      3.0%         -            111/456      293/293 (0 stalls)  5.0%        16/150  0           173   24  
+
+Coverage columns (guides to item quests, gold, prof): the one build, label public-2026-11-11, measured 2026-11-12.
+vplayer, route gain, slower: runs of 2026-11-08 on the earlier data; not yet measured on this build (almost no route order
+is baked until tools/bake_resume.py has run). Regenerate: python3 tools/status_report.py > docs/status_table.txt

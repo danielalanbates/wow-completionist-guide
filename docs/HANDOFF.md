@@ -48,7 +48,7 @@ separate GitHub repo** (see section 5, phase 4).
 | Python venv (OR-Tools) | `~/Downloads/CompletionistGuide-work/venv` |
 | Optimizer job directory | `~/.claude/jobs/ff3c728a/tmp` (hardcoded as `TMP` in `tools/optimize_routes.py` and `tools/cost_matrix.lua`; `CR_TMP` overrides it in `tools/bake_resume.py`). Result rows: `routeopt/<flavor>.jsonl`. |
 | Canonical copy | Google Drive → My Drive/Code/Completionist's Guide (has the generated data too). Sync with plain `cp` or `rsync` **without `--delete`**: on 2026-11-07 `rsync --delete` wiped the gitignored generated files and they had to be restored from the game folders. |
-| Game clients | `/Volumes/x10/Video Games/Mac/World of Warcraft/{_classic_era_,_anniversary_,_classic_,_retail_,_forever_}`. `tools/install.sh <dir>` installs the build, each client only its own flavor's data; a generated file that is not part of the build stops it. |
+| Game clients | `/Volumes/x10/Video Games/Mac/World of Warcraft/{_classic_era_,_anniversary_,_classic_,_retail_,_forever_}`. `tools/install.sh <dir>` installs the build: the whole `CompletionRoute` folder, file for file what the release zip holds (about 45 MB per client; a client loads only what its own TOC lists). A generated file that is not part of the build stops it. |
 
 ## 3. Done on 2026-11-10
 
@@ -417,6 +417,6 @@ numbers in docs/STATUS.md "2026-11-11: Coverage workstream B".
 * Generated data is gitignored. It lives in repo/, the Drive copy and the game folders. If it is lost, regenerate it with
   `tools/wiki/gen_*.py`, `tools/gen_completion_guides.py` and `tools/gen_quest_deps.py` (order: `docs/RELEASE.md`
   "Making a build"), or copy it back from a client's `Interface/AddOns/CompletionRoute`.
-* `tools/install.sh` installs only the installing client's flavor data and stops on any generated file that is not
+* `tools/install.sh` installs the whole add-on folder into each client (the release zip's file set) and stops on any generated file that is not
   part of the build (a `_gaps` or `Imported_Quests_*` file, `Data/Imported_*`, a file that credits another addon's data).
   The Drive copy made before 2026-11-11 night still holds such files until it is cleaned.
