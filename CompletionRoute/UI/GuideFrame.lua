@@ -191,7 +191,7 @@ pathText:SetJustifyH("LEFT"); pathText:SetTextColor(0.6, 0.85, 1)
 pathText:SetWordWrap(true); if pathText.SetMaxLines then pathText:SetMaxLines(L.pathLines) end
 GF.pathText = pathText
 
--- Keep the window hung from its top-left corner: it then grows down and to the right, both when the grip scales it
+-- Keep the window hung from its top-left corner: it then grows down and to the right, both when the grip widens it
 -- and when its height follows the text (fitHeight below).  Anchored by its centre (the old default) it grew in every
 -- direction at once, which read as "bigger the opposite way from the drag".
 local function anchorTopLeft()
@@ -207,7 +207,7 @@ local function anchorTopLeft()
 end
 GF.AnchorTopLeft = anchorTopLeft
 
--- The window's scale: the grip below and the Options slider ("Step window scale") share the limits and the rule that
+-- The window's scale: the Options slider ("Step window scale"), with the rule that
 -- the top-left corner stays where it is on screen.  hangAt puts the corner at (left, top), given in UIParent units.
 GF.SCALE_MIN, GF.SCALE_MAX = 0.6, 2.5
 local function clampScale(s) return math.max(GF.SCALE_MIN, math.min(GF.SCALE_MAX, tonumber(s) or 1)) end
@@ -239,37 +239,45 @@ function GF.SetScale(s)
     return true
 end
 
--- resize grip (bottom-right): drag away from the window to make it bigger, toward it to make it smaller.  The whole
--- window scales; its top-left corner stays where it is and the grip follows the mouse.
+-- resize grip (bottom-right): drag left to make the window narrower, right to make it wider (owner's request
+-- 2026-11-12: narrower without smaller text).  Only the width changes: the text keeps its size and wraps, and the
+-- height follows the text (GF.FitHeight).  The size of everything is the Options slider ("Step window scale").
+GF.WIDTH_MIN, GF.WIDTH_MAX = 240, 900
+local function clampWidth(w) return math.max(GF.WIDTH_MIN, math.min(GF.WIDTH_MAX, tonumber(w) or GF.BASE_W)) end
+-- a new width, the top-left corner kept; saved in the profile.  Returns the width set.
+function GF.SetWidth(w)
+    w = math.floor(clampWidth(w) + 0.5)
+    anchorTopLeft()
+    f:SetWidth(w)
+    local p = NS.db and NS.db.profile.frame
+    if p then p.width = w end
+    if GF.FitHeight then GF.FitHeight() end
+    return w
+end
 local grip = CreateFrame("Button", nil, f)
+GF.grip = grip
 grip:SetSize(20, 20); grip:SetPoint("BOTTOMRIGHT", -2, 2)
 grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
 grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
 grip:SetScript("OnMouseDown", function()
-    local us = (UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
-    local cx, cy = GetCursorPosition()
-    local s0 = f:GetScale()
-    local l, t = f:GetLeft(), f:GetTop()
-    if not (cx and cy and l and t and us > 0) then return end
-    grip.drag = { cx = cx / us, cy = cy / us, s0 = s0, left = l * s0, top = t * s0, w = f:GetWidth() * s0, h = f:GetHeight() * s0 }
+    local es = (f.GetEffectiveScale and f:GetEffectiveScale()) or 1
+    local cx = GetCursorPosition()
+    if not (cx and es > 0) then return end
+    grip.drag = { cx = cx / es, w0 = f:GetWidth() }           -- the cursor in the window's own units
 end)
 local function gripApply()
     local d = grip.drag
     if not d then return end
-    local us = (UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
-    local cx, cy = GetCursorPosition()
-    if not (cx and cy) then return end
-    local dx, dy = cx / us - d.cx, d.cy - cy / us            -- right and down are positive
-    local grow = (dx / d.w + dy / d.h) / 2                   -- the corner follows the mouse along the diagonal
-    hangAt(d.left, d.top, clampScale(d.s0 * (1 + grow)))
+    local es = (f.GetEffectiveScale and f:GetEffectiveScale()) or 1
+    local cx = GetCursorPosition()
+    if not (cx and es > 0) then return end
+    local w = math.floor(clampWidth(d.w0 + cx / es - d.cx) + 0.5)
+    if w ~= d.last then d.last = w GF.SetWidth(w) end        -- only when it changed: the layout is not free
 end
 grip:SetScript("OnMouseUp", function()
     if not grip.drag then return end
     gripApply()
     grip.drag = nil
-    local p = NS.db.profile.frame
-    p.scale = f:GetScale()
-    anchorTopLeft()
 end)
 grip:SetScript("OnUpdate", function() if grip.drag then gripApply() end end)
 
@@ -454,7 +462,7 @@ end
 --   2. no text gets a fixed height: heights are only ever read;
 --   3. the note hangs under whichever is taller, the icon or the (possibly wrapped) title;
 --   4. the card ends above the travel line, and the window is the sum of the three.
--- The whole window scales (the grip, Options), so one layout holds at every scale from 0.6 to 2.5.
+-- The whole window scales (Options), so one layout holds at every scale from 0.6 to 2.5; the grip sets its width.
 local function sh(fs) local h = fs.GetStringHeight and fs:GetStringHeight() return (type(h) == "number" and h > 0) and h or 0 end
 local function strW(fs) local w = fs.GetStringWidth and fs:GetStringWidth() return (type(w) == "number" and w > 0) and w or 0 end
 local function fitHeader()
@@ -769,7 +777,8 @@ function GF.ApplySettings()
     p.scale = clampScale(p.scale or 1)
     f:ClearAllPoints(); f:SetPoint(p.point or "CENTER", UIParent, p.point or "CENTER", p.x or 0, p.y or 0)
     f:SetScale(p.scale); f:SetAlpha(p.alpha or 1)
-    f:SetSize(GF.BASE_W, GF.BASE_H)   -- one-step window: the height then follows the text (GF.FitHeight)
+    p.width = p.width and math.floor(clampWidth(p.width) + 0.5) or nil
+    f:SetSize(p.width or GF.BASE_W, GF.BASE_H)   -- the grip's width; the height then follows the text (GF.FitHeight)
     anchorTopLeft()                   -- old profiles are anchored by their centre: re-hang from the top-left corner
 end
 function GF.Toggle() if f:IsShown() then f:Hide() else f:Show() GF.Update() end end
