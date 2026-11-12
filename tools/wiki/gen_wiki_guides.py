@@ -5,17 +5,28 @@
 # https://batesai.org  help@batesai.org
 """Generate per-zone quest guides from the Warcraft Wiki (the source of truth), one file per client.
 
-    nice -n 10 python3 tools/wiki/gen_wiki_guides.py [era tbc mop retail forever] [--no-fallback]
+    nice -n 10 python3 tools/wiki/gen_wiki_guides.py [era tbc mop retail forever]
 
 Inputs : tools/wiki/wiki.sqlite (tools/wiki/parse_wiki.py), tools/db2/<flavor>/QuestV2.csv (+ retail
-         QuestObjective.csv; tools/wiki/fetch_db2.py), tools/maps_<flavor>.lua, and - only to fill a step the wiki has
-         no coordinates for - the existing CompletionRoute/Guides/Imported_Quests_<flavor>.lua.
+         QuestObjective.csv, QuestPOIBlob.csv, QuestPOIPoint.csv; tools/wiki/fetch_db2.py, tools/wiki/db2_fetch.py),
+         tools/maps_<flavor>.lua.  Warcraft Wiki and Blizzard client data only.
 Outputs: CompletionRoute/Guides/Imported_Wiki_<flavor>.lua        the wiki guides (CC BY-SA 4.0 data)
-         CompletionRoute/Guides/Imported_Quests_<flavor>_gaps.lua  the old generated guides MINUS every quest the
-                                                                   wiki guide covers (no duplicate quests in game)
          tools/wiki/wiki.sqlite tables flavor_quests / flavor_gap / flavor_skip / gen_stats
-         docs/verification.sqlite table wiki_db2_conflict
-All outputs are gitignored like every other Imported_* file.
+         docs/verification.sqlite tables wiki_db2_conflict, wiki_point_sources (build "no-fallback")
+         then tools/wiki/gen_spine.py writes Imported_Spine_<flavor>.lua (--no-spine skips it)
+The output is gitignored like every other Imported_* file.  There is one build: this file is what the TOCs load,
+what tools/install.sh installs and what tools/package_release.py packages.
+
+    nice -n 10 python3 tools/wiki/gen_wiki_guides.py --measure-fallback [flavors]
+
+OFFLINE MEASUREMENT ONLY, never part of the build (tools/measure/README.md).  It answers one question: how many steps
+that have no wiki point would a reference database locate, and which wiki points lie far from it.  It reads
+tools/measure/questie/Imported_Quests_<flavor>.lua (older guides made from a local Questie checkout; gitignored, never
+under CompletionRoute/) and writes only tools/measure/out/Imported_Wiki_<flavor>.lua (first statement: error(), so a
+client that loaded it would stop at once; tools/install.sh and the packager refuse its content), the
+wiki_point_sources row of build "fallback" and table wiki_fallback_conflict.  It never writes under CompletionRoute/,
+never touches wiki.sqlite, the spine or wiki_db2_conflict, and --no-fallback (the old name of the default) is accepted
+and ignored.
 
 Flavor membership (docs/WIKI_DATA_SPEC.md 6): a wiki quest belongs to a client when its id is in that client's
 QuestV2, it never shipped-and-was-pulled (RemovedFromBeta/Alpha/PTR), it is not Forever-only (except on forever) or Season of Discovery,
@@ -30,9 +41,8 @@ Step location priority (docs/WIKI_DATA_SPEC.md 3/4):
      that already stood on its page before patch 4.0.3 is a Classic-map number (tools/wiki/fetch_coord_history.py).
   3. retail only: the client's own quest pin (QuestPOIBlob/QuestPOIPoint): the turn-in area for T (and for A when the
      wiki names the same NPC for both), the objective area for C.  Note "(location: Blizzard quest POI, ...)".  Ships.
-  4. fallback, only when the wiki has nothing: the same step in Imported_Quests_<flavor>.lua.  Those steps say
-     "(location: Blizzard data)" (retail quest POI) or "(location: Questie data)" (Classic, Questie-derived) in
-     their note.  --no-fallback writes a file with no fallback point (the shippable variant).
+  4. (--measure-fallback only, never in the build) the same step in the reference file; the note then says
+     "(location: Blizzard data)" or "(location: Questie data)".
   5. the wiki page of the place an NPC/object page with no point names first in its location field ("[[Razor Hill]],
      [[Durotar]]"), when that place is not a map itself.  Note "(location: the wiki's <place> page; ...)".  Ships.
   6. otherwise the step names the quest's zone (|Z| without |M|, "No coordinates on the wiki; the quest is in <zone>"),
@@ -45,9 +55,7 @@ at all, through the item id; the note names the page the point came from.  A sou
 (its {{co}} rows are neighbours and landmarks) or a topic page whose only {{co}} rows stand in body sections (a
 profession, holiday or system article) never gives a point: a zone source gives a zone-level accept (|Z| without |M|,
 "zone only" in the note).  The accept carries |U|<item>|: the arrow switches to "Use <item>" when the item is in the
-bags and the player is within 40 yd of the step's point (or the step has no location; Routing/Router.lua).  In the
-default (fallback) build, a point an item page gives (an accept, a turn-in or an objective) gives way to the client's
-own fallback point for the step when the two are more than 300 yd apart or on different continents.
+bags and the player is within 40 yd of the step's point (or the step has no location; Routing/Router.lua).
 Chains: the questbox `previous` links become |PRE| (any one of them, ";"), and a `next` link adds the reverse edge.
 Only quests that exist on the same client are kept in PRE, so a chain never waits for a quest that cannot exist.
 World quests, callings and emissary quests are left out (time-limited, not completionist steps).
@@ -70,6 +78,9 @@ import gen_spine  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 WIKI = ROOT / "tools" / "wiki" / "wiki.sqlite"
 GUIDES = ROOT / "CompletionRoute" / "Guides"
+# --measure-fallback (offline measurement, never part of the build): reference input and output, outside CompletionRoute/
+MEASURE_IN = ROOT / "tools" / "measure" / "questie"
+MEASURE_OUT = ROOT / "tools" / "measure" / "out"
 VERIF = ROOT / "docs" / "verification.sqlite"
 FLAVORS = ["era", "tbc", "mop", "retail", "forever"]
 # WoW Forever (product wowf, 1.60.x): Era content (1.12 base + the 1.13-1.15 Era line) plus its own 1.60 additions
@@ -81,8 +92,8 @@ EXP = {"era": (1, (1, 12, 9)), "tbc": (2, (2, 4, 9)), "mop": (5, (5, 4, 9)), "re
        "forever": (1, (1, 12, 9))}
 CO_KEY = {"era": ("wow", "classic", "vanilla", "era"), "tbc": ("tbc", "bc"), "mop": ("mop",), "retail": (),
           "forever": ("wow", "classic", "vanilla", "era", "forever")}
-# Forever has no Questie-derived Imported_Quests_forever.lua of its own: the fallback points and the _gaps guides
-# come from the era file (Era maps; reshaped maps are converted, see Gen.era_to_forever / Core/Util.lua).
+# --measure-fallback: Forever has no reference file of its own, so its comparison uses the era file (Era maps;
+# reshaped maps are converted, see Gen.era_to_forever / Core/Util.lua).
 FALLBACK_OF = {"forever": "era"}
 SKIP_TYPES = re.compile(r"world quest|calling|emissary", re.I)
 DELIVERY = re.compile(r"^(speak|talk|report|return|bring|take|deliver|go|travel|meet|seek|find|visit|"
@@ -197,16 +208,16 @@ def fmt_xy(x, y):
 
 
 class Fallback:
-    """steps of Imported_Quests_<flavor>.lua indexed by quest id (used only where the wiki has no coordinates)"""
+    """--measure-fallback only: steps of the reference file tools/measure/questie/Imported_Quests_<flavor>.lua indexed
+    by quest id.  Never read by the build."""
     RE_LINE = re.compile(r"^([ACT]) .*?\|QID\|(\d+)\|")
 
     def __init__(self, fl, convert=None):
         self.fl = fl
-        self.path = GUIDES / f"Imported_Quests_{FALLBACK_OF.get(fl, fl)}.lua"
+        self.path = MEASURE_IN / f"Imported_Quests_{FALLBACK_OF.get(fl, fl)}.lua"
         self.q = defaultdict(lambda: {"A": None, "T": None, "C": {}})
         if not self.path.exists():
-            print(f"  note: {self.path.name} missing - no fallback locations for {fl}")
-            return
+            raise SystemExit(f"--measure-fallback {fl}: {self.path.relative_to(ROOT)} is missing (tools/measure/README.md)")
         for ln in self.path.read_text(encoding="utf-8", errors="replace").splitlines():
             m = self.RE_LINE.match(ln)
             if not m:
@@ -247,8 +258,8 @@ class Fallback:
 
 class QuestPOI:
     """the client's own quest map pins (retail QuestPOIBlob + QuestPOIPoint, Blizzard data via wago.tools): the turn-in
-    area (ObjectiveIndex -1) and each objective's area (ObjectiveIndex n-1 for QO n).  Shippable, unlike the Questie
-    giver points that share the old fallback file.  Era, TBC and MoP Classic carry no quest pins (MoP's table holds only
+    area (ObjectiveIndex -1) and each objective's area (ObjectiveIndex n-1 for QO n; index 32 is the client's "next
+    waypoint" hint, not an objective).  Shippable client facts.  Era, TBC and MoP Classic carry no quest pins (MoP's table holds only
     Archaeology dig sites), so this is retail only."""
 
     def __init__(self, fl, maps):
@@ -259,7 +270,7 @@ class QuestPOI:
         self.build = ((d / "BUILD").read_text(encoding="utf-8").strip() if (d / "BUILD").exists() else "") or "unknown"
         if not (d / "QuestPOIBlob.csv").exists() or not (d / "QuestPOIPoint.csv").exists():
             print(f"  note: tools/db2/{fl}/QuestPOIBlob.csv / QuestPOIPoint.csv missing - no client quest pins for {fl} "
-                  "(fetch them with tools/gen_quest_guides_retail.py or tools/wiki/db2_fetch.py)")
+                  "(fetch them: python3 tools/wiki/db2_fetch.py QuestPOIBlob QuestPOIPoint -- retail)")
             return
         blobs = [r for r in csv.DictReader((d / "QuestPOIBlob.csv").open(encoding="utf-8"))
                  if int(r["QuestID"] or 0) > 0 and int(r["ObjectiveIndex"]) != 32]
@@ -357,7 +368,7 @@ class Places:
 
 
 class Gen:
-    def __init__(self, fallback=True):
+    def __init__(self, fallback=False):
         self.db = sqlite3.connect(WIKI)
         self.db.row_factory = sqlite3.Row
         self.atlas = wikimaps.Atlas()
@@ -595,7 +606,7 @@ class Gen:
         return None
 
     def far_from_fallback(self, maps, c, f, limit=300.0):
-        """dev builds: is the wiki point c = (mapID, 'x,y;...') more than `limit` yd from the fallback record f =
+        """--measure-fallback: is the wiki point c = (mapID, 'x,y;...') more than `limit` yd from the fallback record f =
         ('x,y;...', 'mapID; name', source), or on another continent?"""
         try:
             fz = int(f[1].split(";")[0])
@@ -853,8 +864,8 @@ class Gen:
                 fl == "mop" and (r["variant"] or "").lower() in VARIANT_FOR and "mop" in VARIANT_FOR[(r["variant"] or "").lower()])
 
             def versioned(c, ex, act, qo=None):
-                """a wiki point written for another version (the wiki is retail-first) is kept unless this client's
-                fallback data puts the step more than 300 yd away; then the fallback wins and SQL records it"""
+                """the build keeps every wiki point.  --measure-fallback: a wiki point written for another version (the
+                wiki is retail-first) that the reference file puts more than 300 yd away is recorded and replaced"""
                 if ex or not fb:
                     return (c, "", "wiki")
                 f = fb.get(qid, act, qo)
@@ -881,9 +892,9 @@ class Gen:
                 return (("Z", f), f" (location: {f[2]}; the wiki lists another version's position)", "fallback")
 
             def item_point_ok(e, act, qo=None):
-                """a point an item page gave (its own {{co}} or a drop source's page) for this step: in the default build
-                it gives way to the client's fallback point for the step when the two are more than 300 yd apart or on
-                different continents (counted in st).  (Checking it against the quest's own zone was tried and dropped:
+                """a point an item page gave (its own {{co}} or a drop source's page) for this step: always kept by the
+                build.  --measure-fallback: it gives way to the reference point for the step when the two are more than
+                300 yd apart or on different continents (counted in st).  (Checking it against the quest's own zone was tried and dropped:
                 many of a sample of 32 such points were right, e.g. Frozen Ectoplasm from Winterspring for a Tanaris
                 quest.)"""
                 f = fb.get(qid, act, qo) if fb else None
@@ -894,7 +905,7 @@ class Gen:
 
             def loc_tag(kind, ent_list, act, qo=None):
                 """-> (M/Z text, note suffix, source) for an A/T step.  Order: the wiki's own point, the client's quest
-                pin (retail), the local fallback file (dev builds only).  The wiki place page and the zone-level answer
+                pin (retail), the reference file (--measure-fallback only).  The wiki place page and the zone-level answer
                 come after every step of the quest has been tried (resolve_pending)."""
                 for e in ent_list:
                     if e.get("coords"):
@@ -1025,7 +1036,7 @@ class Gen:
                 if page and (not c or src == "fallback"):
                     e = self.entity_coords(page, fl, added, home_name)
                     if e and not item_point_ok(e, "A"):
-                        e = None    # default build: far from the client's own point for the accept
+                        e = None    # --measure-fallback: far from the reference point for the accept
                     if e:
                         c, suf, src = versioned((e[0], e[1]), e[3], "A")
                         item, also = item or page, None
@@ -1083,7 +1094,7 @@ class Gen:
                 if not cc and b["target_title"]:
                     e = self.entity_coords(b["target_title"], fl, added, home_name)
                     if e and self.resolve_title(b["target_title"])[0] in self.items and not item_point_ok(e, "C", qo):
-                        e = None    # default build: an item's drop point far from the client's objective pin
+                        e = None    # --measure-fallback: an item's drop point far from the reference objective point
                     if e:
                         cc = versioned((e[0], e[1]), e[3], "C", qo)
                 if not cc and poi and use_qo:
@@ -1162,7 +1173,17 @@ class Gen:
         # ---- write ------------------------------------------------------------------------------------
         today = datetime.date.today().isoformat()
         out = GUIDES / f"Imported_Wiki_{fl}.lua"
-        hdr = [
+        hdr = []
+        if self.use_fallback:
+            # the measurement file: outside CompletionRoute/, and it stops any client that loads it
+            MEASURE_OUT.mkdir(parents=True, exist_ok=True)
+            out = MEASURE_OUT / f"Imported_Wiki_{fl}.lua"
+            hdr = ["-- MEASUREMENT ONLY, never part of the add-on (tools/wiki/gen_wiki_guides.py --measure-fallback): steps whose",
+                   "-- note says \"(location: Blizzard data)\" / \"(location: Questie data)\" took their map point from the",
+                   "-- reference file tools/measure/questie/Imported_Quests_" + FALLBACK_OF.get(fl, fl) + ".lua. Do not copy "
+                   "this file into CompletionRoute/.",
+                   'error("Completionist\'s Guide: an offline measurement file was loaded; it is not part of the add-on")']
+        hdr += [
             f"-- Completionist's Guide :: Imported_Wiki_{fl}.lua - GENERATED {today} by tools/wiki/gen_wiki_guides.py",
             "-- Quest data (names, ids, givers, enders, chains, objectives, coordinates) is derived from",
             "-- Warcraft Wiki, https://warcraft.wiki.gg, by its contributors, licensed under CC BY-SA 4.0",
@@ -1174,10 +1195,6 @@ class Gen:
             hdr.append("-- Steps whose note says \"(location: Blizzard quest POI, ...)\" take their map point from the client's "
                        f"quest pins, not from the wiki: Blizzard QuestPOIBlob + QuestPOIPoint tables via wago.tools, build "
                        f"{poi.build} (client data, facts only; see Guides/WIKI_DATA_LICENSE.md).")
-        if self.use_fallback:
-            hdr.append("-- Steps whose note says \"(location: Blizzard data)\" / \"(location: Questie data)\" took their map "
-                       "point from Imported_Quests_" + fl + ".lua because the wiki has none; those points are not "
-                       "wiki data. Regenerate with --no-fallback for a wiki-only file.")
         hdr += ["local _, NS = ...", flavor_gate(fl), "local R = NS.Guide.Register", ""]
         body = []
         # zone order, split of huge zone guides and the step order inside each guide: tools/wiki/gen_spine.py
@@ -1197,56 +1214,19 @@ class Gen:
             body.append("]==] })")
         nguides = len(parts)
         out.write_text("\n".join(hdr + body) + "\n", encoding="utf-8")
-        gen_spine.write_sidecar(fl, parts, pre, cycles)
         st["guides"] = nguides
         st["zone_guides"] = len(guides)
         st["file_kb"] = out.stat().st_size // 1024
-
-        # ---- gaps file: the old generated guides minus the quests the wiki now covers ------------------
-        old = GUIDES / f"Imported_Quests_{FALLBACK_OF.get(fl, fl)}.lua"
-        gap_out = GUIDES / f"Imported_Quests_{fl}_gaps.lua"
-        kept_q, dropped_q = set(), set()
-        if old.exists():
-            res, block, keep_lines = [], None, 0
-            for ln in old.read_text(encoding="utf-8", errors="replace").splitlines():
-                if ln.startswith("R({"):
-                    block, keep_lines = [ln], 0
-                    continue
-                if block is not None:
-                    if ln.startswith("]==] })"):
-                        block.append(ln)
-                        if keep_lines:
-                            res.extend(block)
-                        block = None
-                        continue
-                    m = re.search(r"\|QID\|(\d+)", ln)
-                    if m and int(m.group(1)) in chosen:
-                        dropped_q.add(int(m.group(1)))
-                        continue
-                    if m:
-                        kept_q.add(int(m.group(1)))
-                    keep_lines += 1 if ln.strip() else 0
-                    block.append(ln)
-                    continue
-                if ln.startswith("-- "):
-                    continue
-                if re.match(r'^if NS\.flavor ~= "\w+" then return end$', ln):
-                    ln = flavor_gate(fl)
-                res.append(ln)
-            gap_hdr = [f"-- Imported_Quests_{fl}_gaps.lua - GENERATED {today} by tools/wiki/gen_wiki_guides.py from "
-                       f"Imported_Quests_{FALLBACK_OF.get(fl, fl)}.lua:",
-                       "-- the same guides with every quest that Imported_Wiki_" + fl + ".lua covers removed, so no quest is "
-                       "listed twice. Local use only - gitignored (source data: "
-                       + ("Blizzard quest POI + Questie" if fl == "retail" else "Questie, GPL") + ")."]
-            gap_out.write_text("\n".join(gap_hdr + res) + "\n", encoding="utf-8")
-        st["gap_quests_kept"] = len(kept_q - dropped_q)
-        st["old_quests_now_wiki"] = len(dropped_q)
+        if self.use_fallback:
+            return st       # the measurement writes nothing else: no spine sidecar, no wiki.sqlite tables
+        gen_spine.write_sidecar(fl, parts, pre, cycles)
 
         # ---- SQL ---------------------------------------------------------------------------------------
         db = sqlite3.connect(WIKI)
         db.executescript("""
         create table if not exists flavor_quests(flavor text, quest_id int, page_title text, steps int,
             primary key(flavor, quest_id));
+        -- in_old_guides: always 0 since 2026-11-11 (the older generated guides are no longer part of the project)
         create table if not exists flavor_gap(flavor text, quest_id int, in_old_guides int, primary key(flavor, quest_id));
         create table if not exists flavor_skip(flavor text, quest_id int, page_title text, reason text);
         create table if not exists gen_stats(flavor text, metric text, value int, primary key(flavor, metric));
@@ -1256,14 +1236,16 @@ class Gen:
         db.executemany("insert into flavor_quests values (?,?,?,?)",
                        [(fl, q, chosen[q]["page_title"], steps_out.get(q, 0)) for q in chosen])
         db.executemany("insert into flavor_gap values (?,?,?)",
-                       [(fl, q, 1 if q in kept_q else 0) for q in gaps])
+                       [(fl, q, 0) for q in gaps])
         db.executemany("insert into flavor_skip values (?,?,?,?)", skip)
         db.executemany("insert into gen_stats values (?,?,?)", [(fl, k, v) for k, v in st.items()])
         db.commit()
         return st
 
     def point_sources(self, fl, st):
-        """where each step's point came from, per client and build, into docs/verification.sqlite wiki_point_sources"""
+        """where each step's point came from, per client and build, into docs/verification.sqlite wiki_point_sources.
+        build "no-fallback" is the build (the only one that is installed or shipped); "fallback" is the
+        --measure-fallback comparison"""
         con = sqlite3.connect(VERIF)
         con.execute("""create table if not exists wiki_point_sources(flavor text, build text, steps int, wiki int, poi int,
                        place int, fallback int, zone int, none int, measured text, primary key (flavor, build))""")
@@ -1272,6 +1254,18 @@ class Gen:
                      st["steps_place"], st["steps_fallback"], st["steps_zone"], st["steps_none"]))
         con.commit()
         con.close()
+
+    def write_fallback_conflicts(self, flavors):
+        """--measure-fallback: the wiki points the reference file puts more than 300 yd away, in their own table (the
+        build's wiki_db2_conflict is left alone)"""
+        con = sqlite3.connect(VERIF)
+        con.execute("""create table if not exists wiki_fallback_conflict(flavor text, quest_id int, field text,
+                       wiki_value text, db2_value text, page_title text, revid int, note text)""")
+        con.executemany("delete from wiki_fallback_conflict where flavor=?", [(f,) for f in flavors])
+        rows = [c for c in self.conflicts if c[2].endswith("_xy_version")]
+        con.executemany("insert into wiki_fallback_conflict values (?,?,?,?,?,?,?,?)", rows)
+        con.commit()
+        return Counter((c[0], c[2]) for c in rows)
 
     def write_conflicts(self, flavors):
         con = sqlite3.connect(VERIF)
@@ -1285,8 +1279,15 @@ class Gen:
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    unknown = [a for a in sys.argv[1:] if a.startswith("--") and a not in ("--measure-fallback", "--no-fallback", "--no-spine")]
+    bad = [a for a in args if a not in FLAVORS]
+    if unknown or bad:
+        raise SystemExit(f"gen_wiki_guides: unknown argument(s) {' '.join(unknown + bad)}")
     flavors = args or FLAVORS
-    g = Gen(fallback="--no-fallback" not in sys.argv)
+    measure = "--measure-fallback" in sys.argv
+    g = Gen(fallback=measure)
+    if measure:
+        print("MEASUREMENT ONLY (--measure-fallback): writing tools/measure/out/, nothing under CompletionRoute/")
     print(f"{len(g.rows)} wiki quest rows, {len({r['id'] for r in g.rows})} ids; "
           f"{g.history_marked} NPC coordinates read as Classic-map numbers (pre-4.0.3 page history)")
     for fl in flavors:
@@ -1294,17 +1295,22 @@ def main():
         s = st["steps"] or 1
         print(f"{fl:6} wiki ids {st['wiki_quest_ids']}, assigned {st['assigned']}, guides {st['guides']}, "
               f"steps {st['steps']}: wiki coords {st['steps_wiki']} ({100*st['steps_wiki']/s:.1f}%), client quest POI "
-              f"{st['steps_poi']}, wiki place page {st['steps_place']}, fallback "
-              f"{st['steps_fallback']} ({100*st['steps_fallback']/s:.1f}%), zone only {st['steps_zone']}, none {st['steps_none']} "
-              f"({100*st['steps_none']/s:.1f}%); DB2-only gap {st['db2_only_gap']}; old guides: "
-              f"{st['old_quests_now_wiki']} quests now from wiki, {st['gap_quests_kept']} kept in _gaps; {st['file_kb']} KB")
+              f"{st['steps_poi']}, wiki place page {st['steps_place']}, "
+              + (f"reference file {st['steps_fallback']} ({100*st['steps_fallback']/s:.1f}%), " if measure else "")
+              + f"zone only {st['steps_zone']}, none {st['steps_none']} "
+              f"({100*st['steps_none']/s:.1f}%); DB2-only gap {st['db2_only_gap']}; {st['file_kb']} KB")
         g.point_sources(fl, st)
         print(f"       zone guides {st['zone_guides']} -> {st['guides']} guides after splitting (gen_spine.MAX_STEPS)")
         print(f"       item-started quests {st['item_quests']}: accept point {st['item_quests_point']}, zone only "
-              f"{st['item_quests_zone']}; item-page points dropped for the fallback point (default build, over 300 yd): "
-              f"{st['item_points_far_from_fallback']}")
-        if "--no-spine" not in sys.argv:
+              f"{st['item_quests_zone']}"
+              + (f"; item-page points dropped for the reference point (over 300 yd): {st['item_points_far_from_fallback']}"
+                 if measure else ""))
+        if not measure and "--no-spine" not in sys.argv:
             gen_spine.build_spine(fl, flavor_gate(fl))
+    if measure:
+        c = g.write_fallback_conflicts(flavors)
+        print("wiki points far from the reference (docs/verification.sqlite wiki_fallback_conflict):", dict(c))
+        return
     c = g.write_conflicts(flavors)
     print("conflicts logged (docs/verification.sqlite wiki_db2_conflict):", dict(c))
     print(f"subzone rows corrected (a parent-zone row on the same page disagrees): {len(g.subzone_dropped)}; first: {g.subzone_dropped[:8]}")

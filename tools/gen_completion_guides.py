@@ -11,10 +11,10 @@
       achievement that is not a statistic and not internal (INTERNAL: DNT, <Hidden>, Hidden Tracking) becomes a block
       of steps: one per criterion (cap 60), then a FIXED "earn it" step.  Criteria carry
       |ACH|<achievement>;<criteria-tree id>| and tick from GetAchievementCriteriaInfoByID.  Locations come only from
-      Warcraft Wiki data and Blizzard tables, never from WoW-Pro or Questie (Places below); every located step's note
+      Warcraft Wiki data and Blizzard tables, never from another addon's data (Places below); every located step's note
       names its source ("wiki: <page>", "Blizzard WorldMapOverlay <id>", ...).  By Criteria.Type:
-        point (|M|..|Z|..)  27 "complete quest N": the quest's step in Imported_Wiki_<fl> (rows whose note credits a
-                              fallback point are skipped), else Blizzard QuestPOIBlob/QuestPOIPoint (the turn-in pin);
+        point (|M|..|Z|..)  27 "complete quest N": the quest's step in Imported_Wiki_<fl>, else Blizzard
+                              QuestPOIBlob/QuestPOIPoint (the turn-in pin);
                             0 "kill creature N": the wiki NPC page with that id, else the page named like the criterion;
                             43 "explore area": the centre of the Blizzard WorldMapOverlay hit rectangle on its map
                               (UiMapXMapArt, UiMapArt, UiMapArtStyleLayer);
@@ -49,14 +49,13 @@
   Guides/Imported_QuestLines_retail.lua   one guide per Blizzard QuestLine, quests in the client's OrderIndex order
       (QuestLineXQuest; guide name from QuestLine).  Each accept carries |PRE|<previous quest>| so the optimizer can
       interleave travel but can never break the story order.  A quest's steps are its Imported_Wiki_retail lines
-      (wiki text, gates and points; a fallback point is dropped); a step left without a point takes the Blizzard
+      (wiki text, gates and points); a step left without a point takes the Blizzard
       QuestPOI pin (turn-in pin for T, objective area for C), an accept without one names the quest's map as zone only.
-      A quest the wiki lacks gets "Quest <id>" steps from QuestPOI alone (the client shows the live name).  Shippable
-      (wiki CC BY-SA + Blizzard facts).  The older Imported_Storylines_retail.lua copied Imported_Quests_retail.lua lines
-      (Questie-derived); this script no longer writes it and no TOC loads it.
-  Both files depend on which build of Imported_Wiki_<fl>.lua they read: from the default (fallback) build their header
-  says so and names the Questie-derived source, which makes tools/package_release.py refuse them.  A release build runs
-  this script after tools/wiki/gen_wiki_guides.py --no-fallback.
+      A quest the wiki lacks gets "Quest <id>" steps from QuestPOI alone (the client shows the live name).  Wiki
+      CC BY-SA + Blizzard facts.
+  Both files read Imported_Wiki_<fl>.lua, so run this after tools/wiki/gen_wiki_guides.py.  A wiki file that still holds
+  points from another addon's data (a leftover of the dev build retired on 2026-11-11, or the --measure-fallback
+  comparison file) stops this script: nothing is written from it.
   Guides/Imported_Missions_retail.lua     one guide per mission table (WoD garrison + shipyard, Legion
       order hall, BfA war table, Shadowlands covenant table): a travel step to the table, then one
       note step per GarrMission row (|MISSION|id|) with followers, duration and cost.  Mission
@@ -107,13 +106,11 @@ NAME_WRAP = re.compile(r"^(?:Defeat|Kill|Slay|Destroy|Rescue|Free|Find|Visit|Dis
 # achievements that the achievement window never shows.
 INTERNAL = re.compile(r"\bDNT\b|<DND>|<Hidden>|\[Hidden\]|\([Hh]idden\)|^Hidden Tracking\b|^Hidden - |\bUNUSED\b|\bDEPRECATED\b"
                       r"|[Hh]idden [Cc]opy\)|\(Hidden Character Achievement\)")
-# the storyline guides: built from wiki and Blizzard data since 2026-11-11.  The older file name holds the build whose
-# step lines were copied from Imported_Quests_retail.lua; it never ships and no TOC loads it any more.
+# the storyline guides (wiki and Blizzard data)
 STORY_FILE = "Imported_QuestLines_{fl}.lua"
-OLD_STORY_FILE = "Imported_Storylines_{fl}.lua"
-# a point the --no-fallback wiki build does not have (tools/wiki/gen_wiki_guides.py Fallback): never reused here
-FALLBACK_NOTE = re.compile(r" ?\(location: (?:Questie|Blizzard) data[^)]*\)")
-RE_MZ = re.compile(r"M\|[^|]*\|Z\|[^|]*\|")
+# a point taken from another addon's data (the dev build retired on 2026-11-11, or the --measure-fallback comparison
+# file of tools/wiki/gen_wiki_guides.py): a wiki file that holds one is refused (require_wiki_build)
+FALLBACK_NOTE = re.compile(r"\(location: (?:Questie|Blizzard) data")
 # outdoor collectibles named after the place they are at: never an instance map, a wiki glyph list gives the point
 COLLECTIBLE = re.compile(r"^(?:Dragon|Skyriding) Glyphs?: ")
 
@@ -164,17 +161,8 @@ def wiki_lines(fl):
 
 
 def wiki_quest_lines(fl):
-    """qid -> step lines from Imported_Wiki_<fl>.lua whose point is the wiki's own (a fallback-credited row is left out:
-    the shippable --no-fallback build has no point there)"""
-    return {q: [l for l in ls if not FALLBACK_NOTE.search(l)] for q, ls in wiki_lines(fl).items()}
-
-
-def drop_fallback(line):
-    """a wiki step line as the --no-fallback build writes it: a fallback point and its credit removed"""
-    if not FALLBACK_NOTE.search(line):
-        return line
-    line = RE_MZ.sub("", line, count=1)
-    return FALLBACK_NOTE.sub(" No coordinates on the wiki.", line, count=1)
+    """qid -> step lines from Imported_Wiki_<fl>.lua"""
+    return dict(wiki_lines(fl))
 
 
 def to_map(maps, uimap, pts):
@@ -192,7 +180,8 @@ def to_map(maps, uimap, pts):
 
 def quest_poi(fl, maps):
     """qid -> {"turnin": (map, x, y) | None, "obj": {objective index: (map, x, y)}} from Blizzard QuestPOIBlob +
-    QuestPOIPoint (tools/gen_quest_guides_retail.py documents the indexes: -1 = turn-in pin, 32 = waypoint hint)"""
+    QuestPOIPoint (ObjectiveIndex -1 = the turn-in pin, 0..31 = one objective area each, 32 = the client's "next
+    waypoint" hint, which is not an objective)"""
     blobs = rows(fl, "QuestPOIBlob")
     pts = collections.defaultdict(list)
     for p in rows(fl, "QuestPOIPoint"):
@@ -731,22 +720,28 @@ PROVENANCE = {
                    "-- the live quest name."],
     "missions": ["-- (wago.tools DB2 export GarrMission, facts only)."],
 }
-# A header line for a file made from the default (fallback) build of Imported_Wiki_<flavor>.lua.  That build fills points
-# the wiki lacks from the local Questie-derived file, so its steps (and which C steps exist) differ from the release
-# build; the name in this line makes tools/package_release.py refuse the file (interop-derived), see test_package.py.
-FALLBACK_BUILD = ("-- LOCAL BUILD: made from the default build of Imported_Wiki_{fl}.lua, whose fallback rows come from "
-                  "Questie-derived data. It never ships: regenerate after tools/wiki/gen_wiki_guides.py --no-fallback.")
+def wiki_file_problem(text):
+    """why a wiki guide file must not be read: it holds points from another addon's data (the dev build retired on
+    2026-11-11 said so in its header and in each such step's note; the --measure-fallback file says MEASUREMENT ONLY).
+    None for the build's own file."""
+    head = text[:6000]
+    if "MEASUREMENT ONLY" in head:
+        return "it is the --measure-fallback comparison file"
+    if "Regenerate with --no-fallback" in head or FALLBACK_NOTE.search(text):
+        return "it holds points taken from another addon's data (the dev build retired on 2026-11-11)"
+    return None
 
 
-def wiki_build(fl):
-    """which build of Imported_Wiki_<fl>.lua this run reads: 'no-fallback' (wiki only, the release build), 'fallback'
-    (the default build; tools/wiki/gen_wiki_guides.py says so in its header) or None (no file)"""
+def require_wiki_build(fl):
+    """True when Imported_Wiki_<fl>.lua exists; stops the run when that file is not the build's own"""
     p = GUIDES / f"Imported_Wiki_{fl}.lua"
     if not p.exists():
-        return None
-    with p.open(encoding="utf-8") as fh:
-        head = fh.read(6000)
-    return "fallback" if "Regenerate with --no-fallback" in head else "no-fallback"
+        return False
+    why = wiki_file_problem(p.read_text(encoding="utf-8"))
+    if why:
+        raise SystemExit(f"gen_completion_guides: Guides/Imported_Wiki_{fl}.lua cannot be used: {why}. "
+                         f"Regenerate it first: python3 tools/wiki/gen_wiki_guides.py {fl}")
+    return True
 
 
 def header(fl, what):
@@ -755,9 +750,8 @@ def header(fl, what):
     out = [f"-- AUTO-GENERATED by tools/gen_completion_guides.py ({what}) from Blizzard client data"] + PROVENANCE[what] + [
            f"-- Blizzard tables: client build {build} (tools/db2/{fl}/BUILD).  A point from Blizzard data says so in its step."]
     if what != "missions":
-        wb = wiki_build(fl)
-        out.append(FALLBACK_BUILD.format(fl=fl) if wb == "fallback" else
-                   f"-- Wiki steps: the --no-fallback (wiki-only) build of Imported_Wiki_{fl}.lua." if wb else
+        out.append(f"-- Wiki steps: from Imported_Wiki_{fl}.lua (Warcraft Wiki; Blizzard quest pins where it says so)."
+                   if require_wiki_build(fl) else
                    f"-- Wiki steps: none (no Imported_Wiki_{fl}.lua when this was generated).")
     return out + ["local _, NS = ...", f'if NS.flavor ~= "{fl}" then return end', "local R = NS.Guide.Register"]
 
@@ -1059,7 +1053,7 @@ def gen_achievements(fl):
     out = GUIDES / f"Imported_Achievements_{fl}.lua"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"{fl}: {len(ach)} achievements ({len(every) - len(ach)} internal left out) -> {len(guides)} category guides, "
-          f"{nsteps} steps -> {out.relative_to(ROOT)} (wiki build: {wiki_build(fl)})")
+          f"{nsteps} steps -> {out.relative_to(ROOT)}")
     print(f"  achievements by best location: {dict(achs)}")
     print(f"  zone-only achievements by reason: {dict(gained)}")
     print(f"  non-geographic by reason: {dict(nogeo_why)}")
@@ -1102,7 +1096,7 @@ def gen_questlines(fl="retail"):
         body, prev, zone = [], None, None
         for q in qs:
             p = poi.get(q) or {"turnin": None, "obj": {}}
-            src = [drop_fallback(l) for l in wl.get(q, [])]
+            src = list(wl.get(q, []))
             if src:
                 st["wiki quests"] += 1
                 out = []
@@ -1287,8 +1281,12 @@ def _selfcheck():
                                                             (10710, 3), (10722, 2))]
     ex = expansions(achs, lambda c: cats.get(c, ""))
     check(ex[61524] == (11, False) and ex[10722] == (6, False) and ex[61500] == (11, True), f"expansions -> {ex}")
-    # a file made from the default (fallback) wiki build names the Questie-derived source, so the packager refuses it
-    check("Questie" in FALLBACK_BUILD, "FALLBACK_BUILD must name the Questie-derived source")
+    # a wiki file with points from another addon's data is refused; the build's own file (Blizzard quest pins) is not
+    check(wiki_file_problem("-- hdr\nA Q|QID|1|M|1,2|Z|1; X|N|Go. (location: Questie data)|\n") is not None, "Questie note refused")
+    check(wiki_file_problem("-- hdr\nA Q|QID|1|M|1,2|Z|1; X|N|Go. (location: Blizzard data)|\n") is not None, "old Blizzard-data note refused")
+    check(wiki_file_problem("-- MEASUREMENT ONLY, never part of the add-on\n") is not None, "measurement file refused")
+    check(wiki_file_problem("-- hdr\nT Q|QID|1|M|1,2|Z|1; X|N|Go. (location: Blizzard quest POI, the turn-in area)|\n") is None,
+          "the build's own file is read")
     for f in fails:
         print("FAIL gen_completion_guides:", f)
     if fails:
@@ -1302,6 +1300,8 @@ def main():
     args = [a for a in sys.argv[1:] if a != "--achievements-only"]
     only_ach = len(args) != len(sys.argv) - 1
     fls = args or ["retail", "mop"]
+    for fl in fls:
+        require_wiki_build(fl)      # stop before anything is written from a wiki file that is not the build's own
     for fl in fls:
         gen_achievements(fl)
         if fl == "retail" and not only_ach:
