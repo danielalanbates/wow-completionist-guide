@@ -389,8 +389,8 @@ check(_G.CompletionRouteFontSmall.size == 12, "back to the default size")
 -- ---------------------------------------------------------------------------
 local sc = O.frameScale
 local f = GF.frame
-check(sc.min == math.floor(GF.SCALE_MIN * 100 + 0.5) and sc.max == math.floor(GF.SCALE_MAX * 100 + 0.5) and sc.min == 60 and sc.max == 250,
-    "the scale slider's range is the grip's (60-250)", tostring(sc.min) .. "-" .. tostring(sc.max))
+check(sc.min == math.floor(GF.SCALE_MIN * 100 + 0.5) and sc.max == math.floor(GF.SCALE_MAX * 100 + 0.5) and sc.min == 100 and sc.max == 250,
+    "the scale slider's range is the grip's (100-250)", tostring(sc.min) .. "-" .. tostring(sc.max))
 local function corner() return f:GetLeft() * f:GetScale(), f:GetTop() * f:GetScale() end
 f:ClearAllPoints() f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 100, -50)
 for _, grip in ipairs({ 2.5, 1.37 }) do
@@ -417,7 +417,7 @@ check(GF.SetScale(1.5) == false and f.points[1] == pts, "the same scale again do
 sc.scripts.OnValueChanged(sc, 250)
 l1, t1 = corner()
 check(f:GetScale() == 2.5 and math.abs(l1 - l0) < 1e-6 and math.abs(t1 - t0) < 1e-6, "the grip's largest scale is reachable from the slider, corner kept")
-check(GF.SetScale(9) == false and f:GetScale() == 2.5 and GF.SetScale(0.1) and f:GetScale() == 0.6, "GF.SetScale keeps to the grip's limits")
+check(GF.SetScale(9) == false and f:GetScale() == 2.5 and GF.SetScale(0.1) and f:GetScale() == 1, "GF.SetScale keeps to the grip's limits")
 -- a window hidden since login (the client cannot say where it is): the saved corner is used
 f.GetLeft, f.GetTop = function() return nil end, function() return nil end
 f:SetScale(1) prof.frame.scale, prof.frame.point, prof.frame.x, prof.frame.y = 1, "TOPLEFT", 100, -50

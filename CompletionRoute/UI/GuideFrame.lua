@@ -209,7 +209,9 @@ GF.AnchorTopLeft = anchorTopLeft
 
 -- The window's scale: the Options slider ("Step window scale"), with the rule that
 -- the top-left corner stays where it is on screen.  hangAt puts the corner at (left, top), given in UIParent units.
-GF.SCALE_MIN, GF.SCALE_MAX = 0.6, 2.5
+-- Never under 1: the smallest text is then the client's 10 pt (12 pt with the default "Text size"), owner's request
+-- 2026-11-12.  A profile saved smaller by the old scaling grip comes back to 1 at login (GF.ApplySettings).
+GF.SCALE_MIN, GF.SCALE_MAX = 1.0, 2.5
 local function clampScale(s) return math.max(GF.SCALE_MIN, math.min(GF.SCALE_MAX, tonumber(s) or 1)) end
 local function hangAt(left, top, s)
     f:SetScale(s)
@@ -462,7 +464,7 @@ end
 --   2. no text gets a fixed height: heights are only ever read;
 --   3. the note hangs under whichever is taller, the icon or the (possibly wrapped) title;
 --   4. the card ends above the travel line, and the window is the sum of the three.
--- The whole window scales (Options), so one layout holds at every scale from 0.6 to 2.5; the grip sets its width.
+-- The whole window scales (Options), so one layout holds at every scale from 1.0 to 2.5; the grip sets its width.
 local function sh(fs) local h = fs.GetStringHeight and fs:GetStringHeight() return (type(h) == "number" and h > 0) and h or 0 end
 local function strW(fs) local w = fs.GetStringWidth and fs:GetStringWidth() return (type(w) == "number" and w > 0) and w or 0 end
 local function fitHeader()
