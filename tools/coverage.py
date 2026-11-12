@@ -12,6 +12,10 @@ Universe (the "total" column), per flavor, from wago.tools DB2 exports cached in
   quest-zone                                     of the covered quests without a point: those with a step that names
                                                  the zone (|Z| without |M|; the router goes to the zone).  Covered
                                                  quests = located (point) + quest-zone + no location at all
+  quest-contrib                                  of the located quests: those with a step whose point players
+                                                 contributed (note "(location: player contributions, ...)",
+                                                 docs/CONTRIBUTE.md).  Such a step has a point, so its quest counts as
+                                                 located like any other.  quest-contrib-steps: how many such steps
   achievement  Achievement.csv minus statistics  (Flags & 0x1 = counter/statistic, not an achievement) and minus
                internal rows (title marked DNT, <Hidden>, Hidden Tracking...: gen_completion_guides.internal_achievement)
   storyline    QuestLine x QuestLineXQuest       retail only; covered = every quest of the line is in a guide
@@ -80,13 +84,17 @@ FALLBACK_NOTE = ("(location: Questie data", "(location: Blizzard data")
 # a storyline accept that only names the quest's map (tools/gen_completion_guides.py gen_questlines) says nothing about
 # where a starting item is obtained: it does not count as a located accept for item-quest
 QUEST_MAP_NOTE = "the quest's map"
-KINDS = ("quest", "quest-zone", "achievement", "mission", "achievement-zone", "achievement-nongeo", "accept", "ach-crit")
+# a step whose map point players contributed (tools/wiki/gen_wiki_guides.py): located, and counted apart as well
+CONTRIB_NOTE = "(location: player contributions"
+KINDS = ("quest", "quest-zone", "achievement", "mission", "achievement-zone", "achievement-nongeo", "accept", "ach-crit",
+         "quest-contrib")
 RANK = {"none": 0, "zone": 1, "point": 2}
 
 
 def scan(path, build=False):
     """-> dict kind -> {id: located_bool}; "quest-zone" -> {qid: True} for a quest with a zone-only step; "accept" ->
-    {qid: point|zone|none} of A steps, "ach-crit" -> {ct: (ach, how)}.  build=True: the file is part of the build, so
+    {qid: point|zone|none} of A steps, "ach-crit" -> {ct: (ach, how)}, "quest-contrib" -> {qid: how many of its steps
+    in this file take their point from player contributions}.  build=True: the file is part of the build, so
     a step that credits another addon's data stops the run"""
     found = {k: {} for k in KINDS}
     txt = path.read_text(encoding="utf-8", errors="replace")
@@ -103,12 +111,15 @@ def scan(path, build=False):
         loc = "|M|" in line
         zone = "|Z|" in line
         how = "point" if loc else ("zone" if zone else "none")
+        contrib = loc and CONTRIB_NOTE in line
         for m in RE_QID.findall(line):
             for part in re.split(r"[\^;&]", m):
                 part = part.split(".")[0]
                 if part.isdigit():
                     q = int(part)
                     found["quest"][q] = found["quest"].get(q, False) or loc
+                    if contrib:
+                        found["quest-contrib"][q] = found["quest-contrib"].get(q, 0) + 1
                     if zone and not loc:
                         found["quest-zone"][q] = True
                     if line.startswith(("A ", "a ")):
@@ -270,6 +281,9 @@ def main():
                         have[k][i] = loc if RANK[loc] > RANK[prev] else prev
                     elif k == "ach-crit":
                         have[k][i] = loc
+                    elif k == "quest-contrib":
+                        # the quest-line file repeats the wiki file's steps: the same steps, not more of them
+                        have[k][i] = max(have[k].get(i, 0), loc)
                     else:
                         have[k][i] = have[k].get(i, False) or loc
         uni_all = universes(fl)
@@ -300,9 +314,14 @@ def main():
             if cat == "quest":
                 qzone = sum(1 for i in cov if not have["quest"][i] and have["quest-zone"].get(i))
                 put(con, fl, "quest-zone", label, total, qzone, None)
+                cq = [i for i in cov if have["quest-contrib"].get(i)]
+                csteps = sum(have["quest-contrib"][i] for i in cq)
+                put(con, fl, "quest-contrib", label, total, len(cq), None)
+                put(con, fl, "quest-contrib-steps", label, total, csteps, None)
                 print(f"{label:7} {fl:6} {'quest':11} covered {len(cov):6}: point {len(loc):6} ({100*len(loc)/max(len(cov),1):5.1f}%)"
                       f"  zone-only {qzone:6} ({100*qzone/max(len(cov),1):5.1f}%)  no location {len(cov) - len(loc) - qzone:6}"
-                      f" ({100*(len(cov) - len(loc) - qzone)/max(len(cov),1):5.1f}%)")
+                      f" ({100*(len(cov) - len(loc) - qzone)/max(len(cov),1):5.1f}%)"
+                      f"  of the located: {len(cq)} with a player-contributed point ({csteps} steps)")
             if cat == "achievement":
                 zone_n = sum(1 for i in have["achievement-zone"] if i in uni and not have["achievement"].get(i))
                 nongeo = sum(1 for i in have["achievement-nongeo"] if i in uni and not have["achievement"].get(i)

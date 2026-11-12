@@ -17,6 +17,8 @@ number describes what the TOCs load, tools/install.sh installs and a release shi
   zone only     share of the covered quests with no point but a step that names the zone (coverage quest-zone; "-" for a
                 label measured before 2026-11-11 night, which has no such row)
   no location   the rest of the covered quests: no point and no zone
+  contributed   located quests with a step whose point players contributed, and how many such steps (coverage
+                quest-contrib, quest-contrib-steps; docs/CONTRIBUTE.md; "-" for a label measured before 2026-11-12)
   ach located   achievements with a point or a zone-only step / achievements minus the non-geographic ones (the plan's
                 80% target; coverage rows achievement, achievement-zone, achievement-nongeo of one label)
   item quests   item-started quests whose accept step (where the item is obtained) has a point or a zone (coverage
@@ -94,6 +96,15 @@ def quest_zone(con, fl, q):
     if not q or not q[1] or not z:
         return "-", "-"
     return pct(z[1], q[1]), pct(q[1] - (q[2] or 0) - z[1], q[1])
+
+
+def contributed(con, fl, q):
+    """"<quests> (<steps> steps)" with a player-contributed point, from the same label as the quest row"""
+    c = coverage(con, fl, "quest-contrib", q[3]) if q else None
+    n = coverage(con, fl, "quest-contrib-steps", q[3]) if q else None
+    if not c or not n:
+        return "-"
+    return f"{c[1]} ({n[1]} steps)"
 
 
 def item_share(con, fl):
@@ -189,6 +200,7 @@ def rows():
             "located": pct(q[2], q[1]) if q else "-",
             "zone only": qz,
             "no location": qn,
+            "contributed": contributed(verif, fl, q),
             "ach located": ach_share(verif, fl) if ach and ach[1] else "-",
             "item quests": item_share(verif, fl),
             "vplayer": f"{vp[0]}/{vp[1]} ({vp[2]} stalls)" if vp else "-",
