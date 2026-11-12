@@ -406,13 +406,95 @@ do
         local last = RP.last or {}
         t("hearth first leg: the guide's order is priced with the hearthstone, as the arrow walks it",
             math.abs((last.baseCost or -1) - (arrowHome + between)) < 1e-6, ("planner %s, arrow %.1f (on foot %.1f)"):format(tostring(last.baseCost), arrowHome + between, footHome + between))
-        t("hearth first leg: the other order is priced the same way", math.abs((last.newCost or -1) - (arrowFar + between)) < 1e-6,
-            ("planner %s, arrow %.1f"):format(tostring(last.newCost), arrowFar + between))
+        -- the search prices the leg from the player as acceptance does (1c): it proposes no slower order, its best is the
+        -- guide's own
+        t("hearth first leg: the search, pricing the hearthstone too, proposes no other order", math.abs((last.newCost or -1) - (arrowHome + between)) < 1e-6,
+            ("planner %s, arrow %.1f"):format(tostring(last.newCost), arrowHome + between))
         t(("hearth first leg: an order slower on the arrow's route is not accepted (%.0f s against %.0f s)"):format(arrowFar + between, arrowHome + between),
             last.accepted == false and idx(P.steps) == "2,3", idx(P.steps))
+        -- the search priced hearth-free (as before 2026-11-12) proposes "east first"; acceptance prices it as the arrow
+        -- walks it and turns it down
+        local res = RP.RunNow({ guide = "t:skip:hearth", list = P.steps, oneShot = false }, 1e9)
+        t("hearth first leg: the other order (from a hearth-free search) is priced the same way and not accepted",
+            res and res.accepted == false and math.abs((res.newCost or -1) - (arrowFar + between)) < 1e-6,
+            res and ("planner %s, arrow %.1f"):format(tostring(res.newCost), arrowFar + between))
     else
         t("hearth first leg: the scenario holds on this graph (hearth to Goldshire far cheaper than the walk)", false,
             ("arrow %s, on foot %s, far %s, between %s"):format(tostring(arrowHome), tostring(footHome), tostring(arrowFar), tostring(between)))
+    end
+end
+
+-- ---------------------------------------------------------------------------
+-- 1c) An order that wins only by opening with the hearthstone is found (2026-11-12)
+-- ---------------------------------------------------------------------------
+-- The places of 1b, the guide the other way round: east of Elwynn first, then Goldshire.  On foot from Redridge the
+-- east is the nearer, so a search priced without the hearthstone kept that order, and its greedy start opened east as
+-- well.  By the arrow Goldshire is one hearth away and the east one walk after it: cheaper by more than the margin.
+-- The search now prices the leg from the player as acceptance does (Routing/Replan.lua RP.OneShotUsable, playerCost);
+-- acceptance is unchanged, so the order is taken only because it really is faster on the arrow's route.
+do
+    local NS = harness("era")
+    local S, P, G, RP, R = NS.Skip, NS.Progress, NS.Guide, NS.Replan, NS.Router
+    local Z = "|Z|1429; Elwynn Forest|"
+    G.Register({ id = "t:skip:hearth2", name = "Hearth 2", type = "Quests", zone = 1429, faction = "Alliance", minlevel = 1, maxlevel = 10, text = table.concat({
+        "A Drop me|QID|401|M|42,66" .. Z, "A Far out|QID|403|M|85,70" .. Z, "A At home|QID|402|M|42,65" .. Z }, "\n") })
+    NS.QuestDeps = { flavor = "era", pre = "", free = "", crumb = "", never = "", name = "" }
+    S.Prompt = function(_, fn) fn() return true end
+    W.level = 5
+    place(1433, 0.6, 0.5)
+    R.Invalidate() NS.TravelGraph.Build()
+    P.Load("t:skip:hearth2")
+    local far, home = P.steps[2], P.steps[3]
+    local function at(s) local x, y, i = R.StepWorld(s) return { wx = x, wy = y, inst = i } end
+    local arrowHome, arrowFar = R.TravelSecondsFromPlayer(home), R.TravelSecondsFromPlayer(far)
+    local foot = R.TravelRow(R.PlayerPoint(), { at(home), at(far) })
+    local footHome, footFar = foot[1], foot[2]
+    local between = R.TravelSeconds(home, far)
+    local baseArrow, newArrow = arrowFar + between, arrowHome + between
+    local scenario = arrowHome and arrowFar and footHome and footFar and between
+        and footFar + between < footHome + between - 50                       -- on foot: east first is the faster
+        and baseArrow - newArrow >= math.max(15, 0.05 * baseArrow) + 50       -- by the arrow: Goldshire first, clearly
+    t("hearth opening: the scenario holds on this graph (on foot east first is faster, by the arrow Goldshire first)", scenario,
+        ("arrow home %s far %s, on foot home %s far %s, between %s"):format(tostring(arrowHome), tostring(arrowFar), tostring(footHome), tostring(footFar), tostring(between)))
+    if scenario then
+        -- the drop: the guide is rebuilt (east, Goldshire) and re-planned in the background, as in game
+        S.SkipQuest(401)
+        local list = P.steps
+        t("hearth opening: the rebuilt guide keeps its order until the re-plan (east, then Goldshire)", idx(list) == "2,3", idx(list))
+        -- the job the drop started, frame by frame at the client's budget
+        local J = RP.Job()
+        t("hearth opening: the drop started a re-plan", J ~= nil)
+        if J then
+            J.frameLog = {}
+            local guard = 0
+            while RP.Step() and guard < 1e6 do guard = guard + 1 end
+            local last = RP.last or {}
+            local worst = 0
+            for _, ms in ipairs(J.frameLog) do if ms > worst then worst = ms end end
+            t("hearth opening: the search prices the hearth (stats.oneShot) and the order that opens with it is accepted",
+                last.accepted == true and last.stats and last.stats.oneShot == true,
+                ("accepted %s, oneShot %s"):format(tostring(last.accepted), tostring(last.stats and last.stats.oneShot)))
+            t(("hearth opening: acceptance prices both orders as the arrow walks them (%.0f s -> %.0f s)"):format(baseArrow, newArrow),
+                math.abs((last.baseCost or -1) - baseArrow) < 1e-6 and math.abs((last.newCost or -1) - newArrow) < 1e-6,
+                ("planner %s -> %s"):format(tostring(last.baseCost), tostring(last.newCost)))
+            t(("hearth opening: every frame within %.1f ms (%d frames, worst %.2f ms, budget %.1f ms)"):format(FRAME_LIMIT_MS, #J.frameLog, worst, RP.FRAME_MS),
+                worst <= FRAME_LIMIT_MS)
+            -- the result reaches the guide on screen (Progress.StartReplan's onDone: C_Timer.After runs it at once here)
+            t("hearth opening: the guide now opens with Goldshire", idx(P.steps) == "3,2", idx(P.steps))
+        end
+        -- the same list with the search priced hearth-free (the rule before this change): nothing better is found
+        local resOld = RP.RunNow({ guide = "t:skip:hearth2", list = list, oneShot = false }, 1e9)
+        t("hearth opening: a search without the hearthstone finds nothing better (the old behaviour)",
+            resOld and resOld.accepted == false and math.abs(resOld.baseCost - baseArrow) < 1e-6,
+            resOld and ("accepted %s, %.1f -> %.1f"):format(tostring(resOld.accepted), resOld.baseCost, resOld.newCost))
+        -- the hearthstone on a long cooldown: the same drop is not re-planned into a hearth opening
+        local keepCD = C_Container.GetItemCooldown
+        C_Container.GetItemCooldown = function() return GetTime and GetTime() or 0, 3600 end
+        t("hearth opening: with the Hearthstone on a 60 minute cooldown no one-shot leg is usable", RP.OneShotUsable() == false)
+        local resCD = RP.RunNow({ guide = "t:skip:hearth2", list = list }, 1e9)
+        t("hearth opening: ...and the order stays (east, then Goldshire)", resCD and resCD.accepted == false and (resCD.stats.oneShot == nil),
+            resCD and ("accepted %s, %.1f -> %.1f"):format(tostring(resCD.accepted), resCD.baseCost, resCD.newCost))
+        C_Container.GetItemCooldown = keepCD
     end
 end
 

@@ -316,8 +316,21 @@ cost model's point (an NPC's point from elsewhere in the guide, the step it ride
   other one-shot legs included), for the starting and the new order alike, and again for both in each pass; every other
   leg is the hearth-free row. Before 2026-11-12 the first leg was hearth-free too, so a baked order whose first step is
   one hearth away looked 800 s dearer than it is and a re-plan 577 s slower was accepted and saved (forever 1423
-  Alliance, drop 5246). The search itself still starts from hearth-free costs, so an order that is only better because
-  it opens with the hearthstone is not looked for.
+  Alliance, drop 5246).
+* **The search prices that leg too** (2026-11-12). Until then the search ran on hearth-free costs only, so an order
+  better only because it opens with the hearthstone was never looked for (acceptance priced it, the search did not).
+  Now the segment that starts at the player prices its first leg with `playerCost`, the acceptance price: the greedy
+  start may open with the hearth, and Or-opt may move a run to the front of that segment. Only where a one-shot leg can
+  win at all: `Replan.OneShotLandings` lists where the hearth and the usable teleports land, by `TravelGraph.FindPath`'s
+  own rule (the routing options; the hearth's place known; at most 15 minutes of cooldown left), one multi-goal search
+  per landing place prices the blocks from there, and a block whose hearth-free leg is no dearer than (hearth base cost
+  less its 10 s cast) + (time from the landing) keeps the hearth-free row, which is then exactly `playerCost`.
+  No usable one-shot: the search is the one of before. Acceptance is unchanged. `tools/test_skip.lua` 1c: east of
+  Elwynn then Goldshire, player in Redridge, Hearthstone ready: the search now finds "Goldshire first" (485 s -> 299 s by
+  the arrow) and it is accepted; priced hearth-free (`oneShot = false`) nothing better is found; with the Hearthstone on
+  a 60 minute cooldown the order stays. Cost on the 15 real samples of test_skip (stubs, `luajit -joff`, hearth in
+  Goldshire): the same 15 results, frames 106/374/2396/4624/363 -> 125/413/2456/5058/340 (era/tbc/mop/retail/forever;
+  130/439/2840/5942/391 in a run under more load), every frame within the 0.8 ms budget as before.
 * **Acceptance.** The new order must save max(`StepOrder.MIN_GAIN`, `StepOrder.GAIN_FRAC` of it), the live window's
   margin, on the route the arrow walks, AND the route through the steps with a firm point (their own `|M|` or an NPC's)
   may not get longer: a zone centre only stands in for an objective, and a saving must not come from the stand-in alone. When the
