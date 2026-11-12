@@ -171,7 +171,7 @@ The everyday workflow is the release workflow. In the checkout that holds the ge
    `python3 tools/wiki/gen_wiki_guides.py` (also rebuilds the spine), `python3 tools/wiki/gen_gold.py`,
    `python3 tools/wiki/gen_professions.py`, `python3 tools/gen_completion_guides.py retail mop`,
    `python3 tools/gen_quest_deps.py`.
-2. Bake the route orders: `python3 tools/bake_resume.py` (resumable; it bakes the shipped wiki quest guides and
+2. Bake the route orders: `python3 tools/bake_resume.py --jobs 4` (resumable; four batches at a time; it bakes the shipped wiki quest guides and
    rewrites `Data/RouteOrder_<flavor>.lua` with rows for current guides only; `docs/ROUTING.md` "Bake gate").
 3. Test: `luajit tools/validate_toc.lua`, the `tools/test_*.lua` harnesses, `python3 tools/test_package.py`,
    `python3 tools/test_contrib_gen.py`.
