@@ -256,7 +256,8 @@ end
 function R.FitSet(level) return ranked(clampLevel(level)).fit end
 function R.EntryFor(level, id) return ranked(clampLevel(level)).byId[id] end
 
--- Top guides per category for the "For level N" section: { { cat = "Leveling", entries = { ... } }, ... }.
+-- Top guides per category: { { cat = "Leveling", entries = { ... } }, ... }.  (The routes list's "For level N" section
+-- used it until 2026-11-12; its "Recommended" section ranks by closeness instead, UI/GuideMenu.lua M.Recommended.)
 function R.Picks(level, perCat)
     local c = ranked(clampLevel(level))
     perCat = perCat or R.PICKS

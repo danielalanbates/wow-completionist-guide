@@ -154,7 +154,7 @@ do
     local node = topNode()
     check(node and node.recent and node.name == "Recent", "Recent is the first section of the list")
     local second = T.buildTree().kids[2]
-    check(not second or second.forLevel or not second.recent, "For level comes after Recent")
+    check(not second or second.recommended or not second.recent, "Recommended comes after Recent")
     check(T.expanded[T.RECENT_PATH], "Recent starts open")
     local rows = T.visibleRows()
     check(rows[1].kind == "node" and rows[1].node.recent and rows[2].kind == "guide" and rows[2].guide.id == "f:a", "the first rows are Recent and its route")
