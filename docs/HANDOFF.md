@@ -205,6 +205,36 @@ the live window.
   superseded `Guides/Imported_Storylines_retail.lua` there too.
 * The `_wip-backup` bundle in Drive was removed (GitHub has the work).
 
+**Update 2026-11-12, 00:45. Beta feedback round; what is in flight.**
+The owner played WoW Forever on the evening of 11-11 and sent a stream of requests. Merged and installed on all five
+clients (PRs #6 to #12): larger text with an Options slider; the scope header as four buttons; "Current" for the level
+button; the routes list opens on a character's first launch; the WoW-Pro adapter removed (**no other addon's guides,
+ever: the addon is for the public**); a plain archery-arrow pointer (`tools/gen_pointer.py`); the step window hangs
+from its top-left corner, scales toward the drag and fits its text; "Routes" instead of "Guides" in the list title
+and button; the travel line names only non-walking legs; **Contribute** (`Core/Contribute.lua`, docs/CONTRIBUTE.md).
+* **Owner decisions:** keep the PolyForm licence; do not use Questie data (its licence file was read on 11-11: old
+  history unlicensed, the rest GPLv3 only); his own clients must run the public build only.
+* **Contribution pipeline (done, untested end to end):** `wow-completionist-data` has a "Location contribution" issue
+  form, a GitHub Action and `tools/contrib.py` that merge exports into `contributions/` (CSV, JSON, SQLite). No
+  client had recorded anything yet at 00:40. **Not built:** a generator step in this repo that reads
+  `contributions/areas/<flavor>.json` and gives steps without a point their contributed place.
+* **Usage limit:** three agents plus the main session used a 5-hour window in about 40 minutes, twice more (20:20 on
+  11-11). Rule from now on: **one background agent at a time.**
+* **Running:** workflow `recents-restart-autoadvance` (worktree `wt-flow`, branch `recents-restart-autoadvance`):
+  a readability audit of every step and a simpler step window, Recents in the routes list, Start over, auto-advance.
+* **Paused, partial work on disk, to finish one at a time:**
+  * `wt-public` (branch `public-build-only`): 5 commits (TOCs list only what ships, generators default to the public
+    build, Questie tooling archived, install.sh, bake covers shipped guides only) plus about 32 uncommitted files of
+    the interrupted builder. Left to do: tests, regenerated data, packager dry run, docs, an independent check; then
+    merge, copy its data into `repo/`, **rebake** (`tools/bake_resume.py --min-free-gb 10`; every earlier bake is
+    void because the data changes), reinstall. The saved script and brief:
+    `~/.claude/projects/-Users-daniel/<session>/workflows/scripts/public-build-only-*.js`.
+  * `wt-state` (branch `state-review-fixes`): the saved-progress reviewer finished (its findings are in that
+    workflow's `journal.jsonl`); the fixer was cut off with 17 uncommitted files. It was created before the WoW-Pro
+    removal and the UI changes, so it needs rebasing onto master.
+* `repo/` data is still the dev build (gaps guides and fallback points) and its route orders are partial and stale.
+  The clients therefore still load Questie-derived extras until `public-build-only` lands.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
