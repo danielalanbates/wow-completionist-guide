@@ -108,6 +108,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         CompletionRouteDB.autoVerifyAll, CompletionRouteDB.devRun = on or nil, on or nil
         NS:Print("Run verifyall automatically at next login: " .. tostring(on))
     elseif cmd == "chars" or cmd == "account" then
+        if NS.Characters then NS.Characters.Show() end      -- the character list window (UI/Characters.lua)
         NS:Print(("Account-wide progress: %s (toggle: /cr accountwide)"):format(NS.db.profile.accountWide and "|cff00ff00ON|r" or "|cff888888OFF|r"))
         for _, c in ipairs(NS.Account.Characters()) do
             NS:Print(("  %s%s  %s %s lvl %s  %s  %d steps in %d routes  (%s)"):format(

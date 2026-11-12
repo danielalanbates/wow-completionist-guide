@@ -105,7 +105,22 @@ local bClose = smallButton("x", 20, "Hide this window (a left click on the minim
     end
 end)
 bClose:SetPoint("TOPRIGHT", -HG.edge, -6)
-local bMore = smallButton("...", 24, "More: step order, options, report a bug, start this route over", function(self) GF.ToggleMore(self) end)
+-- the gear (owner's request 2026-11-12, in place of a "..." button): options and the rarely used things.  Our own
+-- texture (tools/gen_gear.py), a plain button with no label so the title line's fitting leaves it at its size.
+local bMore = CreateFrame("Button", nil, f)
+bMore:SetSize(18, 18)
+bMore.minW = 18
+bMore:SetNormalTexture("Interface\\AddOns\\" .. ADDON .. "\\Textures\\gear")
+bMore:SetPushedTexture("Interface\\AddOns\\" .. ADDON .. "\\Textures\\gear")
+if bMore.GetPushedTexture and bMore:GetPushedTexture() then bMore:GetPushedTexture():SetVertexColor(0.7, 0.7, 0.7) end
+bMore:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+bMore:SetScript("OnClick", function(self) GF.ToggleMore(self) end)
+bMore:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetText("Options: step order, options, character list, report a bug, start this route over", 1, 1, 1, 1, true)
+    GameTooltip:Show()
+end)
+bMore:SetScript("OnLeave", function() GameTooltip:Hide() end)
 bMore:SetPoint("RIGHT", bClose, "LEFT", -HG.gap, 0)
 local bMenu = smallButton("Routes", 52, "Choose a route", function() NS.GuideMenu.Toggle() end)
 bMenu:SetPoint("RIGHT", bMore, "LEFT", -HG.gap, 0)
@@ -679,7 +694,7 @@ function GF.ShowStepMenu(step, anchor)
     menu:Show()
 end
 
-local more = popup("CompletionRouteMoreMenu", 5)
+local more = popup("CompletionRouteMoreMenu", 6)
 GF.moreMenu = more
 local function reorderText() return "Reorder steps: " .. ((NS.db and NS.db.profile.routing.reorder) and "ON" or "OFF") end
 more.reorder = more.Add("Reorder steps", "The route optimizer reorders the next steps by travel time. Click to turn it on or off.", function()
@@ -688,6 +703,9 @@ more.reorder = more.Add("Reorder steps", "The route optimizer reorders the next 
     P.Refresh()
 end)
 more.options = more.Add("Options", "Open the options", function() NS.Options.Open() end)
+more.characters = more.Add("Character list", "Your characters the addon knows, and whether each one's progress is synced", function()
+    if NS.Characters then NS.Characters.Show() end
+end)
 more.report = more.Add("Report a bug", "Save a bug report: route, step, position, travel route and recent log", function() NS.BugReport.FromButton() end)
 more.startOver = more.Add("Start over", "Clear this route's finished steps for this character and begin again at its first step (asks first unless the route is finished)", function() GF.StartOver() end)
 more.close = more.Add("Cancel", "Close this menu", function() end)

@@ -377,7 +377,8 @@ end
 -- ---------------------------------------------------------------------------
 do
     local U = NS.Util
-    for _, b in ipairs({ GF.close, GF.more, GF.routes, GF.restart, GF.confirm.yes, GF.confirm.no, GF.moreMenu.reorder, GF.stepMenu.skipQuest }) do
+    -- GF.more is the gear: an icon with no label, so no font to check
+    for _, b in ipairs({ GF.close, GF.routes, GF.restart, GF.confirm.yes, GF.confirm.no, GF.moreMenu.reorder, GF.stepMenu.skipQuest }) do
         check(b.normalFont == U.Font("Title") and b.highlightFont == U.Font("Body") and b.disabledFont ~= nil,
             "button '" .. tostring(b.text) .. "': its label is in the addon's fonts")
     end

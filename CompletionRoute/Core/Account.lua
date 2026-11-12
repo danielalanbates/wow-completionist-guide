@@ -579,7 +579,7 @@ function A.Characters()
         for gid, set in pairs(c.done or {}) do
             if not (c.stepMeta and c.stepMeta[gid]) then local n = count(set) steps = steps + n if n > 0 then guides = guides + 1 end end
         end
-        out[#out + 1] = { key = k, name = c.name, surname = c.surname, display = A.DisplayName(c), realm = c.realm, class = c.class, faction = c.faction,
+        out[#out + 1] = { key = k, name = c.name, surname = c.surname, display = A.DisplayName(c), realm = c.realm, class = c.class, faction = c.faction, gametype = c.gametype,
                           level = c.level, flavor = c.flavor, steps = steps, updated = c.updated, guides = guides }
     end
     table.sort(out, function(a, b) return (a.steps or 0) > (b.steps or 0) end)

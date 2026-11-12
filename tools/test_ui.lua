@@ -473,6 +473,51 @@ check(not gfs:find("every guide", 1, true) and gfs:find("every route", 1, true),
 check(not gfs:find("For level", 1, true) and gfs:find("|cff7ddf8fRecommended|r lists what fits you now", 1, true), "step window: the end of a route points at Recommended")
 check(gms:find('"Only routes for this level"', 1, true) and not gms:find('"Only guides for this level"', 1, true), "routes list: Only routes for this level")
 
+-- ---------------------------------------------------------------------------
+-- G. The gear in place of "..." and the character list (owner's request, 2026-11-12)
+-- ---------------------------------------------------------------------------
+check(GF.more and gfs:find('Textures', 1, true) and gfs:find('gear")', 1, true) ~= nil, "the step window's menu button uses the gear texture")
+check(not gfs:find('smallButton("..."', 1, true), "no \"...\" button left")
+check(io.open("CompletionRoute/Textures/gear.tga") ~= nil, "Textures/gear.tga ships")
+check(gfs:find('more.Add("Character list"', 1, true) ~= nil, "the gear menu has Character list")
+assert(loadfile("CompletionRoute/UI/Characters.lua"))(ADDON, NS)
+local CL = NS.Characters
+NS.Account = NS.Account or {}
+local A = NS.Account
+A.GameTypeName = A.GameTypeName or function(t) return ({ era = "Classic Era", tbc = "Anniversary (TBC)", forever = "WoW Forever" })[t] or t end
+A.ScopeLabel = A.ScopeLabel or function() return "This character" end
+A.ScopeDetail = A.ScopeDetail or function() return "Meln Ashford only" end
+local realChars, realKey = A.Characters, A.key
+A.key = "Meln-Realm"
+-- the client's time() takes a date table like os.time (tools/stubs.lua's does not): use the real ones here
+local stubTime, stubDate = time, date
+time, date = os.time, os.date
+local now = 1800000000
+local function stamp(t) return date("%Y-%m-%d %H:%M:%S", t) end
+A.Characters = function()
+    return {
+        { key = "Old-Realm", name = "Old", display = "Old", realm = "Realm", class = "MAGE", level = 12, gametype = "era", updated = stamp(now - 40 * 86400), steps = 3, guides = 1 },
+        { key = "Meln-Realm", name = "Meln", surname = "Ashford", display = "Meln Ashford", realm = "Realm", class = "PRIEST", level = 7, gametype = "forever", updated = stamp(now - 100), steps = 20, guides = 2 },
+        { key = "Recent-Realm", name = "Recent", display = "Recent", realm = "Realm", class = "WARRIOR", level = 30, gametype = "tbc", updated = stamp(now - 3 * 3600), steps = 9, guides = 1 },
+        { key = "Never-Realm", name = "Never", display = "Never", realm = "Realm", class = "ROGUE", level = 1 },
+    }
+end
+local rows = CL.Rows()
+check(rows[1].key == "Meln-Realm" and rows[2].key == "Recent-Realm" and rows[3].key == "Old-Realm" and rows[4].key == "Never-Realm",
+    "character list: you first, then the most recently synced", rows[1].key .. "," .. rows[2].key .. "," .. rows[3].key)
+check(CL.SyncState(rows[1], now) == "this character", "the current character says so")
+check(CL.SyncState(rows[2], now) == "synced 3 h ago", "a recent record shows when it synced", (CL.SyncState(rows[2], now)))
+check(CL.SyncState(rows[3], now) == "not synced for 40 days", "a record older than 14 days is not synced", (CL.SyncState(rows[3], now)))
+check(CL.SyncState(rows[4], now) == "never synced", "a record with no time was never synced")
+check(CL.ParseStamp("2026-11-12 12:50:01") ~= nil and CL.ParseStamp("garbage") == nil, "sync times are read, junk is not")
+CL.Show()
+check(CL.frame and CL.frame.rows[1] and CL.frame.rows[1].name:GetText() == "Meln Ashford", "the window lists the surname", CL.frame and CL.frame.rows[1] and CL.frame.rows[1].name:GetText())
+local shown = 0
+for _, r in ipairs(CL.frame.rows) do if r:IsShown() then shown = shown + 1 end end
+check(shown == 4, "one row per character", shown)
+A.Characters, A.key = realChars, realKey
+time, date = stubTime, stubDate
+
 GF.Toggle = realToggle
 print(("%s: %d checks, %d failed. Drawing, the real mouse and the client's Settings frame cannot be verified offline."):format(
     fails == 0 and "UI TESTS PASSED" or "UI TESTS FAILED", checks, fails))
