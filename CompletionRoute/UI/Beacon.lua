@@ -88,7 +88,7 @@ local DEFAULT_ICON = "Interface\\GossipFrame\\AvailableQuestIcon"
 
 function B.MarkerTexture(step)
     local style = (NS.db and NS.db.profile.beacon and NS.db.profile.beacon.icon) or "action"
-    if style == "arrow" then return TEX .. "arrow_green", true end
+    if style == "arrow" then return TEX .. "arrow", true end
     local a = step and step.action
     if a == "K" then return RAID_SKULL, false end
     local icon = a and NS.Guide and NS.Guide.ACTION_ICON and NS.Guide.ACTION_ICON[a]
@@ -420,7 +420,7 @@ local function getTaxiMarker()
     local arrow = m:CreateTexture(nil, "OVERLAY")
     arrow:SetSize(32, 32)
     arrow:SetPoint("BOTTOM", m, "CENTER", 0, 10)
-    arrow:SetTexture(TEX .. "arrow_green")
+    arrow:SetTexture(TEX .. "arrow")
     arrow:SetRotation(math.pi) -- pointing downward towards the flight node
     m.arrow = arrow
 

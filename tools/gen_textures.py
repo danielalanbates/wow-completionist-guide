@@ -5,7 +5,7 @@ import os
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "CompletionRoute", "Textures")
 os.makedirs(OUT, exist_ok=True)
 
-# The pointer (arrow*.tga) is drawn by tools/gen_pointer.py: an archery arrow, since 2026-11-11.
+# The pointer (arrow.tga) is drawn by tools/gen_pointer.py: an archery arrow in natural colours (2026-11-12).
 
 # round background for item button
 size=128

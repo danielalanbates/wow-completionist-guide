@@ -41,9 +41,6 @@ title:SetTextColor(1, 0.82, 0)
 local sub = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 sub:SetPoint("TOP", title, "BOTTOM", 0, -1)
 sub:SetWidth(220); sub:SetJustifyH("CENTER")
-local eta = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
-eta:SetPoint("TOP", sub, "BOTTOM", 0, -1)
-eta:SetTextColor(0.6, 0.85, 1)
 
 -- Secure item/spell button that takes the arrow's place
 local btn = CreateFrame("Button", "CompletionRouteArrowItemButton", f, "SecureActionButtonTemplate")
@@ -138,18 +135,11 @@ end
 -- ---------------------------------------------------------------------------
 local lastMode
 local acc, slow = 0, 0
-local function colorFor(dist)
-    if not dist then return TEX .. "arrow" end
-    if dist < 60 then return TEX .. "arrow_green" end
-    if dist < 400 then return TEX .. "arrow" end
-    return TEX .. "arrow_red"
-end
-
--- The pointer is a plain arrow: yellow, green when the spot is close, red when it is far (blue when the step is on
--- another continent).  A pointing hand in the class colour was the default until 2026-11-11; the owner asked for a
--- generic icon instead, so the hand, its texture and the style option are gone.
-local function setPointer(dist)
-    arrow:SetTexture(colorFor(dist))
+-- The pointer is an archery arrow in natural colours (steel head, wooden shaft, feathers; tools/gen_pointer.py), the
+-- same at every distance: the distance is the text under it.  History: a pointing hand in the class colour until
+-- 2026-11-11, then a flat arrow coloured by distance; the owner asked for a realistic arrow and no ETA line on 2026-11-12.
+local function setPointer()
+    arrow:SetTexture(TEX .. "arrow")
     arrow:SetVertexColor(1, 1, 1)
 end
 A.SetPointer = setPointer
@@ -160,12 +150,12 @@ function A.Update()
     local dead = NS.Router and NS.Router.IsDead()
     if not NS.Progress.current and not dead then
         setShown(false)
-        if f:IsShown() then arrow:Hide() title:SetText("") sub:SetText("") eta:SetText("") end   -- in combat: stays up, empty
+        if f:IsShown() then arrow:Hide() title:SetText("") sub:SetText("") end   -- in combat: stays up, empty
         return
     end
     setShown(true)
     local rec = NS.Router and NS.Router.Recommendation()
-    if not rec then arrow:Hide() applyButton("hide") title:SetText("") sub:SetText("") eta:SetText("") return end
+    if not rec then arrow:Hide() applyButton("hide") title:SetText("") sub:SetText("") return end
     title:SetText(rec.text or "")
     if rec.dead then
         -- no Hearthstone, no quest item, no turn-in: hide the secure button outright
@@ -174,20 +164,18 @@ function A.Update()
         if rec.mode == "release" or not rec.wx then
             arrow:Hide()
             sub:SetText(rec.why and ("|cffff9900" .. rec.why .. "|r") or "")
-            eta:SetText("")
             lastMode = rec.mode
             return
         end
         local map, x, y, inst, pwx, pwy = U.PlayerPos()
         if not pwx or inst ~= rec.inst then
-            arrow:Hide() sub:SetText("|cffff9900corpse is on another continent|r") eta:SetText("")
+            arrow:Hide() sub:SetText("|cffff9900corpse is on another continent|r")
             return
         end
         arrow:Show()
-        setPointer(rec.dist)
+        setPointer()
         arrow:SetRotation(math.atan2(rec.wx - pwx, rec.wy - pwy) - (GetPlayerFacing() or 0))
         sub:SetText(U.FmtDist(rec.dist) .. "  |cffff9900(your corpse)|r")
-        eta:SetText(rec.eta and ("ETA ~" .. U.FmtTime(rec.eta)) or "")
         lastMode = rec.mode
         return
     end
@@ -196,7 +184,6 @@ function A.Update()
         arrow:Hide()
         applyButton("show", rec.item, rec.spell, rec.text, rec.toy)
         updateCooldown()
-        if rec.mode ~= "item" and rec.eta then eta:SetText("ETA ~" .. U.FmtTime(rec.eta)) else eta:SetText("") end
         -- in combat the secure button cannot be changed: it still holds its earlier action (or none), so do not offer it
         sub:SetText(pending and "|cffff9900button updates after combat|r"
             or (rec.mode == "item" and "Click to use" or (rec.mode == "teleport" and "Click to teleport" or "Click to hearth")))
@@ -207,16 +194,15 @@ function A.Update()
     if not rec.wx then
         arrow:Hide()
         sub:SetText("|cffff9900no location - /cr why|r")
-        eta:SetText("")
         return
     end
     -- rotate arrow
     local map, x, y, inst, pwx, pwy = U.PlayerPos()
     if not pwx or inst ~= rec.inst then
         arrow:Show()
-        arrow:SetTexture(TEX .. "arrow_blue") arrow:SetVertexColor(1, 1, 1)
+        setPointer()
         arrow:SetRotation(0)
-        sub:SetText("Different continent - follow the guide"); eta:SetText(rec.eta and ("ETA ~" .. U.FmtTime(rec.eta)) or "")
+        sub:SetText("Different continent - follow the guide")
         return
     end
     local dx, dy = rec.wx - pwx, rec.wy - pwy
@@ -228,16 +214,14 @@ function A.Update()
     local facing = GetPlayerFacing() or 0
     -- the pointer never turns into an "arrived" ring: it keeps aiming at the spot down to 0 yd
     arrow:Show()
-    setPointer(dist)
+    setPointer()
     arrow:SetRotation(bearing - facing)
-    local speed = U.TravelSpeed()
     local tag = ""
     if rec.locSource == "quest" then tag = "  |cff6ac9ff(quest objective)|r"
     elseif rec.locSource == "learned" then tag = "  |cff7ddf8f(learned spot)|r"
     elseif rec.locSource == "zone" then tag = "  |cffff9900(zone only)|r"
     elseif rec.locSource == "borrowed" then tag = "  |cffff9900(next known step)|r" end
     sub:SetText(U.FmtDist(dist) .. tag)
-    if rec.eta then eta:SetText("ETA ~" .. U.FmtTime(rec.eta)) else eta:SetText("ETA ~" .. U.FmtTime(dist / speed)) end
     lastMode = rec.mode
 end
 
