@@ -30,6 +30,7 @@ f:SetFrameStrata("MEDIUM")
 -- title bar
 local titleText = f:CreateFontString(nil, "OVERLAY", U.Font("Title"))
 titleText:SetPoint("TOPLEFT", 10, -8); titleText:SetPoint("RIGHT", -180, 0); titleText:SetJustifyH("LEFT")
+titleText:SetWordWrap(false)      -- one line, cut with "..." : a wrapped title ran over the button row under it
 titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r")
 
 local function smallButton(text, w, tip, onClick, parent)
@@ -76,7 +77,7 @@ local bBug = smallButton("Report", 52, "Save a bug report: guide, step, position
 bBug:SetPoint("LEFT", bOpt, "RIGHT", 2, 0)
 
 local pathText = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
-pathText:SetPoint("BOTTOMLEFT", 10, 8); pathText:SetPoint("RIGHT", -24, 0)
+pathText:SetPoint("BOTTOMLEFT", 10, 8); pathText:SetWidth(GF.BASE_W - 34)
 pathText:SetJustifyH("LEFT"); pathText:SetTextColor(0.6, 0.85, 1)
 pathText:SetWordWrap(true); if pathText.SetMaxLines then pathText:SetMaxLines(2) end
 
@@ -147,13 +148,13 @@ card:SetPoint("TOPLEFT", 34, -50); card:SetPoint("BOTTOMRIGHT", -34, 26)
 card.bg = card:CreateTexture(nil, "BACKGROUND"); card.bg:SetAllPoints(); card.bg:SetColorTexture(0.3, 0.6, 0.9, 0.10)
 card.icon = card:CreateTexture(nil, "ARTWORK"); card.icon:SetSize(30, 30); card.icon:SetPoint("TOPLEFT", 6, -6)
 card.title = card:CreateFontString(nil, "OVERLAY", U.Font("Large"))
-card.title:SetPoint("TOPLEFT", card.icon, "TOPRIGHT", 8, -2); card.title:SetPoint("RIGHT", -6, 0)
+card.title:SetPoint("TOPLEFT", card.icon, "TOPRIGHT", 8, -2)
 card.title:SetJustifyH("LEFT"); card.title:SetWordWrap(true); card.title:SetMaxLines(3)
 card.note = card:CreateFontString(nil, "OVERLAY", U.Font("Body"))
-card.note:SetPoint("TOPLEFT", card.icon, "BOTTOMLEFT", 0, -8); card.note:SetPoint("RIGHT", -6, 0)
+card.note:SetPoint("TOPLEFT", card.icon, "BOTTOMLEFT", 0, -8)
 card.note:SetJustifyH("LEFT"); card.note:SetWordWrap(true); card.note:SetMaxLines(8); card.note:SetTextColor(0.85, 0.85, 0.85)
 card.where = card:CreateFontString(nil, "OVERLAY", U.Font("Small"))
-card.where:SetPoint("BOTTOMLEFT", 6, 6); card.where:SetPoint("RIGHT", -6, 0)
+card.where:SetPoint("BOTTOMLEFT", 6, 6)
 card.where:SetJustifyH("LEFT"); card.where:SetWordWrap(false); card.where:SetTextColor(0.6, 0.85, 1)
 card:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 card:SetScript("OnClick", function(self, button)
@@ -287,10 +288,20 @@ function GF.FitHeight()
         f:SetHeight(math.max(GF.BASE_H, 56 + (empty:IsShown() and sh(empty) or 0) + 30))
         return
     end
+    -- Give every text its width first: a string anchored by two points reports a one-line height until the client
+    -- has laid it out, and a height measured too small is how the note ended up printed over a wrapped title.
+    local cardW = math.max(160, (f:GetWidth() or GF.BASE_W) - 68)
+    card.title:SetWidth(cardW - 50)       -- 6 pad + 30 icon + 8 gap ... 6 pad
+    card.note:SetWidth(cardW - 12)
+    card.where:SetWidth(cardW - 12)
+    pathText:SetWidth(math.max(120, (f:GetWidth() or GF.BASE_W) - 34))
     local head = math.max(30, sh(card.title) + 2)
     local note = sh(card.note)
     local where = sh(card.where)
-    local cardH = 6 + head + (note > 0 and (8 + note) or 0) + (where > 0 and (8 + where) or 0) + 8
+    -- the note starts under whichever is taller, the icon or the (possibly wrapped) title
+    card.note:ClearAllPoints()
+    card.note:SetPoint("TOPLEFT", card, "TOPLEFT", 6, -(6 + head + 8))
+    local cardH = 6 + head + (note > 0 and (8 + note) or 0) + (where > 0 and (10 + where) or 0) + 8
     local foot = math.max(26, sh(pathText) + 14)
     card:ClearAllPoints()
     card:SetPoint("TOPLEFT", 34, -50); card:SetPoint("BOTTOMRIGHT", -34, foot)
