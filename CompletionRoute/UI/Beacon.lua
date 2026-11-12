@@ -45,6 +45,18 @@ local function cleanName(n)
     return n
 end
 
+-- each raw name one step gives: the pieces of its T tag, then the first title pattern of its action that matches
+local function eachStepName(s, fn)
+    if s.target then for piece in tostring(s.target):gmatch("[^;]+") do fn(piece) end end
+    local pats = TITLE_PATTERNS[s.action]
+    if pats then
+        for _, p in ipairs(pats) do
+            local m = s.title and s.title:match(p)
+            if m then fn(m) break end
+        end
+    end
+end
+
 -- returns { [lowercased name] = displayName }
 function B.WantedNames()
     local out, n = {}, 0
@@ -58,19 +70,27 @@ function B.WantedNames()
     -- sticky steps that are still open also count (keep those active)
     for _, s in ipairs(NS.Progress.Upcoming(4)) do steps[#steps + 1] = s end
     for _, s in ipairs(steps) do
-        if s then
-            if s.target then for piece in tostring(s.target):gmatch("[^;]+") do add(piece) end end
-            local pats = TITLE_PATTERNS[s.action]
-            if pats then
-                for _, p in ipairs(pats) do
-                    local m = s.title and s.title:match(p)
-                    if m then add(m) break end
-                end
-            end
-        end
+        if s then eachStepName(s, add) end
     end
     B.count = n
     return out, n
+end
+
+-- The lower-cased names of the NPC or creature one step is about (the same names the markers look for), as a list.
+-- Core/Contribute.lua matches a killed or looted creature's name against them, and draws that creature's learned
+-- areas for the step.
+function B.StepNames(step)
+    local out = {}
+    if not step then return out end
+    eachStepName(step, function(name)
+        name = cleanName(name)
+        if name then
+            name = name:lower()
+            for i = 1, #out do if out[i] == name then return end end
+            out[#out + 1] = name
+        end
+    end)
+    return out
 end
 
 -- ---------------------------------------------------------------------------
