@@ -1,5 +1,21 @@
 # Status / handoff (2026-11-12: one build, the public one; a full rebake is needed)
 
+## 2026-11-12: Contribute records creatures, objects and items, and draws them (`todo-contribute`)
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `todo-contribute` (worktree `wt-contrib`), cut
+from `master` at `f30bbc1`. Not merged, not pushed, not installed. Details: `docs/CONTRIBUTE.md`.
+
+| Part | What it does now |
+|---|---|
+| `Core/Contribute.lua` | While the box is ticked and outside instances: a creature the player or pet hurt that dies (combat log, Classic clients) or a looted corpse gives `N:<npc id>`; a looted chest, treasure, herb or ore gives `O:<object id>`; an item in the loot that the current or next steps name (`L`, `U`) gives `I:<item id>`. One sample per key every 5 s; a rare (`rare`, `rareelite`) is a flag in its record. Same grid, weights, 80-cell cap and export format. The combat log is registered only while ticked and outside instances, never on Retail 12.x; its handler makes no table per event. |
+| World map | Beside the step's own circles: its items (purple), its creature (red, a rare outlined) and its object (gold), up to 16 circles from one reused frame pool. A step finds its creature by name (`UI/Beacon.lua` `StepNames`) and by links that hold ids only. |
+| Data repository | `tools/contrib.py` accepts `N:`, `O:`, `I:` keys (branch `contribute-kinds` there, commit `ce6eab3`, not pushed). |
+
+**Tests** (each once through `heavy.sh`): `test_contribute.lua` 89 pass (58 new); `validate_toc.lua`, `test_load_all.lua`,
+`test_offline.lua`, `test_step_window.lua`, `test_progress_keys.lua`, `test_quest_auto.lua`, `test_contrib_gen.py`
+pass; the data repository's 56 unit tests pass (2 new). Not done: the guide window's tooltip (`UI/GuideFrame.lua`)
+still says "quest ids"; no generator reads the new keys yet.
+
 ## 2026-11-12 morning: merged player contributions reach the shipped guides (`contributions-into-guides`)
 
 Offline only. **Nothing here has run in a real WoW client.** Branch `contributions-into-guides` (worktree
