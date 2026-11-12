@@ -182,6 +182,29 @@ the live window.
 * Usage: a 5-hour window lasted about 40 minutes with four agents at the highest effort. Run at most one agent
   beside the main session, or none.
 
+**Update 2026-11-11, 19:00. Published; rebake paused; four clients on the new build.**
+* **Published.** PR #4 (`integration`) is merged into `master` on GitHub, merged locally with the noreply identity.
+  Before the push the owner's work email was rewritten out of every commit's author and committer field
+  (`git filter-repo --mailmap` in a scratch clone; every tree unchanged; a fresh clone shows only the noreply
+  address). `refs/pull/1-3/head` on GitHub still hold the old commits; only GitHub Support can remove them. The
+  owner's global `git config user.email` is still the work address: any new repo needs a repo-local `user.email`.
+  `repo/` is on the rewritten history; only `master` exists besides the branch in use.
+* **Rebake paused at 895 of 2,618 guides.** tbc (352) and forever (243) are done; era has 200 of 236 rows; mop (769)
+  and retail (1,018) have none, so those two play in author order with the live window. It stopped twice on its
+  free-disk guard: the internal disk fell to 8 GB (the owner's floor) while other jobs ran on the Mac and swap grew
+  to 4 GB with a game client open. This project uses under 2 GB. **Resume** when the disk has room and no client is
+  being played: `caffeinate -is nice -n 10 venv/bin/python tools/bake_resume.py --min-free-gb 9` from `repo/` (about
+  4 hours; resumable). Then `luajit -joff tools/test_route_order.lua` must pass, then re-run `tools/install.sh`.
+* **Installed** (19:00) on `_classic_era_`, `_anniversary_`, `_classic_`, `_retail_`: today's code and data, with the
+  partial bake. **Not on `_forever_`** (it was running; it still has the 11-10 beta). The 11-10 addon folders and the
+  CompletionRoute SavedVariables of those four clients are in
+  `/Volumes/x10/Video Games/Mac/CompletionRoute-archive/2026-11-10-beta/` (restore by copying back).
+* **Drive working tree not synced** (it is the 11-10 beta, code and data): the regenerated data is about 150 MB and
+  the internal disk is at the floor. The companion app installs from Drive, so until Drive is synced its button
+  installs the OLD build; sync code and data together (`rsync -a` without `--delete`, from `repo/`), then archive the
+  superseded `Guides/Imported_Storylines_retail.lua` there too.
+* The `_wip-backup` bundle in Drive was removed (GitHub has the work).
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |

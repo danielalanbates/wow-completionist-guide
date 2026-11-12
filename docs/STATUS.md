@@ -47,8 +47,12 @@ Offline only. **Nothing here has run in a real WoW client.** Branch `integration
     variables, a second character, a second client through the sync, a regenerated guide between sessions.
 * **Not verified in a client and most likely to need a beta report:** the arrow's combat behaviour (it now stays as it
   is during a fight and updates after), teleport buttons, auto accept / turn-in, the scrolling options page.
-* **Rebake:** started 17:08 with the gate on, 2,618 quest guides (tbc 352, forever 243, era 236, mop 769, retail
-  1,018). Until it ends every guide plays in author order with the live window.
+* **Rebake (gate on): paused at 895 of 2,618 guides** when the Mac's disk reached the 8 GB floor (not this project's
+  files). Done: tbc 352 (227 baked orders kept), forever 243 (130 kept), era 200 of 236 (123 kept so far). Not
+  started: mop 769, retail 1,018; they play in author order with the live window. The gate rejected 3 to 6 of each
+  batch of about 15 baked orders as slower in the simulated player. Resume: HANDOFF, update of 19:00.
+* **Published** as PR #4, merged into `master`. **Installed** on Era, TBC, MoP and Retail (not WoW Forever, which was
+  running). The Drive copy is not synced yet (disk).
 
 
 ## 2026-11-11: Coverage push A: achievements, item-started quests, storylines (`coverage-ach`)
