@@ -52,11 +52,13 @@ end
 -- title line, right to left: close, "..." (the rarely used things), Routes, the Contribute box and its word
 -- closing prints where the way back is, once a session: the window has no other button once it is hidden, and the
 -- owner does not type commands (UI/Options.lua puts "Show step window" and "Routes" on the addon's options page)
-local bClose = smallButton("x", 20, "Hide this window (Options > AddOns > CompletionRoute has a button that shows it again)", function()
+local bClose = smallButton("x", 20, "Hide this window (a left click on the minimap button, or Options > AddOns > CompletionRoute, shows it again)", function()
     f:Hide()
     if not GF.closeHintShown then
         GF.closeHintShown = true
-        NS:Print("Step window hidden. To show it again: Esc > Options > AddOns > CompletionRoute > Show step window (or type /cr). Picking a route shows it too.")
+        local mm = NS.db and NS.db.profile.minimapButton ~= false
+        NS:Print("Step window hidden. To show it again: " .. (mm and "left-click the minimap button, or " or "")
+            .. "Esc > Options > AddOns > CompletionRoute > Show step window (or type /cr). Picking a route shows it too.")
     end
 end)
 bClose:SetPoint("TOPRIGHT", -HG.edge, -6)

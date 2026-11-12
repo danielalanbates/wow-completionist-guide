@@ -55,6 +55,7 @@ UI\GuideFrame.lua
 UI\Beacon.lua
 UI\GuideMenu.lua
 UI\Options.lua
+UI\Minimap.lua
 UI\Log.lua
 UI\ItemScore.lua
 Adapters\DynamicQuests.lua
