@@ -40,10 +40,10 @@ local function load(path)
     assert(loadfile("CompletionRoute/" .. path))(ADDON, NS)
 end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI, EXTRA[flavor] or TAXI,
-    "Data/Transit.lua", "Data/Imported_Entrances.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
+    "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
     "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua",
     "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Progress.lua", "Core/Instances.lua",
-    "Guides/Imported_Wiki_" .. flavor .. ".lua", "Guides/Imported_Quests_" .. flavor .. "_gaps.lua" }) do load(f) end
+    "Guides/Imported_Wiki_" .. flavor .. ".lua" }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
 NS.Print, NS.Debug, NS.Error = function() end, function() end, function() end
@@ -73,7 +73,7 @@ for _, r in ipairs(RULES) do acc[r] = { A = { n = 0, abs = 0, sgn = 0 }, C = { n
 local kinds = { own = 0, npc = 0, ride = 0, zone = 0, none = 0 }
 local samples, guides, seen = 0, 0, 0
 for _, id in ipairs(G.list) do
-    if id:sub(1, 5) == "wiki:" or id:sub(1, 4) == "qdb:" or id:sub(1, 5) == "qpoi:" then
+    if id:sub(1, 5) == "wiki:" then
         seen = seen + 1
         if (seen - 1) % EVERY == 0 and samples < MAXS then
             local g = G.registry[id]
