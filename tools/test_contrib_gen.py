@@ -16,10 +16,14 @@ Part 1 needs only tracked files: how the areas file is read (trusted and confirm
 first, up to three points on one map), the step keys against the add-on's own (Core/Contribute.lua KeyFor through
 Core/Guide.lua, under luajit), the commit in the provenance line, the options, the packager rule on that line, the
 coverage count, and that tools/gen_completion_guides.py repeats the line and credits a contributed quest point.
-Part 2 runs the generator for Classic Era twice into the temp folder (tools/wiki/gen_wiki_guides.py --out): once with
-no contributions, once with the fixture.  It needs the gitignored inputs (tools/wiki/wiki.sqlite, tools/wiki/cache,
-tools/db2) and is SKIPPED, loudly, on a checkout without them.  Part 3 passes a contributed step through the
-quest-line generator (needs tools/db2/retail; skipped the same way).  --unit runs part 1 only.
+Part 2 runs the generator for Classic Era into the temp folder (tools/wiki/gen_wiki_guides.py --out): with no
+contributions, with the fixture, and with a broken areas file (the run goes on and writes what it writes without
+contributions).  It needs the gitignored inputs (tools/wiki/wiki.sqlite, tools/wiki/cache, tools/db2) and is SKIPPED,
+loudly, on a checkout without them.  Part 3 passes a contributed step through the quest-line generator (needs
+tools/db2/retail; skipped the same way).  Part 4 is the key check on every step: it invents one area for every key
+a Classic Era quest step can have (each with its own player count, so a note tells which key the generator looked
+up), runs the generator on that, and reads every step back through Core/Guide.lua and Core/Contribute.lua KeyFor.
+--unit runs part 1 only.  --keys retail (or any clients, comma-separated) runs part 4 alone for those clients.
 """
 import contextlib
 import hashlib
@@ -111,9 +115,11 @@ def raises(fn, *a, **k):
 KEYS_LUA = r'''
 package.path = "./?.lua;" .. package.path
 local ADDON, NS = "CompletionRoute", {}
-STUB_MAPS = dofile("tools/maps_era.lua")
+local flavor = arg[2] or "era"
+STUB_MAPS = dofile("tools/maps_" .. flavor .. ".lua")
 dofile("tools/stubs.lua")
-GetBuildInfo = function() return "x", "0", "2026", 11508 end
+local TOC = { era = 11508, tbc = 20506, mop = 50504, retail = 121500, forever = 16001 }
+GetBuildInfo = function() return "x", "0", "2026", TOC[flavor] end
 local function load(path) assert(loadfile("CompletionRoute/" .. path))(ADDON, NS) end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/ZoneAliases.lua",
     "Core/Contribute.lua" }) do load(f) end
@@ -126,21 +132,21 @@ for ln in io.lines(arg[1]) do
         local pts = {}
         for _, c in ipairs(st.coords or {}) do pts[#pts + 1] = ("%.1f,%.1f"):format(c.x * 100, c.y * 100) end
         io.write(tostring(NS.Contribute.KeyFor(st)), "\t", tostring(st.zone), "\t", table.concat(pts, ";"), "\t",
-            tostring(st.qid and st.qid[1]), "\n")
+            tostring(st.qid and st.qid[1]), "\t", tostring(ln:match("%(location: player contributions, (%d+) players?")), "\n")
     end
 end
 '''
 
 
-def addon_keys(tmp, guide_file):
-    """[(key, map, 'x,y;x,y', quest)] of the contributed steps of a guide file, as the add-on reads them; None without
-    luajit"""
+def addon_keys(tmp, guide_file, fl="era"):
+    """[(key, map, 'x,y;x,y', quest, players)] of the contributed steps of a guide file, as the add-on reads them, in
+    file order; None without luajit"""
     lj = shutil.which("luajit")
     if not lj:
         return None
     script = tmp / "contrib_keys.lua"
     script.write_text(KEYS_LUA, encoding="utf-8")
-    r = subprocess.run([lj, "-joff", str(script), str(guide_file)], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run([lj, "-joff", str(script), str(guide_file), fl], cwd=ROOT, capture_output=True, text=True)
     if r.returncode != 0:
         raise SystemExit("contrib_keys.lua failed: " + r.stderr[-600:])
     return [tuple(ln.split("\t")) for ln in r.stdout.splitlines() if ln]
@@ -214,10 +220,29 @@ def part1(tmp):
     check(none.areas == {} and none.commit is None, "a folder with no areas file for the client gives nothing")
     bad = tmp / "bad" / "areas"
     bad.mkdir(parents=True)
-    (bad / "era.json").write_text(json.dumps({"flavor": "retail", "areas": {}}), encoding="utf-8")
-    check(raises(gw.Contributions, tmp / "bad", "era", maps) is not None, "an areas file of another client stops the run")
-    (bad / "era.json").write_text("{ not json", encoding="utf-8")
-    check(raises(gw.Contributions, tmp / "bad", "era", maps) is not None, "a broken areas file stops the run")
+    good = {"map": 1429, "x": 50, "y": 50, "contributors": 2, "weight": 3, "confidence": "confirmed"}
+    real = json.dumps({"flavor": "era", "areas": {"A:1": [good]}})
+    unreadable = {
+        "another client's file": json.dumps({"flavor": "retail", "areas": {"A:1": [good]}}).encode(),
+        "broken JSON": b"{ not json", "an empty file": b"", "bytes that are not UTF-8": real.encode().replace(b"A:1", b"A:\xff"),
+        "a list": b"[1, 2]", "null": b"null", "areas that are a list": b'{"flavor": "era", "areas": []}',
+        "no flavor": json.dumps({"areas": {"A:1": [good]}}).encode(),
+        "brackets nested 100,000 deep": b'{"flavor": "era", "areas": {"A:1": ' + b"[" * 100000 + b"]" * 100000 + b"}}",
+    }
+    wrong = []
+    for name, raw in unreadable.items():
+        (bad / "era.json").write_bytes(raw)
+        try:
+            u = gw.Contributions(tmp / "bad", "era", maps)
+            if u.areas or not u.problem or u.commit is not None:
+                wrong.append((name, u.areas, u.problem))
+        except BaseException as e:      # SystemExit too: one bad public file must not stop the generator
+            wrong.append((name, type(e).__name__, str(e)[:80]))
+    check(not wrong, "an areas file that cannot be read (broken, empty, another client's, nested without end) is not used "
+          "and does not stop the run; .problem says why", wrong)
+    (bad / "era.json").write_bytes(b"\xef\xbb\xbf" + real.encode())
+    u = gw.Contributions(tmp / "bad", "era", maps)
+    check(u.problem is None and list(u.areas) == ["A:1"], "a file saved with a byte-order mark is read", (u.problem, u.areas))
     odd = {"flavor": "era", "areas": {"A:1": "x", "T:1": [{"map": True, "x": 1, "y": 1, "contributors": 2, "weight": 3,
                                                           "confidence": "trusted"}],
                                       "T:2": [{"map": 1429, "x": float("nan"), "y": 1, "contributors": 2, "weight": 3,
@@ -230,6 +255,35 @@ def part1(tmp):
     o = gw.Contributions(tmp / "bad", "era", maps)
     check(o.areas == {} and o.skipped["malformed"] == 5, "malformed areas (wrong types, NaN, an unknown confidence) are dropped",
           (o.areas, dict(o.skipped)))
+    # hostile numbers and keys, written as raw JSON: none may raise, none may reach a guide
+    huge = "9" * 400
+    row = '{"map": %s, "x": %s, "y": %s, "contributors": %s, "weight": %s, "confidence": "%s"}'
+    cases = {
+        "A:10": row % (huge, 50, 50, 2, 3, "trusted"), "A:11": row % (1429, huge, 50, 2, 3, "trusted"),
+        "A:12": row % (1429, 50, 50, huge, huge, "trusted"), "A:13": row % (1429, 50, 50, 2, "1e999", "trusted"),
+        "A:14": row % (1429, "Infinity", 50, 2, 3, "trusted"), "A:15": row % (1429, 99.97, 50, 2, 3, "trusted"),
+        "A:16": row % (1429, 50, 0.04, 2, 3, "trusted"), "A:17": row % (1429, 100, 50, 2, 3, "trusted"),
+        "A:18": row % (1429, -3, 50, 2, 3, "trusted"), "A:19": row % (1429, 50, 50, 1, 3, "confirmed"),
+        "A:20": row % (1429, 50, 50, 9, 3, "confirmed"), "A:21": row % (1429.5, 50, 50, 2, 3, "confirmed"),
+        "A:22": row % (1429, 50, 50, 2, 3, "Trusted"), "A:23": row % (1429, 50, 50, 0, 3, "trusted"),
+    }
+    n_bad = len(cases)
+    cases.update({"A:30": row % (947, 50, 50, 2, 3, "confirmed"), "A:31": row % (1415, 50, 50, 2, 3, "trusted"),
+                  "A:40\\n": row % (1429, 50, 50, 2, 3, "confirmed"), "A:\\u0664\\u0661": row % (1429, 50, 50, 2, 3, "confirmed"),
+                  "A:41|M|1.0,1.0|": row % (1429, 50, 50, 2, 3, "confirmed"), "a:42": row % (1429, 50, 50, 2, 3, "confirmed"),
+                  "C:43": row % (1429, 50, 50, 2, 3, "confirmed"), "C:44:100": row % (1429, 50, 50, 2, 3, "confirmed"),
+                  "A:50": row % (1429, 50, 50, 2, 3, "confirmed")})
+    (bad / "era.json").write_text('{"flavor": "era", "areas": {' + ", ".join(f'"{k}": [{v}]' for k, v in cases.items()) + "}}",
+                                  encoding="utf-8")
+    try:
+        h = gw.Contributions(tmp / "bad", "era", maps)
+        got_h = (sorted(h.areas), dict(h.skipped), h.problem)
+    except BaseException as e:
+        got_h = (type(e).__name__, str(e)[:120])
+    check(got_h == (["A:50"], {"malformed": n_bad, "continent or world map": 2, "not a quest step": 6}, None),
+          "numbers too long for a float, infinities, positions that print as 0.0 or 100.0, 'confirmed' by one player, more "
+          "players than weight, a continent or world map and keys that only look like a step key are dropped without an error",
+          got_h)
 
     print("step keys")
     check(gw.objective_key(52, 2, True, 2) == "C:52:2", "an objective step with |QO|n| has key C:<quest>:n")
@@ -341,7 +395,7 @@ def part2(tmp, cdir, sha):
     if missing:
         skip("the generator's gitignored inputs are missing (" + ", ".join(missing[:3]) + "): the generator was NOT run. "
              "Fetch and parse the wiki first (tools/wiki/README.md)")
-        return
+        return None
     build = gw.GUIDES / "Imported_Wiki_era.lua"
     watched = [build, gw.GUIDES / "Imported_Spine_era.lua", gw.WIKI, gw.VERIF, ROOT / "tools" / "wiki" / "cache" / "parts_era.json"]
     before = state(watched)
@@ -385,7 +439,7 @@ def part2(tmp, cdir, sha):
     }
     ok = check(all(pre.values()), "every fixture quest step is in the Classic Era guides", [k for k, v in pre.items() if not v])
     if not ok:
-        return
+        return base
     nopoint = ["A:46", "A:45", "A:176", "A:5805", "C:45:0", "C:52:1", "C:52:2", "C:3904:1", "T:37"]
     check(all("|M|" not in pre[k] for k in nopoint), "precondition: these steps have no wiki point", drift)
     check("the wiki's Sentinel Hill page" in pre["T:6181"], "precondition: A Swift Message's turn-in comes from a wiki place page", drift)
@@ -487,7 +541,7 @@ def part2(tmp, cdir, sha):
     else:
         c = gw.Contributions(cdir, "era", gw.wikimaps.Atlas().sets["era"])
         bad = []
-        for key, mid, pts, _q in got:
+        for key, mid, pts, _q, _n in got:
             want = c.tag(c.points(key, gw.CONTRIB_POINTS if key.startswith("C:") else 1)) if key in c.areas else None
             if not want or str(want[0]) != mid or want[1] != pts:
                 bad.append((key, mid, pts, want))
@@ -498,6 +552,22 @@ def part2(tmp, cdir, sha):
           "tools/coverage.py counts those quests as located and their contributed steps", found["quest-contrib"])
     check((with_dir / "Imported_Spine_era.lua").exists() and (with_dir / "parts_era.json").exists(),
           "the spine and its sidecar were written into the temp folder too")
+
+    # --- an areas file that cannot be read: the run goes on, says so, and writes what it writes without contributions ---
+    broken = tmp / "broken" / "contributions"
+    (broken / "areas").mkdir(parents=True)
+    (broken / "areas" / "era.json").write_text('{"flavor": "era", "areas": {"A:46": [{"map": 1429, "x": 74.0', encoding="utf-8")
+    try:
+        log2 = run_generator(["era", "--contributions", str(broken), "--out", str(tmp / "brokenout")])
+    except BaseException as e:
+        log2 = None
+        check(False, "a broken areas file does not stop the generator", f"{type(e).__name__}: {str(e)[:200]}")
+    if log2 is not None:
+        check(log2.count("WARNING: player contributions of era NOT USED") == 2, "a broken areas file: the run says so, per client and at the end")
+        same = [n for n in ("Imported_Wiki_era.lua", "Imported_Spine_era.lua")
+                if (tmp / "brokenout" / n).read_bytes() == (base_dir / n).read_bytes()]
+        check(len(same) == 2, "... and the guide and the spine are byte-identical to the run without contributions", same)
+    return base
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -542,18 +612,141 @@ def part3(tmp, sha):
     check(len(gate("Guides/Imported_QuestLines_retail.lua", text.replace(hdr + "\n", "", 1))) == 1, "... which fails it without the line")
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+PLACE_NOTE = "(location: the wiki's "
+
+
+def guides_of(text):
+    """[[step lines]] per guide of a generated file and faction gate: a guide for both factions can hold a quest
+    twice, once per faction (tools/wiki/gen_spine.py), and a player sees one of the two"""
+    out, cur = [], None
+    for ln in text.splitlines():
+        if ln.startswith("R({"):
+            cur = {}
+            out.append(cur)
+        elif cur is not None and re.match(r"^[ACT] ", ln):
+            m = re.search(r"\|FACTION\|(\w+)\|", ln)
+            cur.setdefault(m.group(1) if m else "", []).append(ln)
+    return [g for by_faction in out for g in by_faction.values()]
+
+
+def part4(tmp, fl, base=None):
+    """the key check on every step.  One invented area for every key a quest step of this client can have, each with
+    its own player count, so the count in a step's note tells which key the generator looked up for that step; the
+    add-on must give the same step the same key."""
+    print(f"every step of the {fl} guides: the generator's key against the add-on's (an invented area for every key)")
+    need = [gw.WIKI, ROOT / "tools" / "wiki" / "cache" / "wiki_raw.sqlite", ROOT / "tools" / "db2" / fl / "QuestV2.csv"]
+    if not all(p.exists() for p in need):
+        skip(f"the generator's gitignored inputs are missing: the {fl} key check was NOT run")
+        return
+    if base is None:
+        run_generator([fl, "--no-contributions", "--out", str(tmp / f"keys_base_{fl}")])
+        base = (tmp / f"keys_base_{fl}" / f"Imported_Wiki_{fl}.lua").read_text(encoding="utf-8")
+    b = step_lines(base)
+    top = {}                                    # quest -> highest |QO| number of its steps
+    for ln in b:
+        m = re.search(r"\|QO\|(\d+)\|", ln)
+        q = quest_of(ln)
+        top[q] = max(top.get(q, 0), int(m.group(1)) if m else 0)
+    maps = gw.wikimaps.Atlas().sets[fl]
+    mid = next(i for i in sorted(maps.maps) if maps.maps[i]["type"] == 3 and maps.maps[i]["w"] and maps.maps[i]["h"])
+    areas, by_n = {}, {}
+    for q in sorted(top):
+        for key in [f"A:{q}", f"T:{q}"] + [f"C:{q}:{o}" for o in range(0, min(top[q] + 2, 100))]:
+            n = len(by_n) + 2                   # this key's player count: no other key has it
+            x, y = 5 + (n % 900) / 10, 5 + ((n // 900) % 900) / 10
+            by_n[n] = (key, gw.fmt_xy(x, y))
+            areas[key] = [{"map": mid, "x": x, "y": y, "r": 0.5, "weight": n, "cells": 1, "contributors": n, "confidence": "confirmed"}]
+    repo = tmp / f"keys_{fl}"
+    (repo / "contributions" / "areas").mkdir(parents=True)
+    (repo / "contributions" / "areas" / f"{fl}.json").write_text(json.dumps({"flavor": fl, "areas": areas}), encoding="utf-8")
+    git(repo, "init", "-q")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "invented areas for every key")
+    out_dir = tmp / f"keys_out_{fl}"
+    run_generator([fl, "--contributions", str(repo / "contributions"), "--out", str(out_dir)])
+    new_path = out_dir / f"Imported_Wiki_{fl}.lua"
+    new = new_path.read_text(encoding="utf-8")
+    n_lines = step_lines(new)
+    got = addon_keys(tmp, new_path, fl)
+    if got is None:
+        skip("luajit is not installed: the generated steps were not read back through the add-on")
+        return
+    credited = [ln for ln in n_lines if NOTE in ln]
+    wrong = []
+    for ln, (key, zone, pts, _q, n) in zip(credited, got):
+        want = by_n.get(int(n)) if n.isdigit() else None
+        act = ln[0]
+        if not want or want[0] != key or want[1] != pts or zone != str(mid) or key[0] != {"A": "A", "T": "T", "C": "C"}[act]:
+            wrong.append((ln[:70], key, want))
+    kinds = Counter(k[0][0] for k in got)
+    check(len(got) == len(credited) and len(got) > 500 and not wrong,
+          f"{len(got)} steps took a contributed point ({kinds['A']} accepts, {kinds['T']} turn-ins, {kinds['C']} objectives, "
+          f"{sum(1 for k in got if k[0].endswith(':0') and k[0][0] == 'C')} of them without |QO|): for every one the add-on's key "
+          "(Core/Contribute.lua KeyFor on the step parsed by Core/Guide.lua) is the key whose area the generator gave it, and "
+          "the add-on reads that area's map and point", wrong[:5] or (len(got), len(credited)))
+    check(len({k[0] for k in got if k[0][0] == "C"}) > 1 and any(k[0].split(":")[-1] not in ("0", "1") for k in got if k[0][0] == "C"),
+          "objectives beyond the first were tested too")
+    # no key twice in one guide (per faction): two steps a player sees in a guide never take the same area
+    twice = 0
+    for g in guides_of(new):
+        ns = [m.group(1) for m in (re.search(r"\(location: player contributions, (\d+) players?", ln) for ln in g) if m]
+        twice += len(ns) - len(set(ns))
+    check(twice == 0, "no two steps of one guide took the same key's area", twice)
+    # a point the wiki or the client's quest pin gave is never replaced, moved or re-credited.  (Lines are compared
+    # without |PRE| and the faction gate: a quest whose guide changes, because its contributed steps now have a map,
+    # is copied per faction or not by tools/wiki/gen_spine.py, with the same steps.)
+    strip = re.compile(r"\|PRE\|[\d;]+(?=\|)|\|FACTION\|(?:Alliance|Horde)(?=\|)")
+    own = {strip.sub("", ln) for ln in b if "|M|" in ln and PLACE_NOTE not in ln}
+    kept = {strip.sub("", ln) for ln in n_lines if NOTE not in ln}
+    lost = sorted(own - kept)
+
+    def ident(lines):
+        return {(ln[0], quest_of(ln), (re.search(r"\|QO\|(\d+)\|", ln) or [None, "0"])[1]) for ln in lines}
+    check(len(own) > 500 and not lost and ident(b) == ident(n_lines),
+          f"all {len(own)} different steps with a wiki point or a quest pin are unchanged although every one of them had a "
+          "contributed area; no quest step was added or removed", (len(lost), lost[:3], len(ident(b) ^ ident(n_lines))))
+    # what is left without a point: only objective steps the add-on cannot tell apart (several without |QO| in a quest)
+    odd = []
+    for g in guides_of(new):
+        untagged = Counter(quest_of(ln) for ln in g if ln.startswith("C ") and "|QO|" not in ln)
+        for ln in g:
+            if "|M|" in ln:
+                continue
+            if not (ln.startswith("C ") and "|QO|" not in ln and untagged[quest_of(ln)] > 1):
+                odd.append(ln[:80])
+    check(not odd, "with an area for every key, the only steps left without a point are objective steps without |QO| that "
+          "share the add-on's key 0 with another step of their quest", (len(odd), odd[:3]))
+    check(not any(NOTE in ln for g in guides_of(new) for ln in g
+                  if ln.startswith("C ") and "|QO|" not in ln
+                  and sum(1 for o in g if o.startswith("C ") and "|QO|" not in o and quest_of(o) == quest_of(ln)) > 1),
+          "... and none of those took an area")
+    check(pr.CONTRIB_HEADER.search(new[:4000]) is not None and gate(f"Guides/Imported_Wiki_{fl}.lua", new) == [],
+          "the packager's gate passes that file (its header names the commit of the scratch checkout)")
+
+
 def main():
     if not GIT:
         raise SystemExit("test_contrib_gen: git is needed (a scratch checkout stands in for the data repository)")
     tmp = Path(tempfile.mkdtemp(prefix="cr-test-contrib-", dir=TMPROOT))
     guides_before = sorted((p.name, p.stat().st_size, p.stat().st_mtime_ns) for p in gw.GUIDES.glob("Imported_*.lua"))
+    keys_for = next((a.partition("=")[2] or (sys.argv[i + 1] if i + 1 < len(sys.argv) else "")
+                     for i, a in enumerate(sys.argv) if a == "--keys" or a.startswith("--keys=")), None)
     try:
-        cdir, sha = part1(tmp)
-        if "--unit" in sys.argv:
-            print("parts 2 and 3 (the generators) not run: --unit")
+        if keys_for is not None:
+            for fl in keys_for.split(","):
+                if fl not in gw.FLAVORS:
+                    raise SystemExit(f"test_contrib_gen: --keys takes clients ({', '.join(gw.FLAVORS)}), not {fl!r}")
+                part4(tmp, fl)
         else:
-            part2(tmp, cdir, sha)
-            part3(tmp, sha)
+            cdir, sha = part1(tmp)
+            if "--unit" in sys.argv:
+                print("parts 2 to 4 (the generators) not run: --unit")
+            else:
+                base = part2(tmp, cdir, sha)
+                part3(tmp, sha)
+                if base is not None:
+                    part4(tmp, "era", base)
         print("the checkout")
         check(sorted((p.name, p.stat().st_size, p.stat().st_mtime_ns) for p in gw.GUIDES.glob("Imported_*.lua")) == guides_before,
               "no generated guide under CompletionRoute/Guides was created, changed or removed")

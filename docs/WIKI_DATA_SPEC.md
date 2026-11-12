@@ -79,7 +79,7 @@ Where a quest's giver or ender gets coordinates, in priority order:
 4. **Player contributions** (2026-11-12; `docs/CONTRIBUTE.md`). The merged areas of the open data repository
    (`wow-completionist-data`, `contributions/areas/<flavor>.json`, CC BY-SA 4.0): where players stood when they accepted the
    quest (`A:<quest>`), turned it in (`T:<quest>`) or made progress on an objective (`C:<quest>:<QO number>`, 0 for a step
-   without `QO`; the add-on's own keys, `Core/Contribute.lua` `KeyFor`). Only areas marked `trusted` or `confirmed`, on a map
+   without `QO`; the add-on's own keys, `Core/Contribute.lua` `KeyFor`). Only areas marked `trusted` or `confirmed`, on a zone, city, dungeon or micro map
    the client has; `single` is ignored. Accept and turn-in take the heaviest area; an objective takes up to three on one map
    (`M|x,y;x,y`). Note `(location: player contributions, N players)`; it ships, and the file header then names the data
    repository, its licence and the commit; `tools/package_release.py` fails a file that credits contributions without that

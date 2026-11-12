@@ -64,7 +64,8 @@ The rules live in [docs/WIKI_DATA_SPEC.md](../../docs/WIKI_DATA_SPEC.md); the co
   QuestPOI tables and the client build whenever a step uses a quest pin; `package_release.py` fails a file without it.
 * **Player contributions (2026-11-12).** Between the quest pin and the place page: the merged area of the step's key
   in `<contributions>/areas/<flavor>.json` (`A:<quest>`, `T:<quest>`, `C:<quest>:<QO number>`), when it is marked
-  `trusted` or `confirmed` and lies on a map the client has. Accept and turn-in take the heaviest area, an objective
+  `trusted` or `confirmed` and lies on a zone, city, dungeon or micro map the client has (never a continent or the
+  world map). A broken areas file is not used: the run warns and goes on as with no contributions. Accept and turn-in take the heaviest area, an objective
   up to three on one map. Note `(location: player contributions, N players)`; the file header names the data
   repository and its commit, and `package_release.py` fails a file without that line. The folder is
   `--contributions DIR`, else `$CR_CONTRIB`, else `../wow-completionist-data/contributions`; `--no-contributions`

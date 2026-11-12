@@ -71,8 +71,13 @@ forward-arrow click far from five accepts therefore changes nothing.
 | turn-in | `T:<quest>` | the heaviest area |
 | objective | `C:<quest>:<n>`, `n` = the step's `QO` number, `0` for a step without `QO` | up to three areas, all on the heaviest one's map (the arrow goes to the nearest: `Router.NearestCoord`) |
 
-   * An area on a map the client does not have is skipped. So is a malformed one. The file is public input: only a
-     map id, positions and a player count ever reach a guide.
+   * An area on a map the client does not have is skipped. So is one on a continent or the world map (two players
+     "in the same place" there can be hundreds of yards apart) and a malformed one: a position that would print on
+     the map's edge, a `confirmed` area with one player, more players than weight, a number that is not one. The
+     file is public input: only a map id, positions and a player count ever reach a guide.
+   * An areas file that cannot be read at all (broken JSON, another client's file, larger than 100 MB) is not used.
+     The run prints a `WARNING` for that client and again at the end, goes on, and writes that client's files as
+     with no contributions.
    * The keys are the add-on's own (`Core/Contribute.lua` `KeyFor`); `tools/test_contrib_gen.py` parses the
      generated steps with `Core/Guide.lua` and compares.
    * When the wiki's objective count disagrees with the client's (Retail), the steps carry no `QO` and all share

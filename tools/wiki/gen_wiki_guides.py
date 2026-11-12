@@ -52,7 +52,7 @@ Step location priority (docs/WIKI_DATA_SPEC.md 3/4):
   4. a place players contributed (class Contributions): the merged area of the step's key, "A:<quest>" for an accept,
      "T:<quest>" for a turn-in, "C:<quest>:<objective>" for an objective (the number of the step's |QO| tag, 0 for a
      step without one: Core/Contribute.lua KeyFor).  Only areas marked "trusted" or "confirmed" on a map this client
-     has; accept and turn-in take the heaviest, an objective up to three on one map.  Note "(location: player
+     has (not a continent or the world map); accept and turn-in take the heaviest, an objective up to three on one map.  Note "(location: player
      contributions, N players)".  Ships; the file header then names the data repository and its commit.
      A wiki point more than 100 yd from the contributed area of the same step on the same map is logged
      (wiki_db2_conflict, field A_xy_contrib / C_xy_contrib / T_xy_contrib): a lead for fixing the wiki, the guide
@@ -122,7 +122,8 @@ CONTRIB_REPO = "wow-completionist-data"
 CONTRIB_URL = "https://github.com/danielalanbates/wow-completionist-data"
 CONTRIB_DEFAULT = ROOT.parent / CONTRIB_REPO / "contributions"      # a sibling checkout of the data repository
 CONTRIB_NOTE = "(location: player contributions"                    # tools/package_release.py looks for this
-CONTRIB_KEY = re.compile(r"^(?:[AT]:\d{1,7}|C:\d{1,7}:\d{1,2})$")    # quest step keys (Core/Contribute.lua KeyFor)
+CONTRIB_KEY = re.compile(r"(?:[AT]:[0-9]{1,7}|C:[0-9]{1,7}:[0-9]{1,2})")    # quest step keys (Core/Contribute.lua KeyFor)
+CONTRIB_MAX_BYTES = 100_000_000             # an areas file larger than this is not read (the file is public input)
 CONTRIB_USED = ("trusted", "confirmed")     # "single" (one player, nobody agrees yet) is never used
 CONTRIB_POINTS = 3                          # an objective step takes up to this many areas; accept and turn-in one
 CONTRIB_FAR_YD = 100.0                      # a wiki point further than this from the contributed area is logged
@@ -370,8 +371,10 @@ class Contributions:
     Contribute box (docs/CONTRIBUTE.md).  Per step key it lists areas {map, x, y, r, weight, cells, contributors,
     confidence}.  Kept here: quest step keys (A:<quest>, T:<quest>, C:<quest>:<objective>), confidence "trusted" (a
     maintainer's own play) or "confirmed" (two or more players in the same place), on a map this client has and can
-    place a point on; heaviest first.  The file is public input: every field is checked, and only a map id, positions
-    and a player count ever reach a guide."""
+    place a point on (a zone, city, dungeon or micro map as for a wiki point, never a continent or the world map, where
+    "the same place" is hundreds of yards wide); heaviest first.  The file is public input: every field is checked, and
+    only a map id, positions and a player count ever reach a guide.  A file that cannot be read as an areas file of
+    this client is not used at all (self.problem says why; the run goes on as with no contributions and says so)."""
 
     def __init__(self, folder, fl, maps):
         self.folder, self.fl = Path(folder), fl
@@ -379,18 +382,24 @@ class Contributions:
         self.areas = {}                 # key -> [{map, x, y, n (players), w (weight), confidence}], heaviest first
         self.skipped = Counter()        # why -> areas not used
         self.commit = None
+        self.problem = None             # why the file was not read at all (broken, another client's, too large)
         if not self.path.is_file():
             return
         try:
-            doc = json.loads(self.path.read_text(encoding="utf-8"))
+            if self.path.stat().st_size > CONTRIB_MAX_BYTES:
+                raise ValueError(f"larger than {CONTRIB_MAX_BYTES} bytes")
+            doc = json.loads(self.path.read_text(encoding="utf-8-sig"))
+            if not isinstance(doc, dict) or not isinstance(doc.get("areas"), dict):
+                raise ValueError("no \"areas\" table")
+            if doc.get("flavor") != fl:
+                raise ValueError(f"it is the file of client {str(doc.get('flavor'))[:20]!r}")
             areas = doc["areas"]
-            if doc.get("flavor") != fl or not isinstance(areas, dict):
-                raise ValueError(f"flavor {doc.get('flavor')!r}, areas {type(areas).__name__}")
-        except (OSError, ValueError, KeyError, TypeError) as e:
-            raise SystemExit(f"gen_wiki_guides: {self.path} is not the contributions areas file of {fl}: {e}")
+        except (OSError, ValueError, RecursionError) as e:
+            self.problem = f"{type(e).__name__}: {str(e)[:200]}"
+            return
         for key in sorted(areas):
             rows = areas[key] if isinstance(areas[key], list) else [None]
-            if not CONTRIB_KEY.match(key):
+            if not CONTRIB_KEY.fullmatch(key):
                 self.skipped["not a quest step"] += len(rows)
                 continue
             keep = []
@@ -413,14 +422,22 @@ class Contributions:
         if a["confidence"] == "single":
             return "single"
         v = [a.get(k) for k in ("map", "x", "y", "contributors", "weight")]
-        if not all(isinstance(n, (int, float)) and not isinstance(n, bool) and math.isfinite(n) for n in v):
+        # (the size test comes first: math.isfinite cannot take an integer too long for a float)
+        if not all(isinstance(n, (int, float)) and not isinstance(n, bool) and -1e9 < n < 1e9 and math.isfinite(n)
+                   for n in v):
             return "malformed"
         m, x, y, n, w = v
-        if m != int(m) or n != int(n) or n < 1 or w <= 0 or not (0 < x < 100 and 0 < y < 100):
+        # the position as the guide prints it (one decimal) must lie inside the map, not on its edge; every player
+        # behind an area adds at least 1 to its weight, and "confirmed" means two or more of them (tools/contrib.py)
+        if m != int(m) or n != int(n) or n < 1 or w <= 0 or n > w or not (0.05 <= x < 99.95 and 0.05 <= y < 99.95):
+            return "malformed"
+        if a["confidence"] == "confirmed" and n < 2:
             return "malformed"
         mm = maps.maps.get(int(m))
         if not mm or not mm["w"] or not mm["h"]:
             return "unknown map"
+        if mm["type"] not in (3, 4, 5, 6):
+            return "continent or world map"
         return None
 
     def points(self, key, limit=1):
@@ -1009,7 +1026,7 @@ class Gen:
         poi = QuestPOI(fl, maps) if fl == "retail" else None
         contrib = Contributions(self.contrib_dir, fl, maps) if self.contrib_dir else None
         if contrib is not None and not contrib.areas:
-            self.contrib_seen[fl], contrib = contrib, None      # no areas file, or nothing usable in it
+            self.contrib_seen[fl], contrib = contrib, None      # no areas file, one that cannot be read, nothing usable
         elif contrib is not None:
             self.contrib_seen[fl] = contrib
         st = Counter()
@@ -1594,6 +1611,7 @@ def main(argv=None):
         print(f"player contributions: {cdir}" if cdir else "player contributions: none read (no contributions folder)")
     print(f"{len(g.rows)} wiki quest rows, {len({r['id'] for r in g.rows})} ids; "
           f"{g.history_marked} NPC coordinates read as Classic-map numbers (pre-4.0.3 page history)")
+    unread = []
     for fl in flavors:
         st = g.run(fl)
         s = st["steps"] or 1
@@ -1610,7 +1628,11 @@ def main(argv=None):
               + (f"; item-page points dropped for the reference point (over 300 yd): {st['item_points_far_from_fallback']}"
                  if measure else ""))
         cb = g.contrib_seen.get(fl)
-        if cb is not None and not cb.path.is_file():
+        if cb is not None and cb.problem:
+            unread.append(f"WARNING: player contributions of {fl} NOT USED: {cb.path} is not a readable areas file "
+                          f"of {fl} ({cb.problem}). {fl} was generated as with no contributions.")
+            print("       " + unread[-1])
+        elif cb is not None and not cb.path.is_file():
             print(f"       player contributions: no areas/{fl}.json in that folder (nothing changes for {fl})")
         elif cb is not None:
             print(f"       player contributions: {len(cb.areas)} step keys usable, commit {cb.commit}; areas not used: "
@@ -1627,6 +1649,8 @@ def main(argv=None):
     print("conflicts logged (docs/verification.sqlite wiki_db2_conflict):", dict(c))
     print(f"subzone rows corrected (a parent-zone row on the same page disagrees): {len(g.subzone_dropped)}; first: {g.subzone_dropped[:8]}")
     print("place-page points not used:", dict(sorted(g.place_rejected.items())))
+    for w in unread:        # once more at the end, where it is seen
+        print(w)
 
 
 if __name__ == "__main__":
