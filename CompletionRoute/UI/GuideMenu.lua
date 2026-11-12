@@ -98,7 +98,9 @@ function M.UpdateScopeLabel()
             b.label:SetTextColor(0.62, 0.62, 0.62)
         end
     end
-    scopeHint:SetText("Progress counts for " .. NS.Account.ScopeDetail(cur) .. ".")
+    -- owner's wording (2026-11-12): "Includes all progress from ..." rather than "Progress counts for ..."
+    local who = (cur == "char") and ((NS.Account.me and NS.Account.DisplayName(NS.Account.me)) or "this character") or NS.Account.ScopeDetail(cur)
+    scopeHint:SetText("Includes all progress from " .. who .. ".")
 end
 scope:SetScript("OnEnter", scopeTip)
 scope:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -292,7 +294,49 @@ end
 -- ---------------------------------------------------------------------------
 local REC_SHOWN, REC_PRICED = 10, 6
 local REC_TYPES = { Leveling = true, Quests = true }
+local REC_WIDE = 20       -- a zone route the leveling chain does not place, wider than this many levels, is not a pick
 local recCache = { key = nil, at = -1e9, list = {} }
+
+-- [zone guide id] = { spine guide, ... } of the leveling chain(s) this character can follow.  The chain places every
+-- zone part in a level band.  A zone route's own range can be misleading: a "both factions" zone route spans every
+-- level its neutral quests have ("Winterspring Quests 1-60", which the chain puts at 54-60), so Recommended asks the
+-- chain (owner's report, 2026-11-12: a new character was offered Winterspring and Duskwood).
+local spineOf, spineN = {}, -1
+local function spineParts()
+    if spineN == #G.list then return spineOf end
+    spineOf, spineN = {}, #G.list
+    local Cond = NS.Cond
+    for _, id in ipairs(G.list) do
+        local g = G.registry[id]
+        if g and g.part and (not Cond or not Cond.FactionMatch or Cond.FactionMatch(g.faction)) then
+            local l = spineOf[g.part]
+            if not l then l = {} spineOf[g.part] = l end
+            l[#l + 1] = g
+        end
+    end
+    return spineOf
+end
+local function placedFor(g, level)
+    local sp = spineParts()[g.id]
+    if sp then
+        for _, s in ipairs(sp) do
+            if (s.minlevel or 0) <= level and level <= (s.maxlevel or 999) then return true end
+        end
+        return false
+    end
+    return ((g.maxlevel or level) - (g.minlevel or level)) <= REC_WIDE
+end
+
+-- the name a Recommended row shows: no level range and no chain number ("002. Zephras Isle Quests 1-5" ->
+-- "Zephras Isle Quests"); the tooltip still has the full name
+local function recName(g)
+    local n = G.DisplayName(g)
+    n = (n:gsub("^%d+%.%s+", ""))
+    n = (n:gsub("%s+%d+%s*%-%s*%d+", ""))
+    n = (n:gsub("(Quests)%s+%d+", "%1"))
+    return n
+end
+M.RecName = recName
 
 local function zoneWorld(mid)
     local HBD = NS.HBD
@@ -315,9 +359,13 @@ local function hereMaps(map)
     return out
 end
 
+-- where a route stands in the leveling chain (spine ids end in its number), else after every chain route
+local function chainIndex(g) return tonumber(tostring(g.id):match("^spine:.-:(%d+)$")) or math.huge end
 local function byCloseness(x, y)
     local ex, ey = x.eta or math.huge, y.eta or math.huge
     if ex ~= ey then return ex < ey end
+    local cx, cy = chainIndex(x.g), chainIndex(y.g)
+    if cx ~= cy then return cx < cy end
     if x.score ~= y.score then return x.score > y.score end
     return (x.g.name or x.g.id) < (y.g.name or y.g.id)
 end
@@ -333,7 +381,8 @@ function M.Recommended(level, force)
     local parked = P and P.ParkedWaiting
     for _, e in ipairs(Rec.ForLevel(level)) do
         local g = e.g
-        if e.fit and not e.finished and REC_TYPES[e.cat] and not (parked and parked(g.id)) then
+        if e.fit and not e.finished and REC_TYPES[e.cat] and not (parked and parked(g.id))
+            and (e.cat ~= "Quests" or placedFor(g, level)) then
             local k = g.part or g.id
             local at = seen[k]
             if not at then
@@ -385,10 +434,17 @@ function M.Recommended(level, force)
         end
     end
     table.sort(cands, byCloseness)
-    local list = {}
-    for i = 1, math.min(REC_SHOWN, #cands) do
-        list[i] = cands[i].g
-        cands[i].g.__nextETA = cands[i].eta
+    -- one row per shown name: without its range and faction tag, a zone's neutral part and its faction part read the
+    -- same ("Zephras Isle Quests"); the one the chain does first stays, the other follows when it is done
+    local list, shown = {}, {}
+    for _, c in ipairs(cands) do
+        if #list >= REC_SHOWN then break end
+        local nm = recName(c.g)
+        if not shown[nm] then
+            shown[nm] = true
+            list[#list + 1] = c.g
+            c.g.__nextETA = c.eta
+        end
     end
     recCache.key, recCache.at, recCache.list = key, now, list
     return list
@@ -596,10 +652,11 @@ local function guideLabel(g, inNext)
     if inNext and g.__nextETA then
         eta = g.__nextETA < 45 and "  |cff6ac9ffnearby|r" or ("  |cff6ac9ff~%dm|r"):format(math.max(1, math.floor(g.__nextETA / 60 + 0.5)))
     end
-    local band = Rec.GuideLabel(g)
+    -- Recommended rows (inNext) show no level range: the owner asked for that (2026-11-12)
+    local band = inNext and "" or Rec.GuideLabel(g)
     local entry = Rec.EntryFor(M.ViewLevel(), g.id)
     local needs = (entry and entry.missing) and ("  |cffff9900needs %s|r"):format(entry.missing) or ""
-    return ("%s%s|r%s%s%s%s"):format(srcColor(g.source), g.name or g.id,
+    return ("%s%s|r%s%s%s%s"):format(srcColor(g.source), inNext and recName(g) or G.DisplayName(g),
         band ~= "" and ("  |cff888888%s|r"):format(band) or "", needs, pctBadge(g), eta)
 end
 
@@ -663,7 +720,7 @@ function M.Refresh()
                 local gg = G.registry[self.gid]
                 if not gg then return end
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText(gg.name or gg.id)
+                GameTooltip:SetText(G.DisplayName(gg))
                 GameTooltip:AddLine("Source: " .. (gg.source or "?") .. "   Author: " .. (gg.author or "?"), 1, 1, 1)
                 for _, line in ipairs(Rec.Describe(gg, M.ViewLevel())) do GameTooltip:AddLine(line, 1, 0.82, 0, true) end
                 if gg.zone then GameTooltip:AddLine("Zone: " .. tostring(gg.zone), 1, 1, 1) end

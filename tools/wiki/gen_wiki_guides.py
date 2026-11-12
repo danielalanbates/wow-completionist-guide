@@ -124,6 +124,21 @@ CONTRIB_DEFAULT = ROOT.parent / CONTRIB_REPO / "contributions"      # a sibling 
 CONTRIB_NOTE = "(location: player contributions"                    # tools/package_release.py looks for this
 CONTRIB_KEY = re.compile(r"(?:[AT]:[0-9]{1,7}|C:[0-9]{1,7}:[0-9]{1,2})")    # quest step keys (Core/Contribute.lua KeyFor)
 CONTRIB_MAX_BYTES = 100_000_000             # an areas file larger than this is not read (the file is public input)
+CONTRIB_MAX_DEPTH = 32         # an areas file is 4 levels deep; anything far deeper is not one
+
+
+def json_too_deep(text, limit):
+    """does the JSON text nest brackets deeper than `limit`?  (strings are left out first, so brackets in a string do not
+    count).  Checked before json.loads, whose own limit depends on the Python version."""
+    depth = 0
+    for ch in re.sub(r'"(?:\\.|[^"\\])*"', '""', text):
+        if ch in "[{":
+            depth += 1
+            if depth > limit:
+                return True
+        elif ch in "]}":
+            depth -= 1
+    return False
 CONTRIB_USED = ("trusted", "confirmed")     # "single" (one player, nobody agrees yet) is never used
 CONTRIB_POINTS = 3                          # an objective step takes up to this many areas; accept and turn-in one
 CONTRIB_FAR_YD = 100.0                      # a wiki point further than this from the contributed area is logged
@@ -388,7 +403,11 @@ class Contributions:
         try:
             if self.path.stat().st_size > CONTRIB_MAX_BYTES:
                 raise ValueError(f"larger than {CONTRIB_MAX_BYTES} bytes")
-            doc = json.loads(self.path.read_text(encoding="utf-8-sig"))
+            text = self.path.read_text(encoding="utf-8-sig")
+            if json_too_deep(text, CONTRIB_MAX_DEPTH):
+                # Some Pythons parse 100,000 nested brackets, others raise RecursionError: refuse it the same way on all
+                raise ValueError(f"nested deeper than {CONTRIB_MAX_DEPTH} levels")
+            doc = json.loads(text)
             if not isinstance(doc, dict) or not isinstance(doc.get("areas"), dict):
                 raise ValueError("no \"areas\" table")
             if doc.get("flavor") != fl:

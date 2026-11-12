@@ -234,7 +234,7 @@ function P.Load(id)
     dirty = true
     P.cursor = nil
     if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
-    NS:Print("Guide: " .. (g.name or g.id) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")"
+    NS:Print("Guide: " .. G.DisplayName(g) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")"
         .. ((cut or 0) > 0 and (", %d left out for skipped quests"):format(cut) or ""))
     -- Recent: a route the player picked goes to the top; one the chain walked into only keeps its step total current
     if not P.chainLoading then P.TouchRecent(id, #P.steps)
@@ -424,7 +424,7 @@ function P.StartOver()
     P.Reset()
     if P.guide == g then
         P.TouchRecent(g.id, P.steps and #P.steps)
-        NS:Print(("Started over: %s. Steps the game reports as done tick again by themselves."):format(g.name or g.id))
+        NS:Print(("Started over: %s. Steps the game reports as done tick again by themselves."):format(G.DisplayName(g)))
     end
     return true
 end
@@ -737,7 +737,7 @@ local function parkGuide(g)
     end
     local set = parkedSet()
     if not (set[g.id] and set[g.id].level == gate) then
-        NS:Print(("%s parked: %d more step%s at level %d. It comes back when you get there."):format(g.name or g.id, n, n == 1 and "" or "s", gate))
+        NS:Print(("%s parked: %d more step%s at level %d. It comes back when you get there."):format(G.DisplayName(g), n, n == 1 and "" or "s", gate))
     end
     set[g.id] = { level = gate }
     return gate
@@ -810,7 +810,7 @@ function P.Refresh(force)
         if G.IsSideGuide(P.guide) then
             if P.finishedNotice ~= P.guide.id then
                 P.finishedNotice = P.guide.id
-                NS:Print("Route finished: " .. (P.guide.name or P.guide.id) .. ". Start over runs it again; Routes has the next one.")
+                NS:Print("Route finished: " .. G.DisplayName(P.guide) .. ". Start over runs it again; Routes has the next one.")
             end
             return
         end
