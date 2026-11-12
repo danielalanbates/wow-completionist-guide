@@ -98,6 +98,8 @@ function G.ParseLine(text, lineno, defaultZone)
             step.zone = mid or U.MapIDByName(val)
             step.zoneName = (name ~= "" and name) or val
         elseif tag == "N" then step.note = (val or ""):gsub("\\n", "\n"):gsub("%[color=(%x%x%x%x%x%x)%]", "|cff%1"):gsub("%[/color%]", "|r")
+            -- a wiki external link left in quest text, "[http://site/page Swine Bellies]", reads as its label
+            if step.note:find("[http", 1, true) then step.note = step.note:gsub("%[https?://%S+%s+([^%]]-)%]", "%1") end
             -- "Head to X by any means possible." is filler; the arrow already shows the way
             step.note = step.note:gsub("%s+[Bb]y any means possible", ""):gsub("%s+[Bb]y any means([%.!,;])", "%1")
         elseif tag == "L" then step.loot = {} for pair in (val or ""):gmatch("[^;]+") do local id, q = pair:match("(%d+)%s*(%-?%d*)") if id then step.loot[#step.loot + 1] = { id = tonumber(id), qty = tonumber(q) or 1 } end end
@@ -186,6 +188,45 @@ function G.StepTitle(step)
         end
     end
     return t .. titleExtras(step)
+end
+
+-- The note as the step card shows it (UI/GuideFrame.lua).  Generated notes end with where the step's map point came
+-- from: "(location: Questie data)", "(zone only; wiki: Borean Frog)", "(point: Blizzard quest map pin)",
+-- "(Blizzard WorldMapOverlay 123)".  That is provenance, not something to do, and it made one-line notes wrap to three.
+-- The card leaves such a tail off; the step's tooltip and Details panel show the note whole, and the guide data is
+-- untouched.  Returns the card text and what was cut ("" when nothing).  Cached on the step: the window asks
+-- every second.  tools/audit_step_text.lua counts what this saves; tools/test_step_window.lua checks the cases.
+G.ASIDE_MIN = 150
+local SOURCE_TAIL = { "^%(location:", "^%(zone only", "^%(wiki:", "^%(point:", "^%(Blizzard " }
+function G.CardNote(step)
+    local note = step and step.note
+    if not note or note == "" then return "", "" end
+    if step._cardNoteOf == note then return step._cardNote, step._cardTail end
+    local short, tail = note, ""
+    for _ = 1, 3 do
+        local head, group, dot = short:match("^(.-)%s*(%b())(%.?)%s*$")
+        if not group then break end
+        local hit = false
+        for _, p in ipairs(SOURCE_TAIL) do if group:find(p) then hit = true break end end
+        if not hit then break end
+        -- "Objective area (Blizzard quest map pin)." keeps its full stop: "Objective area."
+        short = head .. ((dot ~= "" and head ~= "" and not head:find("[%.!%?:]$")) and "." or "")
+        tail = group .. (tail ~= "" and (" " .. tail) or "")
+    end
+    -- An aside that is a sentence of its own, "(This item drops from most wolves under level 20.)": the wiki's
+    -- words on where a reagent comes from.  Profession notes carry one per reagent and ran to ten lines; the card
+    -- keeps the list and says there is more.
+    -- Only a long note is shortened this way (ASIDE_MIN characters is about two lines of the card): in a short one a
+    -- sentence in brackets may be the instruction itself ("Kill wolves. (Leave the alpha alone.)") and it fits anyway.
+    if #short > G.ASIDE_MIN then
+        local cut, asides = short:gsub("%s*%(%u[^()]-%.+%)", "")
+        if asides > 0 then
+            short = cut:gsub("%s+([;,%.])", "%1") .. "  |cff888888(click for more)|r"
+            tail = (tail ~= "" and (tail .. " ") or "") .. "(asides)"
+        end
+    end
+    step._cardNote, step._cardNoteOf, step._cardTail = short, note, tail
+    return short, tail
 end
 
 -- Guide files spell their categories differently (e.g. "GOLD", "Professions",
@@ -581,4 +622,212 @@ function G.SuggestNext(excludeId)
         if not bestScore or score > bestScore then best, bestScore, bestEta = g, score, eta end
     end
     return best, bestEta
+end
+
+-- ---------------------------------------------------------------------------
+-- Step signals: what completes a step by itself, as data (NS.StepSignal)
+-- ---------------------------------------------------------------------------
+-- Which NPC a step names, whether its items are in the bags, and (for the docs, the census and the tests) the name of
+-- the rule that will finish it.  Core/Progress.lua does the completing (P.CheckStep and its event handlers) and calls
+-- the predicates here, so the rule table cannot drift far from the code: tools/test_flow.lua runs both on the same
+-- steps, and tools/census_step_kinds.lua counts the shipped guides with Sig.Of.  It lives in this file because every
+-- offline harness that loads Progress.lua loads Guide.lua first.
+--
+-- The principle (owner's rule, 2026-11-12): a step completes by itself only on something the client reports.  A step
+-- nothing reports on stays manual (the forward arrow); no rule here guesses.
+local Sig = {}
+NS.StepSignal = Sig
+
+local ACCEPT = { A = true, a = true, ["!"] = true }
+local TURNIN = { T = true, t = true }
+Sig.ACCEPT, Sig.TURNIN = ACCEPT, TURNIN
+
+-- ---------------------------------------------------------------------------
+-- Items: the step's L items are all in the bags
+-- ---------------------------------------------------------------------------
+-- A quantity under 1 is not a count to reach (some guide formats write "until you have none" that way): such a step
+-- has no bag rule.  count(itemID) is the client read (Core/Util.lua U.ItemCount).
+function Sig.HasCounts(step)
+    local loot = step.loot
+    if not loot or #loot == 0 then return false end
+    for i = 1, #loot do if (loot[i].qty or 0) < 1 then return false end end
+    return true
+end
+function Sig.BagsHold(step, count)
+    if not Sig.HasCounts(step) then return false end
+    local loot = step.loot
+    for i = 1, #loot do if (count(loot[i].id) or 0) < loot[i].qty then return false end end
+    return true
+end
+-- A buy step that names its item with U/ITEM instead of L: the item, COUNT times (once without COUNT)
+function Sig.BuyHeld(step, count)
+    if step.action ~= "B" or step.loot or not step.item then return false end
+    return (count(step.item) or 0) >= math.max(1, step.count or 1)
+end
+
+-- ---------------------------------------------------------------------------
+-- Talking: the NPC a step names
+-- ---------------------------------------------------------------------------
+-- Only a step nothing else reports on can be finished by a conversation: a quest step is the quest log's to finish
+-- (opening a gossip window is not having done the objective), a train or buy step needs the recipe or the item, a
+-- hearth step needs the bind, and a kill step's T tag is the thing to kill.
+--   N note, R run to     the T tag, the ALT names, "From X." / "To X." / "Talk to X" / "Speak with X" in the note,
+--                        "Talk to X" / "Speak with X" as the title
+--   C complete, l loot   (without a quest) only the words "Talk to X" / "Speak with X"
+local TALK_FULL = { N = true, R = true }
+local TALK_WORDS = { C = true, l = true }
+function Sig.TalkEligible(step)
+    if not (TALK_FULL[step.action] or TALK_WORDS[step.action]) then return false end
+    return not (step.qid or step.ach or step.skill or step.recipe or step.loot or step.mission)
+end
+
+local lower = string.lower
+local function clean(name)
+    if type(name) ~= "string" then return nil end
+    name = name:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    name = name:gsub("^%s+", ""):gsub("[%s%.!,;:]+$", "")
+    if #name < 2 then return nil end
+    return lower(name)
+end
+local function add(set, name)
+    name = clean(name)
+    if name then set[name] = true end
+end
+-- "Talk to X" / "Speak with X" (and "From X." / "To X.") count only when they ARE the step: the words open the title
+-- or the note, and what follows is one name, optionally with where the NPC stands ("Marshal Dughan in Goldshire",
+-- "Guard Thomas at the bridge").  A second sentence or clause is a second thing to do that no window reports
+-- ("Talk to Bob and buy five flasks", "Speak with Bob, then ride to Lakeshire", "Talk to Bob. Kill ten wolves."), and
+-- words in the middle of a note are not an instruction for now ("After you talk to Bob, ..."): such a step offers no
+-- name and stays manual.  A cut that is not a name matches no NPC (names are compared whole).
+local PLACE = { " in ", " at ", " inside ", " outside ", " near ", " behind ", " on ", " by ", " about ", " again" }
+local function addPhrase(set, text)
+    if not text or text == "" then return end
+    text = text:gsub("%s*%b()", "")                      -- "(the innkeeper)", a trailing source note
+    text = text:gsub("^%s+", ""):gsub("%s+$", "")
+    local low = lower(text)
+    if text:find("[%.!%?;:]%s") or text:find(",", 1, true) or low:find(" and ", 1, true) or low:find(" then ", 1, true) then
+        -- more than one clause: only a short text can still be one name ("Dr. Weavil.", "Tooga and Torta")
+        local _, words = text:gsub("%S+", "")
+        if words <= 3 then add(set, text) end
+        return
+    end
+    add(set, text)                                        -- the whole text, then each cut at where the NPC stands
+    for _, j in ipairs(PLACE) do
+        local at = low:find(j, 1, true)
+        if at and at > 1 then add(set, text:sub(1, at - 1)) end
+    end
+end
+local WORDS = { "talk to ", "talk with ", "speak with ", "speak to " }
+local function addWords(set, text)
+    if not text then return end
+    text = text:gsub("^%s+", "")
+    local low = lower(text)
+    for _, w in ipairs(WORDS) do
+        if low:sub(1, #w) == w then addPhrase(set, text:sub(#w + 1)) return end
+    end
+end
+-- The lower-case names of the NPCs whose window finishes this step (a set), or nil.  Cached on the step.
+function Sig.TalkNames(step)
+    local c = step._talk
+    if c ~= nil then return c or nil end
+    local set = {}
+    if Sig.TalkEligible(step) then
+        addWords(set, step.note)
+        addWords(set, step.title)
+        if TALK_FULL[step.action] then
+            if step.target then for name in step.target:gmatch("[^;]+") do add(set, name) end end
+            if step.alts then
+                for _, a in ipairs(step.alts) do add(set, (a.name or ""):gsub("%s*%b()%s*$", "")) end   -- "Innkeeper Allison (Stormwind City)"
+            end
+            local note = step.note
+            if note then
+                local who = note:match("^From (.+)$") or note:match("^To (.+)$")
+                if who then addPhrase(set, who) end
+            end
+        end
+    end
+    step._talk = next(set) and set or false
+    return step._talk or nil
+end
+-- Does the NPC whose window just opened finish this step?  name: UnitName("npc"), already checked for secrecy.
+function Sig.TalkMatches(step, name)
+    if type(name) ~= "string" or name == "" then return false end
+    local set = Sig.TalkNames(step)
+    return set ~= nil and set[lower(name)] == true
+end
+
+-- Repair / sell: any merchant window is the step being done (it is about selling, not about one vendor)
+function Sig.MerchantCompletes(step)
+    return step.action == "r" and not (step.qid or step.ach or step.loot)
+end
+-- ...unless the step is about repairing only ("Repair", not "Repair and sell"): then the merchant has to be one who
+-- repairs (CanMerchantRepair), or a grocer's window would tick a repair that did not happen
+function Sig.NeedsRepairer(step)
+    local t = lower(step.title or "")
+    return t:find("repair", 1, true) ~= nil and not t:find("sell", 1, true)
+end
+-- Treasure with a spot and nothing else to read: finished by looting a chest (a game object, not a corpse and not a
+-- fishing bobber) while standing at the spot
+function Sig.LootAtSpot(step)
+    return step.action == "$" and step.coords ~= nil and not (step.qid or step.ach or step.loot)
+end
+
+-- ---------------------------------------------------------------------------
+-- The rule that finishes a step, by name.  Mirrors P.CheckStep's order.  Returns
+--   rule, nil, isNew     the step completes by itself; isNew marks the rules added on 2026-11-12
+--   nil, hint            it stays manual; hint says what it does carry
+-- guide (optional) is only used for hints.
+-- ---------------------------------------------------------------------------
+local ARRIVE = { F = true, b = true, J = true, D = true }
+function Sig.Of(step, guide)
+    local a = step.action
+    if step.skill then return "profession skill reached" end
+    if step.recipe then return "recipe or rank learned" end
+    if ACCEPT[a] then
+        if step.qid then return "quest accepted (quest log)" end
+        return nil, "accept without a quest id"
+    end
+    if TURNIN[a] then
+        if step.qid then return "quest turned in" end
+        return nil, "turn-in without a quest id"
+    end
+    if a == "C" or a == "K" or a == "l" then
+        if step.qid then return "quest objectives (quest log)" end
+        if Sig.HasCounts(step) then return "items in the bags" end
+    elseif a == "G" then
+        if step.coords or step.zone then return "arrival at the waypoint" end
+    elseif a == "R" then
+        if step.coords or step.zone or step.alts then return "arrival" end
+    elseif ARRIVE[a] then
+        if step.coords or step.zone then return "arrival" end
+    elseif a == "H" then
+        return "Hearthstone cast"
+    elseif a == "L" then
+        if step.minlevel then return "level reached" end
+    elseif a == "U" then
+        if step.item then return "item used up" end
+        if step.qid then return "quest objectives (quest log)" end
+        if Sig.HasCounts(step) then return "items in the bags" end
+    elseif a == "B" then
+        if Sig.HasCounts(step) then return "items in the bags" end
+        if step.item then return "bought item in the bags", nil, true end
+    elseif a == "h" then
+        return "hearth bound"
+    elseif a == "f" then
+        return "flight map opened"
+    end
+    if step.ach then return "achievement or criterion earned" end
+    if step.qid then return "quest complete" end
+    if Sig.HasCounts(step) then return "items in the bags", nil, true end
+    if step.mission then return "mission success (client event)", nil, true end
+    if Sig.MerchantCompletes(step) then return "merchant window opened", nil, true end
+    if Sig.LootAtSpot(step) then return "loot taken at the spot", nil, true end
+    if Sig.TalkNames(step) then return "talk to the named NPC", nil, true end
+    -- manual: say what it has, so the next rule to write is visible
+    local has = {}
+    if step.target then has[#has + 1] = "target tag" end
+    if step.item then has[#has + 1] = "item tag" end
+    if step.coords then has[#has + 1] = "map point" elseif step.zone then has[#has + 1] = "zone" end
+    if step.note and step.note ~= "" then has[#has + 1] = "note" end
+    return nil, (#has > 0 and ("only " .. table.concat(has, ", ")) or "title only")
 end

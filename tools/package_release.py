@@ -188,7 +188,7 @@ RULES = (
       "hand-authored; tools/roads_from_trace.py, tools/trace_roads.py", "tracked"),
     R("Guides/Leveling/*.lua", "own-data", "CC BY-SA 4.0 (file header); CompletionRoute contributors",
       "hand-written community guides", "hand-authored", "tracked"),
-    R("Textures/*.tga", "own-data", OWN, "drawn by script", "tools/gen_textures.py", "tracked"),
+    R("Textures/*.tga", "own-data", OWN, "drawn by script", "tools/gen_textures.py, tools/gen_pointer.py", "tracked"),
     R("Guides/WIKI_DATA_LICENSE.md", "own-doc", OWN, "licence notice for the wiki data files", "hand-written", "tracked"),
     # ---- third-party libraries ------------------------------------------------------------------------------------
     R("Libs/LibStub/*", "third-party-library", "public domain (stated in LibStub.lua)", "LibStub, unmodified",

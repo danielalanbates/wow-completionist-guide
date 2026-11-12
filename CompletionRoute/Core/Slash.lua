@@ -11,7 +11,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     local cmd, rest = msg:match("^(%S*)%s*(.-)$")
     cmd = (cmd or ""):lower()
     if cmd == "" or cmd == "show" or cmd == "toggle" then NS.GuideFrame.Toggle()
-    elseif cmd == "guides" or cmd == "menu" then NS.GuideMenu.Toggle()
+    elseif cmd == "routes" or cmd == "guides" or cmd == "menu" then NS.GuideMenu.Toggle()
     elseif cmd == "list" then NS.Recommend.PrintList(rest)
     elseif cmd == "gold" then NS.Recommend.PrintGold(rest)
     elseif cmd == "prof" or cmd == "profs" or cmd == "professions" then NS.Recommend.PrintProf()
@@ -20,7 +20,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             local g = G.registry[id]
             if id:lower() == rest:lower() or (g.name or ""):lower() == rest:lower() or id:lower():find(rest:lower(), 1, true) or (g.name or ""):lower():find(rest:lower(), 1, true) then P.Load(id) return end
         end
-        NS:Print("No guide matches '" .. rest .. "'. /cr guides")
+        NS:Print("No route matches '" .. rest .. "'. /cr routes")
     elseif cmd == "next" or cmd == "done" then P.Forward()
     elseif cmd == "skip" then
         -- /cr skip [questID] [confirm]: drop a whole quest (default: the current step's); quests that need it are
@@ -48,10 +48,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "reset" then P.Reset() NS:Print("Guide progress reset.")
     elseif cmd == "marks" then for _, line in ipairs(P.MarksReport()) do NS:Print(line) end   -- progress storage (docs/STEP_KEYS.md)
     elseif cmd == "arrow" then NS.db.profile.arrow.enabled = not NS.db.profile.arrow.enabled NS.Arrow.ApplySettings() NS:Print("Arrow " .. (NS.db.profile.arrow.enabled and "on" or "off"))
-    elseif cmd == "pointer" then
-        local a = NS.db.profile.arrow
-        a.style = (a.style == "hand") and "arrow" or "hand"
-        NS:Print("Pointer: " .. (a.style == "hand" and "pointing hand in your class colour" or "chevron arrow (green/yellow/red by distance)"))
+    elseif cmd == "contribute" or cmd == "contrib" then NS.Contribute.Slash(rest)
     elseif cmd == "options" or cmd == "opt" or cmd == "config" then NS.Options.Open()
     elseif cmd == "route" then
         local path = NS.Router.CurrentPath(true)
@@ -146,7 +143,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         -- Explains, in plain words, what the addon is doing right now and why the arrow may be blank.
         local g, st = P.guide, P.current
         NS:Print("--- why ---")
-        if not g then NS:Print("No guide loaded. /cr guides") return end
+        if not g then NS:Print("No route loaded. /cr routes") return end
         local done = P.VisibleDone()
         NS:Print(("Guide: %s (%s) - %d/%d steps done, %d still applicable"):format(
             g.name or g.id, g.source or "?", done, P.steps and #P.steps or 0, #P.Pending(999)))
@@ -298,7 +295,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | import | farm | log | bug [note] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | routes | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | import | farm | log | bug [note] | contribute [on|off|export|clear] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 

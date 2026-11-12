@@ -1105,6 +1105,24 @@ function TG.Describe(path)
     return table.concat(out, "; ") .. (" (~%s)"):format(U.FmtTime(path.cost))
 end
 
+-- The one line under the step card.  A player does not need the walk spelled out ("Walk 2.1k yd to Durotar": the
+-- arrow and the distance on the card already say it), so only the legs that need a decision are named: a flight, a
+-- boat, zeppelin or portal, a hearth or teleport, a flight path to pick up.  A route that is only walking shows
+-- nothing.  TG.Describe above stays the full description (/cr route, the step's detail panel, bug reports).
+function TG.Summary(path)
+    if not path or not path.legs then return "" end
+    local out = {}
+    for _, l in ipairs(path.legs) do
+        if l.mode == "walk" then
+            if l.pickup then out[#out + 1] = "pick up the flight path at " .. (l.to.name or "the flight master") end
+        elseif l.mode == "taxi" then out[#out + 1] = "fly to " .. (l.to.name or "?")
+        else out[#out + 1] = l.title or (l.mode .. " to " .. (l.to.name or "?")) end
+    end
+    if #out == 0 then return "" end
+    local s = table.concat(out, ", then ")
+    return s:sub(1, 1):upper() .. s:sub(2) .. ("  (~%s)"):format(U.FmtTime(path.cost))
+end
+
 NS:On("ADDON_READY", function() NS:After(0.5, function() pcall(TG.Build) end) end)
 
 -- Learn real portal / boat spots: remember where the player stood just before a teleport-sized jump and,

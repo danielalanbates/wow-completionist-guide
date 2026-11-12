@@ -358,20 +358,32 @@ do
 end
 print("death handling OK: no hearth as a corpse, pointer aims at the body")
 
--- pointer style: hand tinted to the class colour, arrow chevron still selectable
+-- the travel line under the step card names only the legs that need a decision (TravelGraph.Summary)
+do
+    local TGs = NS.TravelGraph
+    assert(TGs.Summary(nil) == "", "no path, no line")
+    assert(TGs.Summary({ cost = 60, legs = { { mode = "walk", dist = 2100, to = { name = "Durotar" } } } }) == "", "a walk-only route shows no travel line")
+    local s2 = TGs.Summary({ cost = 600, legs = { { mode = "walk", dist = 100, to = { name = "Orgrimmar" } },
+        { mode = "taxi", from = { name = "Orgrimmar" }, to = { name = "Crossroads" } }, { mode = "walk", dist = 300, to = { name = "x" } } } })
+    assert(s2:find("^Fly to Crossroads") and not s2:lower():find("walk") and s2:find("~"), s2)
+    local s3 = TGs.Summary({ cost = 900, legs = { { mode = "walk", dist = 50, to = { name = "Splintertree Post" }, pickup = true },
+        { mode = "transit", title = "Take the zeppelin to Undercity", to = { name = "Undercity" } } } })
+    assert(s3:find("^Pick up the flight path at Splintertree Post, then Take the zeppelin"), s3)
+end
+print("travel line OK: walking is not narrated")
+
+-- the pointer is a plain arrow (the hand pointer and its style option were removed on 2026-11-11)
 do
     local f = assert(io.open("CompletionRoute/UI/Arrow.lua"))
     local src = f:read("*a") f:close()
-    assert(src:find('TEX %.%. "hand"'), "hand texture not used")
-    assert(src:find("RAID_CLASS_COLORS"), "hand is not tinted to the class colour")
-    assert(src:find("SetVertexColor"), "no vertex colouring")
+    assert(not src:find('"hand"') and src:find("arrow_green") and src:find("arrow_red"), "the pointer must be the arrow only")
     assert(src:find("rec.dead"), "arrow has no dead branch")
-    local h = assert(io.open("CompletionRoute/Textures/hand.tga")) h:close()
+    assert(io.open("CompletionRoute/Textures/hand.tga") == nil, "hand texture still shipped")
     local o = assert(io.open("CompletionRoute/UI/Options.lua"))
     local osrc = o:read("*a") o:close()
-    assert(osrc:find("arrow.style"), "no pointer style option")
+    assert(not osrc:find("arrow.style"), "pointer style option still there")
 end
-print("pointer style OK: class-coloured hand default, chevron still available")
+print("pointer OK: plain arrow, coloured by distance")
 
 -- 8) target beacon
 local Bfn = assert(loadfile("CompletionRoute/UI/Beacon.lua")) Bfn(ADDON, NS)
@@ -690,9 +702,12 @@ do
     assert(src:find("if not f:IsShown%(%) then f:Show%(%) end"), "loading a guide must show the guide window")
     assert(src:find("function GF.ShowDetail"), "no step detail popup")
     assert(src:find("GF.ShowDetail%(self.step%)"), "clicking the step card must open its details")
-    assert(not src:find("UICheckButtonTemplate"), "the guide window must not have a tick box - steps complete themselves")
+    -- steps complete themselves, so there is no tick box per step; the one box on the window is the owner's
+    -- "Contribute" setting next to Guides (Core/Contribute.lua, 2026-11-11)
+    local _, boxes = src:gsub("UICheckButtonTemplate", "")
+    assert(boxes == 1 and src:find('"CompletionRouteContributeCheck"'), "the guide window has one tick box only: Contribute")
     assert(src:find("P.Undo%(%)") and src:find("P.Forward%(%)"), "back/forward arrows missing")
-    print("guide selection UX OK: window opens on load, one step at a time, arrows, no checkbox")
+    print("guide selection UX OK: window opens on load, one step at a time, arrows, no step checkbox")
 end
 
 -- login sync: completed quests come from the client, and a guide is "(Character)" only when WHOLLY done
@@ -733,7 +748,7 @@ do
     local src = f:read("*a") f:close()
     local handled = {}
     for name in src:gmatch('cmd%s*==%s*"([%w_]+)"') do handled[name] = true end
-    local required = { "guides", "load", "icon", "why", "next", "skip", "undo", "reset", "arrow", "beacon", "demo",
+    local required = { "routes", "load", "icon", "why", "next", "skip", "undo", "reset", "arrow", "beacon", "demo",
                        "chars", "accountwide", "forget", "options", "route", "order", "taxi", "teleports",
                        "hearth", "import", "switch", "scan", "verify", "verifyfeatures",
                        "verifyall", "autoverify", "log", "stats", "debug", "test", "list", "gold", "prof",

@@ -10,7 +10,23 @@ local t = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
 t:SetPoint("TOPLEFT", 16, -16); t:SetText("CompletionRoute")
 local d = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 d:SetPoint("TOPLEFT", t, "BOTTOMLEFT", 0, -6); d:SetWidth(560); d:SetJustifyH("LEFT")
-d:SetText("The completionist's guide: community-driven guides for every quest, with open travel routing.\nSlash: /cr   Guides: /cr guides   What can I do now: /cr guides -> For level N   Debug route: /cr route")
+d:SetText("The completionist's guide: community-driven guides for every quest, with open travel routing.\nSlash: /cr   Routes: /cr routes   What can I do now: /cr routes -> For level N   Debug route: /cr route")
+
+-- The step window can be closed with its x, and then nothing on screen brings it back; the owner does not type slash
+-- commands.  These two buttons are the click path: Esc > Options > AddOns > CompletionRoute.
+local function topButton(text, w, onClick)
+    local b = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    b:SetSize(w, 22); b:SetText(text)
+    b:SetScript("OnClick", onClick)
+    return b
+end
+O.showWindow = topButton("Show step window", 140, function()
+    local GF = NS.GuideFrame
+    if GF and GF.frame then GF.frame:Show() GF.SafeUpdate() end
+end)
+O.showWindow:SetPoint("LEFT", t, "RIGHT", 16, 0)
+O.showRoutes = topButton("Routes", 80, function() if NS.GuideMenu and NS.GuideMenu.Show then NS.GuideMenu.Show() end end)
+O.showRoutes:SetPoint("LEFT", O.showWindow, "RIGHT", 6, 0)
 
 -- The main page is taller than the Settings canvas (about 600 px; 22 checkboxes and 6 sliders need about 830), so its
 -- controls sit in a scroll frame.  The template exists on all five clients.
@@ -46,9 +62,6 @@ local function P() return NS.db.profile end
 
 check("Show arrow", function() return P().arrow.enabled end, function(v) P().arrow.enabled = v NS.Arrow.ApplySettings() end)
 check("Lock arrow position", function() return P().arrow.lock end, function(v) P().arrow.lock = v end)
-check("Pointer: hand in your class colour (off = chevron arrow)",
-    function() return (P().arrow.style or "hand") == "hand" end,
-    function(v) P().arrow.style = v and "hand" or "arrow" end)
 check("Lock guide window", function() return P().frame.lock end, function(v) P().frame.lock = v end)
 check("Route optimizer: reorder upcoming steps by travel time", function() return P().routing.reorder end, function(v) P().routing.reorder = v NS.Progress.Refresh() end)
 check("Route optimizer: use the pre-computed fastest order for quest guides", function() return P().routing.baked ~= false end, function(v)

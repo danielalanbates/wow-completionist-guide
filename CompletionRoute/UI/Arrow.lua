@@ -145,33 +145,12 @@ local function colorFor(dist)
     return TEX .. "arrow_red"
 end
 
--- Pointer styles: "hand" (default) is a pointing hand tinted to the player's class colour, "arrow"
--- is the original three-colour chevron.  The hand texture is white, so SetVertexColor tints it and
--- its dark outline stays a darker shade of the same colour.
-local function classRGB()
-    local c = (CUSTOM_CLASS_COLORS and CUSTOM_CLASS_COLORS[NS.player.class]) or (RAID_CLASS_COLORS and RAID_CLASS_COLORS[NS.player.class])
-    if c then return c.r, c.g, c.b end
-    return 1, 0.82, 0
-end
--- distance still has to read at a glance, so the class colour is dimmed when the target is far and
--- brightened when you are on top of it
-local function distFactor(dist)
-    if not dist then return 1 end
-    if dist < 60 then return 1.25 end
-    if dist < 400 then return 1 end
-    return 0.72
-end
-local function setPointer(dist, forceStyle)
-    local style = forceStyle or (NS.db.profile.arrow.style or "hand")
-    if style == "arrow" then
-        arrow:SetTexture(colorFor(dist))
-        arrow:SetVertexColor(1, 1, 1)
-        return
-    end
-    arrow:SetTexture(TEX .. "hand")
-    local r, g, b = classRGB()
-    local k = distFactor(dist)
-    arrow:SetVertexColor(math.min(1, r * k), math.min(1, g * k), math.min(1, b * k))
+-- The pointer is a plain arrow: yellow, green when the spot is close, red when it is far (blue when the step is on
+-- another continent).  A pointing hand in the class colour was the default until 2026-11-11; the owner asked for a
+-- generic icon instead, so the hand, its texture and the style option are gone.
+local function setPointer(dist)
+    arrow:SetTexture(colorFor(dist))
+    arrow:SetVertexColor(1, 1, 1)
 end
 A.SetPointer = setPointer
 
@@ -235,7 +214,7 @@ function A.Update()
     local map, x, y, inst, pwx, pwy = U.PlayerPos()
     if not pwx or inst ~= rec.inst then
         arrow:Show()
-        if (NS.db.profile.arrow.style or "hand") == "hand" then setPointer(nil) else arrow:SetTexture(TEX .. "arrow_blue") arrow:SetVertexColor(1, 1, 1) end
+        arrow:SetTexture(TEX .. "arrow_blue") arrow:SetVertexColor(1, 1, 1)
         arrow:SetRotation(0)
         sub:SetText("Different continent - follow the guide"); eta:SetText(rec.eta and ("ETA ~" .. U.FmtTime(rec.eta)) or "")
         return
@@ -254,6 +233,7 @@ function A.Update()
     local speed = U.TravelSpeed()
     local tag = ""
     if rec.locSource == "quest" then tag = "  |cff6ac9ff(quest objective)|r"
+    elseif rec.locSource == "learned" then tag = "  |cff7ddf8f(learned spot)|r"
     elseif rec.locSource == "zone" then tag = "  |cffff9900(zone only)|r"
     elseif rec.locSource == "borrowed" then tag = "  |cffff9900(next known step)|r" end
     sub:SetText(U.FmtDist(dist) .. tag)

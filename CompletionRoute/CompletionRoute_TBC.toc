@@ -25,6 +25,7 @@ Core\Professions.lua
 Core\Progress.lua
 Core\Skip.lua
 Core\QuestAuto.lua
+Core\Contribute.lua
 Core\Farm.lua
 Core\Instances.lua
 Core\Recommend.lua

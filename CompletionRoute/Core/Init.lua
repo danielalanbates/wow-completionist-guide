@@ -32,8 +32,7 @@ NS.dataFlavor = NS.isForever and "forever" or NS.flavor
 -- ---------------------------------------------------------------------------
 NS.defaults = {
     profile = {
-        arrow = { enabled = true, scale = 1.0, alpha = 1.0, lock = false, x = 0, y = -180, point = "TOP",
-                  style = "hand" },   -- "hand": pointing hand in your class colour; "arrow": the old chevron
+        arrow = { enabled = true, scale = 1.0, alpha = 1.0, lock = false, x = 0, y = -180, point = "TOP" },
         frame = { scale = 1.0, alpha = 0.95, width = 320, height = 300, showSteps = 6, lock = false, x = 0, y = 0, point = "CENTER" },
         routing = { enabled = true, reorder = true, baked = true, hearth = true, taxi = true, transit = true, window = 24,
                     teleports = true,         -- class teleports, hearth toys, engineering transporters (Data/Teleports.lua)
@@ -57,6 +56,7 @@ NS.defaults = {
                  circuitizeGold = true }, -- fold imported gold guides into a loop instead of a click-through list
         -- guide list (UI/GuideMenu.lua): level is nil while the list follows your own level
         guideList = { onlyLevel = false, groupByLevel = false },
+        contribute = false,     -- Core/Contribute.lua: note where steps are done (the box on the guide window)
         textSize = 2,           -- points added to the addon's small text (Core/Util.lua U.Font); half of it to the rest
         -- Core/QuestAuto.lua: accept / turn in only the quests of the guide's live window; autoChooseReward takes a turn-in
         -- reward only when UI/ItemScore.lua sees a clear upgrade; holding autoModifier (SHIFT | CTRL | ALT | NONE) pauses it
