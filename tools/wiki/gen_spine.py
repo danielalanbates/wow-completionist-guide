@@ -705,7 +705,7 @@ def build_parts(fl, guides, pre, maps, chosen, rounds=80):
                     moved_zone[0] += 1
                 changed.update((X["id"], Y["id"]))
             moved_total += len(moves)
-            for gid in changed:
+            for gid in sorted(changed):     # a set of strings: its order differs from process to process
                 p = by_id[gid]
                 if p["_qs"]:
                     finalize(p, fl, story, pre, hubs, skip)
@@ -805,7 +805,7 @@ def build_parts(fl, guides, pre, maps, chosen, rounds=80):
                     changed.update((X["id"], Y["id"]))
             if not changed:
                 break
-            for gid in changed:
+            for gid in sorted(changed):     # as above: a stable order, not the set's
                 if by_id[gid]["_qs"]:
                     finalize(by_id[gid], fl, story, pre, hubs, skip)
             gone = {p["id"] for p in parts if not p["_qs"]}
@@ -834,13 +834,16 @@ def build_parts(fl, guides, pre, maps, chosen, rounds=80):
                 for x in preds[id(q)]:
                     succ[x].append(q)
             indeg = {id(q): len(preds[id(q)]) for q in qs}
-            heap = [(q.rank, id(q), q) for q in qs if indeg[id(q)] == 0]
+            # ties on rank break by the quest's place in the guide, never by its object address (id(q) differs
+            # from run to run, which moved sibling quests around on every regeneration: MoP and Retail, 2026-11-12)
+            seq = {id(q): i for i, q in enumerate(qs)}
+            heap = [(q.rank, seq[id(q)], q) for q in qs if indeg[id(q)] == 0]
             heapq.heapify(heap)
             topo, seen = [], set()
             while len(topo) < len(qs):
                 if not heap:
                     q = min((q for q in qs if id(q) not in seen), key=lambda q: q.rank)
-                    heapq.heappush(heap, (q.rank, id(q), q))
+                    heapq.heappush(heap, (q.rank, seq[id(q)], q))
                 _, _, q = heapq.heappop(heap)
                 if id(q) in seen:
                     continue
@@ -849,7 +852,7 @@ def build_parts(fl, guides, pre, maps, chosen, rounds=80):
                 for sq in succ[id(q)]:
                     indeg[id(sq)] -= 1
                     if indeg[id(sq)] == 0 and id(sq) not in seen:
-                        heapq.heappush(heap, (sq.rank, id(sq), sq))
+                        heapq.heappush(heap, (sq.rank, seq[id(sq)], sq))
             for r, q in enumerate(topo):
                 q.rank = r
             pieces = split(topo, fl, story)
