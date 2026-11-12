@@ -1,5 +1,49 @@
 # Status / handoff (2026-11-12: one build, the public one; a full rebake is needed)
 
+## 2026-11-12: finished routes the player picks, first login, old marks at login, hearth-aware re-plan (`todo-flow`)
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `todo-flow` (worktree `wt-prog`), cut from `master`
+at `f30bbc1`. Not merged, not pushed, not installed. Files: `Core/Progress.lua`, `Core/Account.lua`, `Core/Skip.lua`,
+`Core/Recommend.lua`, `Routing/Replan.lua`; no UI file changed.
+
+| Item | What changed |
+|---|---|
+| A finished route the player picks | `Progress.Load(id, opts)`: a load outside the chain (routes list, Recent, `/cr load`, `/cr switch`: they all call `P.Load(id)` plain) is *picked*. A picked route with nothing left stays loaded (`P.hold`): the step window shows its end screen with Start over (GuideFrame shows it whenever a route is loaded with no current step), the chat says "Route finished: X. Start over runs it again; Routes has the next one." (or names the level gate, and parks the route quietly). The hold ends when the route shows a step (Start over, a level-up), so a route that runs out during play chains on as before. `CompletionRouteCharDB.held` keeps it across `/reload` (in the sweep's scratch store). The Recent row stays a link to it. |
+| GUIDE_LOADED once | It fired for the next route inside the chain and then again for the finished one on the way out of the first `P.Load`. Now a load counter (`P.loadSeq`) stops the outer load after its refresh when a nested load happened: one event, for the route that ends up loaded. |
+| First login | No saved route: the routes list opens at every login until a route has been loaded once (was: once, then a suggested route was loaded at the next login). A saved route loads as before; a saved route gone from the data still gets the closest fitting one. `welcomed` is no longer read. |
+| Old index marks at login | `Account.StartImport`, 10 s after login, converts every registered guide that still holds old marks of a character this client migrates, through `Progress.ReadSteps` (the load's own path: gold circuit fold, then the parsed steps; the access prefix is left out, as it holds only negative indices that no old mark maps to: tested equal). Time-sliced from an OnUpdate, 4 ms a frame, a guide that would not fit in the rest of the frame (text length at the measured rate) waits, parsed steps are dropped. Then `CompletionRouteCharDB.marksImported` is set; it never runs again. A bulk sweep pauses it; a logout in the middle leaves the rest for the next login. |
+| Re-plan after a skip | The search prices the leg from the player as acceptance does when the Hearthstone or a teleport is usable (`Replan.OneShotLandings`, FindPath's own rule): the greedy start may open with it, and Or-opt may move a run to the front. A sound lower bound (hearth base cost - 10 s + hearth-free time from the landing, one multi-goal search per landing) skips the path search where a one-shot cannot win. Acceptance unchanged. |
+| Wording | Chat lines in these files say route: "Route: X (N steps...)", "Route finished. Loading next: X", "Unknown route", "Gold route folded into a N-stop circuit", `/cr marks` ("No route loaded.", "this version of the route", "The route has changed", "for this route", "Route version"), the quest-skip warning and messages ("in this route, N in other routes", "from this route", "left this route", "out of this route", "later in the route"), `/cr list` ("Routes for level N"), `/cr prof` ("no route for this skill band"), the tooltip line "this route has no level data". "No route matched" already said route. |
+
+**Measured** (`luajit -joff`, stubs, a machine shared with other jobs, so CPU numbers vary by about 15% between runs):
+
+* Old-marks import, worst case of old marks on EVERY guide (this character and an alt), three runs: era 511 guides
+  450-530 ms CPU, tbc 681 / 0.71-0.83 s, mop 1,230 / 1.75-2.07 s, retail 4,439 / 7.0-8.4 s (2,000-2,170 slices),
+  forever 528 / 0.49-0.57 s; 0.9-1.9 ms a guide; median slice 3.1-3.4 ms. One guide is one parse and cannot be split:
+  Retail `ach:retail:expansion_features_skyriding` (588 KB) 82-107 ms, 12-32 Retail slices and 2-3 MoP slices pass a
+  60 fps frame (16.7 ms); none on era, tbc, forever (largest single guide 7-14 ms). A real character pays this only for
+  the guides it has old marks in. On a test clock (1 ms per KB) no slice of more than one guide passes 4 ms.
+* Re-plan, the 15 real samples of `tools/test_skip.lua`: the same 15 results as before; frames 106/374/2396/4624/363
+  before, 125/413/2456/5058/340 after in one run and 130/439/2840/5942/391 in the final run (era/tbc/mop/retail/forever;
+  a frame count follows CPU time, which varies with the machine's load). Without the bound (a path search per block)
+  it was 161/466/3013/7758/580. One full run showed one frame of 3.48 ms (collector paused) on retail; the retail rerun
+  had a maximum of 1.35 ms and the final full run passed (max 1.85 ms, budget check 2 ms).
+* `tools/vplayer.lua era --chain Alliance` and `--chain Horde`: identical summaries with the old and new
+  Progress/Account (272 and 360 loads, 0 bounces, level 60).
+
+**Tests** (worktree, each through `heavy.sh`):
+
+| Test | Result |
+|---|---|
+| `tools/test_flow.lua` | 206 checks pass; section 4 is new (finished route picked from the list, Recent and after `/reload`; chain during play; GUIDE_LOADED once; gated route; cycle depth; first login twice, then a pick). 19 of its checks fail on the old `Progress.lua`. |
+| `tools/test_mark_import.lua` (new) | 49 pass on all five clients: same tables as loading each guide (fixture, baked synthetic guide, real `wiki:era:1429:Alliance`), the re-ordered-update case (imported: mark stays on its step; lazy: lands on another), sweep pause, logout mid-way, gold circuit fold, access prefix, slicing on a test clock, cost |
+| `tools/test_skip.lua` | all pass (353); new 1c: opening with the hearth wins and is accepted, the hearth-free search finds nothing, a 60 min cooldown keeps the order; 1b's second check now expects the search to propose no slower order |
+| `test_progress_keys.lua` (202, 1 skip: old commit not in this clone), `test_offline`, `test_load_all`, `validate_toc`, `test_parked`, `test_live_route`, `test_step_window`, `test_level_list`, `test_quest_auto`, `test_bug_report`, `test_teleports`, `test_farm`, `test_contribute`, `test_access`, `test_package.py` | pass |
+
+**Open.** Not run in a client: the end screen of a held route, the list at first login and the import's frame cost
+need the beta. The import's single-guide spikes on Retail and MoP are the parse of a huge achievement guide (the
+routes list's completion scan has the same spikes); splitting a parse would need `Core/Guide.lua`.
+
 ## 2026-11-12 morning: merged player contributions reach the shipped guides (`contributions-into-guides`)
 
 Offline only. **Nothing here has run in a real WoW client.** Branch `contributions-into-guides` (worktree
