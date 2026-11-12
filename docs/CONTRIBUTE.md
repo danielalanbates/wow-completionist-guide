@@ -11,7 +11,8 @@ not allow it), so the gap is closed with first-hand data: where players actually
 
 ## What the player sees
 
-* A **Contribute** tick box on the guide window, left of the Guides button. Off by default.
+* A **Contribute** tick box on the guide window, left of the Routes button. Off by default. The word **Contribute**
+  next to it is a button: a click opens the export window (the same as `/cr contribute export`).
 * While it is ticked the addon notes the player's map position when:
 
 | Trigger | Stored under | Weight | Why |

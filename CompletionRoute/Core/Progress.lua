@@ -3,6 +3,7 @@
 -- and exposes the ordered list of upcoming steps (after the route optimizer has its say).
 local ADDON, NS = ...
 local U, Cond, G = NS.Util, NS.Cond, NS.Guide
+local Sig = NS.StepSignal       -- Core/Guide.lua: what a step names (NPC, items) and which rule finishes it
 local P = {}
 NS.Progress = P
 
@@ -71,6 +72,121 @@ function P.MarksReport()
     return out
 end
 
+-- ---------------------------------------------------------------------------
+-- Recently used routes (the "Recent" section on top of the routes list, UI/GuideMenu.lua)
+-- ---------------------------------------------------------------------------
+-- CompletionRouteCharDB.recent[guide id] = { s = sequence number (larger = more recent), t = wall time, n = steps in
+-- the route when it was last loaded }.  Written when the player picks a route and whenever a step of the loaded route
+-- is finished; never by the chain walking through finished routes at login, and never by a bulk sweep.  The list is
+-- built from this table alone (no guide is parsed for it), and it is in the character's saved variables, so it
+-- survives /reload.  At most RECENT_KEEP records are kept; the list shows RECENT_SHOWN.
+local RECENT_KEEP, RECENT_SHOWN = 30, 12
+P.RECENT_SHOWN = RECENT_SHOWN
+local function wallTime() if time then return time() end if os and os.time then return os.time() end return 0 end
+local function recentStore()
+    local c = NS.db.char
+    if c.recent then return c.recent end
+    local A = NS.Account
+    -- the character's record is not open yet, or a bulk sweep has swapped it for an empty one: nothing to seed from,
+    -- try again later
+    if A and (not A.me or A.scratch) then return {} end
+    c.recent, c.recentSeq = {}, 0
+    -- First run of this feature: the routes this character already has finished steps in start the list, the ones
+    -- with the most finished steps on top (when they were played is not known).
+    local sets = A and A.me and A.me.stepDone
+    if sets then
+        local ids = {}
+        for gid, set in pairs(sets) do
+            local n = 0
+            for _ in pairs(set) do n = n + 1 end
+            if n > 0 and type(gid) == "string" then ids[#ids + 1] = { gid, n } end
+        end
+        table.sort(ids, function(a, b) if a[2] ~= b[2] then return a[2] < b[2] end return a[1] > b[1] end)
+        for i = math.max(1, #ids - RECENT_KEEP + 1), #ids do
+            c.recentSeq = c.recentSeq + 1
+            c.recent[ids[i][1]] = { s = c.recentSeq, t = 0 }
+        end
+        -- the route that is loaded right now is the one in use: on top
+        local cur = c.guide and c.recent[c.guide]
+        if cur then c.recentSeq = c.recentSeq + 1 cur.s = c.recentSeq end
+    end
+    return c.recent
+end
+function P.TouchRecent(id, total)
+    if not (NS.db and NS.db.char and id) then return end
+    if NS.Account and NS.Account.scratch then return end
+    local store = recentStore()
+    local c = NS.db.char
+    if store ~= c.recent then return end
+    local r = store[id]
+    -- already the newest record: nothing to write (every finished step of the route being played lands here)
+    if r and r.s == c.recentSeq and (not total or total <= 0 or r.n == total) then return end
+    if not r then r = {} store[id] = r end
+    c.recentSeq = (c.recentSeq or 0) + 1
+    r.s, r.t = c.recentSeq, wallTime()
+    if total and total > 0 then r.n = total end
+    -- keep the table small: drop the oldest records beyond RECENT_KEEP
+    local count = 0
+    for _ in pairs(store) do count = count + 1 end
+    while count > RECENT_KEEP do
+        local oldest, at
+        for gid, rec in pairs(store) do if not at or (rec.s or 0) < at then oldest, at = gid, rec.s or 0 end end
+        if not oldest then break end
+        store[oldest] = nil
+        count = count - 1
+    end
+end
+-- Finished-step count of a route for this character without parsing it: its done and skipped marks (a circuit's
+-- marks are wiped every lap, so its laps count as progress too)
+local function markCount(id)
+    local A = NS.Account
+    local n = 0
+    if A and A.me then
+        for _, set in ipairs({ A.me.stepDone[id] or false, A.me.stepSkipped[id] or false }) do
+            if set then for _ in pairs(set) do n = n + 1 end end
+        end
+    else
+        local c = NS.db.char
+        for _, f in ipairs({ "stepDone", "stepSkipped" }) do
+            if c[f] and c[f][id] then for _ in pairs(c[f][id]) do n = n + 1 end end
+        end
+    end
+    return n
+end
+P.MarkCount = markCount
+-- Does this character have any mark in the route?  One table read, nothing counted (the list asks for every record).
+local function hasMarks(id)
+    local A = NS.Account
+    if A and A.me then
+        local d, s = A.me.stepDone[id], A.me.stepSkipped[id]
+        return (d ~= nil and next(d) ~= nil) or (s ~= nil and next(s) ~= nil)
+    end
+    local c = NS.db.char
+    for _, f in ipairs({ "stepDone", "stepSkipped" }) do
+        if c[f] and c[f][id] and next(c[f][id]) ~= nil then return true end
+    end
+    return false
+end
+-- The routes this character has finished at least one step in, most recently used first: { { g = guide, total = } }.
+-- Costs one pass over the saved records (at most RECENT_KEEP) and a sort of them: no guide is parsed and no mark is
+-- counted, so the list opens as fast as it did without the section.  A record whose route is gone from this version
+-- of the data is passed over (and ages out of the table).
+function P.RecentList(limit)
+    local out = {}
+    if not (NS.db and NS.db.char) then return out end
+    local store = recentStore()
+    local rows = {}
+    for id, rec in pairs(store) do
+        local g = type(rec) == "table" and G.registry[id]
+        if g and not g.empty and (hasMarks(id) or P.Lap(id) > 0) then rows[#rows + 1] = { g = g, total = rec.n, s = rec.s or 0 } end
+    end
+    table.sort(rows, function(a, b) if a.s ~= b.s then return a.s > b.s end return a.g.id < b.g.id end)
+    for i = 1, math.min(limit or RECENT_SHOWN, #rows) do out[i] = rows[i] end
+    return out
+end
+-- The saved record of one route (its step total when last loaded), for the list's progress column
+function P.RecentRecord(id) local c = NS.db and NS.db.char return c and c.recent and c.recent[id] or nil end
+
 function P.Load(id)
     local g = G.registry[id]
     if not g then NS:Error("Unknown guide: " .. tostring(id)) return false end
@@ -112,6 +228,10 @@ function P.Load(id)
     if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
     NS:Print("Guide: " .. (g.name or g.id) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")"
         .. ((cut or 0) > 0 and (", %d left out for skipped quests"):format(cut) or ""))
+    -- Recent: a route the player picked goes to the top; one the chain walked into only keeps its step total current
+    if not P.chainLoading then P.TouchRecent(id, #P.steps)
+    else local rec = P.RecentRecord(id) if rec then rec.n = #P.steps end end
+    P.fresh = true      -- the refresh below is the catch-up of a fresh load, not progress (see P.Refresh)
     P.Refresh()
     -- opened for the first time since quests were dropped from it: re-plan it once (the decision is saved)
     if (cut or 0) > 0 and P.guide == g and NS.Skip and not NS.Skip.HasPlan(g.id, key) then P.StartReplan(key) end
@@ -218,6 +338,7 @@ function P.MarkDone(step, manual)
     NS:Debug("done: " .. step.action .. " " .. step.title)
     -- manual = the forward arrow (or a menu click); wasCurrent = it was the step on screen (Core/Contribute.lua)
     NS:Fire("STEP_DONE", step, manual and true or false, step == P.current)
+    if P.guide then P.TouchRecent(P.guide.id, P.steps and #P.steps) end
     P.Refresh()
 end
 function P.Skip(step) if step and step.key then charReopened()[step.key] = nil charSkipped()[step.key] = true dirty = true P.Refresh() end end
@@ -270,13 +391,34 @@ local function clearMarks(id)
     end
 end
 P.ClearMarks = clearMarks
+-- /cr reset and Start over: forget the loaded route's marks for this character and go back to its first step.  What
+-- the game itself reports as done (a finished quest, a reached skill, items in the bags) ticks again at once.
 function P.Reset()
     if not P.guide then return end
     clearMarks(P.guide.id)
     if NS.db.char.parked then NS.db.char.parked[P.guide.id] = nil end
+    -- what events left on the step tables (hearth bound, flight map seen, item held) is progress too: without this a
+    -- "set hearth" step finished itself again the moment the route started over
+    for _, st in ipairs(P.baseSteps or P.steps or {}) do
+        st.bindDone, st.taxiDone, st.hadItem = nil, nil, nil
+    end
+    P.finishedNotice = nil
     dirty = true
     P.cursor = nil
+    if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
+    if NS.Router and NS.Router.Invalidate then NS.Router.Invalidate() end
     P.Refresh()
+end
+-- The Start over button (step window, its menus): P.Reset plus a line of chat.  Returns true when a route was reset.
+function P.StartOver()
+    if not P.guide then return false end
+    local g = P.guide
+    P.Reset()
+    if P.guide == g then
+        P.TouchRecent(g.id, P.steps and #P.steps)
+        NS:Print(("Started over: %s. Steps the game reports as done tick again by themselves."):format(g.name or g.id))
+    end
+    return true
 end
 
 -- ---------------------------------------------------------------------------
@@ -297,6 +439,17 @@ local function nearCoords(step, radius)
     for _, c in ipairs(step.coords) do
         local d = U.ZoneDistance(map, x, y, step.zone, c.x, c.y)
         if d and d < (radius or 40) then return true end
+    end
+    return false
+end
+-- R step with alternatives ("Visit the bank": six banks): standing at ANY of them is having arrived, not only at the
+-- one the engine chose as cheapest
+local function nearAnyAlt(step, radius)
+    local map, x, y = U.PlayerPos()
+    if not map then return false end
+    for _, a in ipairs(step.alts) do
+        local d = U.ZoneDistance(map, x, y, a.map, a.x, a.y)
+        if d and d < (radius or 30) then return true end
     end
     return false
 end
@@ -361,6 +514,8 @@ function P.CheckStep(step)
         if dest and inZone({ zone = dest }) then return true end
         if step.coords then if nearCoords(step, 30) then return true end
         elseif inZone(step) then return true end
+        -- only for the step on screen: a list of twenty banks is not worth pricing for every step of the look-ahead
+        if step.alts and step == P.current and nearAnyAlt(step, 30) then return true end
     elseif a == "P" then
         -- Portal step: completed if the player has entered the destination zone, OR is within portal range
         local map = U.PlayerPos()
@@ -402,6 +557,8 @@ function P.CheckStep(step)
         end
     elseif a == "B" then
         if step.loot then local ok = true for _, l in ipairs(step.loot) do if U.ItemCount(l.id) < l.qty then ok = false end end if ok then return true end end
+        -- a buy step that names its item with U / ITEM instead of L: the item is in the bags (COUNT of them)
+        if Sig.BuyHeld(step, U.ItemCount) then return true end
     elseif a == "h" then
         if step.bindDone then return true end
     elseif a == "f" then
@@ -412,6 +569,13 @@ function P.CheckStep(step)
     if step.ach and U.AchievementDone(step.ach, step.achCrit) then return true end
     -- generic: quest already complete => step obsolete
     if step.qid and (a ~= "A" and a ~= "a") and anyQuestDone(step.qid, U.IsQuestComplete) then return true end
+    -- Items (2026-11-12): any step but an accept or a turn-in that carries L counts is done when the bags hold them
+    -- (C / K / l without a quest, U and B had this already).  With a quest id the count only speaks while the
+    -- character is on that quest: before that the quest log has nothing to say and the accept comes first anyway.
+    if step.loot and not Sig.ACCEPT[a] and not Sig.TURNIN[a] and Sig.BagsHold(step, U.ItemCount)
+        and (not step.qid or anyQuestDone(step.qid, U.IsOnQuest)) then return true end
+    -- (talking to the step's NPC, a merchant on a repair/sell step, loot at a treasure's spot and a mission's
+    -- success are events, not states: their handlers are under "Events that can complete steps")
     return false
 end
 
@@ -581,6 +745,8 @@ function P.Refresh(force)
     if P.scopeSeen ~= scope or P.accSeen ~= acc then
         P.scopeSeen, P.accSeen, P.cursor = scope, acc, nil
     end
+    local fresh = P.fresh       -- first refresh after a load: what it ticks was done before, it is not progress made now
+    P.fresh = nil
     if P.hasAlts then
         local _, _, _, inst = U.PlayerPos()
         if inst and inst ~= P.altInst then P.ResolveAlts() end
@@ -603,7 +769,10 @@ function P.Refresh(force)
         changed = changed or any
         passes = passes + 1
     until not any or passes >= 25   -- a guide picked up mid-way can have hundreds of already-done steps
-    if changed then NS:Fire("STEPS_AUTOCOMPLETED") end
+    if changed then
+        NS:Fire("STEPS_AUTOCOMPLETED")
+        if not fresh and P.guide then P.TouchRecent(P.guide.id, #P.steps) end
+    end
     -- 2) let optimizer order the upcoming window
     local window = NS.db.profile.routing.window or 10
     local upcoming = P.Pending(window + 5)
@@ -633,7 +802,7 @@ function P.Refresh(force)
         if G.IsSideGuide(P.guide) then
             if P.finishedNotice ~= P.guide.id then
                 P.finishedNotice = P.guide.id
-                NS:Print("Guide finished: " .. (P.guide.name or P.guide.id) .. ". Pick the next one with /cr routes.")
+                NS:Print("Route finished: " .. (P.guide.name or P.guide.id) .. ". Start over runs it again; Routes has the next one.")
             end
             return
         end
@@ -690,6 +859,7 @@ function P.NewLap()
     clearMarks(id)
     dirty = true
     P.cursor = nil
+    P.TouchRecent(id, P.steps and #P.steps)
     NS:Fire("LAP_COMPLETE", P.guide, NS.db.char.laps[id])
     P.Refresh()
     P.StartAtNearest()
@@ -750,6 +920,107 @@ NS:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED", function(_, unit, _, spellID)
         refreshSoon()
     end
 end)
+-- ---------------------------------------------------------------------------
+-- Talking, vendors, treasure, missions: completion straight from a client event (2026-11-12)
+-- ---------------------------------------------------------------------------
+-- Every handler looks at the step on screen only (never a later one), does a table read or two, and leaves when the
+-- step has nothing for it, so it costs nothing on the common events it listens to.
+--
+-- An NPC's window opened.  UnitName("npc") is the NPC being talked to (the gossip and merchant frames of all four
+-- Blizzard UI sources title themselves with it); the quest panes use "questnpc", read when "npc" answers nothing.
+-- Retail hands out a secret value for the name under combat restrictions, which must not be compared (U.IsSecret).
+local QUEST_WINDOW = { QUEST_GREETING = true, QUEST_DETAIL = true, QUEST_PROGRESS = true, QUEST_COMPLETE = true }
+local function npcName(evt)
+    if not UnitName then return nil end
+    local name = UnitName("npc")
+    if U.IsSecret(name) then return nil end
+    if name == nil and QUEST_WINDOW[evt] then
+        name = UnitName("questnpc")
+        if U.IsSecret(name) then return nil end
+    end
+    return type(name) == "string" and name or nil
+end
+-- One conversation finishes one step.  A single click on an NPC fires several of these events (GOSSIP_SHOW and
+-- PLAYER_INTERACTION_MANAGER_FRAME_SHOW for the same window; then MERCHANT_SHOW or QUEST_DETAIL as the player goes
+-- from the gossip pane to the vendor or a quest), and two steps in a row can name the same NPC ("Talk to Bob", then
+-- "Talk to Bob" again after an errand): without this the second step went with the first.  After a step is finished
+-- here, the same NPC (any NPC, when the name could not be read) finishes nothing more until its windows have been
+-- closed for TALK_GAP seconds; a pane-to-pane change closes and opens in the same moment.
+local TALK_GAP = 2
+local talk = {}     -- who: lower-case name of the NPC that finished a step (true = unreadable); closed: when its window closed
+local function clock() return GetTime and GetTime() or 0 end
+local function sameConversation(name)
+    if talk.who == nil then return false end
+    if talk.who ~= true and name and talk.who ~= name:lower() then return false end
+    if talk.closed and clock() - talk.closed >= TALK_GAP then return false end
+    talk.closed = nil       -- a window of that NPC is open again: it has to close again before anything counts
+    return true
+end
+local function talked(name) talk.who, talk.closed = name and name:lower() or true, nil end
+P._talk = talk          -- tools/test_flow.lua
+local function npcWindow(evt)
+    local s = P.current
+    if not s then return end
+    local merchant = evt == "MERCHANT_SHOW" and Sig.MerchantCompletes(s)
+    if not merchant and not Sig.TalkNames(s) then return end
+    local name = npcName(evt)
+    if merchant then
+        -- a step that is only about repairing needs a merchant who repairs
+        if Sig.NeedsRepairer(s) and not (CanMerchantRepair and CanMerchantRepair()) then return end
+        if sameConversation(name) then return end
+        talked(name)
+        P.MarkDone(s)
+        return
+    end
+    if not Sig.TalkMatches(s, name) or sameConversation(name) then return end
+    talked(name)
+    P.MarkDone(s)
+end
+P.OnNpcWindow = npcWindow
+-- The windows an NPC opens: gossip, the quest greeting and the three quest panes (a giver with one quest opens
+-- straight into it), merchant, trainer, flight master, bank, auctioneer.  PLAYER_INTERACTION_MANAGER_FRAME_SHOW is the
+-- one event for all of them and the older names still fire beside it.  All of these are in the generated API
+-- documentation of the four Blizzard UI sources (live 12.1.5, 1.15.9, 2.5.6, 5.5.4); NS:RegisterEvent is
+-- pcall-guarded, so a name a client does not have is simply not listened to.
+for _, e in ipairs({ "GOSSIP_SHOW", "QUEST_GREETING", "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE", "MERCHANT_SHOW", "TRAINER_SHOW",
+    "TAXIMAP_OPENED", "BANKFRAME_OPENED", "AUCTION_HOUSE_SHOW", "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" }) do
+    NS:RegisterEvent(e, npcWindow)
+end
+local function npcClosed() if talk.who ~= nil then talk.closed = clock() end end
+for _, e in ipairs({ "GOSSIP_CLOSED", "QUEST_FINISHED", "MERCHANT_CLOSED", "TRAINER_CLOSED", "TAXIMAP_CLOSED", "BANKFRAME_CLOSED",
+    "AUCTION_HOUSE_CLOSED", "PLAYER_INTERACTION_MANAGER_FRAME_HIDE" }) do
+    NS:RegisterEvent(e, npcClosed)
+end
+-- A treasure step with a spot: a chest was looted while standing there.  The loot has to come from a game object
+-- (GetLootSourceInfo's GUID starts with "GameObject-"): a corpse looted beside the chest, or a fish, is not the
+-- treasure.  A client that cannot say where the loot came from leaves the step manual.
+local function lootFromObject()
+    if IsFishingLoot and IsFishingLoot() then return false end
+    if not (GetNumLootItems and GetLootSourceInfo) then return false end
+    for slot = 1, GetNumLootItems() or 0 do
+        local guid = GetLootSourceInfo(slot)
+        if U.IsSecret(guid) then return false end
+        if type(guid) == "string" and guid:sub(1, 11) == "GameObject-" then return true end
+    end
+    return false
+end
+local function lootWindow()
+    local s = P.current
+    if not (s and Sig.LootAtSpot(s)) then return end
+    if nearCoords(s, s.radius or 25) and lootFromObject() then P.MarkDone(s) end
+end
+P.OnLootWindow = lootWindow
+NS:RegisterEvent("LOOT_OPENED", lootWindow)
+NS:RegisterEvent("LOOT_READY", lootWindow)
+-- A mission table mission came back a success (Retail): the step that names that mission id is done, wherever it is
+-- in the list (the id is exact, and missions are done in whatever order the table offers them)
+NS:RegisterEvent("GARRISON_MISSION_COMPLETE_RESPONSE", function(_, missionID, canComplete, success)
+    if not (P.steps and type(missionID) == "number" and canComplete and success) then return end
+    for _, s in ipairs(P.steps) do
+        if s.mission == missionID and not P.IsDone(s) then P.MarkDone(s) return end
+    end
+end)
+
 -- position-based checks (R steps) — light poll
 local acc = 0
 NS.eventFrame:SetScript("OnUpdate", function(_, el)

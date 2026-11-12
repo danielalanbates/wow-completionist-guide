@@ -11,7 +11,7 @@ and how to replay it.
 
 * `/cr bug [what went wrong]` saves a report and prints its id, for example
   `Bug report era-20261110-153012-3fa2 saved (3 stored)`.
-* The **Report** button on the guide window does the same. It saves the snapshot at the moment of the click,
+* **Report a bug** in the guide window's `...` menu does the same. It saves the snapshot at the moment of the click,
   then opens a small box for an optional note (Enter saves the note, Escape skips it).
 * `/cr bug list` shows the newest ten report ids with guide, step and note.
 * Reports reach the disk only at `/reload` or logout, like all SavedVariables.
