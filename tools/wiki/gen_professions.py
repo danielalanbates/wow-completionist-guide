@@ -6,11 +6,19 @@
 """Secondary profession guides (Cooking, Fishing, First Aid, Archaeology) -> Guides/Imported_Professions_<fl>.lua
 
     /path/to/heavy.sh python3 tools/wiki/gen_professions.py [era tbc mop retail forever]
+                                    [--contributions DIR | --no-contributions] [--out DIR]
 
 Sources and rules: docs/PROFESSIONS.md.  Warcraft Wiki is the source of truth; the client tables (db2_fetch) decide
 which recipes exist on which client, their yellow/grey thresholds and their reagents.  Nothing is invented: a fact
 that is missing is omitted and counted in docs/verification.sqlite table prof_guides (a recipe the client's SpellName
-table has no name for is left out and counted as recipe_no_name).
+table has no name for is left out and counted as recipe_no_name).  --out DIR writes the guide files and that table
+into DIR instead.
+
+Player contributions (tools/contrib_areas.py, docs/CONTRIBUTE.md): a step with no point of its own (no |M|, no |ALT|)
+takes the trusted or confirmed area players contributed for its key (G:<route id>#<step key>, or the quest's A:/T:/C:
+key), with the note "(location: player contributions, N players)"; the file header then names the data repository
+and its commit.  The areas come from --contributions DIR, else $CR_CONTRIB, else ../wow-completionist-data/contributions;
+with no areas file for a client its output does not change by a byte.
 """
 import csv, datetime, json, math, re, sqlite3, sys
 from collections import defaultdict
@@ -19,6 +27,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
+sys.path.append(str(ROOT / "tools"))
+import contrib_areas as CA  # noqa: E402
 import db2_fetch as D  # noqa: E402
 import wiki_fetch as W  # noqa: E402
 import wikimaps  # noqa: E402
@@ -723,9 +733,13 @@ GUARD = {"era": 'if NS.flavor ~= "era" or NS.isForever then return end', "tbc": 
          "forever": "if not NS.isForever then return end"}
 
 
-def write_file(fl, out, sites):
-    p = GUIDES / ("Imported_Professions_%s.lua" % fl)
+def write_file(fl, out, sites, areas=None, out_dir=None):
+    """areas: the player contributions of this client (tools/contrib_areas.py Areas), or None"""
+    p = (out_dir or GUIDES) / ("Imported_Professions_%s.lua" % fl)
+    p.parent.mkdir(parents=True, exist_ok=True)
     keys = ("id", "name", "type", "folder", "prof", "skillMin", "skillMax", "tier", "faction", "minlevel", "forever", "author", "source")
+    defs = [(d, areas.apply(d["id"], lines) if areas else lines) for d, lines in out.defs]
+    took = sum(areas.used.values()) if areas else 0
     with open(p, "w", encoding="utf-8") as f:
         f.write("-- Completionist's Guide :: Imported_Professions_%s.lua - GENERATED %s by tools/wiki/gen_professions.py\n" % (fl, TODAY))
         f.write("-- Trainer locations, rank gates, recipe sources, reagent sources and fishing locations are derived from\n")
@@ -733,8 +747,10 @@ def write_file(fl, out, sites):
         f.write("-- (https://creativecommons.org/licenses/by-sa/4.0/). This data file is shared under the same licence;\n")
         f.write("-- see Guides/WIKI_DATA_LICENSE.md. Page histories (authors) are on each wiki page.\n")
         f.write("-- Recipe membership, skill thresholds, reagents and dig sites: Blizzard client tables via wago.tools (facts only).\n")
+        if took:
+            f.write(areas.header() + "\n")
         f.write("local _, NS = ...\n%s\nlocal R = NS.Guide.Register\n\n" % GUARD[fl])
-        for d, lines in out.defs:
+        for d, lines in defs:
             f.write("R({ " + ", ".join("%s=%s" % (k, lua_val(d[k])) for k in keys if k in d) + ", text=[==[\n")
             f.write("\n".join(lines))
             f.write("\n]==] })\n\n")
@@ -1186,21 +1202,32 @@ def dig_sites(gen, fl):
     return out
 
 
-def main():
-    flavors = [a for a in sys.argv[1:] if a in FLAVORS] or list(FLAVORS)
+def main(argv=None):
+    flavors, cdir, out_dir = CA.parse_args(sys.argv[1:] if argv is None else argv, FLAVORS)
+    print("player contributions:", cdir or "none read", flush=True)
     gen = Gen()
-    rows, totals = [], {}
+    rows, totals, unused = [], {}, []
     for fl in flavors:
         out, stats = gen_flavor(gen, fl)
         sites = dig_sites(gen, fl) if "Archaeology" in PROFS[fl] else {}
-        p = write_file(fl, out, sites)
+        areas = CA.Areas(cdir, fl, gen.atlas.sets[fl])
+        if areas.problem:
+            unused.append(fl)
+            print(f"  WARNING: player contributions of {fl} NOT USED ({areas.path}: {areas.problem})", flush=True)
+        p = write_file(fl, out, sites, areas, out_dir)
+        if areas.areas:
+            print(f"  {fl} player contributions: {sum(areas.used.values())} steps took a point {dict(areas.used)}, "
+                  f"{areas.outside} areas outside the step's zone, areas left out {dict(areas.skipped)}, commit {areas.commit}",
+                  flush=True)
         rows += out.rows
         totals[fl] = (len(out.defs), sum(len(l) for _, l in out.defs), dict(stats), sum(len(v) for v in sites.values()))
         print(fl, "guides", len(out.defs), "steps", totals[fl][1], "sites", totals[fl][3], dict(stats), p.name, flush=True)
     if gen.co_zone_fixed:
         print("trainer {{Co}} zones that contradict the page's own map links (point moved onto the linked map):",
               sorted(set(gen.co_zone_fixed)))
-    con = sqlite3.connect(str(VERIFY))
+    for fl in unused:
+        print(f"WARNING: player contributions of {fl} NOT USED (see above)", flush=True)
+    con = sqlite3.connect(str(out_dir / "verification.sqlite" if out_dir else VERIFY))
     con.execute("create table if not exists prof_guides(flavor text, id text primary key, profession text, tier int, skill_min int, skill_max int, "
                 "steps int, trainers int, recipes int, missing_facts int)")
     for fl in flavors:

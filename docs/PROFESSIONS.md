@@ -15,9 +15,12 @@ First Aid does not exist on retail (wiki: removed in patch 8.0.1).
 ## Regenerate
 
 ```
-~/Downloads/CompletionistGuide-work/heavy.sh python3 tools/wiki/gen_professions.py [era tbc mop retail forever]
+~/Downloads/CompletionistGuide-work/heavy.sh python3 tools/wiki/gen_professions.py [era tbc mop retail forever] \
+    [--contributions DIR | --no-contributions] [--out DIR]
 luajit tools/test_professions.lua
 ```
+
+`--out DIR` writes the route files and the `prof_guides` table into DIR and nothing anywhere else.
 
 Any `heavy.sh`-style lock will do on a small machine; the retail tables are about 65 MB of CSV. Wiki pages and client tables are
 cached (`tools/wiki/cache/extra_pages`, `tools/db2/<flavor>`), so a second run makes no requests. Each run replaces that flavor's
@@ -92,6 +95,16 @@ current skill and below its grey threshold.
   what to make. (2026-11-12: retail Midnight Cooking 1-100 ended in a nameless step, spell 1296257, a decor recipe the
   client teaches by itself, build 12.1.5.70783; no local table names it. Without it the plan reaches 100 through
   Thalassian Fillet, Mana Lily Tea, Hearty Food and Hearty Feast.)
+
+## Player contributions
+
+A step with no point of its own (no `|M|`, no `|ALT|`: a make, buy or note step, a fishing zone step) takes the area
+players contributed for its key, the add-on's own key (`G:<route id>#<step key>`, or the quest's `A:`/`T:`/`C:` key),
+by the quest guides' rule: only `trusted` or `confirmed` areas on a map the client has, the heaviest one (an objective
+up to three), and a step that names a zone keeps it unless the area lies in that zone. The note ends
+"(location: player contributions, N players)" and the file header names the data repository and its commit. Code:
+`tools/contrib_areas.py` (shared with `tools/wiki/gen_gold.py`); test: `tools/test_contrib_gen.py` part 5. No
+contribution is merged yet, so no route has changed (2026-11-12).
 
 ## Step grammar actually emitted
 

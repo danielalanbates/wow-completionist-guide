@@ -23,7 +23,13 @@ loudly, on a checkout without them.  Part 3 passes a contributed step through th
 tools/db2/retail; skipped the same way).  Part 4 is the key check on every step: it invents one area for every key
 a Classic Era quest step can have (each with its own player count, so a note tells which key the generator looked
 up), runs the generator on that, and reads every step back through Core/Guide.lua and Core/Contribute.lua KeyFor.
---unit runs part 1 only.  --keys retail (or any clients, comma-separated) runs part 4 alone for those clients.
+Part 5 is the gold and profession routes (tools/contrib_areas.py, used by tools/wiki/gen_gold.py and
+tools/wiki/gen_professions.py): the add-on's step keys for steps with no quest ("G:<route>#<step key>") against the
+Python copy on tricky synthetic lines, the rules on the fixture's G: keys, the provenance line and the packager; then
+every step of every generated gold and profession file with an invented area for each key, read back through the
+add-on (skipped without those files); then both generators for Classic Era into the temp folder, without and with the
+fixture (skipped without their gitignored inputs; the run is stopped if it would ask the wiki for anything).
+--unit runs parts 1 and 5a only.  --keys retail (or any clients, comma-separated) runs part 4 alone for those clients.
 """
 import contextlib
 import hashlib
@@ -47,6 +53,7 @@ import gen_wiki_guides as gw  # noqa: E402
 import gen_completion_guides as gc  # noqa: E402
 import package_release as pr  # noqa: E402
 import coverage as cov  # noqa: E402
+import contrib_areas as ca  # noqa: E402
 
 FIXTURE = TOOLS / "fixtures" / "contributions"
 TMPROOT = os.environ.get("CR_TEST_TMP") or ("/private/tmp/claude-501" if os.path.isdir("/private/tmp/claude-501") else None)
@@ -193,7 +200,7 @@ def part1(tmp):
     c = gw.Contributions(FIXTURE, "era", maps)
     check(set(c.areas) == {"A:46", "A:45", "A:5805", "A:60", "A:9999999", "C:45:0", "C:52:1", "C:52:2", "C:60:1", "C:7:1",
                            "T:54", "T:60", "T:6181"}, "only keys with a usable area are kept", sorted(c.areas))
-    check(dict(c.skipped) == {"single": 2, "unknown map": 2, "malformed": 1, "not a quest step": 1},
+    check(dict(c.skipped) == {"single": 2, "unknown map": 2, "malformed": 1, "not a quest step": 9},
           "single areas, unknown maps, a position off the map and a non-quest key are counted and not used", dict(c.skipped))
     check("T:37" not in c.areas and "C:3904:1" not in c.areas, "a 'single' area is never used")
     check("A:176" not in c.areas and [a["map"] for a in c.areas["A:45"]] == [1429],
@@ -725,6 +732,393 @@ def part4(tmp, fl, base=None):
           "the packager's gate passes that file (its header names the commit of the scratch checkout)")
 
 
+# ---------------------------------------------------------------------------------------------------------------------
+# Part 5: the gold and profession routes (tools/contrib_areas.py)
+ROUTE_KEYS_LUA = r"""
+package.path = "./?.lua;" .. package.path
+local ADDON, NS = "CompletionRoute", {}
+local file, flavor = arg[1], arg[2]
+STUB_MAPS = dofile("tools/maps_" .. flavor .. ".lua")
+dofile("tools/stubs.lua")
+local TOC = { era = 11508, tbc = 20506, mop = 50504, retail = 121500, forever = 16001 }
+GetBuildInfo = function() return "x", "0", "2026", TOC[flavor] end
+local function load(path) assert(loadfile("CompletionRoute/" .. path))(ADDON, NS) end
+for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/ZoneAliases.lua",
+    "Core/Contribute.lua" }) do load(f) end
+-- Forever: the map fix the add-on applies to a route written on Era maps (a Forever-native route, forever=true, is not moved)
+if flavor == "forever" then load("Data/MapFix_forever.lua") end
+NS.Print, NS.Debug = function() end, function() end
+assert(loadfile(file))(ADDON, NS)
+for _, id in ipairs(NS.Guide.list) do
+    for _, s in ipairs(NS.Guide.Steps(id) or {}) do
+        local pts = {}
+        for _, c in ipairs(s.coords or {}) do pts[#pts + 1] = ("%.1f,%.1f"):format(c.x * 100, c.y * 100) end
+        io.write(id, "\t", s.index, "\t", tostring(NS.Contribute.KeyFor(s)), "\t", tostring(s.zone), "\t",
+            table.concat(pts, ";"), "\t", tostring((s.note or ""):match("%(location: player contributions, (%d+) players?")),
+            "\n")
+    end
+end
+"""
+
+
+def route_steps(tmp, guide_file, fl):
+    """[(route id, step index, key, map, 'x,y;x,y', players or 'nil')] of every step of a route file, as the add-on
+    reads it (Core/Guide.lua G.Steps, Core/Contribute.lua KeyFor); None without luajit"""
+    lj = shutil.which("luajit")
+    if not lj:
+        return None
+    script = tmp / "route_keys.lua"
+    script.write_text(ROUTE_KEYS_LUA, encoding="utf-8")
+    r = subprocess.run([lj, "-joff", str(script), str(guide_file), fl], cwd=ROOT, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise SystemExit("route_keys.lua failed: " + r.stderr[-600:])
+    return [tuple(ln.split("\t")) for ln in r.stdout.splitlines() if ln]
+
+
+def route_guides(text):
+    """[(route id, [text lines])] of a generated gold or profession file, in file order; FOREVER_NATIVE gets the ids of
+    the routes that say forever=true"""
+    out, cur = [], None
+    for ln in text.splitlines():
+        m = re.match(r'^R\(\{ id="([^"]+)"', ln)
+        if m:
+            if "forever=true" in ln.split("text=[==[", 1)[0]:
+                FOREVER_NATIVE.add(m.group(1))
+            cur = (m.group(1), [])
+            out.append(cur)
+            rest = ln.split("text=[==[", 1)
+            if len(rest) == 2 and rest[1]:
+                cur[1].append(rest[1])
+        elif cur is not None:
+            if ln.startswith("]==]"):
+                cur = None
+            else:
+                cur[1].append(ln)
+    return out
+
+
+FOREVER_NATIVE = set()
+
+
+def route_file(guides, header=()):
+    """a route file the add-on loads: the guard, then one R({ ... }) per (route id, lines); a route the generated file
+    marks forever=true keeps the mark (the add-on then does not move its points with the Forever map fix)"""
+    out = ["-- route file written by tools/test_contrib_gen.py"] + list(header) + ["local _, NS = ...", "local R = NS.Guide.Register"]
+    for gid, lines in guides:
+        fv = "forever=true, " if gid in FOREVER_NATIVE else ""
+        out.append(f'R({{ id="{gid}", name="{gid}", type="Gold", {fv}source="CompletionRoute", text=[==[')
+        out.extend(lines)
+        out.append("]==] })")
+    return "\n".join(out) + "\n"
+
+
+def areas_file(folder, fl, areas):
+    (folder / "areas").mkdir(parents=True, exist_ok=True)
+    (folder / "areas" / f"{fl}.json").write_text(json.dumps({"flavor": fl, "areas": areas}), encoding="utf-8")
+    return folder
+
+
+def area(m, x, y, n, w=None, conf="confirmed"):
+    return {"map": m, "x": x, "y": y, "r": 0.4, "weight": w or n * 2, "cells": 1, "contributors": n, "confidence": conf}
+
+
+# tricky step lines for the key check: every part of Core/Guide.lua StepBase and ParseLine that a key depends on
+KEY_LINES = [
+    "N Get a Fishing Pole|N|Sold by general goods vendors.|",
+    "N Get a Fishing Pole|N|Same words again: the second one is #2.|",
+    "N  get A fishing-pole!!|N|Case and punctuation fold away: a third #n of the same key.|",
+    "M Dish at 48.1, 42.9 (Done?)|SKILL|Cooking;75;2545|SPELL|4242|COUNT|3|",
+    "M Dish at 48.1, 42.9 (Done?)|SKILL|cooking ; 75 ; |SPELL|4242|",
+    "= Train Sous-Chef’s Café Éclair|RECIPE|1234|ALT|1429,47.5,62.3,Lee Brown|",
+    "C Explore the Ruins|ACH|6;2050|N|An achievement criterion.|",
+    "C Explore the Ruins|ACH|6|N|The achievement itself.|",
+    "N Go on a mission|MISSION|123|",
+    "B Mild Spices|L|2678 20|COUNT|20|N|Bought.|",
+    "P Take the portal|N|An alias for a note step.|",
+    "s Speak with Bob|N|Another alias.|",
+    "d Die on purpose|",
+    "R Line one\\nline two|Z|1429; Elwynn Forest|",
+    "N Odd tag|XYZ|value|N|An unknown tag with a value.|",
+    "N Odd tag|XYZ|",
+    "N Odd tag|XYZ|a$b",
+    "N Flags|O|S|NC|FIXED|N|Flags take no value.|",
+    "N |N|A step with no title.|",
+    "U Use the item|U|16072|RECIPE|3413|",
+    "A Nat Pagle, Angler Extreme|QID|6607|N|A quest step: keyed by the quest.|",
+    "C Nat Pagle, Angler Extreme|QID|6607|QO|2|N|Objective 2.|",
+    "C Nat Pagle, Angler Extreme|QID|6607|N|No QO: objective 0.|",
+    "T Nat Pagle, Angler Extreme|QID|6607|",
+    ";a comment",
+    "-- another comment",
+    "",
+    "Q not a step|N|An unknown action.|",
+    "  N Leading spaces and a trailing tab|N|x|\t",
+]
+
+
+def part5_unit(tmp, cdir, sha):
+    print("gold and profession routes: step keys, the rules, the provenance line (tools/contrib_areas.py)")
+    # --- keys: the Python copy against the add-on, on synthetic lines ---
+    gid = "gold:era:test:keys"
+    want = [(gid, k) for _, _, k in ca.step_keys(gid, KEY_LINES)]
+    f = tmp / "route_keys_synthetic.lua"
+    f.write_text(route_file([(gid, KEY_LINES)]), encoding="utf-8")
+    got = route_steps(tmp, f, "era")
+    if got is None:
+        skip("luajit is not installed: the route step keys were not compared with the add-on")
+    else:
+        check([(g[0], g[2]) for g in got] == want and len(want) == 25,
+              "the step key of every kind of route line is the add-on's own (Core/Guide.lua StepBase + AssignKeys, "
+              "Core/Contribute.lua KeyFor): titles folded, written coordinates dropped, UTF-8, aliases, achievement, recipe, "
+              "skill and mission ids, repeats, unknown tags, flags, quest steps", [(a, b) for a, b in zip(got, want) if (a[0], a[2]) != b][:4] or len(want))
+    keys = [k for _, k in want]
+    check(keys[1] == keys[0] + "#2" and keys[2] == keys[0] + "#3" and keys[20:24] == ["A:6607", "C:6607:2", "C:6607:0", "T:6607"],
+          "repeats are numbered #2, #3; quest steps keep the quest keys", keys[:3] + keys[20:24])
+    check(all(ca.GUIDE_KEY.fullmatch(k) for k in keys if k.startswith("G:")) and not ca.GUIDE_KEY.fullmatch("G:x#h:1a2b3c"),
+          "every G: key the add-on makes fits the key pattern the reader accepts")
+
+    # --- the reader on the fixture ---
+    maps = gw.wikimaps.Atlas().sets["era"]
+    a = ca.Areas(FIXTURE, "era", maps)
+    g_keys = sorted(k for k in a.areas if k.startswith("G:"))
+    check(g_keys == ["G:gold:era:fish:1448:23#N~eohyak8l5", "G:prof:era:Cooking:1:Alliance#M~ccphbexgm",
+                     "G:prof:era:Fishing:1:Alliance#=~j30rr3glb", "G:prof:era:Fishing:1:Alliance#N~b0p3fig8g",
+                     "G:prof:era:Fishing:1:Alliance#R~bisrkzq54", "G:prof:era:Fishing:1:Horde#R~a5g7q7wci"],
+          "the routes' reader keeps the fixture's G: keys of the add-on's form", g_keys)
+    check(dict(a.skipped) == {"single": 3, "unknown map": 2, "malformed": 1, "not a step key": 2} and "A:46" in a.areas,
+          "... and the quest keys; 'single' areas, unknown maps and keys of another form are counted and not used", dict(a.skipped))
+    check([x["w"] for x in a.areas["G:prof:era:Cooking:1:Alliance#M~ccphbexgm"]] == [4.0],
+          "a step whose heaviest area is 'single' takes the next one")
+
+    # --- the rule, on lines shaped like the generated routes ---
+    fish_a = ["= Train Apprentice Fishing|RECIPE|7620|ALT|1429,47.5,62.3,Lee Brown;1426,35.5,40.3,Paxton Ganter|",
+              "N Get a Fishing Pole|N|Sold by general goods and fishing supply vendors.|",
+              "R Dun Morogh|Z|1426; Dun Morogh|N|Fishing locations: 100% catch at skill 25.|",
+              "M Fish in Dun Morogh|SKILL|Fishing;75|Z|1426; Dun Morogh|N|Catches here: Raw Brilliant Smallfish.|"]
+    fish_h = ["R Durotar|Z|1411; Durotar|N|Fishing locations: 100% catch at skill 25.|"]
+    cook = ["M Charred Wolf Meat|SKILL|Cooking;63|SPELL|2538|COUNT|68|N|About 68 crafts (estimated from the skill colours).|"]
+    gold = ["R Travel to Felwood|Z|1448; Felwood|N|Skill 300 or better keeps the catch from being mostly junk here.|",
+            "N Fish any open water or pool in the zone|Z|1448; Felwood|N|Likely catches: Raw Nightfin Snapper.|"]
+    out_a = a.apply("prof:era:Fishing:1:Alliance", fish_a)
+    check(out_a[0] == fish_a[0], "a step with its own points (ALT) is never changed, though its key has an area")
+    check(out_a[1] == "N Get a Fishing Pole|M|63.1,75.4|Z|1453; Stormwind City|N|Sold by general goods and fishing supply "
+          "vendors. (location: player contributions, 2 players)|", "a step with no point takes the area, the note says so", out_a[1])
+    check(out_a[2:] == fish_a[2:] and a.outside == 1, "a step that names a zone keeps it when the area lies elsewhere (counted)",
+          (out_a[2], a.outside))
+    out_h = a.apply("prof:era:Fishing:1:Horde", fish_h)
+    check(out_h == ["R Durotar|M|52.2,41.8|Z|1411; Durotar|N|Fishing locations: 100% catch at skill 25. (location: player "
+                    "contributions, 1 player)|"], "... and takes an area that lies in it", out_h)
+    out_c = a.apply("prof:era:Cooking:1:Alliance", cook)
+    check(out_c[0].startswith("M Charred Wolf Meat|SKILL|Cooking;63|SPELL|2538|COUNT|68|M|42.2,64.6|Z|1429; Elwynn Forest|N|")
+          and out_c[0].endswith(" (location: player contributions, 1 player)|"), "a make step takes its trusted area", out_c[0])
+    out_g = a.apply("gold:era:fish:1448:23", gold)
+    check(out_g[0] == gold[0] and out_g[1] == "N Fish any open water or pool in the zone|M|50.2,18.4|Z|1448; Felwood|N|Likely "
+          "catches: Raw Nightfin Snapper. (location: player contributions, 2 players)|", "a gold route step takes its area", out_g)
+    check(a.apply("prof:era:Fishing:1:Horde", fish_a) == fish_a and a.apply("prof:era:Cooking:2:Alliance", cook) == cook,
+          "the same lines in another route have other keys: nothing changes")
+    check(dict(a.used) == {"G": 4}, "four steps took a point", dict(a.used))
+    none = ca.Areas(None, "era", maps)
+    check(none.apply("prof:era:Fishing:1:Alliance", fish_a) == fish_a and ca.Areas(FIXTURE, "tbc", gw.wikimaps.Atlas().sets["tbc"]).areas == {},
+          "no folder, or no areas file for the client: nothing changes")
+
+    # --- quest keys in a route, a step with no note, the add-on reading it all back ---
+    syn = areas_file(tmp / "routes_syn" / "contributions", "era", {
+        "A:6607": [area(1429, 30.0, 40.0, 2)],
+        "C:6607:2": [area(1429, 31.0, 41.0, 5, 20), area(1440, 50.0, 50.0, 6, 18), area(1429, 32.0, 42.0, 3, 9),
+                     area(1429, 33.0, 43.0, 2, 6), area(1429, 34.0, 44.0, 2, 4)],
+        "C:6610:0": [area(1429, 35.0, 45.0, 2)],
+        "G:gold:era:test:syn#M~" + ca.step_base(ca.parse_step("M Fish in Somewhere|SKILL|Fishing;75|"))[2:]:
+            [area(1429, 36.0, 46.0, 3)],
+    })
+    s = ca.Areas(syn, "era", maps)
+    lines = ["A Nat Pagle, Angler Extreme|QID|6607|N|From Nat Pagle.|",
+             "C Nat Pagle, Angler Extreme|QID|6607|QO|2|N|Misty Reed Mahi Mahi|",
+             "C Clamlette Surprise|QID|6610|N|Giant Egg|", "C Clamlette Surprise|QID|6610|N|Zesty Clam Meat|",
+             "M Fish in Somewhere|SKILL|Fishing;75|"]
+    out = s.apply("gold:era:test:syn", lines)
+    check(out[0] == "A Nat Pagle, Angler Extreme|QID|6607|M|30.0,40.0|Z|1429; Elwynn Forest|N|From Nat Pagle. (location: player "
+          "contributions, 2 players)|", "a quest step in a route takes the quest key's area", out[0])
+    check("|QO|2|M|31.0,41.0;32.0,42.0;33.0,43.0|Z|1429; Elwynn Forest|N|" in out[1] and out[1].endswith(", 5 players, 3 areas)|"),
+          "an objective takes up to three areas, all on the heaviest one's map", out[1])
+    check(out[2:4] == lines[2:4], "objective steps without QO that share the add-on's key 0 take nothing")
+    check(out[4] == "M Fish in Somewhere|SKILL|Fishing;75|M|36.0,46.0|Z|1429; Elwynn Forest|N|(location: player contributions, "
+          "3 players)|", "a step with no note gets one", out[4])
+    f2 = tmp / "routes_syn.lua"
+    f2.write_text(route_file([("gold:era:test:syn", out)]), encoding="utf-8")
+    got = route_steps(tmp, f2, "era")
+    if got is not None:
+        rows = [(g[2], g[3], g[4], g[5]) for g in got]
+        check(rows == [("A:6607", "1429", "30.0,40.0", "2"), ("C:6607:2", "1429", "31.0,41.0;32.0,42.0;33.0,43.0", "5"),
+                       ("C:6610:0", "1429", "", "nil"), ("C:6610:0", "1429", "", "nil"),
+                       (list(s.areas)[-1], "1429", "36.0,46.0", "3")],
+              "the add-on reads each changed step back with its key, map, points and credit (the two steps left alone "
+              "keep the zone they inherit from the step before)", rows)
+
+    # --- the provenance line and the packager ---
+    c2 = ca.Areas(cdir, "era", maps)
+    hdr = c2.header()
+    check(c2.commit == sha and f"commit {sha}" in hdr and "wow-completionist-data" in hdr and "CC BY-SA 4.0" in hdr,
+          "the routes' header line names the data repository, its licence and the commit", hdr)
+    text = route_file([("prof:era:Fishing:1:Alliance", out_a)], [hdr])
+    check(gate("Guides/Imported_Professions_era.lua", text) == [] and gate("Guides/Imported_Gold_era.lua", text) == [],
+          "the packager passes a route file with a contributed step under that line")
+    check(len(gate("Guides/Imported_Gold_era.lua", route_file([("x", out_a)]))) == 1
+          and len(gate("Guides/Imported_Gold_era.lua", route_file([("x", out_a)], [a.header()]))) == 1,
+          "... and fails it without the line, or under a folder with no known commit")
+
+    # --- the command line ---
+    fl3 = ("era", "tbc", "mop", "retail", "forever")
+    check(ca.parse_args(["era", "--no-contributions", "--out=x"], fl3) == (["era"], None, Path("x"))
+          and ca.parse_args(["--contributions", str(FIXTURE)], fl3) == (list(fl3), FIXTURE, None),
+          "--contributions DIR, --no-contributions and --out DIR are read")
+    check(raises(ca.parse_args, ["--contributions"], fl3) and raises(ca.parse_args, ["--bogus"], fl3)
+          and raises(ca.parse_args, ["--no-contributions", "--contributions", "x"], fl3) and raises(ca.parse_args, ["nowhere"], fl3)
+          and raises(ca.parse_args, ["--contributions", str(tmp / "nowhere")], fl3), "bad option use stops the run")
+
+
+def part5_files(tmp):
+    """every step of every generated gold and profession file: an invented area for every key, the routes' rule
+    applied, and every step read back through the add-on"""
+    print("every step of the generated gold and profession routes: an invented area for every key, read back by the add-on")
+    atlas = gw.wikimaps.Atlas()
+    ran = 0
+    for fl in gw.FLAVORS:
+        maps = atlas.sets[fl]
+        default = next(i for i in sorted(maps.maps) if maps.maps[i]["type"] == 3 and maps.maps[i]["w"] and maps.maps[i]["h"])
+        for kind in ("Gold", "Professions"):
+            path = gw.GUIDES / f"Imported_{kind}_{fl}.lua"
+            if not path.exists():
+                skip(f"no {path.name}: its routes were not checked")
+                continue
+            text = path.read_text(encoding="utf-8")
+            guides = route_guides(text)
+            areas, by_n, expect, own = {}, {}, 0, []
+            for gid, lines in guides:
+                keyed = ca.step_keys(gid, lines)
+                untagged = Counter(k for _, st, k in keyed if k.startswith("C:") and "QO" not in st["tags"])
+                for i, st, key in keyed:
+                    if key in areas:
+                        continue
+                    zm = re.match(r"\s*([0-9]+)", (st["tags"].get("Z") or ("",))[0] or "")
+                    z = int(zm.group(1)) if zm else None
+                    # the step's own zone when a point can stand on it, else a zone inside it, else any zone
+                    mid = z if z in maps.maps and maps.maps[z]["type"] in (3, 4, 5, 6) and maps.maps[z]["w"] else \
+                        next((m for m in sorted(maps.maps) if maps.maps[m]["type"] == 3 and maps.maps[m]["w"]
+                              and z is not None and maps.is_ancestor(z, m)), default)
+                    n = len(by_n) + 2
+                    x, y = 5 + (n % 900) / 10, 5 + ((n // 900) % 900) / 10
+                    by_n[n] = (key, mid, gw.fmt_xy(x, y))
+                    areas[key] = [area(mid, x, y, n, n)]
+            for gid, lines in guides:
+                keyed = ca.step_keys(gid, lines)
+                untagged = Counter(k for _, st, k in keyed if k.startswith("C:") and "QO" not in st["tags"])
+                for i, st, key in keyed:
+                    if "M" in st["tags"] or "ALT" in st["tags"]:
+                        own.append((gid, lines[i]))
+                        continue
+                    zm = re.match(r"\s*([0-9]+)", (st["tags"].get("Z") or ("",))[0] or "")
+                    inside = not zm or by_n[areas[key][0]["contributors"]][1] == int(zm.group(1)) \
+                        or maps.is_ancestor(int(zm.group(1)), by_n[areas[key][0]["contributors"]][1])
+                    if inside and not (key.startswith("C:") and "QO" not in st["tags"] and untagged[key] > 1):
+                        expect += 1
+            d = areas_file(tmp / f"routes_{kind}_{fl}" / "contributions", fl, areas)
+            a = ca.Areas(d, fl, maps)
+            new = [(gid, a.apply(gid, lines)) for gid, lines in guides]
+            took = sum(a.used.values())
+            f = tmp / f"routes_{kind}_{fl}.lua"
+            f.write_text(route_file(new), encoding="utf-8")
+            got = route_steps(tmp, f, fl)
+            if got is None:
+                skip("luajit is not installed: the routes were not read back through the add-on")
+                return
+            ran += 1
+            wrong = []
+            credited = [g for g in got if g[5] != "nil"]
+            for gid, idx, key, zone, pts, n in credited:
+                w = by_n.get(int(n))
+                if not w or w[0] != key or str(w[1]) != zone or w[2] != pts.split(";")[0]:
+                    wrong.append((gid, idx, key, zone, pts, w))
+            kept = {ln for g, lines in new for ln in lines if "|M|" in ln or "|ALT|" in ln}
+            changed = [ln for _, ln in own if ln not in kept]
+            check(not wrong and len(credited) == took == expect and not changed and len(got) == sum(len(ca.step_keys(g, l)) for g, l in guides),
+                  f"{fl} {kind}: {took} of {len(got)} steps took an invented area; for each the add-on's key is the one whose area "
+                  f"it was given and it reads that area's map and point{' (Forever: read with the map fix loaded; a route without forever=true would have its points moved)' if fl == 'forever' else ''}; "
+                  f"the {len(own)} steps with points of their own are unchanged",
+                  (wrong[:3], len(credited), took, expect, changed[:2]))
+    if ran:
+        print(f"  ({ran} route files checked)")
+
+
+def run_quiet(fn, argv):
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            fn(argv)
+    except BaseException:
+        print(out.getvalue()[-3000:])
+        raise
+    return out.getvalue()
+
+
+def part5_generators(tmp, cdir, sha):
+    """gen_professions.py and gen_gold.py for Classic Era into the temp folder: without contributions the files are
+    the build's, with the fixture four steps take a point and the header names the commit"""
+    print("the gold and profession generators, Classic Era, without and with the fixture (into the temp folder)")
+    need = [gw.WIKI, ROOT / "tools" / "wiki" / "cache" / "wiki_raw.sqlite", ROOT / "tools" / "db2" / "era" / "SkillLineAbility.csv",
+            ROOT / "tools" / "wiki" / "cache" / "extra_pages"]
+    missing = [str(p.relative_to(ROOT)) for p in need if not p.exists()]
+    if missing:
+        skip("the route generators' gitignored inputs are missing (" + ", ".join(missing[:3]) + "): they were NOT run")
+        return
+    import wiki_fetch
+    import gen_professions as gp
+    import gen_gold as gg
+
+    def offline(params):
+        raise SystemExit(f"test_contrib_gen: the generator wanted a wiki page that is not cached ({str(params)[:120]})")
+    keep_get = wiki_fetch._get
+    wiki_fetch._get = offline
+    watched = [gw.GUIDES / f"Imported_{k}_era.lua" for k in ("Gold", "Professions")] + [gw.VERIF]
+    before = state(watched)
+    try:
+        for name, mod in (("Professions", gp), ("Gold", gg)):
+            base_dir, with_dir = tmp / f"gen_{name}_base", tmp / f"gen_{name}_with"
+            log0 = run_quiet(mod.main, ["era", "--no-contributions", "--out", str(base_dir)])
+            log1 = run_quiet(mod.main, ["era", "--contributions", str(cdir), "--out", str(with_dir)])
+            base = (base_dir / f"Imported_{name}_era.lua").read_text(encoding="utf-8")
+            new = (with_dir / f"Imported_{name}_era.lua").read_text(encoding="utf-8")
+            check("none read" in log0 and str(cdir) in log1, f"{name}: the run says which contributions folder it read")
+            build = gw.GUIDES / f"Imported_{name}_era.lua"
+            if build.exists():
+                date = re.compile(r"GENERATED \d{4}-\d\d-\d\d")
+                check(date.sub("", base, 1) == date.sub("", build.read_text(encoding="utf-8"), 1),
+                      f"{name}: without contributions the output is the build's Guides/Imported_{name}_era.lua (but for the "
+                      "date); if the generator or its inputs changed since that file was made, regenerate it first")
+            nb, nn = base.splitlines(), new.splitlines()
+            hline = next((ln for ln in nn[:12] if "merged player contributions" in ln), "")
+            diff = [(a, b) for a, b in zip([ln for ln in nb], [ln for ln in nn if ln != hline]) if a != b]
+            want = 3 if name == "Professions" else 1
+            check(len(nn) == len(nb) + 1 and len(diff) == want and all(NOTE in b and "|M|" in b for _, b in diff),
+                  f"{name}: the header line is the only line added and {want} step(s) took a fixture area", (len(nn) - len(nb), diff[:2]))
+            check(f"commit {sha}" in hline and gate(f"Guides/Imported_{name}_era.lua", new) == []
+                  and len(gate(f"Guides/Imported_{name}_era.lua", new.replace(hline + "\n", "", 1))) == 1,
+                  f"{name}: the header names the fixture's commit, and the packager passes the file only with that line", hline)
+            if name == "Professions":
+                check(any(b.startswith("N Get a Fishing Pole|M|63.1,75.4|Z|1453; Stormwind City|") for _, b in diff)
+                      and any(b.startswith("R Durotar|M|52.2,41.8|Z|1411; Durotar|") for _, b in diff)
+                      and any(b.startswith("M Charred Wolf Meat|") and "|M|42.2,64.6|Z|1429;" in b for _, b in diff)
+                      and "steps took a point" in log1 and "1 areas outside" in log1,
+                      "Professions: the pole, the Durotar and the Charred Wolf Meat steps took theirs; Dun Morogh kept its zone",
+                      [b[:60] for _, b in diff])
+            else:
+                check(diff and diff[0][1].startswith("N Fish any open water or pool in the zone|M|50.2,18.4|Z|1448; Felwood|"),
+                      "Gold: the Felwood fishing step took its area", diff[:1])
+            check((with_dir / "verification.sqlite").exists(), f"{name}: the chart went into the temp folder too")
+    finally:
+        wiki_fetch._get = keep_get
+    check(state(watched) == before, "the generator runs changed nothing in the checkout (route files, the chart)")
+
+
 def main():
     if not GIT:
         raise SystemExit("test_contrib_gen: git is needed (a scratch checkout stands in for the data repository)")
@@ -740,13 +1134,16 @@ def main():
                 part4(tmp, fl)
         else:
             cdir, sha = part1(tmp)
+            part5_unit(tmp, cdir, sha)
             if "--unit" in sys.argv:
-                print("parts 2 to 4 (the generators) not run: --unit")
+                print("parts 2 to 4 and 5b, 5c (the generators and the generated routes) not run: --unit")
             else:
                 base = part2(tmp, cdir, sha)
                 part3(tmp, sha)
                 if base is not None:
                     part4(tmp, "era", base)
+                part5_files(tmp)
+                part5_generators(tmp, cdir, sha)
         print("the checkout")
         check(sorted((p.name, p.stat().st_size, p.stat().st_mtime_ns) for p in gw.GUIDES.glob("Imported_*.lua")) == guides_before,
               "no generated guide under CompletionRoute/Guides was created, changed or removed")

@@ -5,12 +5,19 @@
 # https://batesai.org  help@batesai.org
 """Gold guides from community data: gathering circuits, mob farming circuits, fishing, daily hubs, methods, instance runs.
 
-    python3 tools/wiki/gen_gold.py [era tbc mop retail forever]        (use the heavy lock on the 8 GB Mac)
+    python3 tools/wiki/gen_gold.py [era tbc mop retail forever] [--contributions DIR | --no-contributions] [--out DIR]
+                                                                        (use the heavy lock on the 8 GB Mac)
 
 Writes CompletionRoute/Guides/Imported_Gold_<fl>.lua (gitignored, CC BY-SA 4.0 header) and the gold_guides table in
-docs/verification.sqlite.  See docs/GOLD_ROUTES.md.
+docs/verification.sqlite; --out DIR writes both into DIR instead and nothing anywhere else.  See docs/GOLD_ROUTES.md.
 WoW Forever's routes are written on Forever's own maps (the wiki points are placed there), so they carry forever=true:
 without it the add-on would move a point on a reshaped map (Data/MapFix_forever.lua) a second time.
+
+Player contributions (tools/contrib_areas.py, docs/CONTRIBUTE.md): a step with no point of its own takes the trusted
+or confirmed area players contributed for its key (G:<route id>#<step key>, or the quest's A:/T:/C: key), with the
+note "(location: player contributions, N players)"; the file header then names the data repository and its commit.
+The areas come from --contributions DIR, else $CR_CONTRIB, else ../wow-completionist-data/contributions; with no areas
+file for a client its output does not change by a byte.
 
 Sources.  Warcraft Wiki pages (fetched through wiki_fetch.py) and tools/wiki/wiki.sqlite + cache/wiki_raw.sqlite;
 Guides/Imported_Wiki_<fl>.lua steps, but never a step whose location came from another project's data (their note
@@ -30,6 +37,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
+sys.path.append(str(ROOT / "tools"))
+import contrib_areas as CA  # noqa: E402
 import wiki_fetch as W  # noqa: E402
 import wikimaps  # noqa: E402
 from wikitext import links as wiki_links, plain  # noqa: E402
@@ -1351,21 +1360,24 @@ def instance_guides(world, fl, table, stats):
 # ---------------------------------------------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------------------------------------------
-def write_guides(fl, guides):
-    GUIDES.mkdir(parents=True, exist_ok=True)
+def write_guides(fl, guides, contrib_line=None, out_dir=None):
+    """contrib_line: the provenance line of tools/contrib_areas.py when a step took a contributed point"""
+    out_dir = out_dir or GUIDES
+    out_dir.mkdir(parents=True, exist_ok=True)
     head = (f"-- Completionist's Guide :: Imported_Gold_{fl}.lua - GENERATED {TODAY} by tools/wiki/gen_gold.py\n"
-            + ATTRIB + "\nlocal _, NS = ...\n"
+            + ATTRIB + "\n" + (contrib_line + "\n" if contrib_line else "") + "local _, NS = ...\n"
             + ('if not NS.isForever then return end\n' if fl == "forever" else f'if NS.flavor ~= "{fl}" or NS.isForever then return end\n')
             + "local R = NS.Guide.Register\n\n")
-    with (GUIDES / f"Imported_Gold_{fl}.lua").open("w", encoding="utf-8") as f:
+    with (out_dir / f"Imported_Gold_{fl}.lua").open("w", encoding="utf-8") as f:
         f.write(head)
         for g in guides:
             f.write(lua_guide(g, forever=fl == "forever"))
 
 
-def write_sql(rows):
-    VERIF.parent.mkdir(parents=True, exist_ok=True)
-    db = sqlite3.connect(VERIF)
+def write_sql(rows, path=None):
+    path = path or VERIF
+    path.parent.mkdir(parents=True, exist_ok=True)
+    db = sqlite3.connect(path)
     db.execute("create table if not exists gold_guides(flavor text, id text primary key, name text, kind text, band text, "
                "zone text, faction text, steps int, loop int, requires text, source text)")
     db.execute("delete from gold_guides where flavor in (%s)" % ",".join("?" * len({r[0] for r in rows})), tuple({r[0] for r in rows}))
@@ -1374,9 +1386,10 @@ def write_sql(rows):
     db.close()
 
 
-def main():
-    args = [a for a in sys.argv[1:] if not a.startswith("-")]
-    flavors = args or FLAVORS
+def main(argv=None):
+    flavors, cdir, out_dir = CA.parse_args(sys.argv[1:] if argv is None else argv, FLAVORS)
+    log(f"player contributions: {cdir or 'none read'}")
+    unused = []
     atlas = wikimaps.Atlas()
     levels = ZoneLevels()
     box = npcbox_facts()
@@ -1430,14 +1443,26 @@ def main():
                 g.name = f"{g.name} [{g.zone or g.id.rsplit(':', 1)[-1]}]"
             seen.add(g.name)
             uniq.append(g)
-        write_guides(fl, uniq)
+        areas = CA.Areas(cdir, fl, atlas.sets[fl])
+        if areas.problem:
+            unused.append(fl)
+            log(f"  WARNING: player contributions of {fl} NOT USED ({areas.path}: {areas.problem})")
+        for g in uniq:
+            g.lines = areas.apply(g.id, g.lines)
+        took = sum(areas.used.values())
+        if areas.areas:
+            log(f"  player contributions: {took} steps took a point {dict(areas.used)}, {areas.outside} areas outside the "
+                f"step's zone, areas left out {dict(areas.skipped)}, commit {areas.commit}")
+        write_guides(fl, uniq, areas.header() if took else None, out_dir)
         for g in uniq:
             zone = zone_name(world, g.zone) if g.zone else ""
             sql_rows.append((fl, g.id, g.name, g.kind, g.band, zone, g.faction or "", len(g.lines), 1 if g.loop else 0, g.req or "", g.source))
         s = {k: v for k, v in stats.items() if k != "_seen"}
         by_kind = collections.Counter(g.kind for g in uniq)
         log(f"{fl}: {len(uniq)} guides {dict(by_kind)} stats {s} questie-tagged points skipped: {world.skipped_questie}")
-    write_sql(sql_rows)
+    write_sql(sql_rows, out_dir / "verification.sqlite" if out_dir else None)
+    for fl in unused:
+        log(f"WARNING: player contributions of {fl} NOT USED (see above)")
     log("done")
 
 
