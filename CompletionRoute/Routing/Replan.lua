@@ -27,7 +27,9 @@
 -- Search per segment, from two starts - the baseline, and a greedy nearest-feasible order from where the segment starts -
 -- keeping the cheaper: first-improvement Or-opt (move 1-3 blocks next to one of their nearest blocks by travel time,
 -- or next to any block when the segment has at most RP.ALL_BELOW) and 2-opt (reverse up to RP.REV_MAX blocks), with
--- don't-look bits.
+-- don't-look bits.  The segment that starts at the player prices its first leg as acceptance does, with the hearthstone
+-- and teleports when one is usable (RP.OneShotLandings), so an order that wins only by opening with the hearth is found:
+-- the greedy start may open with it, and Or-opt may move a run to the front of that segment (2026-11-12).
 -- Acceptance: the new order replaces the baseline only when the whole remaining route (from the player) saves
 -- max(StepOrder.MIN_GAIN, StepOrder.GAIN_FRAC of it), the margin the live window uses, AND the route through the steps
 -- with a firm point (their own |M|, or an NPC's: Routing/CostModel.lua) is no longer than before - any other step is
@@ -281,7 +283,11 @@ RP.Build = build
 -- Search over one segment
 -- ---------------------------------------------------------------------------
 -- exact: price only the steps with a firm point (own |M| or an NPC's) instead of every step the arrow points at
-local function solveSeg(seg, C, ctx, stats, startPt, endPt, exact)
+-- fromStart (optional): the price of the leg from the segment's start to a point, when the segment starts at the player
+-- (plan's playerCost: the arrow's price, the hearthstone and the other one-shot legs included).  Without it every leg
+-- from the start is the hearth-free row, and an order that is cheaper only because it opens with the hearthstone was
+-- never found (acceptance priced it, the search did not).
+local function solveSeg(seg, C, ctx, stats, startPt, endPt, exact, fromStart)
     local tick = ctx.tick
     local blocks = seg.blocks
     local nb = #blocks
@@ -300,6 +306,7 @@ local function solveSeg(seg, C, ctx, stats, startPt, endPt, exact)
         if u == 0 then a = startPt else a = blocks[u][OUT] end
         if v == E then b = endPt else b = blocks[v][IN] end
         if not a or not b then return 0 end
+        if u == 0 and fromStart then return fromStart(b) end
         return C.get(a, b)
     end
     -- nearest blocks by travel time (the shorter of the two legs); every block in a small segment
@@ -361,6 +368,9 @@ local function solveSeg(seg, C, ctx, stats, startPt, endPt, exact)
             prefix(lo)
         end
         local touched = {}
+        -- insertion points: next to one of the nearest blocks of the run's first or last block; with a priced start
+        -- (fromStart) also the front of the segment, where a run that opens with the hearthstone goes
+        local FRONT = { 1 }
         local function tryMove(f)
             local i = pos[f]
             for L = 1, 3 do
@@ -369,11 +379,11 @@ local function solveSeg(seg, C, ctx, stats, startPt, endPt, exact)
                 local a, l, bq = at(i - 1), ord[j], at(j + 1)
                 local gain = c(a, f) + c(l, bq) - c(a, bq)
                 if gain > EPS then
-                    for side = 1, 2 do
-                        local list = side == 1 and nbrs[f] or nbrs[l]
+                    for side = 1, (fromStart and i > 1) and 3 or 2 do
+                        local list = side == 1 and nbrs[f] or side == 2 and nbrs[l] or FRONT
                         for n = 1, #list do
-                            local pu = pos[list[n]]
-                            for back = 0, 1 do
+                            local pu = side == 3 and 1 or pos[list[n]]
+                            for back = (side == 3) and 1 or 0, 1 do
                                 local g = pu - back          -- insert after position g
                                 if g < i - 1 or g > j then
                                     local p, q = at(g), at(g + 1)
@@ -514,6 +524,37 @@ end
 -- ---------------------------------------------------------------------------
 -- One whole re-plan (runs inside the job's coroutine)
 -- ---------------------------------------------------------------------------
+-- Where a leg from the player can land by hearthstone or teleport right now: { { wx, wy, inst }, ... }.  The same
+-- conditions TravelGraph.FindPath puts such a leg into the graph on (the routing options; the hearth's place known and
+-- the Hearthstone, a stand-in toy or Astral Recall at most 15 minutes from ready; a teleport under the same rule); the
+-- price of a leg always comes from FindPath itself.
+function RP.OneShotLandings()
+    local out = {}
+    local c = NS.db and NS.db.profile and NS.db.profile.routing or {}
+    local TG = NS.TravelGraph
+    if c.hearth ~= false and TG and TG.HearthWorld then
+        local hx, hy, hinst = TG.HearthWorld()
+        if hx then
+            local _, cd, _, id = U.HearthReady()
+            local _, acd, akind = U.AstralRecallReady()
+            if (id and (cd or math.huge) <= 15 * 60) or (akind and (acd or math.huge) <= 15 * 60) then
+                out[#out + 1] = { wx = hx, wy = hy, inst = hinst }
+            end
+        end
+    end
+    local T = NS.Teleports
+    if c.teleports ~= false and T and T.Available then
+        local ok, list = pcall(T.Available)
+        if ok and type(list) == "table" then
+            for _, a in ipairs(list) do
+                if a.inst and a.wx and (a.cd or math.huge) <= 15 * 60 then out[#out + 1] = { wx = a.wx, wy = a.wy, inst = a.inst } end
+            end
+        end
+    end
+    return out
+end
+function RP.OneShotUsable() return #RP.OneShotLandings() > 0 end
+
 local function plan(list, ctx)
     local tick = ctx.tick
     local stats = { moves = 0, rev = 0, segments = 0, blocks = 0, pairs = 0, searches = 0, greedy = 0 }
@@ -562,6 +603,40 @@ local function plan(list, ctx)
         end
         return t
     end
+    -- The segment that starts at the player prices its first leg as routeCost does (playerCost: hearthstone and
+    -- teleports included), so an order that wins only by opening with one is found.  A path search per block would
+    -- cost a lot on a big graph, so playerCost is asked only where a one-shot leg can win at all: every path through
+    -- one costs at least its edge (the hearth's base cost less its 10 s cast) plus the hearth-free time from where it
+    -- lands (one multi-goal search per landing place, TravelGraph.FindPaths).  Elsewhere the hearth-free row IS
+    -- playerCost.  No usable one-shot (RP.OneShotLandings): the search is exactly what it was.
+    local landings = (ctx.oneShot == false) and {} or RP.OneShotLandings()
+    stats.oneShot = (#landings > 0) or nil
+    local LB = ((NS.db and NS.db.profile and NS.db.profile.routing and NS.db.profile.routing.hearthCost) or CM.HEARTH) - 10
+    -- FindPaths answers a goal under 300 yd with the walk alone: such an answer bounds nothing, it counts as 0
+    local SHORT = 300 * (ctx.walkFactor or 1) / (ctx.speed or 7)
+    local viaRow = {}     -- [landing][point] = hearth-free seconds from the landing place (false: no route)
+    local function primeVia(points)
+        for li, L in ipairs(landings) do
+            local row = viaRow[li]
+            if not row then row = {} viaRow[li] = row end
+            local need = {}
+            for _, p in ipairs(points) do if row[p] == nil then need[#need + 1] = p end end
+            if #need > 0 then
+                local out = NS.TravelGraph.FindPaths(L.wx, L.wy, L.inst, need, { speed = ctx.speed, walkFactor = ctx.walkFactor, graph = ctx.graph, tick = tick }, {})
+                for i = 1, #need do row[need[i]] = out[i] or false end
+                stats.searches, stats.pairs = stats.searches + 1, stats.pairs + #need
+            end
+        end
+    end
+    local function startCost(p)
+        local base = C.get(PLAYER, p)
+        for li = 1, #landings do
+            local r = viaRow[li] and viaRow[li][p]
+            if r == nil then return playerCost(p) end
+            if r and LB + (r > SHORT and r or 0) < base then return playerCost(p) end
+        end
+        return base
+    end
     -- one whole order, segment by segment (each starts where the one before ended)
     local function solveAll(exact)
         local order, lastPt = {}, PLAYER
@@ -578,7 +653,14 @@ local function plan(list, ctx)
                 local ord
                 if nb >= 2 then
                     if not exact then stats.segments, stats.blocks = stats.segments + 1, stats.blocks + nb end
-                    ord = solveSeg(seg, C, ctx, stats, lastPt, nxt and nxt.anchor and anchorPt(nxt.anchor) or nil, exact)
+                    local fromStart
+                    if #landings > 0 and PLAYER and lastPt == PLAYER then
+                        local IN, pts = exact and "entryX" or "entry", {}
+                        for _, blk in ipairs(seg.blocks) do if blk[IN] then pts[#pts + 1] = blk[IN] end end
+                        primeVia(pts)
+                        fromStart = startCost
+                    end
+                    ord = solveSeg(seg, C, ctx, stats, lastPt, nxt and nxt.anchor and anchorPt(nxt.anchor) or nil, exact, fromStart)
                 else
                     ord = { 1 }
                 end
@@ -675,7 +757,8 @@ function RP.Step(budget)
 end
 driver:SetScript("OnUpdate", function() RP.Step() end)
 
--- opts = { guide = id, list = steps (display order), onDone = fn(result, job), isDone = fn(step), frameLog = true }
+-- opts = { guide = id, list = steps (display order), onDone = fn(result, job), isDone = fn(step), frameLog = true,
+--          oneShot = false (tests: the search prices no hearth opening, the rule before 2026-11-12) }
 function RP.Start(opts)
     RP.Cancel()
     if not (NS.Router and opts and opts.list) then return nil end
@@ -689,7 +772,7 @@ function RP.Start(opts)
     -- job's first frame, TravelGraph.Snapshot)
     J.ctx = { router = R, tick = J.tick, level = U.PlayerLevel(), logStart = logStart, logCap = logCap,
               speed = opts.speed or U.TravelSpeed(), walkFactor = opts.walkFactor or NS.TravelGraph.WalkFactor(),
-              player = opts.player or (R.PlayerPoint and R.PlayerPoint()) or nil,
+              player = opts.player or (R.PlayerPoint and R.PlayerPoint()) or nil, oneShot = opts.oneShot,
               isDone = opts.isDone or function(s) return NS.Progress.IsDone(s) end }
     J.co = coroutine.create(function() J.result = plan(J.list, J.ctx) end)
     job = J

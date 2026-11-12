@@ -759,17 +759,17 @@ function S.WarningText(info, viaStep)
     local n = #info.locked
     lines[#lines + 1] = ("%d quest%s need%s it and can no longer be done: %s."):format(n, n == 1 and "" or "s", n == 1 and "s" or "",
         nameList(info.locked, 4))
-    lines[#lines + 1] = ("(%d in this guide, %d in other guides)"):format(#info.inGuide, #info.other)
+    lines[#lines + 1] = ("(%d in this route, %d in other routes)"):format(#info.inGuide, #info.other)
     local g = #info.guideOnly
     if g > 0 then
-        lines[#lines + 1] = ("%d of them only here: this guide offers %s after it (another guide may still have %s)."):format(g,
+        lines[#lines + 1] = ("%d of them only here: this route offers %s after it (another route may still have %s)."):format(g,
             g == 1 and "it" or "them", g == 1 and "it" or "them")
     end
     lines[#lines + 1] = ""
-    lines[#lines + 1] = ("Dropping the chain removes %d of your quests from this guide (%d step%s) and %d from other guides."):format(
+    lines[#lines + 1] = ("Dropping the chain removes %d of your quests from this route (%d step%s) and %d from other routes."):format(
         info.questsHere, info.steps, info.steps == 1 and "" or "s", #info.other)
     if info.gated then
-        lines[#lines + 1] = "Fewer quests means less experience: level-gated steps later in the guide may open later."
+        lines[#lines + 1] = "Fewer quests means less experience: level-gated steps later in the route may open later."
     end
     lines[#lines + 1] = ("Bring it all back with /cr unskip %d."):format(info.q)
     return table.concat(lines, "\n")
@@ -819,10 +819,10 @@ function S.SkipQuest(q, opts)
         local after = NS.Progress and NS.Progress.steps and #NS.Progress.steps or 0
         local n = #info.locked
         if n == 0 then
-            NS:Print(("Skipped %s (%d): %d step%s left this guide. /cr unskip %d brings it back."):format(info.name, q,
+            NS:Print(("Skipped %s (%d): %d step%s left this route. /cr unskip %d brings it back."):format(info.name, q,
                 math.max(0, before - after), (before - after) == 1 and "" or "s", q))
         else
-            NS:Print(("Dropped %s (%d) and %d quest%s that need it (%d step%s left this guide). /cr unskip %d brings them back."):format(
+            NS:Print(("Dropped %s (%d) and %d quest%s that need it (%d step%s left this route). /cr unskip %d brings them back."):format(
                 info.name, q, n, n == 1 and "" or "s", math.max(0, before - after), (before - after) == 1 and "" or "s", q))
         end
         if U.IsOnQuest(q) then NS:Print("It is still in your quest log; abandon it there if you want the slot back.") end
@@ -875,7 +875,7 @@ function S.Unskip(q)
         local P = NS.Progress
         local here = P and P.baseSteps and select(3, S.Project(P.baseSteps, nil, P.guide and P.guide.id))
         if by then NS:Print(("%s (%d) is out because it needs %s (%d). /cr unskip %d brings both back."):format(S.QuestName(q), q, S.QuestName(by), by, by))
-        elseif here and here[q] then NS:Print(("%s (%d) is out of this guide: its accept here waits on a quest you skipped (/cr skipped)."):format(S.QuestName(q), q))
+        elseif here and here[q] then NS:Print(("%s (%d) is out of this route: its accept here waits on a quest you skipped (/cr skipped)."):format(S.QuestName(q), q))
         else NS:Print(("Quest %d is not skipped."):format(q)) end
         return nil
     end
