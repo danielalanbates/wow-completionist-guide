@@ -78,7 +78,7 @@ for _, fl in ipairs(FLAVORS) do
     for _, rel in ipairs(files) do
         if rel:match("^Libs/") then
             loaded = loaded + 1 -- third-party libs need a real client env; not our code under test
-        elseif (rel:match("^Guides/Imported_") or rel:match("^Data/Imported_") or rel:match("^Data/RouteOrder_") or rel:match("^Data/QuestDeps_")) and not io.open("CompletionRoute/" .. rel, "r") then
+        elseif (rel:match("^Guides/Imported_") or rel:match("^Data/RouteOrder_") or rel:match("^Data/QuestDeps_")) and not io.open("CompletionRoute/" .. rel, "r") then
             loaded = loaded + 1 -- baked locally, gitignored; absent in CI checkouts
         elseif rel:match("%.lua$") then
             local chunk, err = loadfile("CompletionRoute/" .. rel)
@@ -107,7 +107,7 @@ for _, fl in ipairs(FLAVORS) do
     end
     if fl.forever then
         if not (NS.ForeverMapFix and next(NS.ForeverMapFix)) then print(("FAIL %-16s NS.ForeverMapFix missing"):format(fl.name)) failed = failed + 1 end
-        -- the era wiki/gaps files must step aside on Forever and the Forever files must register (when baked)
+        -- the era wiki file must step aside on Forever and the Forever file must register (when generated)
         local nf, ne = 0, 0
         for id in pairs(NS.Guide and NS.Guide.registry or {}) do
             if type(id) == "string" then

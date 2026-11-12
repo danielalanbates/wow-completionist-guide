@@ -11,7 +11,7 @@
 --      and no live window (--live off), so it walks exactly the order it was given;
 --   4. per guide, prediction and measurement agree within 2% (and 1 s), for both orders.  The one exception is a guide
 --      whose author order breaks its own rules (an accept listed before the in-guide turn-in of its prerequisite: the
---      optimizer's dropped_edges, seen only in the Questie-derived qdb: gaps guides): the client cannot play that order as
+--      optimizer's dropped_edges; none of the shipped wiki guides has one today): the client cannot play that order as
 --      written (it shows the hidden step later, or never), so "the same order" does not exist.  Such a guide is listed
 --      with that reason when it misses, and does not fail the test.
 -- Also: every row carries the cost model's version and no-route cost (the optimizer holds no copy of its own), and the
@@ -119,11 +119,14 @@ end
 -- real guides known to need the planning character (generated, gitignored: skipped when absent).  value = who must have
 -- (coverage-prof, 2026-11-11: the Dalaran fix and the zone-level steps moved the Warrior campaign out of
 -- wiki:retail:627:Alliance into mixed Dalaran guides; the class campaign checked now is the Priest one, which has a guide
--- of its own at the Netherlight Temple, 121 of 121 located steps for Priests)
+-- of its own at the Netherlight Temple, 121 of 121 located steps for Priests.  2026-11-11 night, one build: without
+-- the fallback points the zone guides split differently, so the two samples that named a numbered part moved to guides
+-- that are not split - a guide for both factions planned for Alliance (map 15, 63 of 63 walked steps) and the Shaman
+-- campaign at the Maelstrom (map 726, 166 of 170); the old ids were wiki:retail:1408:Both:2 and wiki:retail:2239:Both:2)
 local KNOWN = {
     mop = { ["wiki:mop:174:Horde"] = { race = "Goblin" } },
-    retail = { ["wiki:retail:1408:Both:2"] = { faction = "Alliance" }, ["wiki:retail:702:Both"] = { class = "PRIEST" },
-               ["wiki:retail:76:Horde:2"] = { race = "Goblin" }, ["wiki:retail:2239:Both:2"] = { class = "DRUID" } },
+    retail = { ["wiki:retail:15:Both"] = { faction = "Alliance" }, ["wiki:retail:702:Both"] = { class = "PRIEST" },
+               ["wiki:retail:76:Horde:2"] = { race = "Goblin" }, ["wiki:retail:726:Both"] = { class = "SHAMAN" } },
 }
 
 local function readLines(p)

@@ -14,7 +14,8 @@ for both factions) and proves that
   * --gate-only gives every row a verdict; a guide for both factions is played as Alliance AND as Horde and is rejected
     when either play is slower than the gate allows; the RouteOrder entry carries va / vb (and vah / vbh);
   * the gate limits come from the rows (the cost model's GATE_FRAC / GATE_ABS), never from a copy in the optimizer.
-Every file goes to a temp folder (under /private/tmp/claude-501 when it exists); nothing in the repo is written.
+Every file goes to a temp folder (CR_TEST_TMP, else /private/tmp/claude-501 when it exists); nothing in the repo is
+written.
 """
 import json
 import os
@@ -47,7 +48,7 @@ def read_rows(path):
 
 class BakeGate(unittest.TestCase):
     def setUp(self):
-        base = "/private/tmp/claude-501" if os.path.isdir("/private/tmp/claude-501") else None
+        base = os.environ.get("CR_TEST_TMP") or ("/private/tmp/claude-501" if os.path.isdir("/private/tmp/claude-501") else None)
         self.dir = tempfile.mkdtemp(prefix="cr_test_bake_gate_", dir=base)
         self.inp = os.path.join(self.dir, "cm.jsonl")
         self.out = os.path.join(self.dir, "routeopt", "era.jsonl")

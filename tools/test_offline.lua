@@ -78,16 +78,11 @@ print("SuggestNext exclude/refit OK")
 local BAKED = io.open("CompletionRoute/Guides/Imported_Wiki_tbc.lua", "r") ~= nil
 if not BAKED then print("generated-guide assertions SKIPPED (no generated guides; run tools/wiki/gen_wiki_guides.py)") end
 assert(not (NS.Adapters and NS.Adapters.WoWPro), "no third-party guide adapter may be loaded")
--- 5b) generated quest DB guides (flavor-gated: harness reports TBC 2.5.6 -> only _tbc loads)
--- Since the wiki pipeline the clients load Imported_Wiki_<fl> + Imported_Quests_<fl>_gaps (tools/wiki/gen_wiki_guides.py);
--- the era files are loaded too, to prove the flavor gate keeps them out of a TBC client.
-local QFILES = { "Guides/Imported_Wiki_era.lua", "Guides/Imported_Quests_era_gaps.lua",
-                 "Guides/Imported_Wiki_tbc.lua", "Guides/Imported_Quests_tbc_gaps.lua" }
+-- 5b) generated wiki quest guides (flavor-gated: harness reports TBC 2.5.6 -> only _tbc loads)
+-- The clients load Imported_Wiki_<fl> (tools/wiki/gen_wiki_guides.py); the era file is loaded too, to prove the flavor
+-- gate keeps it out of a TBC client.
+local QFILES = { "Guides/Imported_Wiki_era.lua", "Guides/Imported_Wiki_tbc.lua" }
 local fq = io.open("CompletionRoute/Guides/Imported_Wiki_tbc.lua")
-if not fq then
-    QFILES = { "Guides/Imported_Quests_era.lua", "Guides/Imported_Quests_tbc.lua" }
-    fq = io.open("CompletionRoute/Guides/Imported_Quests_tbc.lua")
-end
 if fq then
     fq:close()
     for _, qf in ipairs(QFILES) do load(qf) end
@@ -97,14 +92,15 @@ if fq then
         if (g.type or "") == "Quests" then
             qGuides = qGuides + 1
             if qSteps <= 10 then local st = NS.Guide.Steps(id) qSteps = math.max(qSteps, st and #st or 0) end
-            assert(not id:find("^qdb:era") and not id:find("^wiki:era"), "era quest guides leaked into tbc flavor: " .. id)
+            assert(not id:find("^wiki:era"), "era quest guides leaked into tbc flavor: " .. id)
+            assert(id:find("^wiki:tbc:"), "a quest guide that is not a tbc wiki guide is registered: " .. id)
         end
     end
     assert(qGuides > 150, "expected >150 tbc quest guides, got " .. qGuides)
     assert(qSteps > 10, "quest guide steps did not parse")
-    print(("quest DB guides OK: %d zone guides (tbc), sample parsed %d steps"):format(qGuides, qSteps))
+    print(("wiki quest guides OK: %d zone guides (tbc), sample parsed %d steps"):format(qGuides, qSteps))
 else
-    print("quest DB guides SKIPPED (Imported_Wiki_tbc.lua / Imported_Quests_tbc.lua not generated)")
+    print("wiki quest guides SKIPPED (Imported_Wiki_tbc.lua not generated)")
 end
 -- 6) guide menu tree (organization): categories ordered, every guide reachable, search works
 GameTooltip = CreateFrame()

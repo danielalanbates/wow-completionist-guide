@@ -222,7 +222,6 @@ local function harness(flavor, family)
         files[#files + 1] = f
     end
     for _, f in ipairs(files) do load(f) end
-    load("Data/Imported_Entrances.lua", true)
     CompletionRouteDB, CompletionRouteCharDB = nil, nil
     for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
     NS.printed = {}
