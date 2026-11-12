@@ -34,14 +34,14 @@ arrow:SetSize(56, 56)
 arrow:SetPoint("TOP", f, "TOP", 0, -4)
 A.tex = arrow
 
-local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+local title = f:CreateFontString(nil, "OVERLAY", U.Font("Title"))
 title:SetPoint("TOP", arrow, "BOTTOM", 0, -2)
 title:SetWidth(220); title:SetJustifyH("CENTER"); title:SetWordWrap(true); title:SetMaxLines(2)
 title:SetTextColor(1, 0.82, 0)
-local sub = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+local sub = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 sub:SetPoint("TOP", title, "BOTTOM", 0, -1)
 sub:SetWidth(220); sub:SetJustifyH("CENTER")
-local eta = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+local eta = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 eta:SetPoint("TOP", sub, "BOTTOM", 0, -1)
 eta:SetTextColor(0.6, 0.85, 1)
 

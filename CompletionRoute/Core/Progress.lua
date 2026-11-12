@@ -765,11 +765,24 @@ local function autoload(attempt)
     local ok, err = pcall(function()
         local id = NS.db.char.guide
         if id and G.registry[id] then
+            NS.db.char.welcomed = true
             P.chainLoading = true
             P.Load(id)
             P.chainLoading = nil
             return
         end
+        -- First launch on this character (no guide was ever loaded): do not pick a guide and open it unasked.  Show
+        -- the guide list instead, whose "For level N" section starts open with the best picks (beta feedback,
+        -- 2026-11-11).  Once per character; a character whose saved guide no longer exists still gets a suggestion.
+        if id == nil and not NS.db.char.welcomed then
+            NS.db.char.welcomed = true
+            if NS.GuideMenu and NS.GuideMenu.Show then
+                NS.GuideMenu.Show()
+                NS:Print("Pick a guide to start: the list is open (/cr guides opens it again).")
+                return
+            end
+        end
+        NS.db.char.welcomed = true
         local s = G.SuggestNext(nil) or G.Suggest()  -- location-aware pick at login too
         if s then P.Load(s.id)
         elseif attempt < 3 then NS:After(6, function() autoload(attempt + 1) end)  -- adapters may still be importing
