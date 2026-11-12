@@ -453,27 +453,45 @@ do
         t("old tables of " .. k .. " are untouched", same(chars[k].done, db0.chars[k].done) and same(chars[k].skipped, db0.chars[k].skipped))
     end
     t("old reopened table (character file) is untouched", same(NS.db.char.reopened, char0.reopened))
-    -- a real generated guide (when present): indices 1 2 4 of it land on its steps 1 2 4
+    -- a real generated guide (when present): its old ticks 1 2 4 5 land on its author steps 1 2 4 5, and on a quest step
+    -- only when the record has completed the quest.  The generated guide changes with every data build, so what is
+    -- expected is worked out from the guide as it is: the quests of author step 4 are completed for this check.
     if G.registry[REAL] then
         local list = G.Steps(REAL)
-        local n = A.GuideProgress(REAL, #list, "char")
         local rs = author(list)
-        -- ticks 1 2 are on quest 783 (not in the record's completed quests), 4 5 on quest 7 (completed)
-        t("real guide " .. REAL .. ": old ticks 4 5 (quest completed) migrate on first view (guide list), 1 2 (quest not completed) do not",
-            n == 2 and me.stepDone[REAL] and not me.stepDone[REAL][rs[1].key] and not me.stepDone[REAL][rs[2].key]
-            and me.stepDone[REAL][rs[4].key] and me.stepDone[REAL][rs[5].key] and not me.stepDone[REAL][rs[3].key]
-            and me.stepMeta[REAL].mig == 2 and me.stepMeta[REAL].lost == 2, n)
-        -- with the real bake (Data/RouteOrder_era.lua, applied while its checksum matches the generated guide) author step 5
-        -- is further down the list than position 5
-        if G.registry[REAL].baked and list[5].index > 5 then
-            t(("real guide baked: list position 5 is author step %d; the old tick 5 is on author step 5, not on it"):format(list[5].index),
-                me.stepDone[REAL][rs[5].key] and not me.stepDone[REAL][list[5].key])
+        local added = {}
+        for _, q in ipairs(rs[4].qid or {}) do if not me.quests[q] then me.quests[q] = true added[#added + 1] = q end end
+        local function agrees(st)
+            if not st.qid or #st.qid == 0 then return true end
+            for _, q in ipairs(st.qid) do if me.quests[q] then return true end end
+            return false
+        end
+        local want, wantN, wantNot = {}, 0, 0
+        for _, i in ipairs({ 1, 2, 4, 5 }) do
+            want[i] = agrees(rs[i])
+            if want[i] then wantN = wantN + 1 else wantNot = wantNot + 1 end
+        end
+        local n = A.GuideProgress(REAL, #list, "char")
+        local set = me.stepDone[REAL] or {}
+        local placed = true
+        for i, w in pairs(want) do if (set[rs[i].key] == true) ~= w then placed = false end end
+        t(("real guide %s: of the old ticks 1 2 4 5, the %d on steps without a quest or with a completed quest migrate on first view (guide list), the other %d do not")
+            :format(REAL, wantN, wantNot),
+            placed and n == wantN and want[4] and not set[rs[3].key] and me.stepMeta[REAL].mig == wantN and (me.stepMeta[REAL].lost or 0) == wantNot,
+            ("%d in the list, mig %s lost %s"):format(n, tostring(me.stepMeta[REAL] and me.stepMeta[REAL].mig), tostring(me.stepMeta[REAL] and me.stepMeta[REAL].lost)))
+        if wantNot == 0 then skip("real guide: a tick on a quest that is not completed", "steps 1 2 4 5 of the current " .. REAL .. " share their quests") end
+        -- with the real bake (Data/RouteOrder_era.lua, applied while its checksum matches the generated guide) author step 4
+        -- is further down the list than position 4
+        if G.registry[REAL].baked and list[4].index > 4 then
+            t(("real guide baked: list position 4 is author step %d; the old tick 4 is on author step 4, not on it"):format(list[4].index),
+                set[rs[4].key] and (not set[list[4].key] or want[list[4].index] == true))
         else
-            skip("real guide baked order", "Data/RouteOrder_era.lua does not apply to the current " .. REAL .. " or keeps position 5")
+            skip("real guide baked order", "Data/RouteOrder_era.lua does not apply to the current " .. REAL .. " or keeps position 4")
         end
         P.Load(REAL)
-        t("...and show as done when it is loaded", not P.IsDone(rs[1]) and P.IsDone(rs[4]) and P.IsDone(rs[5]) and not P.IsDone(rs[3]))
+        t("...and show as done when it is loaded", P.IsDone(rs[4]) and (want[1] or not set[rs[1].key]) and (want[2] or not set[rs[2].key]))
         P.Load("t:keys:a")
+        for _, q in ipairs(added) do me.quests[q] = nil end
     else
         skip("real guide migration", REAL .. " not generated here")
     end
@@ -724,6 +742,7 @@ do
         local armed = roundTrip(afterDB)
         armed.autoVerifyAll, armed.autoSweep, armed.autoQuitAfter, armed.autoDemo, armed.autoFarmTest, armed.autoVerifyQuit = "resume", "resume", 1770, true, true, true
         local before = markTables(armed, afterChar)
+        local resultsBefore = ser({ armed.verifyAll or false, armed.routeSweep or false, armed.verifyRunDone or false })   -- (the fixture holds old result tables)
         local NS = session(armed)
         local left = {}
         for _, k in ipairs({ "autoVerifyAll", "autoSweep", "autoQuitAfter", "autoDemo", "autoFarmTest", "autoVerifyQuit", "devRun" }) do
@@ -732,9 +751,12 @@ do
         t("keys of an old verification run in the saved variables are dropped at load (no devRun with them)", #left == 0 and NS.devRun == false, table.concat(left, " "))
         local swept = false
         for _, line in ipairs(NS.printed) do if line:find("^verifyall") or line:find("^sweep") or line:find("verification") then swept = true end end
-        t("...and 60 s into the login no sweep has started: no result table, no scratch store, no chat line, no quit button",
-            CompletionRouteDB.verifyAll == nil and CompletionRouteDB.routeSweep == nil and CompletionRouteDB.verifyRunDone == nil
-            and NS.Account.scratch == nil and NS.bulkRun == nil and not swept and _G.CompletionRouteVerifyQuit == nil)
+        t("...and 60 s into the login no sweep has started: no new result table, no scratch store, no chat line, no quit button",
+            ser({ CompletionRouteDB.verifyAll or false, CompletionRouteDB.routeSweep or false, CompletionRouteDB.verifyRunDone or false }) == resultsBefore
+            and NS.Account.scratch == nil and NS.bulkRun == nil and not swept and _G.CompletionRouteVerifyQuit == nil,
+            ("result tables as before %s, scratch %s, bulkRun %s, chat %s, quit button %s"):format(
+                tostring(ser({ CompletionRouteDB.verifyAll or false, CompletionRouteDB.routeSweep or false, CompletionRouteDB.verifyRunDone or false }) == resultsBefore),
+                tostring(NS.Account.scratch ~= nil), tostring(NS.bulkRun), tostring(swept), tostring(_G.CompletionRouteVerifyQuit ~= nil)))
         t("...the character's marks are untouched", markTables(CompletionRouteDB, afterChar) == before)
         local said = false
         for _, line in ipairs(NS.printed) do if line:find("feature verify", 1, true) then said = true end end

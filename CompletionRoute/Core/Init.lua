@@ -79,8 +79,9 @@ local function fill(dst, src) for k, v in pairs(src) do
     if type(v) == "table" then if type(dst[k]) ~= "table" then dst[k] = {} end fill(dst[k], v)
     elseif dst[k] == nil then dst[k] = v end end end
 NS.deepcopy, NS.filldefaults = deepcopy, fill
+-- the saved-variable layout (2: marks by step key, questSkip); tools/sync_progress.lua FORMAT must know it
+NS.DATA_FORMAT = 2
 -- saved-variable keys only a developer run may act on (see ADDON_LOADED below)
-NS.DATA_FORMAT = 2   -- 2: marks by step key, questSkip (tools/sync_progress.lua FORMAT)
 NS.DEV_KEYS = { "autoVerifyAll", "autoSweep", "autoQuitAfter", "autoVerifyQuit", "autoDemo", "autoFarmTest" }
 
 -- ---------------------------------------------------------------------------
@@ -133,13 +134,13 @@ NS:RegisterEvent("ADDON_LOADED", function(_, name)
     CompletionRouteDB = CompletionRouteDB or {}
     CompletionRouteCharDB = CompletionRouteCharDB or {}
     fill(CompletionRouteDB, { profile = deepcopy(NS.defaults.profile) })
+    -- the layout of this file, for tools that rewrite it from outside the game (tools/sync_progress.lua refuses a file
+    -- of a later layout than it knows)
+    CompletionRouteDB.dataFormat = NS.DATA_FORMAT
     -- Developer runs: tools/queue_verify.py arms a login that sweeps every guide by itself (autoVerifyAll, autoSweep,
     -- autoQuitAfter, autoVerifyQuit, autoDemo, autoFarmTest; read in Core/Progress.lua and Core/Sweep.lua).  Those keys
     -- count only together with devRun, which the same tool writes for that one login.  Without it they are dropped, so
     -- keys left in a saved-variables file by an old verification run never start a sweep on a player's login.
-    -- the layout of this file, for tools that rewrite it from outside the game (tools/sync_progress.lua refuses a file
-    -- of a later layout than it knows)
-    CompletionRouteDB.dataFormat = NS.DATA_FORMAT
     NS.devRun = CompletionRouteDB.devRun == true
     CompletionRouteDB.devRun = nil
     if not NS.devRun then

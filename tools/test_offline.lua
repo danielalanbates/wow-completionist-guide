@@ -218,8 +218,9 @@ local cn, cp = NS.Account.GuideProgress("t:acct", 4, "char")
 assert(cn == 1 and cp == 25, ("char progress %d/%d%%"):format(cn, cp))
 -- a second character on the account finished steps 2 and 3
 -- (written in the layout of the release before step keys, by author index: Core/Account.lua migrates it on first read)
+-- (its record has completed quests 902 and 903: an old tick on a quest step is carried over only when it has)
 NS.db.global.chars["Alt-Test"] = { name = "Alt", realm = "Test", class = "MAGE", faction = "Alliance", flavor = "tbc", gametype = "tbc",
-    done = { ["t:acct"] = { [2] = true, [3] = true } }, skipped = {} }
+    done = { ["t:acct"] = { [2] = true, [3] = true } }, skipped = {}, quests = { [902] = true, [903] = true } }
 local an, ap = NS.Account.GuideProgress("t:acct", 4, "account")
 assert(an == 3 and ap == 75, ("account progress %d/%d%%"):format(an, ap))
 -- opt-in OFF: the alt's work must not affect this character
