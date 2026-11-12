@@ -347,7 +347,8 @@ def contrib_commit(folder, fl):
         return "unknown"
 
     def run(*a):
-        r = subprocess.run([git, "-C", str(folder), *a], capture_output=True, text=True, timeout=60)
+        # --no-optional-locks: git status must not refresh (write) the data repository's index; this only reads
+        r = subprocess.run([git, "--no-optional-locks", "-C", str(folder), *a], capture_output=True, text=True, timeout=60)
         return r.stdout.strip() if r.returncode == 0 else None
     try:
         top = run("rev-parse", "--show-toplevel")
