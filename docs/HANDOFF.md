@@ -265,6 +265,30 @@ and button; the travel line names only non-walking legs; **Contribute** (`Core/C
   gives steps without a point their contributed place; then the first real contribution through the issue form
   (the Action has never run).
 
+**Update 2026-11-12, 07:00.**
+* **PR #17 (saved-progress review, nine findings fixed)** is merged and installed on all five clients. Its blocker was
+  real: the live saved-variable files of Era, TBC and MoP carried developer sweep flags (`autoVerifyAll`,
+  `autoSweep`, `autoQuitAfter`) left by `tools/queue_verify.py` in August. The code now ignores and drops them without
+  `devRun`; the three lines were also removed from the three live files (backup beside each:
+  `CompletionRoute.lua.pre-defuse-2026-11-12.bak`). Never leave developer flags in a player's saved variables.
+* **PR #18 (contributions reach the shipped guides)** is merged: `gen_wiki_guides.py` reads
+  `contributions/areas/<flavor>.json` from a sibling `wow-completionist-data` checkout (or `--contributions` /
+  `CR_CONTRIB`), uses only trusted or confirmed areas, never over a wiki point or quest pin, and records the data
+  repository commit in the file header (the packager refuses an unknown or dirty commit). Nothing to regenerate
+  while no contribution exists. Data repository PR #2 added the licence scope and a consent tick box to the form.
+  **The whole loop has only run on invented data**: the first real issue is the first test of the Action.
+* **Rebake:** running since 05:17, 586 of 1,611 at 06:45 (tbc, forever, era done; mop and retail to go). When it
+  ends: `test_route_order`, `test_cost_parity`, the gate, `tools/install.sh` for the clients that are not running,
+  copy `Data/RouteOrder_*.lua` to Drive, `python3 tools/status_report.py > docs/status_table.txt`.
+* **Known and not done:**
+  * `tools/wiki/gen_spine.py` orders ties unstably on MoP and Retail (object addresses and set order), so every
+    regeneration moves a few steps and makes those routes' bakes stale. A stable tie-break is described in the STATUS
+    section of 2026-11-12 (contributions review); it reorders the two files once and needs a rebake of the changed
+    routes. Apply it together with the next regeneration, not during a bake.
+  * The import of old index marks is still lazy (per guide when first loaded).
+  * The re-plan search does not look for an order that is better only because it starts with the hearthstone.
+  * No worktrees are left; `repo/` is the only checkout, on `master`.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
