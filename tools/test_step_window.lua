@@ -82,6 +82,11 @@ function Widget:GetChecked() return self.checked end
 function Widget:CreateFontString(_, _, font) return new("FontString", nil, self, font) end
 function Widget:CreateTexture() return new("Texture", nil, self) end
 function Widget:GetStringWidth() return #W.Plain(self.text) * (FONT_PT[self.font] or 12) * 0.52 end
+-- button labels: the font objects the addon gives them (GF.ButtonFonts), and the width of the label in the normal one
+function Widget:SetNormalFontObject(fo) self.normalFont = fo end
+function Widget:SetHighlightFontObject(fo) self.highlightFont = fo end
+function Widget:SetDisabledFontObject(fo) self.disabledFont = fo end
+function Widget:GetTextWidth() return #W.Plain(self.text) * (FONT_PT[self.normalFont or "GameFontNormal"] or 13) * 0.52 end
 -- Like the client: a wrapped string with no width yet has not been laid out and answers with ONE line.
 function Widget:GetStringHeight()
     seq = seq + 1
@@ -266,7 +271,7 @@ do
         violations = {}
         GF.Update()
         local word = GF.contributeLabel.text:GetStringWidth() + 2
-        local room = f.width - (6 + 20 + 2 + 24 + 2 + 52 + 4 + 20 + 1 + word + 8) - 10
+        local room = f.width - (6 + GF.close.width + 2 + GF.more.width + 2 + GF.routes.width + 4 + 20 + 1 + word + 8) - 10
         return room, GF.stepText:GetStringWidth()
     end
     local room, stepW = header(12, true)
@@ -365,6 +370,56 @@ do
     local step = { note = "A (location: X)" }
     G.CardNote(step) step.note = "B (location: Y)"
     check(G.CardNote(step) == "B", "the cached card note follows the note")
+end
+
+-- ---------------------------------------------------------------------------
+-- F. Button labels: the addon's fonts (the Options "Text size" slider covers them), and buttons as wide as their labels
+-- ---------------------------------------------------------------------------
+do
+    local U = NS.Util
+    for _, b in ipairs({ GF.close, GF.more, GF.routes, GF.restart, GF.confirm.yes, GF.confirm.no, GF.moreMenu.reorder, GF.stepMenu.skipQuest }) do
+        check(b.normalFont == U.Font("Title") and b.highlightFont == U.Font("Body") and b.disabledFont ~= nil,
+            "button '" .. tostring(b.text) .. "': its label is in the addon's fonts")
+    end
+    local function wideEnough(b, pad) return b.width >= b:GetTextWidth() + pad - 1e-6 and b.width >= b.minW end
+    FONT_PT.GameFontNormal = 19          -- the largest text size and then some
+    P.Load("w:layout") P.Reset()
+    violations = {}
+    GF.Update()
+    for _, v in ipairs(violations) do check(false, "large button labels: " .. v) end
+    for _, b in ipairs({ GF.close, GF.more, GF.routes }) do
+        check(wideEnough(b, 10), ("title line: '%s' is as wide as its label (%d >= %.1f)"):format(b.text, b.width, b:GetTextWidth() + 10))
+    end
+    check(GF.routes.width > 52, "the Routes button grew with its label: " .. GF.routes.width)
+    local word = GF.contributeLabel.text:GetStringWidth() + 2
+    local room = f.width - (6 + GF.close.width + 2 + GF.more.width + 2 + GF.routes.width + 4 + 20 + 1 + word + 8) - 10
+    check(math.abs(GF.nameRoom - (room - GF.stepText:GetStringWidth() - 8)) < 0.01, "the title line's room allows for the wider buttons")
+    check(GF.titleText:IsShown() == (GF.nameRoom >= L.nameMin), "and the route name shows only with room for it")
+    GF.more.scripts.OnClick(GF.more)
+    local mw = 0
+    for _, b in ipairs(GF.moreMenu.buttons) do
+        check(wideEnough(b, 16), ("\"...\" menu: '%s' fits its row"):format(b.text))
+        mw = math.max(mw, b.width)
+    end
+    check(GF.moreMenu.width == mw + 16, "the \"...\" menu is as wide as its rows")
+    GF.moreMenu:Hide()
+    GF.ShowStepMenu(P.current, card)
+    for _, b in ipairs(GF.stepMenu.buttons) do check(wideEnough(b, 16), ("step menu: '%s' fits its row"):format(b.text)) end
+    GF.ShowDetail(P.current)
+    local row = 12 + 4 * 3 + 12
+    local dButtons = {}
+    for _, w in ipairs(GF._detailButtons or {}) do dButtons[#dButtons + 1] = w row = row + w.width end
+    check(#dButtons == 4, "the Details panel has its four buttons")
+    for _, b in ipairs(dButtons) do check(wideEnough(b, 10), ("Details: '%s' is as wide as its label"):format(b.text)) end
+    check(GF.detail.width >= row and GF.detail.width > GF.DETAIL_W, ("the Details panel widens to hold its button row (%d >= %d)"):format(GF.detail.width, row))
+    check(GF.detailBody.width == GF.detail.width - 24 and GF.detailTitle.width == GF.detail.width - 42, "and its texts take the new width")
+    GF.detail:Hide()
+    GF.StartOver()
+    check(GF.confirm:IsShown() and wideEnough(GF.confirm.yes, 10) and wideEnough(GF.confirm.no, 10), "Start over question: both buttons fit their labels")
+    GF.confirm:Hide()
+    FONT_PT.GameFontNormal = 13
+    GF.Update()
+    check(GF.routes.width == 52 and GF.close.width == 20, "back at the default size the buttons are their own width again")
 end
 
 print(("%s: %d checks, %d failed. Pixel overlap cannot be verified offline."):format(fails == 0 and "STEP WINDOW TESTS PASSED" or "STEP WINDOW TESTS FAILED", checks, fails))
