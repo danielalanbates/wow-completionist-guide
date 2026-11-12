@@ -362,20 +362,32 @@ do
 end
 print("death handling OK: no hearth as a corpse, pointer aims at the body")
 
--- pointer style: hand tinted to the class colour, arrow chevron still selectable
+-- the travel line under the step card names only the legs that need a decision (TravelGraph.Summary)
+do
+    local TGs = NS.TravelGraph
+    assert(TGs.Summary(nil) == "", "no path, no line")
+    assert(TGs.Summary({ cost = 60, legs = { { mode = "walk", dist = 2100, to = { name = "Durotar" } } } }) == "", "a walk-only route shows no travel line")
+    local s2 = TGs.Summary({ cost = 600, legs = { { mode = "walk", dist = 100, to = { name = "Orgrimmar" } },
+        { mode = "taxi", from = { name = "Orgrimmar" }, to = { name = "Crossroads" } }, { mode = "walk", dist = 300, to = { name = "x" } } } })
+    assert(s2:find("^Fly to Crossroads") and not s2:lower():find("walk") and s2:find("~"), s2)
+    local s3 = TGs.Summary({ cost = 900, legs = { { mode = "walk", dist = 50, to = { name = "Splintertree Post" }, pickup = true },
+        { mode = "transit", title = "Take the zeppelin to Undercity", to = { name = "Undercity" } } } })
+    assert(s3:find("^Pick up the flight path at Splintertree Post, then Take the zeppelin"), s3)
+end
+print("travel line OK: walking is not narrated")
+
+-- the pointer is a plain arrow (the hand pointer and its style option were removed on 2026-11-11)
 do
     local f = assert(io.open("CompletionRoute/UI/Arrow.lua"))
     local src = f:read("*a") f:close()
-    assert(src:find('TEX %.%. "hand"'), "hand texture not used")
-    assert(src:find("RAID_CLASS_COLORS"), "hand is not tinted to the class colour")
-    assert(src:find("SetVertexColor"), "no vertex colouring")
+    assert(not src:find('"hand"') and src:find("arrow_green") and src:find("arrow_red"), "the pointer must be the arrow only")
     assert(src:find("rec.dead"), "arrow has no dead branch")
-    local h = assert(io.open("CompletionRoute/Textures/hand.tga")) h:close()
+    assert(io.open("CompletionRoute/Textures/hand.tga") == nil, "hand texture still shipped")
     local o = assert(io.open("CompletionRoute/UI/Options.lua"))
     local osrc = o:read("*a") o:close()
-    assert(osrc:find("arrow.style"), "no pointer style option")
+    assert(not osrc:find("arrow.style"), "pointer style option still there")
 end
-print("pointer style OK: class-coloured hand default, chevron still available")
+print("pointer OK: plain arrow, coloured by distance")
 
 -- 8) target beacon
 local Bfn = assert(loadfile("CompletionRoute/UI/Beacon.lua")) Bfn(ADDON, NS)

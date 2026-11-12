@@ -216,7 +216,7 @@ function GF.Update()
     end
     card.where:SetText(where)
     local path = NS.Router and NS.Router.CurrentPath()
-    if path then pathText:SetText(NS.TravelGraph.Describe(path)) else pathText:SetText("") end
+    pathText:SetText(path and NS.TravelGraph.Summary(path) or "")
 end
 
 function GF.RowsShown() return (P.guide and P.current and card:IsShown()) and 1 or 0 end
