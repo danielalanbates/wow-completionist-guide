@@ -118,8 +118,9 @@ them in `--force-file` to solve them again. No bake was run here.
 * Tests, all pass: `validate_toc`, the 22 `tools/test_*.lua` harnesses (`test_flow` 167 checks, `test_step_window`
   252, `test_quest_auto` 1,272, `test_skip` 332), `test_package.py`, and the 8 unit tests of
   `test_ingest_beta_reports.py` and `test_bake_gate.py`. The known `test_skip` failure
-  (`forever wiki:forever:1423:Alliance`) is not there any more: without the fallback points that guide no longer
-  has the case. The pricing difference behind it was not looked at.
+  (`forever wiki:forever:1423:Alliance`) is not in the run any more: the harness picks its cases from the
+  regenerated guides and that one is not among them. The pricing difference behind it was not looked at, so it is
+  hidden, not fixed.
 * `tools/install.sh` was run against a scratch folder only: five clients install (3.5, 4.4, 8.8, 32 and 3.6 MB),
   and a planted `_gaps` file, `Imported_Quests_era.lua`, `Data/Imported_Entrances.lua`, an unknown `Imported_*` name
   and a `RouteOrder` of a flavor no client has each stop it before anything is copied.
