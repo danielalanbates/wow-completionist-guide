@@ -1137,6 +1137,27 @@ def check_sums(path):
     return 2 if bad else 0
 
 
+def solve_all(a, fl, inp, solving, rows, prev, t0):
+    """solve every guide of the matrix file `inp` into `rows` (and out of `prev`); each row also goes to the progress
+    file `solving` as it is done"""
+    with open(solving, "w") as fo:
+        for k, line in enumerate(open(inp)):
+            rec = json.loads(line)
+            if a.guide and rec["id"] != a.guide:
+                continue
+            if checksum(rec["steps"]) != rec["sum"]:
+                print("checksum mismatch (Lua vs Python) for", rec["id"], file=sys.stderr)
+                sys.exit(2)
+            r = solve_guide(rec, a.limit_s, fl, a.dp_cap, a.dp_time)
+            rows.append(r)
+            prev.pop(r["id"], None)
+            fo.write(json.dumps(r) + "\n")
+            fo.flush()
+            if len(rows) % 10 == 0:
+                print("%d guides %.0fs last %s blocks=%d author=%.0f baked=%.0f lb=%.0f %s" % (
+                    len(rows), time.time() - t0, r["id"], r["blocks"], r["author_s"], r["baked_s"], r["lower_bound_s"], r["method"]), file=sys.stderr)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("flavor")
@@ -1185,22 +1206,15 @@ def main():
     else:
         # progress file of this run only (never the rows file's own .part: several runs may solve at once)
         solving = "%s.solving.%d" % (outp, os.getpid())
-        with open(solving, "w") as fo:
-            for k, line in enumerate(open(inp)):
-                rec = json.loads(line)
-                if a.guide and rec["id"] != a.guide:
-                    continue
-                if checksum(rec["steps"]) != rec["sum"]:
-                    print("checksum mismatch (Lua vs Python) for", rec["id"], file=sys.stderr)
-                    sys.exit(2)
-                r = solve_guide(rec, a.limit_s, fl, a.dp_cap, a.dp_time)
-                rows.append(r)
-                prev.pop(r["id"], None)
-                fo.write(json.dumps(r) + "\n")
-                fo.flush()
-                if len(rows) % 10 == 0:
-                    print("%d guides %.0fs last %s blocks=%d author=%.0f baked=%.0f lb=%.0f %s" % (
-                        len(rows), time.time() - t0, r["id"], r["blocks"], r["author_s"], r["baked_s"], r["lower_bound_s"], r["method"]), file=sys.stderr)
+        try:
+            solve_all(a, fl, inp, solving, rows, prev, t0)
+        finally:
+            # also on a checksum mismatch (exit 2) or an error; a kill -9 still leaves the file, and
+            # tools/bake_resume.py removes such leftovers when it starts (stale_progress_files)
+            try:
+                os.remove(solving)
+            except OSError:
+                pass
         if a.gate:
             # save the solves before the gate: a run killed during the gate (or a vplayer failure) loses no solve, and
             # the next --gate-only (tools/bake_resume.py) gates these rows without solving them again
@@ -1212,10 +1226,6 @@ def main():
                 gate_failed = str(e)
         own = list(rows)
         rows += list(prev.values())
-        try:
-            os.remove(solving)
-        except OSError:
-            pass
     rows = save_rows(outp, rows, own=own if merging else None)
     if gate_failed:
         print("gate %s FAILED, rows saved without a verdict (re-run --gate-only): %s" % (fl, gate_failed), file=sys.stderr)

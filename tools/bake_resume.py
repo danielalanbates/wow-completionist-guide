@@ -121,6 +121,34 @@ def fresh(row, cur):
     return row is not None and (row.get("n"), row.get("sum"), row.get("cmv")) == cur
 
 
+def pid_alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def stale_progress_files(tmp):
+    """Leftovers next to the rows files that no running optimizer owns: <flavor>.jsonl.solving.<pid> and
+    <flavor>.jsonl.part.<pid> of a process that is gone (a kill -9 leaves them), and a plain <flavor>.jsonl.part
+    (written before 2026-11-12) untouched for 10 minutes.  None of them is ever read back: the rows file is the record."""
+    d = os.path.join(tmp, "routeopt")
+    out = []
+    if not os.path.isdir(d):
+        return out
+    for name in os.listdir(d):
+        m = re.match(r"^[a-z]+\.jsonl\.(?:solving|part)\.(\d+)$", name)
+        path = os.path.join(d, name)
+        if m and not pid_alive(int(m.group(1))):
+            out.append(path)
+        elif re.match(r"^[a-z]+\.jsonl\.part$", name) and time.time() - os.path.getmtime(path) > 600:
+            out.append(path)
+    return sorted(out)
+
+
 def mapfix_ids(fl, quest_ids):
     if fl not in ("era", "tbc", "forever"):
         return []
@@ -170,6 +198,16 @@ def main():
     for spec in a.only_file:
         fl, path = spec.split("=", 1)
         only.setdefault(fl, set()).update(l.strip() for l in open(path) if l.strip())
+    stale = stale_progress_files(tmp)
+    if stale:
+        log("removing %d leftover progress file(s) of optimizer runs that are gone: %s"
+            % (len(stale), ", ".join(os.path.basename(p) for p in stale)[:300]))
+        if not a.dry_run:
+            for path in stale:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
     todo, togate, lists = {}, {}, {}
     for fl in a.flavors.split(","):
         (cur, lists[fl]), done = current(fl, work), rows(fl, tmp)
