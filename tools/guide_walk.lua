@@ -66,7 +66,6 @@ local FAMILY = {
     { "^Guides/Imported_Achievements_", "achievements" },
     { "^Guides/Imported_QuestLines_",   "quest lines" },
     { "^Guides/Imported_Missions_",     "missions" },
-    { "^Guides/Imported_Quests_.*gaps", "quest gaps (local only, never ships)" },
     { "^Guides/Leveling/",              "hand-written leveling" },
 }
 W.FAMILY_ORDER = {}

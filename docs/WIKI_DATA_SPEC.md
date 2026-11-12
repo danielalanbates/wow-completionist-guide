@@ -110,7 +110,7 @@ date is a retail number. This complements `wikimaps.KEEP_NUMBERS` (whole zones w
 
 Multiple spawns: emit `M|x,y;x,y` only when all points share one zone. Otherwise take the first point in the quest's own zone.
 Classic vs retail: Classic pages and `(Classic)` zones refer to pre-Cata maps. Convert them through world coordinates with the
-`topX/leftY/width/height` in `tools/maps_<flavor>.lua` (the same math as `to_zone()` in `gen_quest_guides_retail.py`). Unchanged zones
+`topX/leftY/width/height` in `tools/maps_<flavor>.lua` (`tools/wiki/wikimaps.py`). Unchanged zones
 match exactly (Elwynn, Loch Modan, Silverpine). Changed ones differ: Barrens, STV, Hillsbrad, Thousand Needles, Azshara, Darkshore, Westfall-era phases.
 
 ## 4. Objectives → steps

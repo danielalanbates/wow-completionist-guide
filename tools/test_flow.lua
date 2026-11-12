@@ -531,7 +531,7 @@ do
         check(not Sig.TalkMatches(s, "Marshal Dughan"), "no talk rule for a step that asks for more than the talk: " .. line)
         check(set == nil and (Sig.Of(s)) == nil, "and it is counted as manual: " .. line)
     end
-    local _, s = names("N Report|N|Speak with Marshal Dughan about the missing shipment (location: Questie data)|")
+    local _, s = names("N Report|N|Speak with Marshal Dughan about the missing shipment (location: the wiki's Goldshire page)|")
     check(Sig.TalkMatches(s, "Marshal Dughan"), "\"Speak with X about ...\" with a source note still names X")
 end
 

@@ -191,7 +191,7 @@ function G.StepTitle(step)
 end
 
 -- The note as the step card shows it (UI/GuideFrame.lua).  Generated notes end with where the step's map point came
--- from: "(location: Questie data)", "(zone only; wiki: Borean Frog)", "(point: Blizzard quest map pin)",
+-- from: "(location: the wiki's Ratchet page)", "(zone only; wiki: Borean Frog)", "(point: Blizzard quest map pin)",
 -- "(Blizzard WorldMapOverlay 123)".  That is provenance, not something to do, and it made one-line notes wrap to three.
 -- The card leaves such a tail off; the step's tooltip and Details panel show the note whole, and the guide data is
 -- untouched.  Returns the card text and what was cut ("" when nothing).  Cached on the step: the window asks

@@ -197,7 +197,7 @@ G.Register({ id = "w:layout", name = "A route with a rather long name that canno
     "N Short with note|N|One line.|",
     "N " .. LONG_TITLE .. "|N|" .. LONG_NOTE .. "|O|",
     "N Medium title that wraps onto a second line for sure, yes it does|N|" .. LONG_NOTE:sub(1, 200) .. "|Z|1429; Elwynn Forest|",
-    "C Rings|L|3505 7|N|Alterac Signet Ring (7) (location: Questie data)|",
+    "C Rings|L|3505 7|N|Alterac Signet Ring (7) (location: the wiki's Strahnbrad page)|",
 }, "\n") })
 local function bands(label)
     violations = {}
@@ -327,7 +327,7 @@ check(called.export == 1, "clicking the word Contribute opens the export window 
 P.Load("w:layout") P.Reset()
 for _ = 1, 4 do P.Forward() end
 GF.ShowDetail(P.current)
-check(GF.detailBody.text:find("%(location: Questie data%)"), "the Details panel shows the note whole, source note included")
+check(GF.detailBody.text:find("(location: the wiki's Strahnbrad page)", 1, true), "the Details panel shows the note whole, source note included")
 check(GF.detail.height >= GF.DETAIL_H and GF.detailBody.width == GF.DETAIL_W - 24, "the Details panel has explicit text widths and a height from its text")
 P.Load("w:layout") P.Reset() P.Forward() P.Forward()
 GF.ShowDetail(P.current)
@@ -338,11 +338,11 @@ check(GF.detail.height >= 10 + GF.detailTitle:GetStringHeight() + 8 + GF.detailB
 -- ---------------------------------------------------------------------------
 local function cardOf(note) local s = { note = note } local c, t = G.CardNote(s) return c, t end
 local cases = {
-    { "Alterac Signet Ring (7) (location: Questie data)", "Alterac Signet Ring (7)" },
+    { "Alterac Signet Ring (7) (location: the wiki's Strahnbrad page)", "Alterac Signet Ring (7)" },
     { "To the Ground! criterion. (zone only; wiki: Commander Springvale)", "To the Ground! criterion." },
     { "Objective area (Blizzard quest map pin).", "Objective area." },
     { "Turn in. (location: Blizzard quest POI, the turn-in area)", "Turn in." },
-    { "Crushridge Warmonger slain (15) (location: Questie data; the wiki lists another version's position)", "Crushridge Warmonger slain (15)" },
+    { "Crushridge Warmonger slain (15) (location: the wiki's Crushridge Hold page; Crushridge Warmonger)", "Crushridge Warmonger slain (15)" },
     { "No wiki page; the quest's map from Blizzard data (zone only).", "No wiki page; the quest's map from Blizzard data." },
     { "(zone only; Blizzard Map 123)", "" },
     { "Earn 1000 Valor Points. (10 pts)", "Earn 1000 Valor Points. (10 pts)" },
