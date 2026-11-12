@@ -200,7 +200,7 @@ def part1(tmp):
     c = gw.Contributions(FIXTURE, "era", maps)
     check(set(c.areas) == {"A:46", "A:45", "A:5805", "A:60", "A:9999999", "C:45:0", "C:52:1", "C:52:2", "C:60:1", "C:7:1",
                            "T:54", "T:60", "T:6181"}, "only keys with a usable area are kept", sorted(c.areas))
-    check(dict(c.skipped) == {"single": 2, "unknown map": 2, "malformed": 1, "not a quest step": 9},
+    check(dict(c.skipped) == {"single": 2, "unknown map": 2, "malformed": 1, "not a quest step": 10},
           "single areas, unknown maps, a position off the map and a non-quest key are counted and not used", dict(c.skipped))
     check("T:37" not in c.areas and "C:3904:1" not in c.areas, "a 'single' area is never used")
     check("A:176" not in c.areas and [a["map"] for a in c.areas["A:45"]] == [1429],
@@ -885,8 +885,13 @@ def part5_unit(tmp, cdir, sha):
                      "G:prof:era:Fishing:1:Alliance#=~j30rr3glb", "G:prof:era:Fishing:1:Alliance#N~b0p3fig8g",
                      "G:prof:era:Fishing:1:Alliance#R~bisrkzq54", "G:prof:era:Fishing:1:Horde#R~a5g7q7wci"],
           "the routes' reader keeps the fixture's G: keys of the add-on's form", g_keys)
-    check(dict(a.skipped) == {"single": 3, "unknown map": 2, "malformed": 1, "not a step key": 2} and "A:46" in a.areas,
-          "... and the quest keys; 'single' areas, unknown maps and keys of another form are counted and not used", dict(a.skipped))
+    check(dict(a.skipped) == {"single": 3, "unknown map": 2, "malformed": 1, "not a step key": 2, "continent or world map": 1}
+          and "A:46" in a.areas,
+          "... and the quest keys; 'single' areas, unknown maps, a continent map and keys of another form are counted and "
+          "not used", dict(a.skipped))
+    check([(x["map"], x["w"]) for x in a.areas["G:prof:era:Fishing:1:Horde#R~a5g7q7wci"]] == [(1411, 3.0)],
+          "an area on a continent map (Kalimdor, 1414) is skipped though it is the heaviest of its key",
+          a.areas["G:prof:era:Fishing:1:Horde#R~a5g7q7wci"])
     check([x["w"] for x in a.areas["G:prof:era:Cooking:1:Alliance#M~ccphbexgm"]] == [4.0],
           "a step whose heaviest area is 'single' takes the next one")
 
@@ -965,6 +970,18 @@ def part5_unit(tmp, cdir, sha):
     check(len(gate("Guides/Imported_Gold_era.lua", route_file([("x", out_a)]))) == 1
           and len(gate("Guides/Imported_Gold_era.lua", route_file([("x", out_a)], [a.header()]))) == 1,
           "... and fails it without the line, or under a folder with no known commit")
+
+    af = cdir / "areas" / "era.json"
+    af.write_text(af.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    try:
+        c3 = ca.Areas(cdir, "era", maps)
+        text3 = route_file([("prof:era:Fishing:1:Alliance", out_a)], [c3.header()])
+        check(c3.commit == sha + "-dirty" and len(gate("Guides/Imported_Professions_era.lua", text3)) == 1
+              and len(gate("Guides/Imported_Gold_era.lua", text3)) == 1,
+              "the routes' reader marks areas that differ from the commit -dirty, and the packager fails that header", c3.commit)
+    finally:
+        git(cdir.parent, "checkout", "-q", "--", "contributions/areas/era.json")
+    check(ca.Areas(cdir, "era", maps).commit == sha, "... and the plain commit is back once the file matches it again")
 
     # --- the command line ---
     fl3 = ("era", "tbc", "mop", "retail", "forever")

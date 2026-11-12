@@ -288,6 +288,16 @@
   ],
   "G:prof:era:Fishing:1:Horde#R~a5g7q7wci": [
    {
+    "cells": 9,
+    "confidence": "confirmed",
+    "contributors": 4,
+    "map": 1414,
+    "r": 0.4,
+    "weight": 30,
+    "x": 58.0,
+    "y": 44.0
+   },
+   {
     "cells": 2,
     "confidence": "trusted",
     "contributors": 1,

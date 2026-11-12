@@ -31,7 +31,7 @@ reader skips them all ("not a quest step"); the routes' reader keeps the six of 
 | Key | Route step | What it tests |
 |---|---|---|
 | `G:prof:era:Fishing:1:Alliance#N~b0p3fig8g` | Get a Fishing Pole (no point, no zone) | the step takes the area |
-| `G:prof:era:Fishing:1:Horde#R~a5g7q7wci` | travel to Durotar (zone only) | an area in the step's zone: the step takes it |
+| `G:prof:era:Fishing:1:Horde#R~a5g7q7wci` | travel to Durotar (zone only) | a heavier area on the Kalimdor continent map (1414) is never used; the area in the step's zone is: the step takes it |
 | `G:prof:era:Fishing:1:Alliance#R~bisrkzq54` | travel to Dun Morogh (zone only) | an area in Elwynn Forest, outside the step's zone: the step keeps its zone |
 | `G:prof:era:Fishing:1:Alliance#=~j30rr3glb` | train Apprentice Fishing (ALT trainers) | a step with points of its own never changes |
 | `G:prof:era:Cooking:1:Alliance#M~ccphbexgm` | make Charred Wolf Meat | the heaviest area is `single`: the trusted one is used |
