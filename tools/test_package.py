@@ -176,7 +176,7 @@ def main():
         names = {r["path"] for r in man["files"]}
         check(not any("Imported_WoWPro_" in n or "_gaps" in n or "Imported_Storylines" in n or "Imported_Entrances" in n
                       or n.endswith("Imported_Quests_era.lua") for n in names), "WoW-Pro and Questie-derived files are not packaged")
-        check({e["path"] for e in man["excluded"]} >= {"Guides/Imported_WoWPro_era.lua", "Guides/Imported_Quests_era_gaps.lua",
+        check({e["path"] for e in man["excluded"]} >= {"Guides/Imported_Quests_era_gaps.lua",
                                                        "Guides/Imported_Storylines_retail.lua", "Data/Imported_Entrances.lua",
                                                        "Guides/Imported_Quests_era.lua"}, "excluded files are listed with a reason")
         check({"LICENSE.txt", "ATTRIBUTION.md", "README.md"} <= set(res.files), "LICENSE.txt, ATTRIBUTION.md and README.md are added")
@@ -203,7 +203,7 @@ def main():
         check(all(n.startswith(pr.ADDON + "/") for n in znames), "every zip entry sits in the CompletionRoute/ folder")
         check("## Version: 9.9.9-test1" in vanilla and "## Version: 9.9.9-test1" not in src_vanilla,
               "version stamped into the packaged TOC only")
-        check("Imported_WoWPro_era" not in vanilla and "Imported_Quests_era_gaps" not in vanilla and "Imported_WoWPro_era" in src_vanilla,
+        check("Imported_Quests_era_gaps" not in vanilla and "Imported_Quests_era_gaps" in src_vanilla,
               "interop TOC lines stripped in the packaged copy only")
         with zipfile.ZipFile(uni) as z:
             forever = z.read(f"{pr.ADDON}/CompletionRoute_Forever.toc").decode()
@@ -342,6 +342,8 @@ def main():
         def plant_xml(d, a):
             x = a / "Guides" / "Guides.xml"
             x.write_text(x.read_text().replace("</Ui>", '\t<Script file="Imported_WoWPro_era.lua"/>\n</Ui>'))
+            # a leftover export in the checkout (no TOC lists it since the adapter was removed on 2026-11-11)
+            (a / "Guides" / "Imported_WoWPro_era.lua").write_text(STAND_IN["interop-wowpro"], encoding="utf-8")
             git(d, "add", "-A"); git(d, "commit", "-qm", "plant")
         expect_fail(env, "WoW-Pro file pulled in through an XML include", "interop-derived", "Guides/Imported_WoWPro_era.lua", plant_xml)
         res, _ = expect_fail(env, "baked order row for a Questie-derived _gaps guide", "interop-derived", "Data/RouteOrder_era.lua",

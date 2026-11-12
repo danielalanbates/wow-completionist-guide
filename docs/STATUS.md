@@ -1,5 +1,17 @@
 # Status / handoff (2026-11-11 evening: everything merged into `integration`, data regenerated, rebake running)
 
+## 2026-11-11 night: no other addon's guides
+
+Owner's decision: the addon is for the public, so it cannot depend on guides from another addon installed on the
+player's machine. Removed: `Adapters/WoWPro.lua`, the `Imported_WoWPro_*` lines of all six TOCs, the optional
+dependency, the installer's allowlist entry, and every tool and test that loaded those guides. The local export files
+were deleted from the checkout, the Drive copy and the five clients. Each client lost 60 (Era, TBC, Forever), 123 (MoP)
+or 418 (Retail) guides from its list, including the only Dailies guides; leveling now rests on the wiki-built chain
+alone. Sections below that mention WoW-Pro describe the state before this change. The release packager still refuses
+such a file if one is left in a checkout. Offline only; every harness passes except the known `test_skip` and
+`test_route_order` items.
+
+
 ## 2026-11-11 evening: one tree, regenerated data, pre-merge review
 
 Offline only. **Nothing here has run in a real WoW client.** Branch `integration` (in `repo/`), not pushed.

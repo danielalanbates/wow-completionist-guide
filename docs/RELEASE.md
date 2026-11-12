@@ -2,7 +2,7 @@
 
 `tools/package_release.py` builds the add-on that players download. It proves the build holds only data the project
 may ship: its own code and data, Warcraft Wiki data (CC BY-SA 4.0), Blizzard client data via wago.tools, and the
-bundled libraries under their own licences. WoW-Pro and Questie are runtime or install-time interop only and never
+bundled libraries under their own licences. Questie is install-time interop on the developer's machine only and never
 ship. (FINISH_PLAN W9, IDEAS "Release packager with a data-provenance gate".)
 
 **Status (2026-11-10).** Built and tested offline on branch `release-packager`. Nothing here has run in a real client,
@@ -112,7 +112,7 @@ Never shipped (their TOC lines are stripped from the packaged copy, so the clien
 
 | Files | Why |
 |---|---|
-| `Guides/Imported_WoWPro_*` | WoW-Pro guide text exported on this machine (header: do not redistribute). `Adapters/WoWPro.lua` reads an installed WoW-Pro at runtime. |
+| `Guides/Imported_WoWPro_*` | a leftover export of another addon's guides from before 2026-11-11. Nothing reads it any more; it never ships. |
 | `Guides/Imported_Quests_*_gaps` | Questie-derived (retail: Blizzard POI plus Questie giver points, names, gates). Built at install time on Daniel's machine. |
 | `Guides/Imported_Quests_*` | generator input from a local Questie checkout (retail: POI plus `questie_index.tsv`). No TOC loads them. |
 | `Guides/Imported_Storylines_retail` | step lines copied from `Imported_Quests_retail.lua`. Replaced on 2026-11-11 by `Imported_QuestLines_retail.lua` (wiki and Blizzard data only), which the retail TOC loads instead; the old file keeps its interop rule, so a checkout that still has it never ships it. |

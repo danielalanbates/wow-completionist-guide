@@ -15,11 +15,10 @@ The following third-party material is used. Nothing from any commercial guide is
 | **CallbackHandler-1.0** (Ace3 project) | `CompletionRoute/Libs/CallbackHandler-1.0/` | Ace3 licence (BSD-style). The full text ships next to it as `Libs/CallbackHandler-1.0/LICENSE.txt`. | yes, unmodified |
 | **LibStub** | `CompletionRoute/Libs/LibStub/` | public domain (stated in the file header) | yes, unmodified |
 | **Questie** database (local checkout) | `tools/gen_quest_guides.lua` writes `Imported_Quests_<classic flavor>.lua`. Used **locally only**: as coordinate fallback where the wiki has none, and as the `_gaps` guides for quests the wiki lacks. | GPL-3.0 | **No.** Generated locally, gitignored, never redistributed. |
-| **WoW-Pro** guides installed by the user | `Adapters/WoWPro.lua` reads them at runtime | CC BY-NC-ND | **No.** Runtime interop only. Nothing is copied into this repository. |
 
 Release packages are built by `tools/package_release.py`, which fails any build that would ship Questie- or
-WoW-Pro-derived data and writes a provenance record for every shipped file ([docs/RELEASE.md](docs/RELEASE.md)).
+other addons' guide data and writes a provenance record for every shipped file ([docs/RELEASE.md](docs/RELEASE.md)).
 Each package carries `LICENSE.txt` and an `ATTRIBUTION.md` that lists its wiki, Blizzard-data and library files.
 
 World of Warcraft and Blizzard Entertainment are trademarks or registered trademarks of Blizzard Entertainment, Inc.
-This project is not affiliated with or endorsed by Blizzard Entertainment, Warcraft Wiki, Questie or WoW-Pro.
+This project is not affiliated with or endorsed by Blizzard Entertainment, Warcraft Wiki or Questie.

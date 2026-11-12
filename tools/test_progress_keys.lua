@@ -22,7 +22,7 @@
 --   5. tools/sync_progress.lua carries the keyed marks and migration records between client folders (temp files)
 --   6. every flavor's real guides: keys unique in every guide (0 collisions), no two different texts share a hash,
 --      parse results unchanged on a sample, key building cost (run with luajit -joff for the client's number)
---   7. real guides regenerated the same way as in 2 (CR_KEYS_SAMPLES per flavor, default 3, + one WoW-Pro guide)
+--   7. real guides regenerated the same way as in 2 (CR_KEYS_SAMPLES per flavor, default 3)
 -- Run from the repo root:  luajit -joff tools/test_progress_keys.lua [era tbc mop retail forever]
 package.path = "./?.lua;" .. package.path
 local FLAVORS = {}
@@ -106,7 +106,6 @@ local function harness(flavor, opts)
     if opts.real then
         for _, f in ipairs(tocData(flavor)) do load(f, true) end
         for _, f in ipairs({ "Guides/Leveling/Alliance_Human_01_06_Northshire.lua", "Guides/Leveling/Horde_Orc_Troll_01_06_ValleyOfTrials.lua" }) do load(f, true) end
-        if exists("CompletionRoute/Adapters/WoWPro.lua") then load("Adapters/WoWPro.lua") end
     end
     for _, f in ipairs(opts.files or {}) do load(f, true) end
     CompletionRouteDB, CompletionRouteCharDB = opts.db, opts.chardb
@@ -118,7 +117,6 @@ local function harness(flavor, opts)
     NS.db.profile.routing.reorder = false     -- author (or baked) order on screen: this file tests marks, not routing
     NS.Guide.SuggestNext = function() return nil end
     NS.Guide.Suggest = function() return nil end
-    if opts.real and NS.Adapters and NS.Adapters.WoWPro and NS.Adapters.WoWPro.ImportStatic then pcall(NS.Adapters.WoWPro.ImportStatic) end
     NS.TravelGraph.Build()
     return NS
 end
@@ -677,7 +675,7 @@ local function realFlavor(fl)
     local G, P, S, A = NS.Guide, NS.Progress, NS.Skip, NS.Account
     A.Init()
     local row = { fl = fl, guides = 0, steps = 0, quest = 0, other = 0, repeats = 0, dup = 0, hashColl = 0, parseMs = 0, keyMs = 0,
-                  maxKeyMs = 0, maxSteps = 0, sampled = 0, sampleDiff = 0, wowpro = 0 }
+                  maxKeyMs = 0, maxSteps = 0, sampled = 0, sampleDiff = 0 }
     local realAssign = G.AssignKeys
     local function sig(steps)
         local out = {}
@@ -693,7 +691,7 @@ local function realFlavor(fl)
         for i, s in ipairs(steps) do out[i] = enc(s) end
         return table.concat(out, "\n")
     end
-    local candidates, wowproPick = {}, nil
+    local candidates = {}
     for gi, id in ipairs(G.list) do
         local g = G.registry[id]
         local c0 = os.clock()
@@ -703,7 +701,6 @@ local function realFlavor(fl)
         if okS and steps and #steps > 0 then
             row.guides = row.guides + 1
             row.steps = row.steps + #steps
-            if tostring(id):match("^wowpro:") then row.wowpro = row.wowpro + 1 end
             local auth = author(steps)
             local seen, texts = {}, {}
             for _, s in ipairs(auth) do
@@ -739,11 +736,9 @@ local function realFlavor(fl)
                 if not s.qid then nOther = nOther + 1 end
             end
             if #candidates < SAMPLES and tostring(id):match("^wiki:") and #steps >= 30 and #steps <= 400 and nq >= 3 and (gi % 7 == 0) then candidates[#candidates + 1] = id end
-            if not wowproPick and tostring(id):match("^wowpro:") and #steps >= 30 and #steps <= 400 and nq >= 3 and nOther >= 5 then wowproPick = id end
         end
         if not (P.guide and P.guide.id == id) then g.steps = nil end
     end
-    if wowproPick then candidates[#candidates + 1] = wowproPick end
     ROWS[#ROWS + 1] = row
     t(("%s: every key is unique within its guide (%d guides, %d steps, %d duplicate keys)"):format(fl, row.guides, row.steps, row.dup), row.guides > 0 and row.dup == 0, row.dup)
     t(("%s: no two different step texts share a hash within a guide (%d)"):format(fl, row.hashColl), row.hashColl == 0, row.hashColl)

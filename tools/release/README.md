@@ -35,7 +35,7 @@ inn, so it learns where your inn is.
 ## Where the data comes from
 
 Quest, gold and profession data comes from Warcraft Wiki (CC BY-SA 4.0) and from Blizzard's game client data tables.
-The route orders and the rest of the add-on are our own work. No commercial guide content, no WoW-Pro guide text and
+The route orders and the rest of the add-on are our own work. No guide content from any other add-on and
 no Questie data are in this package. See `ATTRIBUTION.md` for sources and licences.
 
 ## Licence

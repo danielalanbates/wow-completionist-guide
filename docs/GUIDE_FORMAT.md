@@ -1,7 +1,7 @@
 # CompletionRoute guide format
 
 One step per line.  First character = action, then a space, then the title, then `|TAG|value|` pairs.
-This is the WoW-Pro community syntax (so thousands of existing guide lines are valid) with a few additions.
+One step per line: an action letter, a title, then `|TAG|value|` pairs.
 
 ```
 A A Threat Within|QID|783|M|48.15,42.95|Z|1429; Elwynn Forest|N|From Deputy Willem.|

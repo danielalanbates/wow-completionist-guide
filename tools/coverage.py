@@ -30,8 +30,8 @@ Table `coverage_ach_types` breaks the achievement criteria down by Blizzard Crit
 Table `item_quests` lists every item-started quest of the latest run: item, covered, how its accept step is located,
 and the wiki's reason when a quest is in no guide (tools/wiki/wiki.sqlite flavor_skip).
 
---shippable measures what a release build loads (docs/RELEASE.md): Warcraft Wiki, Blizzard and own data only, no
-WoW-Pro export, no Questie-derived gaps or old storyline file, and a step whose note credits its point to fallback data
+--shippable measures what a release build loads (docs/RELEASE.md): Warcraft Wiki, Blizzard and own data only,
+no Questie-derived gaps or old storyline file, and a step whose note credits its point to fallback data
 ("(location: Questie data)" / "(location: Blizzard data)", which the --no-fallback wiki build leaves without a point)
 counts as unlocated.  The default mirrors what the TOCs load on this machine.
 
@@ -49,8 +49,6 @@ ROOT = Path(__file__).resolve().parent.parent
 DB2 = ROOT / "tools" / "db2"
 WIKI_DB = ROOT / "tools" / "wiki" / "wiki.sqlite"
 FLAVORS = ["era", "tbc", "mop", "retail", "forever"]
-# WoW Forever loads the era WoW-Pro adapter file (CompletionRoute_Forever.toc)
-WOWPRO_OF = {"forever": "era"}
 sys.path.insert(0, str(ROOT / "tools"))
 csv.field_size_limit(1 << 28)
 from gen_completion_guides import internal_achievement, STORY_FILE, OLD_STORY_FILE  # noqa: E402
@@ -66,7 +64,7 @@ def story_file(gdir, fl):
 # (tools/wiki/gen_wiki_guides.py); a tree generated before the wiki pipeline only has Imported_Quests_<fl>.
 def guide_files(gdir, fl, shippable=False):
     if shippable:
-        # tools/package_release.py RULES: wiki, Blizzard and own data only (no WoW-Pro, no gaps, no old storylines)
+        # tools/package_release.py RULES: wiki, Blizzard and own data only (no gaps, no old storylines)
         names = [f"Imported_Wiki_{fl}.lua", f"Imported_Gold_{fl}.lua", f"Imported_Professions_{fl}.lua",
                  f"Imported_Achievements_{fl}.lua", STORY_FILE.format(fl=fl), f"Imported_Missions_{fl}.lua"]
         out = [gdir / n for n in names if (gdir / n).exists()]
@@ -74,7 +72,7 @@ def guide_files(gdir, fl, shippable=False):
     quests = [f"Imported_Wiki_{fl}.lua", f"Imported_Quests_{fl}_gaps.lua"]
     if not any((gdir / n).exists() for n in quests):
         quests = [f"Imported_Quests_{fl}.lua"]
-    names = [f"Imported_WoWPro_{WOWPRO_OF.get(fl, fl)}.lua"] + quests + [
+    names = quests + [
              f"Imported_Achievements_{fl}.lua", story_file(gdir, fl).name, f"Imported_Missions_{fl}.lua"]
     out = [gdir / n for n in names if (gdir / n).exists()]
     out += sorted((gdir / "Leveling").glob("*.lua"))

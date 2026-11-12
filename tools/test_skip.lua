@@ -12,7 +12,7 @@
 --      later), another class's dependents not named, a dropped travel step's rider, prerequisite cycles, `never`
 --      quests, the re-plan model leaving out steps this character never sees
 --   2. every flavor's REAL generated guides (when Data/QuestDeps_<fl>.lua and the guides exist): closure equals a
---      whole-index reachability reference, known chains, nothing stranded after single drops on wiki, WoW-Pro and
+--      whole-index reachability reference, known chains, nothing stranded after single drops on wiki and
 --      storyline guides, a row from one search equals FindPath pair by pair, then per sample guide: drop the quest with
 --      the most dependents, check the rebuild, run the time-sliced re-plan frame by frame and check every rule and that
 --      it never costs more travel time than "baked order minus removed steps" (the arrow's route and the |M|-only route),
@@ -744,7 +744,7 @@ local function realFlavor(fl)
         if k[3] then table.sort(d) ok = ok and table.concat(d, ",") == k[2] end
         t(("%s: known chain %d -> %s%s"):format(fl, k[1], k[2], k[3] and " (exact)" or ""), ok, table.concat(d, ","))
     end
-    -- (a2) nothing stranded, on guides of every family this client loads (the index's own, plus WoW-Pro and Blizzard
+    -- (a2) nothing stranded, on guides of every family this client loads (the index's own, plus Blizzard
     --      storylines, whose |PRE| tags the index does not read): drop each quest an accept step waits on, one at a
     --      time, as Skip.Recompute would from that guide, and check the rebuilt list
     do
@@ -753,14 +753,8 @@ local function realFlavor(fl)
         -- regenerated since 2026-11-11 (both register the same story: ids, so only one is loaded)
         local story = "Guides/Imported_QuestLines_" .. fl .. ".lua"
         if not exists("CompletionRoute/" .. story) then story = "Guides/Imported_Storylines_" .. fl .. ".lua" end
-        for _, extra in ipairs({ "Guides/Imported_WoWPro_" .. fl .. ".lua", story }) do
-            if exists("CompletionRoute/" .. extra) then assert(loadfile("CompletionRoute/" .. extra))("CompletionRoute", NS) end
-        end
-        if NS.ImportedWoWPro then
-            assert(loadfile("CompletionRoute/Adapters/WoWPro.lua"))("CompletionRoute", NS)
-            NS.Adapters.WoWPro.ImportStatic()
-        end
-        local fams = { wiki = {}, wowpro = {}, story = {} }
+        if exists("CompletionRoute/" .. story) then assert(loadfile("CompletionRoute/" .. story))("CompletionRoute", NS) end
+        local fams = { wiki = {}, story = {} }
         for _, id in ipairs(G.list) do
             local fam = id:match("^(%a+):")
             if fams[fam] then table.insert(fams[fam], id) end
@@ -796,7 +790,7 @@ local function realFlavor(fl)
                 if checked >= 18 then break end
             end
         end
-        t(("%s: nothing stranded after %d single drops on %d guides (wiki, WoW-Pro, storylines; %d quests out of one guide only)"):format(fl, drops, checked, guideOnly),
+        t(("%s: nothing stranded after %d single drops on %d guides (wiki, storylines; %d quests out of one guide only)"):format(fl, drops, checked, guideOnly),
             bad == 0 and drops > 0, firstBad)
         collectgarbage()
     end

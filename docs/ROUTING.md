@@ -221,12 +221,11 @@ objectives and turn-in with nothing to work on. On a turn-in that other quests n
 
 **Data.** Quest ids are global, so a drop applies to every guide. The reverse index is built offline per client by
 `tools/gen_quest_deps.py` from the generated guides that client loads, in priority order wiki -> gaps guides -> retail
-storylines (a quest's prerequisites come from the first source that has the quest at all). WoW-Pro text is not read
-(its licence forbids derivatives). Fields: `pre` (hard prerequisites), `free` (predecessors a quest's guides list but
+storylines (a quest's prerequisites come from the first source that has the quest at all). No other addon's guide text is read. Fields: `pre` (hard prerequisites), `free` (predecessors a quest's guides list but
 that were dropped as soft), `crumb` (breadcrumb quests), `never` (quests the hard prerequisites make unobtainable: a cycle
 with no way in, and what needs it), `name`. Output `Data/QuestDeps_<flavor>.lua` is gitignored, loaded by each TOC after
 its RouteOrder file, shipped per client by `tools/install.sh`, and parsed on first use (about 12 ms on retail, once).
-When the file is missing, or a guide comes from a family the index is not built from (WoW-Pro, native), that guide's own
+When the file is missing, or a guide comes from a family the index is not built from (hand-written, live), that guide's own
 `|PRE|` tags fill in quests the index has no entry for.
 
 | | era | tbc | mop | retail | forever |
@@ -267,11 +266,11 @@ not named or counted in the warning (tbc, Blood Elf mage, Reclaiming Sunstrider 
 
 **What one guide loses.** A guide only offers a quest once one of that quest's accept steps (that this character can see)
 opens. When every one of them waits, through the guide's own `|PRE|`, on a removed quest the index does not link
-(storylines order quests the wiki does not chain; WoW-Pro tags; the first-source rule), the quest is out of that guide,
+(storylines order quests the wiki does not chain; the first-source rule), the quest is out of that guide,
 with every step and with what needs it there. This is per guide, not a shared lock, because another guide may still
 offer the quest. The loaded guide's losses are part of the warning ("N of them only here"); other guides work theirs out
 when opened, and `/cr unskip` on such a quest says why it is out. Measured by dropping every PRE predecessor of an accept,
-one at a time, on sample wiki, WoW-Pro and storyline guides (`tools/test_skip.lua`): no quest is left on screen whose
+one at a time, on sample wiki and storyline guides (`tools/test_skip.lua`): no quest is left on screen whose
 accepts all wait on a removed quest, and none keeps its objectives or turn-in without its accept (era 89 drops on 13
 guides, tbc 105 on 13, mop 108 on 14, retail 132 on 18, forever 47 on 7). The cost is real: dropping one quest of a
 Blizzard storyline guide takes the rest of that storyline out of that guide (story:retail:546, 689 steps, loses 357 to one

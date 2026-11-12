@@ -1,10 +1,10 @@
 -- CompletionRoute :: Core/Guide.lua
--- Guide registry + parser.  Native format = WoW-Pro compatible line syntax (community standard):
+-- Guide registry + parser.  Native format: one step per line (docs/GUIDE_FORMAT.md):
 --   <ACTION> <Title>|QID|123|M|48.15,42.95|Z|1429; Elwynn Forest|N|note|...
 -- Actions: A accept, C complete, T turn-in, K kill, R run to, h set hearth, H hearth, F fly, f get flight path,
 --          N note, B buy, b boat/zeppelin, U use item, L level, r repair/sell, D dungeon, J jump/portal, $ treasure, = misc, ! daily
--- Extensions (CompletionRoute-only, ignored by WoWPro): |ROUTE| step may be reordered by optimizer (default for A/C/T/K/r/B/$)
---   |FIXED| never reorder; |ITEM|id (also WoWPro |U|id) drives the arrow's item button.
+-- Routing tags: |ROUTE| step may be reordered by optimizer (default for A/C/T/K/r/B/$)
+--   |FIXED| never reorder; |ITEM|id (also |U|id) drives the arrow's item button.
 local ADDON, NS = ...
 local U, Cond = NS.Util, NS.Cond
 
@@ -14,7 +14,7 @@ G.registry = {}      -- id -> guide record
 G.list = {}          -- ordered ids
 
 local ACTIONS = { A=1, a=1, C=1, T=1, t=1, K=1, R=1, H=1, h=1, F=1, f=1, N=1, B=1, b=1, U=1, L=1, l=1, r=1, D=1, J=1, M=1, ["!"]=1, ["$"]=1, ["="]=1, G=1,
-    P=1, ["*"]=1, d=1, s=1 } -- WoW-Pro extras: P portal/teleport, * destroy-item, d death-step, s speak-with
+    P=1, ["*"]=1, d=1, s=1 } -- extras: P portal/teleport, * destroy-item, d death-step, s speak-with
 -- non-native actions normalize to a note step (waypoint still honored via M/Z tags)
 local ACTION_ALIAS = { P = "N", ["*"] = "N", d = "N", s = "N" }
 G.ACTIONS = ACTIONS
@@ -188,7 +188,7 @@ function G.StepTitle(step)
     return t .. titleExtras(step)
 end
 
--- Imported sources spell their categories differently (e.g. "GOLD", WoW-Pro "Professions",
+-- Guide files spell their categories differently (e.g. "GOLD", "Professions",
 -- our own "Profession"): fold them so the guide menu has one row per category, not three.
 local TYPE_CANON = { gold = "Gold", leveling = "Leveling", quests = "Quests", dungeon = "Dungeons", dungeons = "Dungeons",
     profession = "Professions", professions = "Professions", daily = "Dailies", dailies = "Dailies",
