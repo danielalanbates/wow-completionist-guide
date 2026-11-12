@@ -31,8 +31,10 @@ Written by the CompletionRoute contributors and licensed CC BY-SA 4.0, as each f
 
 ## Blizzard client data
 
-Facts such as flight-path nodes, map extents, quest ids and mission tables, taken from Blizzard Entertainment's game
-client data tables as exported by wago.tools (https://wago.tools). World of Warcraft and Blizzard Entertainment are
+Facts such as flight-path nodes, map extents, quest ids, mission tables and (retail) quest map pins, taken from
+Blizzard Entertainment's game client data tables as exported by wago.tools (https://wago.tools). The retail wiki
+quest file uses a quest pin (QuestPOIBlob and QuestPOIPoint) only for a step the wiki gives no coordinate for; that
+step's note says "(location: Blizzard quest POI, ...)" and the file header names the client build. World of Warcraft and Blizzard Entertainment are
 trademarks or registered trademarks of Blizzard Entertainment, Inc. This add-on is not affiliated with or endorsed by
 Blizzard Entertainment. Files built only from these tables:
 

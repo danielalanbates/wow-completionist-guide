@@ -61,9 +61,14 @@ NS.TransitData = {
     -- 74.5,19.0) / Farseer Krogar (Orgrimmar 50.5,38.4) conjure a portal to Thrall at {{co|33.4|50.2|The Maelstrom}};
     -- "Maelstrom": Stormwind and Orgrimmar "via portal".  "Deepholm, Realm of Earth": Aggra's wyvern flies from Thrall
     -- through the breach to the Temple of Earth (Maruut Stonebinder {{co|49.6|53.0|Deepholm}}).
-    { from = { "Stormwind City", 74.5, 19.0 }, to = { "276", 33.4, 50.2, name = "The Maelstrom" }, mode = "portal", fac = "A", cost = 10, twoway = false, flavors = R, title = "Take Naraat the Earthspeaker's portal to the Maelstrom" },
-    { from = { "Orgrimmar", 50.5, 38.4 }, to = { "276", 33.4, 50.2, name = "The Maelstrom" }, mode = "portal", fac = "H", cost = 10, twoway = false, flavors = R, title = "Take Farseer Krogar's portal to the Maelstrom" },
-    { from = { "276", 33.4, 50.2, name = "The Maelstrom" }, to = { "Deepholm", 49.6, 53.0 }, mode = "flight", cost = 60, twoway = false, flavors = R, title = "Ride Aggra's wyvern through the breach to the Temple of Earth (Deepholm)" },
+    -- Both are quest transport, not standing portals: "I will conjure a portal. Take it and report to Thrall" (The
+    -- Maelstrom, 27203), and the wyvern is the ride of "Deepholm, Realm of Earth" (27123); on retail the page adds that
+    -- the quest "may not be available on modern realms without starting a Timewalking Campaign (Chromie Time)".  So each
+    -- edge exists only until its quest is turned in (cond notQuest).  approx: TG.CondOK has no "quest in the log" form,
+    -- so a character who has not reached the quest yet gets the edge too.
+    { from = { "Stormwind City", 74.5, 19.0 }, to = { "276", 33.4, 50.2, name = "The Maelstrom" }, mode = "portal", fac = "A", cost = 10, twoway = false, flavors = R, cond = { notQuest = 27203 }, title = "Take Naraat the Earthspeaker's portal to the Maelstrom (quest The Maelstrom)" },
+    { from = { "Orgrimmar", 50.5, 38.4 }, to = { "276", 33.4, 50.2, name = "The Maelstrom" }, mode = "portal", fac = "H", cost = 10, twoway = false, flavors = R, cond = { notQuest = 27203 }, title = "Take Farseer Krogar's portal to the Maelstrom (quest The Maelstrom)" },
+    { from = { "276", 33.4, 50.2, name = "The Maelstrom" }, to = { "Deepholm", 49.6, 53.0 }, mode = "flight", cost = 60, twoway = false, flavors = R, cond = { notQuest = 27123 }, title = "Ride Aggra's wyvern through the breach to the Temple of Earth (Deepholm; quest Deepholm, Realm of Earth)" },
     -- Stormwind: Eastern Earthshrine (Cataclysm zones) and the harbor
     { from = { "Stormwind City", 76.0, 18.5 }, to = { "Mount Hyjal", 62.7, 23.5 }, mode = "portal", fac = "A", cost = 6, flavors = R, title = "Take the Eastern Earthshrine portal to Mount Hyjal" },
     { from = { "Stormwind City", 76.0, 18.5 }, to = { "Kelp'thar Forest", 60.0, 34.0 }, mode = "portal", fac = "A", cost = 6, flavors = R, title = "Take the Eastern Earthshrine portal to Vashj'ir" },

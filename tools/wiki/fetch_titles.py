@@ -11,7 +11,9 @@
 
 Queue = quest start/end targets + objective targets + item drop sources (from wiki.sqlite) that are not in the
 raw cache and were never tried before, plus the places named in the {{Npcbox}}/{{Objectbox}} location field of those
-NPC and object pages that have no coordinate of their own (2026-11-11; the zone link at the end is left out).  Same etiquette and client as fetch_wiki.py (MediaWiki API only, serial,
+NPC and object pages that have no coordinate of their own (2026-11-11; the zone link at the end is left out), and the
+places linked in such a page's "Before the Cataclysm ... was located at [[Kargath]]" sentence (gen_wiki_guides.py
+Places.MOVED, read on the Classic clients).  Same etiquette and client as fetch_wiki.py (MediaWiki API only, serial,
 >= 1 s apart, maxlag=5, Retry-After, gzip, 50 titles per request, descriptive UA).  redirects=1: the redirect
 pairs are stored in `redirects`, so a later parse resolves [[Old name]] links.  Every attempted title goes into
 `title_attempts`, so nothing is fetched twice and the job resumes where it stopped.
@@ -28,6 +30,9 @@ import re  # noqa: E402
 import wikitext as W  # noqa: E402
 
 T_BOX = re.compile(r"npcbox|objectbox", re.I)
+# the "Before the Cataclysm ... was located at [[Place]]" sentence, exactly as gen_wiki_guides.py reads it
+from gen_wiki_guides import Places  # noqa: E402
+MOVED = Places.MOVED
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PARSED = os.path.join(HERE, "wiki.sqlite")
@@ -61,7 +66,11 @@ def queue(raw, parsed):
         box = next(W.find_templates(r[0] or "", T_BOX), None) if r else None
         if not box:
             continue
-        for ln, _ in W.links(W.split_params(box[3])[1].get("location", ""))[:-1] or W.links(W.split_params(box[3])[1].get("location", "")):
+        links = W.links(W.split_params(box[3])[1].get("location", ""))[:-1] or W.links(W.split_params(box[3])[1].get("location", ""))
+        moved = MOVED.search(r[0] or "")
+        if moved and moved.group(1):
+            links += W.links(moved.group(1))
+        for ln, _ in links:
             if ln and ln not in have and ln not in titles and len(ln) < 200:
                 have.add(ln)
                 want.append(ln)

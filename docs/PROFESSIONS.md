@@ -49,6 +49,8 @@ A trainer is kept on a client only when all of these hold:
 * its NPC page does not say it was added after this client's game version, or that it no longer trains;
 * on era, tbc and forever, a page saying it moved at the Cataclysm is dropped unless the wiki also gives a pre-Cataclysm coordinate;
 * its coordinate lands on a map this client has. Retail coordinates are carried across through world coordinates (`wikimaps.Atlas`).
+* (category trainers) when the `{{Co}}` zone contradicts the zone or city maps the location field links, the linked map wins
+  (Maraclozh: "[[Umbral Bazaar]], [[City of Threads]]{{Co|51.6|25.6|Undermine}}" is on the City of Threads; 2026-11-11 review).
 
 When the wiki has both a Classic coordinate and a retail one more than 300 yards apart, the Classic one wins. A rank limit in the
 notes column (the Train-a-Tron stops at Journeyman) removes that trainer from higher ranks. The counts of dropped trainers are printed per flavor.
@@ -71,6 +73,16 @@ current skill and below its grey threshold.
   (2026-11-11: before, a box without an orange value went straight to yellow, so retail Outland and Shadowlands Cooking
   had no recipe usable at skill 1 and Pandaria stopped at 22, Cataclysm at 36.)
 * A recipe the wiki gives no source for, but whose `Recipe:`/`Manual:`/`Formula:` item this client has, is a buy step.
+* A recipe whose item the client sells only at a faction standing (ItemSparse `MinFactionID` / `MinReputation` Friendly or
+  better) is left out and counted (`recipe_reputation`): a skill plan cannot assume a reputation grind. Before the
+  2026-11-11 review, retail Pandaria Cooking reached 75 only through Recipe: Spicy Salmon (Exalted with the Tillers) and MoP
+  Cooking 530-600 only through Viseclaw Soup (Anglers, Friendly) and Spicy Salmon.
+* MoP Classic Cooking past 525 goes through a Pandaren Way (wiki "Way of the Grill": 525 skill, then "Ready for Greatness"
+  and "Way of the Grill (quest)"; "Your skill in cooking is only as great as your most advanced Way"). The plan uses the Way
+  of the Grill: the quest chain from "So You Want to Be a Chef..." (31281 -> 31302 -> 31311) right before the first Way
+  recipe, then Kol Ironpaw's recipes, trained only at him (his wiki "Teaches" table gives the learn skill; the client's
+  SkillLine 975 rows give yellow, grey and the skill points per craft, which divide the craft estimate). Retail's Way rows
+  carry no skill-up line and the wiki gives no retail learn values, so retail Pandaria does not use them.
 * `SkillLineAbility` rows for one class only (MoP: Death Knights learn the bandages automatically) are skipped.
 * On era, tbc and forever, a recipe the wiki calls trainer-taught today becomes a buy step when this client has a recipe item for it.
   The wiki describes retail, and most of those recipes moved to trainers in later patches.
@@ -101,10 +113,11 @@ current skill and below its grey threshold.
 
 `python3 tools/prof_tiers.py [--thin] [--markdown] [--label L]` prints one row per client, profession and expansion tier
 (highest skill the weaker faction reaches, the tier cap, trainers, missing facts); `--label` stores it in
-`prof_tier_runs`. Labels `before-2026-11-11` and `after-2026-11-11` hold the change; docs/STATUS.md has the table.
-Still short after it: Shadowlands Cooking stops at 75 (the client's recipes are grey at 75; the wiki table says 175),
-and Legion and Draenor Cooking and Cataclysm Fishing list no trainer (no located trainer page; Cataclysm has no
-landmass of its own).
+`prof_tier_runs`. Labels `before-2026-11-11`, `after-2026-11-11` (first pass) and `final-2026-11-11` (after the review)
+hold the change; docs/STATUS.md has the table. Still short after it: retail Pandaria Cooking stops at 22 of 75 (past 25
+only the Tillers' Exalted recipes skill it; the review took them out), Shadowlands Cooking stops at 75 (the client's
+recipes are grey at 75; the wiki table says 175), and Legion and Draenor Cooking and Cataclysm Fishing list no trainer
+(no located trainer page; Cataclysm has no landmass of its own). MoP Cooking reaches 600 through the Way of the Grill.
 
 ## Measured (2026-11-09, generated data, offline)
 
@@ -130,5 +143,6 @@ landmass of its own).
 * `Cooking trainers` is marked out of date on the wiki and lists no trainers for most tiers after Pandaria. The trainer category fills
   Kul Tiran, Dragon Isles, Khaz Algar and Midnight (2026-11-11); a tier still without one says so and carries no ALT. A category trainer
   is assigned to the tier of the continent it stands on, which is how the wiki's table groups them but is not stated per trainer.
-* "Way of" Pandaria recipes sit in their own skill lines and are not planned; mop Zen Master Cooking therefore leans on the expensive banquet recipes.
+* Only one Pandaren Way (the Grill) is planned on MoP; the other five work the same way and are not offered. Retail does not
+  plan the Ways at all (see the plan rules), so retail Pandaria Cooking stops at 22.
 * Forever's own higher rank spells (1240945 and siblings) are not used; Forever guides stop at 300 like era.

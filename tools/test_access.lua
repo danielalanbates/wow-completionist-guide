@@ -45,6 +45,23 @@ for _, fac in ipairs({ "Horde", "Alliance" }) do
             local located = 0
             for _, s in ipairs(steps) do if NS.Router.StepWorld(s) then located = located + 1 end end
             check(located >= #steps - 3, a.key .. " chain steps located " .. located .. "/" .. #steps)
+            -- MoP Classic chains are written quest by quest (no "follow the chapter" N summaries like the retail ones):
+            -- every quest the chain accepts is turned in inside the chain, before the next one is accepted.  A chain that
+            -- leaves one open skips the quest its successor needs (the Horde way into Pandaria accepted Into the Mists
+            -- and then Touching Ground, without turning in Into the Mists or doing Paint it Red! in between)
+            if a.flavors and a.flavors.mop then
+            local open, order = {}, true
+            for _, s in ipairs(steps) do
+                local q = s.qid and s.qid[1]
+                if q and s.action == "A" then
+                    if next(open) ~= nil then order = false end
+                    open[q] = true
+                elseif q and s.action == "T" then
+                    open[q] = nil
+                end
+            end
+            check(order and next(open) == nil, a.key .. " chain turns in each quest before it accepts the next")
+            end
         end
     end
 end
@@ -135,6 +152,18 @@ do
           "cond: notQuest / level / function forms")
     NS.TransitData = saved
     NS.player = { faction = "Horde" }
+    TG.built = false TG.Build()
+    -- the Maelstrom portal is conjured for the quest The Maelstrom (27203): its edge goes once that quest is turned in
+    local function maelstrom()
+        for _, n in ipairs(TG.nodes) do for _, e in ipairs(n.edges) do
+            if e.title and e.title:find("portal to the Maelstrom", 1, true) then return true end
+        end end
+        return false
+    end
+    check(maelstrom() and TG.unlockQuests[27203] == "full", "Maelstrom portal edge exists before The Maelstrom (27203) is turned in")
+    TG.OnQuestTurnedIn(27203) TG.Build()
+    check(not maelstrom(), "Maelstrom portal edge is gone after The Maelstrom (27203) is turned in")
+    TG.turnedIn[27203] = nil
     TG.built = false TG.Build()
 end
 

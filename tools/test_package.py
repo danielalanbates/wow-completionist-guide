@@ -294,6 +294,23 @@ def main():
         expect_fail(env, "Questie fallback line in wiki data", "interop-derived", "Guides/Imported_Wiki_era.lua",
                     lambda d, a: append(a / "Guides" / "Imported_Wiki_era.lua",
                                         "T Foo|QID|5|M|1,1|Z|1; X|N|To Foo. (location: Questie data)|\n"))
+        # retail client quest pins (2026-11-11 review): a step whose point is a Blizzard quest pin ships only in a file
+        # whose header names QuestPOIBlob + QuestPOIPoint and the client build
+        poi_step = "T Foo|QID|5|M|50.0,50.0|Z|1; X|N|To Foo. (location: Blizzard quest POI, the turn-in area)|\n"
+        expect_fail(env, "quest-pin step in a wiki file without the QuestPOI header", "no-provenance",
+                    "Guides/Imported_Wiki_retail.lua", lambda d, a: append(a / "Guides" / "Imported_Wiki_retail.lua", poi_step))
+        expect_fail(env, "quest-pin header with an unknown build", "no-provenance", "Guides/Imported_Wiki_retail.lua",
+                    lambda d, a: (a / "Guides" / "Imported_Wiki_retail.lua").write_text(
+                        "-- Steps ... Blizzard QuestPOIBlob + QuestPOIPoint tables via wago.tools, build unknown (client data).\n"
+                        + STAND_IN["wiki-cc-by-sa"] + poi_step, encoding="utf-8"))
+        d = env.scenario()
+        (d / pr.ADDON / "Guides" / "Imported_Wiki_retail.lua").write_text(
+            "-- Steps whose note says \"(location: Blizzard quest POI, ...)\" take their map point from the client's quest "
+            "pins, not from the wiki: Blizzard QuestPOIBlob + QuestPOIPoint tables via wago.tools, build wow 12.1.5.70783 "
+            "(client data, facts only).\n" + STAND_IN["wiki-cc-by-sa"] + poi_step, encoding="utf-8")
+        code, res, _, _ = env.run(d)
+        check(code == 0 and not has(res, "no-provenance", "Guides/Imported_Wiki_retail.lua"),
+              "quest-pin steps pass when the header names the tables and the build")
         expect_fail(env, "WoW-Pro guide text in gold data", "interop-derived", "Guides/Imported_Gold_tbc.lua",
                     lambda d, a: append(a / "Guides" / "Imported_Gold_tbc.lua", 'R({ id="x", author="WoWPro Team", text=[[ ]] })\n'))
         def plant_xml(d, a):

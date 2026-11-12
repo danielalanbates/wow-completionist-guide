@@ -244,6 +244,9 @@ class QuestPOI:
     def __init__(self, fl, maps):
         self.q = defaultdict(dict)
         d = ROOT / "tools" / "db2" / fl
+        # the client build the tables were read from (tools/db2/<flavor>/BUILD, written by the DB2 fetcher); every
+        # file that ships a pin names it
+        self.build = ((d / "BUILD").read_text(encoding="utf-8").strip() if (d / "BUILD").exists() else "") or "unknown"
         if not (d / "QuestPOIBlob.csv").exists() or not (d / "QuestPOIPoint.csv").exists():
             print(f"  note: tools/db2/{fl}/QuestPOIBlob.csv / QuestPOIPoint.csv missing - no client quest pins for {fl} "
                   "(fetch them with tools/gen_quest_guides_retail.py or tools/wiki/db2_fetch.py)")
@@ -281,17 +284,64 @@ class Places:
         self.raw = sqlite3.connect(f"file:{self.RAW}?mode=ro", uri=True) if self.RAW.exists() else None
         self.cache = {}
 
+    # a {{Patch x.y.z|note=...}} line saying the place was made or moved in a later patch than the client's: its point
+    # is not where the place is on that client (Lor'danel, "Added" at 4.0.3a, took over from Auberdine; "Valormok:
+    # Subzone moved further south"; Grommash Hold "Remodeled and moved"; Shimmering Deep "Replaced the Shimmering
+    # Flats").  A place that was only destroyed, rebuilt or "replaced by" something later still stood there before
+    # (Brill, Stonewrought Dam, Misty Reed Post), and "Subzone added to existing area" names an area that was already
+    # there (Pig and Whistle Tavern): those are kept.
+    POST_CATA = re.compile(r"\{\{\s*patch\s*(\d+)\.\d+[^|}]*\|\s*note\s*=\s*(?:(?:area|subzone|town|zone)\s+)?"
+                           r"(?:\w+\s+and\s+)?(?:added\b(?!\s+to\s+(?:an?\s+|the\s+)?existing)|moved\b|relocated\b|"
+                           r"replaced\b(?!\s+by\b))", re.I)
+    # an NPC page that says where the NPC stood before the Cataclysm ("Before the [[Cataclysm (event)|Cataclysm]], she was
+    # located in the [[Valley of Strength]]"): its location field describes a later place.  Group 1 is the rest of that
+    # sentence, whose links name the earlier place.  A caption such as "Trenton's model prior to the Cataclysm" is not
+    # a move (no verb of place).
+    MOVED = re.compile(r"(?:before|prior to)\s[^.\n]{0,40}?cataclysm[^.\n]{0,160}?\b(?:located|found|stood|standing|"
+                       r"stationed|resided|lived|was in|was at|were in|were at)\b([^.\n]*)|\bpre-cataclysm\b", re.I)
+
+    def text(self, page):
+        if self.raw is None:
+            return ""
+        r = self.raw.execute("select wikitext from pages where title = ?", (page,)).fetchone()
+        return (r[0] if r else "") or ""
+
+    # the first patch major a client does not have: a place made or moved in it is not where that client has it
+    NEWER = {"era": 2, "forever": 2, "tbc": 3, "mop": 6}
+
+    def post_cata(self, page, fl="era"):
+        """was this place made, moved or destroyed in a patch the client does not have (Lor'danel, 4.0.3, on Era)?"""
+        lim = self.NEWER.get(fl)
+        return lim is not None and any(int(m.group(1)) >= lim for m in self.POST_CATA.finditer(self.text(page)))
+
+    # a link that names a landmark the NPC stood some way off from, not the place itself ("on an island northeast of
+    # the [[Ravencrest Monument]]": 748 yd off on era).  "near the southern gates of [[Gadgetzan]]" and "just west of
+    # [[Ameth'Aran]]" are at the place.
+    BESIDE = re.compile(r"(?<!just )(?<!right )\b(?:(?:north|south|east|west)(?:east|west)?\s+of|across\s+from|opposite|"
+                        r"beyond)\s+(?:the\s+)?$", re.I)
+
+    def classic_links(self, page):
+        """None when the page does not say its NPC stood elsewhere before the Cataclysm; else the links of the sentence
+        that says where, in its order, leaving out a landmark the NPC only stood near (BESIDE); [] when it links no
+        place"""
+        m = self.MOVED.search(self.text(page))
+        if not m:
+            return None
+        seg, out = m.group(1) or "", []
+        for lk in re.finditer(r"\[\[[^\[\]]+\]\]", seg):
+            if not self.BESIDE.search(seg[max(0, lk.start() - 40):lk.start()]):
+                out += [t for t, _ in WT.links(lk.group(0))]
+        return out
+
     def links(self, page):
         """the location field's links, most specific first"""
         if page in self.cache:
             return self.cache[page]
         out = []
-        if self.raw is not None:
-            r = self.raw.execute("select wikitext from pages where title = ?", (page,)).fetchone()
-            text = r[0] if r else ""
-            box = next(WT.find_templates(text or "", re.compile(r"npcbox|objectbox", re.I)), None)
-            if box:
-                out = [t for t, _ in WT.links(WT.split_params(box[3])[1].get("location", ""))]
+        text = self.text(page)
+        box = next(WT.find_templates(text, re.compile(r"npcbox|objectbox", re.I)), None)
+        if box:
+            out = [t for t, _ in WT.links(WT.split_params(box[3])[1].get("location", ""))]
         self.cache[page] = out
         return out
 
@@ -307,6 +357,9 @@ class Gen:
         # coordinates that already stood on their page before patch 4.0.3 are Classic-map numbers
         # (tools/wiki/fetch_coord_history.py, docs/WIKI_DATA_SPEC.md): they are read as "(Classic)" points
         marks = wikimaps.history_marks()
+        if not marks:
+            print("  note: tools/wiki/cache/coord_history.sqlite missing or empty - pre-4.0.3 Classic-map numbers are not "
+                  "marked (Blasted Lands points move ~5.5 units on the Classic clients); run tools/wiki/fetch_coord_history.py")
         self.history_marked = 0
         for r in self.db.execute("select title, zone, x, y, source, badge, classic from npc_coords order by title, idx"):
             zone, classic = wikimaps.mark_classic(marks, r["title"], r["zone"], r["x"], r["y"]) if r["x"] is not None else (r["zone"], None)
@@ -335,6 +388,9 @@ class Gen:
         self.clean_pts = {}
         self.subzone_dropped = []
         self.places = Places()
+        self.place_rejected = Counter()     # (client, why) -> place-page points not used (place_coords)
+        self.moved_seen = set()             # (client, NPC page) already counted by place_links
+        self.place_zone_cache = {}
 
     # ---- locations ---------------------------------------------------------------------------------
     def era_to_forever(self, mid, pts):
@@ -408,16 +464,28 @@ class Gen:
         self.clean_pts[title] = out
         return out
 
-    def page_points(self, title, fl, home_name):
-        """best coordinates on an NPC/object/place page for this client"""
+    @staticmethod
+    def foreign(zone, fl):
+        """is a wiki coordinate written for a game this client is not?  '(Forever)' points are WoW Forever's own (Zephras
+        Isle's portal stands in Alterac Mountains only there); Season of Discovery is on no client this addon builds."""
+        z = (zone or "").lower()
+        return ("(forever)" in z and fl != "forever") or "(season of discovery)" in z
+
+    def page_points(self, title, fl, home_name, own_only=False):
+        """best coordinates on an NPC/object/place page for this client.  own_only (a place page standing in for an NPC):
+        only the page's own point counts, from its infobox, {{Npclocations}} or lead sentence.  A coordinate in a
+        section of the page (portals, quests, rewards, notes, inhabitants) is something else at that place, not the
+        place, and a coordinate written for another game (foreign) is never used."""
         pts = self.page_rows(title)
+        if own_only:
+            pts = [p for p in pts if p[3] in ("location", "npclocations", "lead") and not self.foreign(p[0], fl)]
         if not pts:
             return [], False
         e = EXP[fl][0]
 
         def score(p):
             zone, x, y, src, badge, classic = p
-            s = 0
+            s = 4 if self.foreign(zone, fl) else 0
             # A point on a map this client does not have (a retail subzone map such as Valley of Trials on Classic, or a
             # retail-only zone) ranks after a point on a map it does have.  A subzone point is only usable through
             # world-coordinate conversion, so an entry for the zone itself is better.
@@ -452,9 +520,10 @@ class Gen:
             return bool(classic) or (0 < (badge or 0) <= e)
         return (not classic) and 0 < (badge or 0) <= e
 
-    def entity_coords(self, title, fl, added, home_name, depth=0, places=False):
+    def entity_coords(self, title, fl, added, home_name, depth=0, places=False, ref_maps=()):
         """(mapID, 'x,y', page, exact, via) for a linked page; items follow their drop sources.  With places=True a page
-        with no point of its own takes the point of the place its location field names first (via = that place)."""
+        with no point of its own takes the point of the place its location field names first (via = that place), when
+        that point lies in one of ref_maps (see place_coords)."""
         page, kind = self.resolve_title(title)
         if not page:
             return None
@@ -465,36 +534,167 @@ class Gen:
                 if r:
                     return r[0], r[1], page, ex, ""
             elif places and kind in ("npc", "object"):
-                r = self.place_coords(page, fl, added, home_name)
+                r = self.place_coords(page, fl, added, home_name, ref_maps)
                 if r:
                     return r
         if depth == 0 and page in self.items:
             for src in self.items[page][1]:
-                r = self.entity_coords(src, fl, added, home_name, 1, places)
+                r = self.entity_coords(src, fl, added, home_name, 1, places, ref_maps)
                 if r:
                     return r
         return None
 
-    def place_coords(self, page, fl, added, home_name):
-        """the point of the first place named in an NPC/object page's location field that is not a map itself"""
+    def place_coords(self, page, fl, added, home_name, ref_maps=()):
+        """the point of the first place named in an NPC/object page's location field (place_links) that is not a map
+        itself.  Only the place page's own point counts (page_points own_only: not a portal, quest or NPC listed on it,
+        not a coordinate written for another game), a place made or moved in a later patch than the client's is
+        skipped, and the point must lie in one of ref_maps (the zone maps the NPC page names; agree()), so a place of
+        the same name elsewhere never moves the step to another zone.  With no reference map the place link is the
+        page's own word and the point is used (resolve_pending counts it when it lies outside the quest's zone)."""
         maps = self.atlas.sets[fl]
-        links = self.places.links(page)
+        links = self.place_links(page, fl)
         zone = links[-1] if len(links) > 1 else None
         for ln in links[:-1] if zone else links:
             pg, kind = self.resolve_title(ln)
             if not pg or maps.resolve(pg) is not None or self.atlas.sets["retail"].resolve(pg) is not None:
                 continue    # a zone, city or subzone map: that is a zone-level answer, not a place
-            pts, ex = self.page_points(pg, fl, zone or home_name)
+            if self.places.post_cata(pg, fl):
+                self.place_rejected[(fl, "place made or moved in a later patch")] += 1
+                continue
+            pts, ex = self.page_points(pg, fl, zone or home_name, own_only=True)
             if not pts:
                 continue
             if zone and wikimaps.norm(wikimaps.base_zone(pts[0][0])) != wikimaps.norm(zone) and \
                     maps.resolve(pts[0][0]) != maps.resolve(zone):
                 continue    # the place page points into another zone than the NPC page names
             r = self.coords_list(pts, fl, bool(self.npc_classic.get(pg)), added, zone or home_name)
-            if r:
-                return r[0], r[1], page, ex, pg
-            break
+            if not r:
+                break
+            if ref_maps and not any(self.agree(fl, r[0], m) for m in ref_maps):
+                self.place_rejected[(fl, "outside the NPC's or the quest's maps")] += 1
+                continue
+            return r[0], r[1], page, ex, pg
         return None
+
+    def place_links(self, page, fl):
+        """the links that say where an NPC/object page's subject stands on this client, most specific first: the
+        location field; on the Classic clients, when the page says the NPC stood elsewhere before the Cataclysm, that
+        sentence instead, up to its first link that is a zone map (only its first link when none is).  Shadowmage
+        Vivian Lagrave stands in the Undercity now and "was located at [[Kargath]], [[Badlands]]" before; a page that
+        says she moved but links no place gives nothing, so the step keeps the quest's zone."""
+        if fl in CLASSICISH:
+            old = self.places.classic_links(page)
+            if old is not None:
+                S, out = self.atlas.sets[fl], []
+                for t in old:
+                    out.append(t)
+                    m = S.resolve(t)
+                    if m is not None and S.maps[m]["type"] == 3:
+                        break
+                else:
+                    out = out[:1]
+                if (fl, page) not in self.moved_seen:
+                    self.moved_seen.add((fl, page))
+                    self.place_rejected[(fl, "npc moved at the Cataclysm: its earlier place used" if out else
+                                         "npc moved at the Cataclysm: no earlier place linked")] += 1
+                return out
+        return self.places.links(page)
+
+    def agree(self, fl, a, b):
+        """do two maps name the same area: the same map, one inside the other, or the same zone (MapSet.home)"""
+        S = self.atlas.sets[fl]
+        return a == b or S.is_ancestor(a, b) or S.is_ancestor(b, a) or S.home(a) == S.home(b)
+
+    def entity_maps(self, title, fl, added, draenor=False):
+        """the zone-type maps (UiMap type 3 or more) on this client that a linked page names: the page itself when it is
+        a place that is a map (an objective "Travel to Dalaran"), else the links of an NPC/object page's location
+        field (place_links), in the page's order (most specific first).  When those links name no map at all, a linked
+        place counts as the zone its own page says it lies in (place_zone: "[[Kargath]]" is in the Badlands); a map the
+        NPC page names always wins over that guess (A'dal's "[[Terrace of Light]], [[Shattrath City]]": the Terrace's
+        page names the Isle of Quel'Danas first).  Items follow their drop sources."""
+        page, kind = self.resolve_title(title)
+        if not page:
+            return []
+        S = self.atlas.sets[fl]
+        out = []
+        if kind not in ("npc", "object", "item"):
+            own = S.resolve(page, added, draenor)
+            if own is not None and S.maps[own]["type"] >= 3:
+                return [own]
+        links = self.place_links(page, fl)
+        for ln in links:
+            m = S.resolve(ln, added, draenor)
+            if m is not None and S.maps[m]["type"] >= 3 and m not in out:
+                out.append(m)
+        if not out:
+            for ln in links:
+                pg, k = self.resolve_title(ln)
+                m = self.place_zone(pg, fl, added, draenor) if pg and k not in ("npc", "object", "item") else None
+                if m is not None and m not in out:
+                    out.append(m)
+        if not out and page in self.items:
+            for src in self.items[page][1][:3]:
+                for m in self.entity_maps(src, fl, added, draenor) if src != page else []:
+                    if m not in out:
+                        out.append(m)
+        return out
+
+    def place_zone(self, page, fl, added=None, draenor=False):
+        """the zone map a place page that is not a map itself says it lies in: the first link of its lead (infobox
+        included) that is a zone map on this client ("Kargath is a Horde outpost in the [[Badlands]]"; "The Valley of
+        Strength ... [[Orgrimmar]]"); None when it links none.  The page's words, not the map its own point lands on,
+        so place_coords can check that point against it."""
+        k = (page, fl, added, draenor)
+        if k not in self.place_zone_cache:
+            S, z = self.atlas.sets[fl], None
+            for ln, _ in WT.links(WT.sections(self.places.text(page)).get("", "")):
+                m = S.resolve(ln, added, draenor)
+                if m is not None and S.maps[m]["type"] == 3:
+                    z = m
+                    break
+            self.place_zone_cache[k] = z
+        return self.place_zone_cache[k]
+
+    def lead_maps(self, title, fl, added, draenor=False):
+        """the zone maps an NPC/object page's lead text links outside its infobox ("He is also present in ... [[Nazmir]]")"""
+        page, _ = self.resolve_title(title)
+        if not page:
+            return []
+        S = self.atlas.sets[fl]
+        lead = re.sub(r"\{\{\s*(?:npcbox|objectbox).*?\n\s*\}\}", "", WT.sections(self.places.text(page)).get("", ""),
+                      flags=re.S | re.I)
+        out = []
+        for ln, _ in WT.links(lead):
+            m = S.resolve(ln, added, draenor)
+            if m is not None and S.maps[m]["type"] >= 3 and m not in out:
+                out.append(m)
+        return out
+
+    def zone_choice(self, fl, emaps, zmid, refs, lead=()):
+        """the map a step with no point names (|Z| only).  The NPC/object page's own location field outranks the
+        quest-log category: the category is where the quest is filed, not where its giver stands (Magistrate Henry
+        Maleb is filed under Alterac Mountains and stands in Southshore; In Defense of Frostwolf is filed under the
+        battleground and given in Orgrimmar).  The category wins when the page agrees with it (agree()): a location
+        map in it (a page map inside it is the more precise answer), or else a map the page's lead links (lead_maps:
+        Patch's location field names Azshara and the Twilight Highlands, his lead adds that he is "also present ... in
+        [[Nazmir]]", where the quest is filed).  Among several page maps the one that agrees with the quest's located
+        steps (refs) wins, then a zone map over a dungeon or micro map.  With no page map: the category, else the first
+        located step's map."""
+        S = self.atlas.sets[fl]
+        if emaps:
+            if zmid is not None:
+                for m in emaps:
+                    if self.agree(fl, m, zmid):
+                        return m if S.is_ancestor(zmid, m) else zmid
+                if any(self.agree(fl, m, zmid) for m in lead):
+                    return zmid
+            for m in emaps:
+                if any(self.agree(fl, m, r) for r in refs):
+                    return m
+            return sorted(emaps, key=lambda m: S.maps[m]["type"] != 3)[0]
+        if zmid is not None:
+            return zmid
+        return refs[0] if refs else None
 
     # ---- one client ---------------------------------------------------------------------------------
     def run(self, fl):
@@ -550,7 +750,9 @@ class Gen:
             added = pkey(r["added_patch"])
             classic_q = bool(r["page_classic"])
             zone_name = r["zone"] or r["category"] or ""
-            zmid = maps.resolve(zone_name, added) if zone_name else None
+            # a Warlords of Draenor quest's zone is Draenor's map, not the Outland zone of the same name
+            draenor_q = "alternate universe" in zone_name.lower() or (added is not None and (6, 0, 0) <= added < (7, 0, 0))
+            zmid = maps.resolve(zone_name, added, draenor_q) if zone_name else None
             home_name = maps.maps[zmid]["name"] if zmid else zone_name
             name = clean(r["name"] or r["page_title"], 120)
             gate = ""
@@ -563,9 +765,8 @@ class Gen:
             lvl = r["levelreq"]
             if lvl and lvl > 1:
                 gate += f"LVL|{lvl}|"
-            lines = []
+            lines = []          # step text, or a dict for a step resolve_pending() fills in
             first_map = None
-            seen_map = None     # the first map an objective step lands on (zone-level steps fall back to it)
 
             page_exact = self.exact(fl, classic_q, 0) or (
                 fl == "mop" and (r["variant"] or "").lower() in VARIANT_FOR and "mop" in VARIANT_FOR[(r["variant"] or "").lower()])
@@ -600,8 +801,8 @@ class Gen:
 
             def loc_tag(kind, ent_list, act, qo=None):
                 """-> (M/Z text, note suffix, source) for an A/T step.  Order: the wiki's own point, the client's quest
-                pin (retail), the local fallback file (dev builds only), the wiki page of the place the NPC stands in."""
-                nonlocal first_map
+                pin (retail), the local fallback file (dev builds only).  The wiki place page and the zone-level answer
+                come after every step of the quest has been tried (resolve_pending)."""
                 for e in ent_list:
                     if e.get("coords"):
                         c = self.coords_list([(x[2], x[0], x[1]) for x in e["coords"]], fl, classic_q, added, home_name)
@@ -622,15 +823,11 @@ class Gen:
                     f = fb.get(qid, act, qo)
                     if f:
                         return ("Z", f), f" (location: {f[2]})", "fallback"
-                for e in ent_list:
-                    if e.get("title"):
-                        c = self.entity_coords(e["title"], fl, added, home_name, places=True)
-                        if c and c[4]:
-                            return (c[0], c[1]), f" (location: the wiki's {clean(c[4], 60)} page; {clean(c[2], 60)}'s own page has no point)", "place"
                 return None, "", "none"
 
             def zone_only(text_head, text_tail, mid):
-                """a step the wiki gives no point for still names the quest's zone (the router takes you there)"""
+                """a step the wiki gives no point for still names a zone (the router takes you there): the zone the NPC
+                page names, else the quest's (zone_choice)"""
                 if mid is None or mid not in maps.maps:
                     return None
                 zn = maps.maps[mid]["name"]
@@ -641,6 +838,62 @@ class Gen:
                     f = c[1]
                     return f"M|{f[0]}|Z|{f[1]}|"
                 return f"M|{c[1]}|Z|{c[0]}; {maps.maps[c[0]]['name']}|"
+
+            def pending(head, tail, ents):
+                """a step with no wiki, quest-pin or fallback point: resolved by resolve_pending once the quest's other
+                steps are known"""
+                lines.append({"head": head, "tail": tail, "ents": [e for e in ents if e.get("title")]})
+
+            def resolve_pending():
+                """place page, then zone, for the steps pending() kept back.  The NPC/object page names the reference
+                maps (entity_maps); a place point must lie in one of them.  The zone-level step takes zone_choice(), which
+                weighs those maps against the quest's zone and the maps of its located steps (refs)."""
+                refs = []
+                for ln in lines:
+                    if isinstance(ln, str) and "|M|" in ln:
+                        m = re.search(r"\|Z\|(\d+);", ln)
+                        if m and int(m.group(1)) not in refs:
+                            refs.append(int(m.group(1)))
+                for i, p in enumerate(lines):
+                    if isinstance(p, str):
+                        continue
+                    emaps = []
+                    for e in p["ents"]:
+                        for m in self.entity_maps(e["title"], fl, added, draenor_q):
+                            if m not in emaps:
+                                emaps.append(m)
+                    # Only the maps the NPC/object page names (its location field, or the zone its linked place's own
+                    # page names) can overrule the place it links; the quest-log category cannot.  Checked against the
+                    # category instead, 16 era place points were rejected and the category zone was wrong for all 16
+                    # (class quests filed under some zone, givers who stand a zone away), while 9 of the points were
+                    # 43-297 yd from where the quest is done (measured against the local reference, measurement only;
+                    # docs/WIKI_DATA_SPEC.md).  A point with no reference map that lies outside the category and every
+                    # located step of the quest is counted (place_off_category).
+                    ref_maps = emaps
+                    c = None
+                    for e in p["ents"]:
+                        c = self.entity_coords(e["title"], fl, added, home_name, places=True, ref_maps=ref_maps)
+                        if c and c[4]:
+                            break
+                        c = None
+                    if c:
+                        lines[i] = (f"{p['head']}{mz((c[0], c[1]))}{p['tail']} (location: the wiki's {clean(c[4], 60)} "
+                                    f"page; {clean(c[2], 60)}'s own page has no point)|")
+                        st["steps_place"] += 1
+                        if not emaps:
+                            others = ([zmid] if zmid is not None else []) + refs
+                            if not others:
+                                st["place_unchecked"] += 1
+                            elif not any(self.agree(fl, c[0], m) for m in others):
+                                st["place_off_category"] += 1
+                        continue
+                    lead = [m for e in p["ents"] for m in self.lead_maps(e["title"], fl, added, draenor_q)] if emaps else []
+                    mid = self.zone_choice(fl, emaps, zmid, refs, lead)
+                    zl = zone_only(p["head"], p["tail"], mid)
+                    lines[i] = zl or f"{p['head']}{p['tail']} No coordinates on the wiki.|"
+                    st["steps_zone" if zl else "steps_none"] += 1
+                    if zl and emaps and mid != zmid:
+                        st["zone_from_npc_page"] += 1
 
             starts = json.loads(r["start_json"] or "[]")
             ends = json.loads(r["end_json"] or "[]") or starts
@@ -665,11 +918,9 @@ class Gen:
                 lines.append(f"A {name}|QID|{qid}|{ptag}{mz(c)}{gate}N|{note}{suf}|")
                 if c[0] != "Z":
                     first_map = c[0]
+                st[f"steps_{src}"] += 1
             else:
-                zl = zone_only(f"A {name}|QID|{qid}|{ptag}", f"{gate}N|{note}", zmid)
-                src = "zone" if zl else "none"
-                lines.append(zl or f"A {name}|QID|{qid}|{ptag}{gate}N|{note} No coordinates on the wiki.|")
-            st[f"steps_{src}"] += 1
+                pending(f"A {name}|QID|{qid}|{ptag}", f"{gate}N|{note}", starts)
             st["steps"] += 1
             # C per objective bullet
             bullets = self.objs.get((qid, r["page_title"]), [])
@@ -705,10 +956,6 @@ class Gen:
                     f = fb.get(qid, "C", qo)
                     if f:
                         cc = (("Z", f), f" (location: {f[2]})", "fallback")
-                if not cc and b["target_title"]:
-                    e = self.entity_coords(b["target_title"], fl, added, home_name, places=True)
-                    if e and e[4]:
-                        cc = ((e[0], e[1]), f" (location: the wiki's {clean(e[4], 60)} page; {clean(e[2], 60)}'s own page has no point)", "place")
                 tags = f"QO|{qo}|" if use_qo else ""
                 if b["kind"] == "kill" and b["target_title"]:
                     tags += f"T|{clean(b['target_title'], 60)}|"
@@ -724,12 +971,9 @@ class Gen:
                 if cc:
                     lines.append(f"C {name}|QID|{qid}|{tags}{mz(cc[0])}{gate}N|{text}{cc[1]}|")
                     st[f"steps_{cc[2]}"] += 1
-                    if cc[0][0] != "Z" and seen_map is None:
-                        seen_map = cc[0][0]
                 else:
-                    zl = zone_only(f"C {name}|QID|{qid}|{tags}", f"{gate}N|{text}", zmid if zmid is not None else (first_map or seen_map))
-                    lines.append(zl or f"C {name}|QID|{qid}|{tags}{gate}N|{text} No coordinates on the wiki.|")
-                    st["steps_zone" if zl else "steps_none"] += 1
+                    pending(f"C {name}|QID|{qid}|{tags}", f"{gate}N|{text}",
+                            [{"title": b["target_title"]}] if b["target_title"] else [])
                 st["steps"] += 1
             if not counted:
                 f = fb.get(qid, "C") if fb else None
@@ -749,21 +993,20 @@ class Gen:
                 note = f"To {who}." if who else "Turn in."
                 if c:
                     lines.append(f"T {name}|QID|{qid}|{mz(c)}{gate}N|{note}{suf}|")
-                    if fl == "retail" and src == "wiki" and c[0] != "Z" and fb:
-                        f = fb.get(qid, "T")
-                        if f and f[2] == "Blizzard data" and f[1].split(";")[0].strip() == str(c[0]):
-                            a = [float(v) for v in c[1].split(";")[0].split(",")]
-                            b2 = [float(v) for v in f[0].split(";")[0].split(",")]
-                            yd = self.atlas.yards(fl, c[0], a, b2)
-                            if yd and yd > 50:
-                                self.conflicts.append((fl, qid, "turnin_xy", f"{c[0]}:{c[1]}", f"{f[1]}:{f[0]}",
-                                                       r["page_title"], r["revid"], f"{yd:.0f} yd apart"))
+                    st[f"steps_{src}"] += 1
+                    # the wiki's turn-in point against the client's own turn-in pin (both builds; WIKI_DATA_SPEC.md 3)
+                    pin = poi.get(qid, -1) if (poi and src == "wiki" and c[0] != "Z") else None
+                    if pin and pin[0] == c[0]:
+                        a = [float(v) for v in c[1].split(";")[0].split(",")]
+                        b2 = [float(v) for v in pin[1].split(",")]
+                        yd = self.atlas.yards(fl, c[0], a, b2)
+                        if yd and yd > 50:
+                            self.conflicts.append((fl, qid, "turnin_xy", f"{c[0]}:{c[1]}", f"{pin[0]}:{pin[1]}",
+                                                   r["page_title"], r["revid"], f"{yd:.0f} yd from the client quest pin"))
                 else:
-                    zl = zone_only(f"T {name}|QID|{qid}|", f"{gate}N|{note}", zmid if zmid is not None else (first_map or seen_map))
-                    src = "zone" if zl else "none"
-                    lines.append(zl or f"T {name}|QID|{qid}|{gate}N|{note} No coordinates on the wiki.|")
-                st[f"steps_{src}"] += 1
+                    pending(f"T {name}|QID|{qid}|", f"{gate}N|{note}", ends)
                 st["steps"] += 1
+            resolve_pending()
             # home zone: the quest-log category when it is a map, else where the steps are
             hm = zmid if zmid is not None else first_map
             if hm is None:
@@ -789,6 +1032,10 @@ class Gen:
             "-- see Guides/WIKI_DATA_LICENSE.md. Page histories (authors) are on each quest's wiki page.",
             "-- Flavor membership: Blizzard client QuestV2 table via wago.tools (facts only).",
         ]
+        if poi and st["steps_poi"]:
+            hdr.append("-- Steps whose note says \"(location: Blizzard quest POI, ...)\" take their map point from the client's "
+                       f"quest pins, not from the wiki: Blizzard QuestPOIBlob + QuestPOIPoint tables via wago.tools, build "
+                       f"{poi.build} (client data, facts only; see Guides/WIKI_DATA_LICENSE.md).")
         if self.use_fallback:
             hdr.append("-- Steps whose note says \"(location: Blizzard data)\" / \"(location: Questie data)\" took their map "
                        "point from Imported_Quests_" + fl + ".lua because the wiki has none; those points are not "
@@ -920,6 +1167,7 @@ def main():
     c = g.write_conflicts(flavors)
     print("conflicts logged (docs/verification.sqlite wiki_db2_conflict):", dict(c))
     print(f"subzone rows corrected (a parent-zone row on the same page disagrees): {len(g.subzone_dropped)}; first: {g.subzone_dropped[:8]}")
+    print("place-page points not used:", dict(sorted(g.place_rejected.items())))
 
 
 if __name__ == "__main__":

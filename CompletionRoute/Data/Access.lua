@@ -106,7 +106,10 @@ T The Storm Gathers|QID|32681|M|34.6,89.4|Z|Isle of Thunder|N|Lady Jaina Proudmo
     -- on the Skyfire -> Sky Admiral Rogers 42.0,92.8 Jade Forest.  Horde: "The Art of War" (automatic) -> General
     -- Nazgrim (the wiki gives no point in Orgrimmar) -> "All Aboard!" ("the gunship ... northeast of Bladefist Bay",
     -- {{co|38|95.9|Azshara}}) -> "Into the Mists" -> Hellscream's Fist lands at Honeydew Village ({{co|28|14|Jade Forest}})
-    -- -> "Touching Ground" (Horde).  approx: the Horde edge starts at the gunship, not at Nazgrim.
+    -- -> "Paint it Red!" (previous = Into the Mists, next = Touching Ground (Horde); General Nazgrim to Rivett
+    -- Clutchpop, the gunship turrets) -> "Touching Ground" (Horde).  "All Aboard!" and "Into the Mists" both end at
+    -- Nazgrim on the gunship.  approx: the Horde edge starts at the gunship, not at Nazgrim, and the wiki gives no point
+    -- for the turn-ins on the gunship, so they use the boarding and landing points.
     { key = "pandaria_a_mop", fac = "A", flavors = { mop = true }, unlock = { 29548 }, cost = 900,
       from = { "Stormwind City", 78.9, 39.8 }, to = { "The Jade Forest", 42.0, 92.8 },
       title = "Pandaria (Alliance): The King's Command -> Rell Nightwind -> The Mission on the Skyfire to the Jade Forest",
@@ -124,8 +127,13 @@ A The Art of War|QID|29611|Z|Orgrimmar|N|Offered automatically in Orgrimmar at l
 T The Art of War|QID|29611|Z|Orgrimmar|N|General Nazgrim.|
 A All Aboard!|QID|31853|Z|Orgrimmar|N|General Nazgrim.|
 C Board the gunship northeast of Bladefist Bay|QID|31853|M|38.0,95.9|Z|Azshara|
-A Into the Mists|QID|29690|N|General Nazgrim.|
+T All Aboard!|QID|31853|M|38.0,95.9|Z|Azshara|N|General Nazgrim, on Hellscream's Fist.|
+A Into the Mists|QID|29690|M|38.0,95.9|Z|Azshara|N|General Nazgrim.|
 N Hellscream's Fist lands at Honeydew Village|M|28.0,14.0|Z|The Jade Forest|
+T Into the Mists|QID|29690|M|28.0,14.0|Z|The Jade Forest|N|General Nazgrim, on Hellscream's Fist.|
+A Paint it Red!|QID|31765|M|28.0,14.0|Z|The Jade Forest|N|General Nazgrim.|
+C Paint it Red!|QID|31765|M|28.0,14.0|Z|The Jade Forest|N|Use a Gunship Turret to kill 80 Thunder Hold troops and destroy 9 Thunder Hold cannons.|
+T Paint it Red!|QID|31765|M|28.0,14.0|Z|The Jade Forest|N|Rivett Clutchpop.|
 A Touching Ground|QID|31766|M|28.0,14.0|Z|The Jade Forest|N|Rivett Clutchpop.|
 T Touching Ground|QID|31766|M|28.0,14.0|Z|The Jade Forest|N|General Nazgrim.|
 ]] },

@@ -117,9 +117,12 @@ do
 end
 
 -- real guides known to need the planning character (generated, gitignored: skipped when absent).  value = who must have
+-- (coverage-prof, 2026-11-11: the Dalaran fix and the zone-level steps moved the Warrior campaign out of
+-- wiki:retail:627:Alliance into mixed Dalaran guides; the class campaign checked now is the Priest one, which has a guide
+-- of its own at the Netherlight Temple, 121 of 121 located steps for Priests)
 local KNOWN = {
     mop = { ["wiki:mop:174:Horde"] = { race = "Goblin" } },
-    retail = { ["wiki:retail:1408:Both:2"] = { faction = "Alliance" }, ["wiki:retail:627:Alliance"] = { class = "WARRIOR" },
+    retail = { ["wiki:retail:1408:Both:2"] = { faction = "Alliance" }, ["wiki:retail:702:Both"] = { class = "PRIEST" },
                ["wiki:retail:76:Horde:2"] = { race = "Goblin" }, ["wiki:retail:2239:Both:2"] = { class = "DRUID" } },
 }
 

@@ -131,7 +131,9 @@ RULES = (
       "Questie-derived; Core/Instances.lua falls back to doors it learns and the retail encounter journal"),
     # ---- Warcraft Wiki data (CC BY-SA 4.0) --------------------------------------------------------------------------
     R("Guides/Imported_Wiki_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Warcraft Wiki quest pages; which quests a client has: "
-      "Blizzard QuestV2 table (facts). Only the --no-fallback build ships: the default build fills steps the wiki has "
+      "Blizzard QuestV2 table (facts); on retail, the map point of a step the wiki gives none for and whose note says "
+      "'(location: Blizzard quest POI, ...)': Blizzard QuestPOIBlob and QuestPOIPoint tables (facts; the file header "
+      "names the client build). Only the --no-fallback build ships: the default build fills steps the wiki has "
       "no point for from Imported_Quests_<flavor>.lua and says so ('(location: Questie data)', and on retail "
       "'(location: Blizzard data)'), which fails the gate", "tools/wiki/gen_wiki_guides.py --no-fallback (zone split "
       "and step order: tools/wiki/gen_spine.py)", "generated"),
@@ -260,6 +262,10 @@ SECRETS = (
 KEY_LABELS = {"sk": "sk- API key", "csk": "Cerebras API key", "gsk": "Groq API key", "hf": "Hugging Face token",
               "xai": "xAI API key", "npm": "npm token", "glpat": "GitLab token"}
 INTEROP_MARK = re.compile(r"(?i)questie|wow-?pro")
+# a wiki quest step whose map point is a Blizzard client quest pin (tools/wiki/gen_wiki_guides.py, retail), and the
+# header line its file must carry: the client tables and the build they were read from
+POI_NOTE = "(location: Blizzard quest POI"
+POI_HEADER = re.compile(r"QuestPOIBlob \+ QuestPOIPoint tables via wago\.tools, build (?!unknown\b)\S")
 NO_REDISTRIBUTE = re.compile(r"(?i)do not (?:redistribute|commit)|not for redistribution|local use only")
 TOC_FILE_LINE = re.compile(r"^\s*([^#\s][^\r\n]*?)\s*$")
 XML_REF = re.compile(r"<(?:Script|Include)\s+[^>]*?file\s*=\s*\"([^\"]+)\"", re.I)
@@ -468,6 +474,10 @@ class Scanner:
                 lines = hit_lines(text, INTEROP_MARK)
                 res.fail("interop-derived", rel, f"{len(lines)} line(s) credit Questie or WoW-Pro data, first at line "
                          f"{lines[0]}: {snippet(text, first.start())}")
+        if category == "wiki-cc-by-sa" and POI_NOTE in text and not POI_HEADER.search(text[:4000]):
+            res.fail("no-provenance", rel, f"{text.count(POI_NOTE)} step(s) take their map point from Blizzard quest pins "
+                     f"('{POI_NOTE}, ...)') but the file header does not name QuestPOIBlob + QuestPOIPoint and the client "
+                     "build (tools/wiki/gen_wiki_guides.py writes that line)")
         if category != "own-doc":
             m = NO_REDISTRIBUTE.search(text)
             if m:

@@ -48,9 +48,16 @@ The rules live in [docs/WIKI_DATA_SPEC.md](../../docs/WIKI_DATA_SPEC.md); the co
 * **Release-ready points (2026-11-11).** After the wiki's own point: on retail the client's quest pin
   (`QuestPOIBlob`/`QuestPOIPoint`, `(location: Blizzard quest POI, ...)`), then (dev build only) the fallback below,
   then the wiki page of the place the NPC page names when it has no point (`(location: the wiki's <place> page; ...)`),
-  then the quest's zone (`|Z|` only). `fetch_titles.py` also fetches those place pages. A coordinate that stood on its
+  then a zone (`|Z|` only). `fetch_titles.py` also fetches those place pages. A coordinate that stood on its
   page before patch 4.0.3 is read as a Classic-map number (`fetch_coord_history.py`). Counts per client and build:
-  `docs/verification.sqlite` `wiki_point_sources`.
+  `docs/verification.sqlite` `wiki_point_sources`. Review fixes (2026-11-11): a place page gives only its own point
+  (infobox, `{{Npclocations}}` or lead; never a portal, quest or NPC listed on it, never a `(Forever)` or Season of
+  Discovery coordinate on another client), and must lie in a zone the NPC page names (its location field, else the
+  zone the linked place's own page names); a place made or moved in a later patch than the client's is skipped. The
+  zone of a zone-level step is the NPC page's, not the quest-log category's (`zone_choice`); Warlords quests resolve to
+  Draenor. On era, tbc and forever an NPC page that says where the NPC stood before the Cataclysm ("was located at
+  [[Kargath]], [[Badlands]]") gives that place instead of its current location field. The file header names the
+  QuestPOI tables and the client build whenever a step uses a quest pin; `package_release.py` fails a file without it.
 * **Fallback.** Only used when the wiki has no usable point. The same step is taken from `Imported_Quests_<fl>.lua`
   and tagged in its note: `(location: Blizzard data)` for retail quest POI, `(location: Questie data)` for Classic.
   `--no-fallback` writes a wiki-only file, which is the shippable variant.

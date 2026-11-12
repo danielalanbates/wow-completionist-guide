@@ -66,6 +66,15 @@ BOOKS = {("Cooking", 3): "Expert Cookbook", ("Cooking", 5): "Master Cookbook", (
          ("First Aid", 5): "Master First Aid - Doctor in the House"}
 QUESTS = {("Cooking", 4): {"Alliance": [6610], "Horde": [6610]}, ("Fishing", 4): {"Alliance": [6607], "Horde": [6607]},
           ("First Aid", 4): {"Alliance": [6625, 6624], "Horde": [6623, 6622]}}
+# MoP Classic Cooking past 525 (Zen Master) goes through the Pandaren Ways.  Warcraft Wiki "Way of the Grill": "In order
+# to learn the Way of the Grill, the character must have 525 cooking skill and complete [[Ready for Greatness]], then
+# [[Way of the Grill (quest)]]"; "Kol Ironpaw" teaches its recipes (his "Teaches" table: learn(skill-ups) / yellow /
+# green / grey); "Sungshin Ironpaw": "Your skill in cooking is only as great as your most advanced Way".  Ready for
+# Greatness follows "So You Want to Be a Chef..." (31281).  One Way is planned, the Way of the Grill (client SkillLine 975,
+# whose rows give the yellow and grey ranks and the skill points per craft); the other five work the same way.  Without
+# it the plan past 525 needs Recipe: Spicy Salmon, Exalted with the Tillers.
+WAYS = {"mop": dict(prof="Cooking", rank=8, skill_line="975", way="Way of the Grill", master="Kol Ironpaw",
+                    quests=(31281, 31302, 31311))}
 # Zones a faction's new character would not be sent to for a fishing band (hostile home territory).
 ALLIANCE_ZONES = {"Elwynn Forest", "Dun Morogh", "Teldrassil", "Azuremyst Isle", "Bloodmyst Isle", "Stormwind City", "Ironforge", "Darnassus",
                   "Westfall", "Redridge Mountains", "Loch Modan", "Darkshore", "Wetlands", "The Exodar"}
@@ -169,6 +178,7 @@ class Gen:
             self.objectives[r[0]].append(r[1:])
         self.trainers = {p: parse_trainers(p) for p in SKILL_LINE}
         self._cat = {}
+        self.co_zone_fixed = []     # (trainer page, {{Co}} map, linked map): category_trainers moved the point's map
         names = {t["page"] for rows in self.trainers.values() for t in rows}
         self.npc_page = fetch_pages(names)
 
@@ -233,6 +243,21 @@ class Gen:
             named = boxes.get(t, {})
             pts = [(x, y, z) for x, y, z, _, _ in WT.coords(named.get("location", ""))] or \
                   [(x, y, z) for x, y, z, _, _ in WT.coords(WT.sections(body).get("", ""))]
+            # A {{Co}} whose zone contradicts the location field's own map links names the wrong map: Maraclozh is
+            # "[[Umbral Bazaar]], [[City of Threads]]{{Co|51.6|25.6|Undermine}}", and Sauciere Drook in the same bazaar
+            # stands at City of Threads 47.8,24.7.  The linked zone or city map wins; a link to a dungeon article does not
+            # (Ba'dibla's "[[Tazavesh, the Veiled Market]]" is the article, her {{Co}} is on K'aresh's Tazavesh map).
+            linked = [m for m in (S.resolve(ln) for ln, _ in WT.links(named.get("location", "")))
+                      if m is not None and S.maps[m]["type"] == 3]
+            if pts and linked:
+                fixed = []
+                for x, y, z in pts:
+                    zm = S.resolve(z)
+                    if zm is not None and not any(zm == m or S.is_ancestor(zm, m) or S.is_ancestor(m, zm) for m in linked):
+                        z = S.maps[linked[0]]["name"]
+                        self.co_zone_fixed.append((t, zm, linked[0]))
+                    fixed.append((x, y, z))
+                pts = fixed
             via = ""
             if not pts:
                 ln = WT.links(named.get("location", ""))[:1]
@@ -316,12 +341,14 @@ def spell_names(fl):
 RECIPE_PREFIX = ("Recipe: ", "Manual: ", "Formula: ")
 RECIPE_ITEMS = {}       # [flavor][item name] = item id: the recipe items this client really has
 RECIPE_RANK = {}        # [flavor][item name] = [(RequiredSkill, RequiredSkillRank)]: the skill the client asks to learn it
+RECIPE_REP = {}         # [flavor][item name] = (MinFactionID, MinReputation) when every item of that name needs a standing
+REP_NAME = {4: "Friendly", 5: "Honored", 6: "Revered", 7: "Exalted"}
 
 
 def item_names(fl, ids):
     """{id: name} for `ids`, and fills RECIPE_ITEMS[fl] / RECIPE_RANK[fl].  Streams the table so only the rows wanted stay
     in memory."""
-    want, out, recipes, ranks = set(str(i) for i in ids), {}, {}, defaultdict(list)
+    want, out, recipes, ranks, rep = set(str(i) for i in ids), {}, {}, defaultdict(list), defaultdict(list)
     p = D.fetch(fl, "ItemSparse")
     if not p:
         return out
@@ -334,9 +361,19 @@ def item_names(fl, ids):
                 recipes[name] = int(r["ID"])
                 if (r.get("RequiredSkill") or "0") != "0":
                     ranks[name].append((r["RequiredSkill"], int(r.get("RequiredSkillRank") or 0)))
+                # the standing the client asks for to buy or use the recipe item (MinReputation 4 = Friendly ... 7 = Exalted)
+                fac, mr = int(r.get("MinFactionID") or 0), int(r.get("MinReputation") or 0)
+                rep[name].append((fac, mr) if fac and mr >= 4 else (0, 0))
     RECIPE_ITEMS[fl] = recipes
     RECIPE_RANK[fl] = dict(ranks)
+    # a name is gated only when every item of that name is (a faction twin without a gate keeps it open)
+    RECIPE_REP[fl] = {n: min(v, key=lambda t: t[1]) for n, v in rep.items() if all(f for f, _ in v)}
     return out
+
+
+def item_reputation(fl, item):
+    """(MinFactionID, MinReputation) when this client gates recipe item `item` behind a faction standing above Neutral"""
+    return RECIPE_REP.get(fl, {}).get(item)
 
 
 def item_learn(fl, item, prof, tier):
@@ -471,7 +508,11 @@ MAX_ORANGE_BAND = 120
 
 
 class Recipe:
-    __slots__ = ("spell", "name", "learn", "yellow", "grey", "auto", "kind", "source", "reagents", "item", "weight")
+    __slots__ = ("spell", "name", "learn", "yellow", "grey", "auto", "kind", "source", "reagents", "item", "weight",
+                 "ups", "alt")
+
+    def __init__(self):
+        self.ups, self.alt = 1, None    # skill points per craft (a Way recipe gives up to 5); one teacher's ALT point
 
 
 def build_recipes(fl, prof, tier, names, sla, reag, lists, fa, boxes, faction, stats):
@@ -544,6 +585,12 @@ def build_recipes(fl, prof, tier, names, sla, reag, lists, fa, boxes, faction, s
         if ("Alliance-only" in cats and faction == "Horde") or ("Horde-only" in cats and faction == "Alliance"):
             stats["recipe_other_faction"] += 1
             continue
+        if kind == "item" and item_reputation(fl, source):
+            # The recipe item needs a faction standing (ItemSparse MinFactionID/MinReputation: Recipe: Spicy Salmon is
+            # Exalted with the Tillers).  A skill plan cannot assume a reputation grind, so the recipe is not planned and
+            # the tier reaches only what it reaches without it.
+            stats["recipe_reputation"] += 1
+            continue
         db_min = int(r["MinSkillLineRank"])
         rc = Recipe()
         rc.spell, rc.name, rc.yellow, rc.grey, rc.auto, rc.kind, rc.source = int(r["Spell"]), name, yellow or grey, grey, auto, kind, source
@@ -574,6 +621,41 @@ def build_recipes(fl, prof, tier, names, sla, reag, lists, fa, boxes, faction, s
     return out
 
 
+def way_recipes(gen, fl, names, sla, reag, stats):
+    """the planned Pandaren Way's recipes on this client (WAYS): ranks and skill points per craft from the client's
+    SkillLineAbility rows of the Way, the learn skill from the master's wiki table, taught by that master only"""
+    w = WAYS.get(fl)
+    if not w:
+        return []
+    table = {}
+    body = W.page(w["master"])
+    sec = WT.sections(body).get("teaches", "")
+    for row in re.split(r"\n\|-", sec):
+        cells = re.findall(r'<font color="orange">\s*(\d+)(?:\((\d+)\))?\s*</font>', row)
+        link = WT.links(row)
+        if cells and link:
+            table[link[0][0]] = (int(cells[0][0]), int(cells[0][1] or 1))
+    pt = gen.npc_point(w["master"], fl)
+    alt = "%d,%.1f,%.1f,%s" % (pt[0], pt[1], pt[2], clean(w["master"])) if pt else None
+    out = []
+    for r in sla:
+        if r["SkillLine"] != w["skill_line"]:
+            continue
+        name = names.get(r["Spell"]) or ""
+        grey, yellow = int(r["TrivialSkillLineRankHigh"]), int(r["TrivialSkillLineRankLow"])
+        if name not in table or name == w["way"]:
+            continue
+        learn, ups = table[name]
+        rc = Recipe()
+        rc.spell, rc.name, rc.yellow, rc.grey, rc.auto, rc.kind = int(r["Spell"]), name, yellow or grey, grey, False, "way"
+        rc.source, rc.learn, rc.ups, rc.alt = w["master"], learn, max(int(r.get("NumSkillUps") or 1), 1), alt
+        rc.reagents, rc.item, rc.weight = reag.get(r["Spell"], []), None, 0
+        if rc.grey > rc.learn:
+            out.append(rc)
+            stats["recipe_way"] += 1
+    return out
+
+
 def chance(r, s):
     if s < r.yellow:
         return 1.0
@@ -595,7 +677,7 @@ def plan_path(recipes, lo, hi):
         if not runs or runs[-1][0] is not best:
             runs.append([best, s, s, 0.0])
         runs[-1][2] = s + 1
-        runs[-1][3] += 1.0 / chance(best, s)
+        runs[-1][3] += 1.0 / chance(best, s) / best.ups
         cur, s = best, s + 1
     return runs
 
@@ -748,7 +830,12 @@ def recipe_steps(gen, prof, fl, faction, runs, tier, trainer_alt, taught, item_n
         recipes += 1
         if r.spell not in taught and not r.auto:
             taught.add(r.spell)
-            if r.kind == "trainer" and trainer_alt:
+            if r.alt:
+                lines.append("= Train %s|RECIPE|%d|ALT|%s|N|Only %s teaches it.|" % (clean(r.name), r.spell, r.alt, clean(r.source)))
+            elif r.kind == "way":
+                missing += 1
+                lines.append("N Learn %s from %s|RECIPE|%d|N|The wiki gives no point for %s on this client.|" % (clean(r.name), clean(r.source), r.spell, clean(r.source)))
+            elif r.kind == "trainer" and trainer_alt:
                 lines.append("= Train %s|RECIPE|%d|ALT|%s|" % (clean(r.name), r.spell, trainer_alt))
             elif r.kind == "trainer":
                 missing += 1
@@ -795,7 +882,8 @@ def gen_flavor(gen, fl):
     boxes = fetch_pages(want)
     all_item_ids = {i for rs in reag.values() for i, _ in rs}
     item_name = {}
-    recipe_ids = [r["Spell"] for r in sla if r["SkillLine"] in ("185", "129")]
+    way_line = WAYS[fl]["skill_line"] if fl in WAYS else None
+    recipe_ids = [r["Spell"] for r in sla if r["SkillLine"] in ("185", "129", way_line)]
     used = {i for sp in recipe_ids for i, _ in reag.get(sp, [])}
     item_name = item_names(fl, used)
     reagent_pages = fetch_pages(item_name.values())
@@ -827,7 +915,7 @@ def gen_flavor(gen, fl):
                 src = reagent_src.get(item_name.get(item, ""), "")
                 w += qty * (1.0 if VENDOR.search(src) else (3.0 if src else 12.0))
             # auto and trainer recipes first; a recipe from one named NPC can be a whole expansion away from a new character
-            r.weight = max(w, 1.0) * {"auto": 1.0, "trainer": 1.0, "item": 2.0, "listed": 6.0}.get(r.kind, 2.0)
+            r.weight = max(w, 1.0) * {"auto": 1.0, "trainer": 1.0, "way": 1.0, "item": 2.0, "listed": 6.0}.get(r.kind, 2.0)
             if r.kind == "item" and r.source:
                 body = recipe_pages.get(r.source, ("", ""))[0]
                 tip = {}
@@ -852,8 +940,12 @@ def gen_flavor(gen, fl):
         for faction in ("Alliance", "Horde"):
             taught_set = taught.setdefault(faction, set())
             recipes = []
+            way = WAYS.get(fl) if WAYS.get(fl, {}).get("prof") == prof else None
             if prof != "Fishing":
-                recipes = prepare(build_recipes(fl, prof, None, names, sla, reag, lists, fa, boxes, faction, stats), faction)
+                recipes = build_recipes(fl, prof, None, names, sla, reag, lists, fa, boxes, faction, stats)
+                if way:
+                    recipes += way_recipes(gen, fl, names, sla, reag, stats)
+                recipes = prepare(recipes, faction)
             for idx in range(1, RANK_COUNT[fl] + 1):
                 lo, hi = max(1, (idx - 1) * 75), idx * 75
                 rank_name = RANK_NAMES[idx - 1]
@@ -920,10 +1012,24 @@ def gen_flavor(gen, fl):
                 else:
                     train_alt, _ = gen.alt(trainers, faction, 1)
                     runs = plan_path(recipes, lo, hi)
+                    # the Way's quests go right before its first recipe (WAYS: 525 skill, then the quest chain)
+                    cut = next((i for i, run in enumerate(runs) if run[0].kind == "way"), None) if way and idx == way["rank"] else None
+                    for part in ((runs[:cut], runs[cut:]) if cut is not None else (runs,)):
+                        if part is not runs and part and part[0][0].kind == "way":
+                            qlines = []
+                            for q in way["quests"]:
+                                qlines += quest_line(gen, q, faction, fl, questv2)
+                            if len(qlines) < 2 * len(way["quests"]):
+                                missing += 1
+                            lines += qlines
+                            lines.append("N %s|N|Pandaren cooking past 525 is learned through one of six Ways; this plan uses "
+                                         "the %s (%s). Your Cooking skill is that of your best Way.|" % (way["way"], way["way"], clean(way["master"])))
+                        if part:
+                            ml, rc_n, m2 = recipe_steps(gen, prof, fl, faction, part, None, train_alt, taught_set, item_name, reagent_src, "")
+                            lines += ml
+                            recipe_count += rc_n
+                            missing += m2
                     if runs:
-                        ml, recipe_count, m2 = recipe_steps(gen, prof, fl, faction, runs, None, train_alt, taught_set, item_name, reagent_src, "")
-                        lines += ml
-                        missing += m2
                         reached = runs[-1][2]
                     if reached < hi:
                         missing += 1
@@ -1084,6 +1190,9 @@ def main():
         rows += out.rows
         totals[fl] = (len(out.defs), sum(len(l) for _, l in out.defs), dict(stats), sum(len(v) for v in sites.values()))
         print(fl, "guides", len(out.defs), "steps", totals[fl][1], "sites", totals[fl][3], dict(stats), p.name, flush=True)
+    if gen.co_zone_fixed:
+        print("trainer {{Co}} zones that contradict the page's own map links (point moved onto the linked map):",
+              sorted(set(gen.co_zone_fixed)))
     con = sqlite3.connect(str(VERIFY))
     con.execute("create table if not exists prof_guides(flavor text, id text primary key, profession text, tier int, skill_min int, skill_max int, "
                 "steps int, trainers int, recipes int, missing_facts int)")
