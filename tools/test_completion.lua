@@ -16,6 +16,10 @@
 --     Peninsula criterion is that zone, not the Exodar; the Salt of Shards accept is not in Un'Goro Crater; the header
 --     says the wiki steps come from Imported_Wiki_<flavor>.lua and nothing in the file credits another addon's data
 --     (there is one build: tools/gen_completion_guides.py refuses a wiki file that holds such points).
+--   * (2026-11-12) a criterion that takes a quest's point the wiki file got from the client's quest pin credits the
+--     pin ("Blizzard QuestPOI, quest N, ..."), never "wiki: <page>" (866 retail criteria did); no step names an
+--     internal achievement's marker ([HIDDEN], <Tracking Achievement>, (DNT), <Hidden> ...); no step holds a wiki
+--     template brace ("on <Normal/Heroic/Mythic}} difficulty").
 -- Run: luajit tools/test_completion.lua   (from repo root)
 local fail, ran = 0, 0
 local function check(ok, msg) if not ok then print("FAIL " .. msg) fail = fail + 1 end end
@@ -58,11 +62,60 @@ local function header_says_build(ls, name)
     check(bad == 0, name .. ": " .. bad .. " line(s) credit another addon's data or a fallback point")
 end
 
+-- quest id -> is the point the wiki file gives that quest (its first located T, then A, then C step: the same choice as
+-- tools/gen_completion_guides.py located()) a Blizzard quest pin?  nil when the file is missing.
+local function pinned_quests(fl)
+    local fh = io.open("CompletionRoute/Guides/Imported_Wiki_" .. fl .. ".lua", "r")
+    if not fh then return nil end
+    local best = {}     -- qid -> { rank, pinned }
+    local RANK = { T = 1, A = 2, C = 3 }
+    for ln in fh:lines() do
+        local act, q = ln:match("^([ACT]) [^|]*|QID|(%d+)|")
+        if act and ln:find("|M|[^|]+|Z|[^|]+|") then
+            local b = best[q]
+            if not b or RANK[act] < b[1] then best[q] = { RANK[act], ln:find("(location: Blizzard quest POI", 1, true) ~= nil } end
+        end
+    end
+    fh:close()
+    local out = {}
+    for q, b in pairs(best) do out[tonumber(q)] = b[2] end
+    return out
+end
+
+-- an internal achievement's marker or a wiki template brace in a step line (not in the file header)
+local MARKS = { "[HIDDEN]", "[Hidden]", "[DNT]", "<DNT>", "(DNT)", "<DND>", "<Hidden>", "<Tracking Achievement>", "[DO NOT USE]",
+    "{{", "}}" }
+local function marked(ln)
+    if ln:sub(1, 2) == "--" then return nil end
+    for _, m in ipairs(MARKS) do if ln:find(m, 1, true) then return m end end
+    return nil
+end
+
 for _, fl in ipairs({ "retail", "mop" }) do
     local name = "Guides/Imported_Achievements_" .. fl .. ".lua"
     local ls = lines("CompletionRoute/" .. name)
     if ls then
         header_says_build(ls, name)
+        local pinned = pinned_quests(fl)
+        local wikiPin, marks = 0, 0
+        for _, ln in ipairs(ls) do
+            local q = ln:match("^C [^|]*|QID|(%d+)|")
+            if q and pinned and pinned[tonumber(q)] and ln:find("%(wiki: [^|]*%)|$") and not ln:find("%(wiki: [^|]*%->") then
+                wikiPin = wikiPin + 1
+                if wikiPin <= 3 then print("  quest pin credited to the wiki: " .. ln:sub(1, 200)) end
+            end
+            local m = marked(ln)
+            if m then
+                marks = marks + 1
+                if marks <= 3 then print("  " .. m .. ": " .. ln:sub(1, 200)) end
+            end
+        end
+        if pinned then
+            check(wikiPin == 0, ("%s: %d criterion step(s) credit the wiki for a point the wiki file took from a Blizzard quest pin"):format(name, wikiPin))
+        else
+            print("skip the quest-pin credit check of " .. name .. " (no Imported_Wiki_" .. fl .. ".lua)")
+        end
+        check(marks == 0, ("%s: %d step(s) show an internal marker or a wiki template brace"):format(name, marks))
         local guide, uncredited, on41, legacy, located = "", 0, 0, 0, 0
         local glyph, brack, hellfire = nil, nil, nil
         for _, ln in ipairs(ls) do
@@ -99,7 +152,17 @@ end
 
 do
     local ls = lines("CompletionRoute/Guides/Imported_QuestLines_retail.lua")
-    if ls then header_says_build(ls, "Guides/Imported_QuestLines_retail.lua") end
+    if ls then
+        header_says_build(ls, "Guides/Imported_QuestLines_retail.lua")
+        local braces = 0
+        for _, ln in ipairs(ls) do
+            if ln:sub(1, 2) ~= "--" and (ln:find("{{", 1, true) or ln:find("}}", 1, true)) then
+                braces = braces + 1
+                if braces <= 3 then print("  wiki brace: " .. ln:sub(1, 200)) end
+            end
+        end
+        check(braces == 0, ("Guides/Imported_QuestLines_retail.lua: %d step(s) hold a wiki template brace"):format(braces))
+    end
 end
 
 do
