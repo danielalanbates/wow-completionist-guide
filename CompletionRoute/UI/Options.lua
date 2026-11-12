@@ -92,7 +92,7 @@ local function check(label, get, set, tip)
     return cb
 end
 -- A slider reports its value when the page opens (OnShow's SetValue): that report changes nothing (`showing`).  The
--- value shown is the setting's own, so a step window scaled by its grip to 1.37 reads 137, not 135.
+-- value shown is the setting's own, so a step window whose saved scale is 1.37 reads 137, not 135.
 local function slider(label, min, max, step, get, set)
     local s = CreateFrame("Slider", nil, host, "OptionsSliderTemplate")
     s:SetMinMaxValues(min, max); s:SetValueStep(step); s:SetObeyStepOnDrag(true); s:SetWidth(200)
@@ -172,8 +172,8 @@ O.textSize = slider("Text size: extra points", 0, 6, 1, function() return P().te
 end)
 slider("Beacon scale x100", 50, 200, 5, function() return math.floor((P().beacon.scale or 1) * 100 + 0.5) end, function(v) P().beacon.scale = v / 100 NS.Beacon.RescanPlates() end)
 slider("Arrow scale x100", 50, 200, 5, function() return math.floor((P().arrow.scale or 1) * 100 + 0.5) end, function(v) P().arrow.scale = v / 100 NS.Arrow.ApplySettings() end)
--- the step window's grip and this slider have the same limits (UI/GuideFrame.lua GF.SCALE_MIN / SCALE_MAX), and both
--- keep the window's top-left corner where it is (GF.SetScale)
+-- this slider's limits are UI/GuideFrame.lua GF.SCALE_MIN / SCALE_MAX; it keeps the window's top-left corner where
+-- it is (GF.SetScale).  The window's grip sets its width, not its scale.
 do
     local GF = NS.GuideFrame
     local lo, hi = math.floor(((GF and GF.SCALE_MIN) or 0.6) * 100 + 0.5), math.floor(((GF and GF.SCALE_MAX) or 2.5) * 100 + 0.5)

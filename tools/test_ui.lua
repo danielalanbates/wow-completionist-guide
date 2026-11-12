@@ -426,6 +426,19 @@ local p2 = f.points[1]
 check(p2 and p2.point == "TOPLEFT" and math.abs(p2.x - 50) < 1e-6 and math.abs(p2.y + 25) < 1e-6 and prof.frame.x == 50 and prof.frame.y == -25,
     "hidden window: scaled about the saved corner", p2 and (p2.x .. ", " .. p2.y))
 f.GetLeft, f.GetTop = nil, nil
+-- the grip sets the WIDTH, never the scale: narrower keeps the text its size (owner's request 2026-11-12)
+do
+    f:SetScale(1) prof.frame.scale = 1
+    local w = GF.SetWidth(300)
+    check(w == 300 and f:GetWidth() == 300 and prof.frame.width == 300 and f:GetScale() == 1, "the grip's width: 300 wide, scale untouched", f:GetWidth())
+    check(GF.SetWidth(10) == GF.WIDTH_MIN and GF.SetWidth(5000) == GF.WIDTH_MAX, "the width keeps to its limits")
+    prof.frame.width = 320 GF.ApplySettings()
+    check(f:GetWidth() == 320, "the saved width comes back at login", f:GetWidth())
+    prof.frame.width = nil GF.ApplySettings()
+    check(f:GetWidth() == GF.BASE_W, "a profile with no width gets the default", f:GetWidth())
+    check(GF.grip:GetScript("OnMouseDown") ~= nil, "the grip is there")
+end
+
 -- an old profile with a scale outside the limits is brought inside them at login
 prof.frame.scale = 3
 GF.ApplySettings()
