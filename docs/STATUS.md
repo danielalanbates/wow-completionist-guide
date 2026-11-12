@@ -1,5 +1,23 @@
 # Status / handoff (2026-11-12: one build, the public one; a full rebake is needed)
 
+## 2026-11-12: Contribute, three review findings fixed (`todo-contribute`)
+
+Offline only. **Nothing here has run in a real WoW client.** Not merged, not pushed, not installed.
+
+* **A treasure step's chest was never linked in the real event order**, so its gold circle never showed.
+  `Core/Progress.lua` handles `LOOT_READY` and `LOOT_OPENED` first and ticks the step, and Contribute then looked at
+  the next step. Now Contribute keeps the treasure step that was just ticked (`STEP_DONE`) for one second and links
+  the chest to it, and reads the loot on `LOOT_READY` too. The test fires both events through the registered handlers
+  after loading a real route, in place of calling `C.OnLoot()`.
+* **The rare flag moved out of the cell record** to `contrib.rare[flavor][key]`. A record holds numbers only again,
+  so `/cr contribute` on a build without this change no longer fails on these saved variables.
+* **Tests for what was claimed but not tested:** Retail 12 secret values (loot source, loot link, target name,
+  target GUID), the six-link cap, the 16-circle cap, two areas per named thing, a rare kill inside the throttle, the
+  ring's dedupe, the killing blow's untag, a step change refreshing the wanted items. `test_contribute.lua`: 113 pass
+  (was 89). 16 mutations of `Core/Contribute.lua` (the reviewer's 9 and 7 more) each fail at least one test.
+* **Seen, not fixed (not this branch's file):** `Core/Progress.lua` `lootWindow` runs on `LOOT_READY` and again on
+  `LOOT_OPENED`. With two treasure steps within 25 yards of each other, one chest ticks both.
+
 ## 2026-11-12: Contribute records creatures, objects and items, and draws them (`todo-contribute`)
 
 Offline only. **Nothing here has run in a real WoW client.** Branch `todo-contribute` (worktree `wt-contrib`), cut
@@ -7,7 +25,7 @@ from `master` at `f30bbc1`. Not merged, not pushed, not installed. Details: `doc
 
 | Part | What it does now |
 |---|---|
-| `Core/Contribute.lua` | While the box is ticked and outside instances: a creature the player or pet hurt that dies (combat log, Classic clients) or a looted corpse gives `N:<npc id>`; a looted chest, treasure, herb or ore gives `O:<object id>`; an item in the loot that the current or next steps name (`L`, `U`) gives `I:<item id>`. One sample per key every 5 s; a rare (`rare`, `rareelite`) is a flag in its record. Same grid, weights, 80-cell cap and export format. The combat log is registered only while ticked and outside instances, never on Retail 12.x; its handler makes no table per event. |
+| `Core/Contribute.lua` | While the box is ticked and outside instances: a creature the player or pet hurt that dies (combat log, Classic clients) or a looted corpse gives `N:<npc id>`; a looted chest, treasure, herb or ore gives `O:<object id>`; an item in the loot that the current or next steps name (`L`, `U`) gives `I:<item id>`. One sample per key every 5 s; a rare (`rare`, `rareelite`) is a flag beside its record (`contrib.rare`). Same grid, weights, 80-cell cap and export format. The combat log is registered only while ticked and outside instances, never on Retail 12.x; its handler makes no table per event. |
 | World map | Beside the step's own circles: its items (purple), its creature (red, a rare outlined) and its object (gold), up to 16 circles from one reused frame pool. A step finds its creature by name (`UI/Beacon.lua` `StepNames`) and by links that hold ids only. |
 | Data repository | `tools/contrib.py` accepts `N:`, `O:`, `I:` keys (branch `contribute-kinds` there, commit `ce6eab3`, not pushed). |
 

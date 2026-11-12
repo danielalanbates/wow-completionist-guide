@@ -34,13 +34,20 @@ not allow it), so the gap is closed with first-hand data: where players actually
   most **one sample every 5 seconds** (`C.THROTTLE`, kept in memory only): area loot of three corpses of one
   creature, or a kill plus its loot right after, is one sample.
 * **Rares.** A creature whose classification is `rare` or `rareelite` (`UnitClassification`, read from the target when
-  it is targeted and again at the kill or the loot) gets `rare = true` in its record. It is a flag, not a key, and
-  it is not in the export (the four-field format stays; the data repository can tell rares from Blizzard's creature
-  data).
+  it is targeted and again at the kill or the loot) is flagged: `CompletionRouteDB.contrib.rare[flavor]["N:<npc id>"]
+  = true`. It is a flag, not a key, and it sits beside the cells, never inside a key's record: a record holds cells
+  and weights only, so a build without the creature keys (an older one, or another branch's, sharing the account's
+  saved variables) can still add a record up. It is not in the export (the four-field format stays; the data
+  repository can tell rares from Blizzard's creature data).
 * Where the loot came from is `GetLootSourceInfo`, the same read as the treasure rule in `Core/Progress.lua` and the
   farm recorder in `Core/Farm.lua`. A fishing catch (`IsFishingLoot`) is no object's place (an item a step names that
   is fished up still counts, where the player fishes). An item opened in the bags (an `Item` GUID) is no place at all.
-  A GUID the client keeps secret (Retail, in combat) ends the read.
+  A GUID the client keeps secret (Retail, in combat) ends the read. The loot is read on `LOOT_READY` and again on
+  `LOOT_OPENED` (the throttle makes it one sample).
+* **A treasure step's chest.** `Core/Progress.lua` hears the loot events first and ticks a treasure step at once, so
+  the step on screen has already moved on when Contribute reads the loot. Contribute therefore remembers the treasure
+  step that was just ticked (`STEP_DONE`, not manual, the step on screen) for one second and links the chest to that
+  step. Two treasure steps side by side: the chest goes to the first.
 * **The combat log** is listened to only while the box is ticked and outside instances (the frame registers and
   unregisters `COMBAT_LOG_EVENT_UNFILTERED` on the box, on entering the world and on a zone change). The creatures the
   player or the pet damaged are kept in a ring of eight GUIDs that is written in place: no table is made per event
