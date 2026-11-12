@@ -28,8 +28,9 @@ rows in the `prof_guides` table of `docs/verification.sqlite`.
 | Fact | Source |
 |---|---|
 | Trainers, faction, zone, coordinates, restrictions | Wiki `Cooking trainers`, `Fishing trainers`, `First Aid trainers`, `Archaeology trainers` |
+| Trainers for a retail tier those tables leave empty | Wiki `Category:Cooking trainers` / `Category:Fishing trainers`: each trainer's `{{Npcbox}}` point, or the page of the building its location names; the landmass is the continent of that point on the retail maps |
 | Is a trainer on this client? | The row's expansion badge, the NPC page's added/moved notes, and a coordinate the wiki wrote for a Classic page when there is one |
-| Recipe learn skill and how it is learned | Wiki `{{#data:ProfessionBox}}` on each recipe page, the page's opening sentence ("created with Cooking (285); taught by ..."), the `List of ... Cooking Recipes` pages, `First Aid recipes` |
+| Recipe learn skill and how it is learned | The client first: `ItemSparse` `RequiredSkill`/`RequiredSkillRank` of the recipe item the wiki names, `SkillLineAbility` `MinSkillLineRank` of a recipe the client teaches by itself (`AcquireMethod` 1). Then the wiki: `{{#data:ProfessionBox}}` on each recipe page, the page's opening sentence ("created with Cooking (285); taught by ..."), the `List of ... Cooking Recipes` pages, `First Aid recipes` |
 | Does this client have a recipe item? | The client's `ItemSparse` (`Recipe:`, `Manual:`, `Formula:` names) |
 | Recipe membership, yellow and grey thresholds, reagents | The client's `SkillLineAbility` and `SpellReagents` (these differ per client: Classic recipes still use Mild Spices) |
 | Item names, recipe and reagent sources | `ItemSparse` for names; the wiki item page's Source section for where it comes from |
@@ -48,6 +49,8 @@ A trainer is kept on a client only when all of these hold:
 * its NPC page does not say it was added after this client's game version, or that it no longer trains;
 * on era, tbc and forever, a page saying it moved at the Cataclysm is dropped unless the wiki also gives a pre-Cataclysm coordinate;
 * its coordinate lands on a map this client has. Retail coordinates are carried across through world coordinates (`wikimaps.Atlas`).
+* (category trainers) when the `{{Co}}` zone contradicts the zone or city maps the location field links, the linked map wins
+  (Maraclozh: "[[Umbral Bazaar]], [[City of Threads]]{{Co|51.6|25.6|Undermine}}" is on the City of Threads; 2026-11-11 review).
 
 When the wiki has both a Classic coordinate and a retail one more than 300 yards apart, the Classic one wins. A rank limit in the
 notes column (the Train-a-Tron stops at Journeyman) removes that trainer from higher ranks. The counts of dropped trainers are printed per flavor.
@@ -63,8 +66,24 @@ current skill and below its grey threshold.
   expensive, then multiplied by how it is learned (automatic and trainer cheapest). Weights are internal and are never shown as prices.
 * The cheapest weight per expected skill point wins. The current recipe is kept while it is within 35% of the best, so a guide does not change dish every point.
 * Recipes with no source on the wiki, seasonal recipes and recipes limited to the other faction are left out and counted.
-* A recipe's learn skill is the higher of the wiki value and the client's `MinSkillLineRank`. With no wiki value the yellow threshold is
-  used, because a recipe is always learned at or below its yellow. That can only delay a recipe, never use it too early.
+* A recipe's learn skill is the client's own value when it has one (the recipe item's `RequiredSkillRank`, for the item
+  the wiki says teaches it; `MinSkillLineRank` for a recipe the client teaches automatically), else the wiki value
+  (box, then opening sentence), never below `MinSkillLineRank`. With neither the yellow threshold is used, because a
+  recipe is always learned at or below its yellow. That can only delay a recipe, never use it too early.
+  (2026-11-11: before, a box without an orange value went straight to yellow, so retail Outland and Shadowlands Cooking
+  had no recipe usable at skill 1 and Pandaria stopped at 22, Cataclysm at 36.)
+* A recipe the wiki gives no source for, but whose `Recipe:`/`Manual:`/`Formula:` item this client has, is a buy step.
+* A recipe whose item the client sells only at a faction standing (ItemSparse `MinFactionID` / `MinReputation` Friendly or
+  better) is left out and counted (`recipe_reputation`): a skill plan cannot assume a reputation grind. Before the
+  2026-11-11 review, retail Pandaria Cooking reached 75 only through Recipe: Spicy Salmon (Exalted with the Tillers) and MoP
+  Cooking 530-600 only through Viseclaw Soup (Anglers, Friendly) and Spicy Salmon.
+* MoP Classic Cooking past 525 goes through a Pandaren Way (wiki "Way of the Grill": 525 skill, then "Ready for Greatness"
+  and "Way of the Grill (quest)"; "Your skill in cooking is only as great as your most advanced Way"). The plan uses the Way
+  of the Grill: the quest chain from "So You Want to Be a Chef..." (31281 -> 31302 -> 31311) right before the first Way
+  recipe, then Kol Ironpaw's recipes, trained only at him (his wiki "Teaches" table gives the learn skill; the client's
+  SkillLine 975 rows give yellow, grey and the skill points per craft, which divide the craft estimate). Retail's Way rows
+  carry no skill-up line and the wiki gives no retail learn values, so retail Pandaria does not use them.
+* `SkillLineAbility` rows for one class only (MoP: Death Knights learn the bandages automatically) are skipped.
 * On era, tbc and forever, a recipe the wiki calls trainer-taught today becomes a buy step when this client has a recipe item for it.
   The wiki describes retail, and most of those recipes moved to trainers in later patches.
 * The wiki writes expansion recipes on the retail per-expansion scale, so on the one-track clients a learn value more than 120 below the client's yellow is discarded and yellow is used.
@@ -90,6 +109,16 @@ current skill and below its grey threshold.
 * Sites are `M` steps, not proximity waypoints: arriving must not tick a site that still has finds in it.
 * The older landmark API (`GetNumMapLandmarks`, `GetMapLandmarkInfo`) is not used. The wiki lists it as removed in 8.0.1, and it reads the map chosen with `SetMapByID`, which takes old world-map area ids this addon does not hold. Whether MoP Classic exposes `C_ResearchInfo` could not be confirmed offline; where it does not, the guide uses the static list.
 
+## Measured (2026-11-11)
+
+`python3 tools/prof_tiers.py [--thin] [--markdown] [--label L]` prints one row per client, profession and expansion tier
+(highest skill the weaker faction reaches, the tier cap, trainers, missing facts); `--label` stores it in
+`prof_tier_runs`. Labels `before-2026-11-11`, `after-2026-11-11` (first pass) and `final-2026-11-11` (after the review)
+hold the change; docs/STATUS.md has the table. Still short after it: retail Pandaria Cooking stops at 22 of 75 (past 25
+only the Tillers' Exalted recipes skill it; the review took them out), Shadowlands Cooking stops at 75 (the client's
+recipes are grey at 75; the wiki table says 175), and Legion and Draenor Cooking and Cataclysm Fishing list no trainer
+(no located trainer page; Cataclysm has no landmass of its own). MoP Cooking reaches 600 through the Way of the Grill.
+
 ## Measured (2026-11-09, generated data, offline)
 
 | Client | Guides | Steps | ALT trainer entries | Recipe uses | Missing facts |
@@ -111,6 +140,9 @@ current skill and below its grey threshold.
 * On era and tbc some small-town trainers stop at a low rank. The wiki table no longer says which, so ALT lists them all and the step says to try a city trainer.
 * Skill-up chances and craft counts are estimates. Reagent amounts follow from them.
 * `Fishing locations` has no rows after Cataclysm. Retail tiers from Pandaria on point at the expansion's continent map, not a specific lake.
-* `Cooking trainers` is marked out of date on the wiki and lists no trainers for most tiers after Pandaria. Those guides say so and carry no ALT.
-* "Way of" Pandaria recipes sit in their own skill lines and are not planned; mop Zen Master Cooking therefore leans on the expensive banquet recipes.
+* `Cooking trainers` is marked out of date on the wiki and lists no trainers for most tiers after Pandaria. The trainer category fills
+  Kul Tiran, Dragon Isles, Khaz Algar and Midnight (2026-11-11); a tier still without one says so and carries no ALT. A category trainer
+  is assigned to the tier of the continent it stands on, which is how the wiki's table groups them but is not stated per trainer.
+* Only one Pandaren Way (the Grill) is planned on MoP; the other five work the same way and are not offered. Retail does not
+  plan the Ways at all (see the plan rules), so retail Pandaria Cooking stops at 22.
 * Forever's own higher rank spells (1240945 and siblings) are not used; Forever guides stop at 300 like era.

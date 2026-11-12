@@ -67,9 +67,45 @@ Where a quest's giver or ender gets coordinates, in priority order:
    with a `==Locations==` section use one `{{Npclocations|loc=...{{co}}|level=|extracol={{Cata-inline}}|notes=}}` row per spawn,
    phase or expansion. The `extracol` expansion badge tells which era a row belongs to. Object pages (no infobox) put `{{co}}` in the lead sentence.
    Overall, 42% of start/end pages had at least one coords template.
-3. The subzone page (`{{Infobox town}}` sometimes has `{{coords}}`). Low hit rate.
-4. DB2 (retail and MoP only): `QuestPOIBlob` with `ObjectiveIndex=-1` gives the turn-in area. Write a disagreement row when it is more than 50 yd from the wiki point.
-5. Otherwise the step goes out without `M`, with `N|No coordinates on the wiki.|`. Era/TBC quests have no DB2 fallback.
+3. DB2 (retail only; MoP Classic's table holds only dig sites): `QuestPOIBlob` with `ObjectiveIndex=-1` gives the turn-in area, read
+   straight from the client table, not from the old fallback file. Used for T, for C (objective area, `ObjectiveIndex = QO - 1`), and
+   for A only when the wiki names the same NPC as giver and ender. Note `(location: Blizzard quest POI, ...)`; it ships, and the file
+   header then names `QuestPOIBlob + QuestPOIPoint`, wago.tools and the client build (`tools/db2/<fl>/BUILD`);
+   `tools/package_release.py` fails a wiki file whose steps use a pin without that line. In both builds a disagreement row
+   (`turnin_xy`) is written when the wiki's own T point is more than 50 yd from the turn-in pin on the same map (694 on retail,
+   2026-11-11).
+4. The page of the place the NPC/object page names first in its location field (`[[Razor Hill]], [[Durotar]]`) when the NPC page itself
+   has no point and that place is not a map. `tools/wiki/fetch_titles.py` fetches those pages. Note `(location: the wiki's <place>
+   page; ...)`; it ships. Rules (2026-11-11 review):
+   * only the place page's own point: its infobox, `{{Npclocations}}` or lead coordinate. A coordinate in a section of the page
+     (portals, quests, rewards, notes, inhabitants) is something else at that place; a `(Forever)` or Season of Discovery coordinate
+     is never used on another client.
+   * a place made or moved in a later patch than the client's (`{{Patch 4.0.3a|note=Added.}}`, "Subzone moved", "Remodeled and
+     moved", "Replaced the ...") is skipped on that client; "Destroyed", "Rebuilt", "Replaced by ..." and "Subzone added to existing
+     area" are kept (the place stood there before).
+   * the point must lie in a zone the NPC page names: a map in its location field, else the zone the linked place's own page links
+     first in its lead (`place_zone`: "Kargath ... in the [[Badlands]]"). The quest-log category is not a check: on era it was wrong
+     for all 16 points it would have rejected.
+   * on era, tbc and forever, an NPC page that says where it stood before the Cataclysm ("Before the [[Cataclysm (event)|Cataclysm]],
+     she was located at [[Kargath]], [[Badlands]]") gives that sentence's links instead of the location field (56 era pages; a link
+     after "northeast of" or "across from" names a landmark and is left out). `fetch_titles.py` also fetches those places.
+   Measured against the local reference (measurement only; release build; all A/T place steps on a map the reference also uses):
+   median 83 / 78 / 65 / 85 yd on era / tbc / mop / forever, p90 287 / 232 / 365 / 288 yd, 8% / 5% / 9% / 8% over 500 yd or on another
+   map (first pass, same script: median 96 / 81 / 67 / 113, p90 1,385 / 855 / 543 / 1,326, 22% / 14% / 10% / 20%).
+5. Otherwise the step names a zone (`|Z|` without `M`) with `N|... No coordinates on the wiki; the quest is in <zone>.|`, so the router
+   still takes the player to the zone. The zone is the one the NPC/object page names (location field, or its linked place's zone; on
+   the Classic clients the pre-Cataclysm place above), not the quest-log category: the category is where the quest is filed (Foreboding
+   Plans under Alterac Mountains, Magistrate Henry Maleb in Southshore; In Defense of Frostwolf under the battleground, Rokhstrom in
+   Orgrimmar). Among several page maps the one that agrees with the category, then with the quest's located steps, wins. With no page
+   map, the category, else the first located step's map. A quest added in 6.x or filed under "(alternate universe)" resolves to
+   Draenor's map. With no zone at all the step goes out without a location. Era/TBC/MoP quests have no DB2 pin.
+The dev build puts the local fallback file between 3 and 4 (`(location: Questie data)`, never shipped).
+
+Classic-map numbers without a tag (2026-11-11). Patch 4.0.3 redrew the zone maps. A coordinate that already stood on its page, number for
+number, in the page's last revision before 2010-11-23 was measured on the Classic map, whatever the zone name says; read as a retail
+number it moves several units on the Classic clients (Blasted Lands: 5.5). `tools/wiki/fetch_coord_history.py` finds those
+(`tools/wiki/cache/coord_history.sqlite`) and the generators read them as `(Classic)` points. A coordinate changed or added after that
+date is a retail number. This complements `wikimaps.KEEP_NUMBERS` (whole zones whose pages are Classic numbers).
 
 Multiple spawns: emit `M|x,y;x,y` only when all points share one zone. Otherwise take the first point in the quest's own zone.
 Classic vs retail: Classic pages and `(Classic)` zones refer to pre-Cata maps. Convert them through world coordinates with the

@@ -77,6 +77,12 @@ for i = 2, #rows do
     end
 end
 rows = nil
+-- MoP Classic only: the Pandaren Way of the Grill (SkillLine 975, a child of Cooking 185 in the client's SkillLine table)
+-- is part of Cooking there; its recipes take Cooking past 525 (gen_professions.py WAYS).  Only that one Way is accepted.
+if flavor == "mop" and sla["975"] then
+    sla["185"] = sla["185"] or {}
+    for sp, grey in pairs(sla["975"]) do sla["185"][sp] = sla["185"][sp] or grey end
+end
 
 -- ---- the client's maps
 local maps = {}
@@ -201,6 +207,85 @@ for _, id in ipairs(ids) do
     if flavor == "retail" and g.prof ~= "Archaeology" then check(g.tier, id .. " has no tier") end
     if flavor == "forever" then check(g.forever == true, id .. " not marked Forever-native") end
     if g.skillMax < 75 and g.prof ~= "Archaeology" and flavor ~= "retail" then short = short + 1 end
+end
+
+-- ---- retail expansion tiers (2026-11-11): Outland and Shadowlands Cooking had no guide, Pandaria stopped at 22 and
+-- Cataclysm at 36, because the learn skill fell back to the yellow threshold.  The client's own values (recipe item
+-- RequiredSkillRank, MinSkillLineRank of an automatic recipe) and the recipe page's opening sentence now give it.  Tiers
+-- the wiki's trainer table leaves empty take their trainers from the trainers' own pages (Category:Cooking trainers).
+if flavor == "retail" then
+    local reach, alt = {}, {}
+    for _, id in ipairs(ids) do
+        local g = G.registry[id]
+        if g.prof == "Cooking" and g.tier then
+            local k = g.tier .. ":" .. g.faction
+            reach[k] = math.max(reach[k] or 0, g.skillMax)
+            if g.skillMin <= 1 and g.text:find("|ALT|", 1, true) then alt[k] = true end
+        end
+    end
+    for _, tier in ipairs({ 2547, 2546, 2545, 2752 }) do
+        for _, fac in ipairs({ "Alliance", "Horde" }) do
+            check((reach[tier .. ":" .. fac] or 0) >= 75, ("Cooking tier %d (%s) reaches 75, got %s"):format(tier, fac, tostring(reach[tier .. ":" .. fac])))
+        end
+    end
+    -- Pandaria (2544): past 25 only Recipe: Spicy Salmon / Spicy Vegetable Chips (Exalted with the Tillers) or the Way
+    -- recipes (their own skill lines, not planned) skill it, so a plan without a reputation grind stops at 22.  It must
+    -- still have a guide for both factions; the reputation check below keeps the Exalted recipes out.
+    for _, fac in ipairs({ "Alliance", "Horde" }) do
+        check((reach["2544:" .. fac] or 0) >= 22, ("Cooking tier 2544 (%s) reaches 22, got %s"):format(fac, tostring(reach["2544:" .. fac])))
+    end
+    for _, tier in ipairs({ 2541, 2873, 2908 }) do
+        check(alt[tier .. ":Alliance"] and alt[tier .. ":Horde"], ("Cooking tier %d lists a trainer for both factions"):format(tier))
+    end
+    -- Maraclozh (Khaz Algar fishing trainer): his page reads "[[Umbral Bazaar]], [[City of Threads]]{{Co|51.6|25.6|Undermine}}";
+    -- the linked map wins over the {{Co}} zone, so his point is on the City of Threads (2213), not Undermine (2346)
+    local mara
+    for _, id in ipairs(ids) do
+        local g = G.registry[id]
+        if g.prof == "Fishing" then
+            for m in g.text:gmatch("(%d+),[%d.]+,[%d.]+,Maraclozh") do mara = tonumber(m) end
+        end
+    end
+    check(mara == 2213, ("Maraclozh's trainer point is on map %s, want the City of Threads (2213)"):format(tostring(mara)))
+end
+
+-- ---- MoP Classic Cooking 525-600 (2026-11-11 review): without the Tillers' Exalted recipes the plan stopped at 530.
+-- Past 525 Pandaren cooking goes through a Way (wiki "Way of the Grill": 525 skill, then Ready for Greatness and Way of the
+-- Grill (quest)); the plan uses the Way of the Grill, taught only by Kol Ironpaw, and must reach 600 for both factions with
+-- the quest chain before the first Way recipe.
+if flavor == "mop" then
+    for _, fac in ipairs({ "Alliance", "Horde" }) do
+        local g = G.registry["prof:mop:Cooking:8:" .. fac]
+        check(g and g.skillMax == 600, ("mop Cooking band 8 (%s) reaches %s, want 600"):format(fac, tostring(g and g.skillMax)))
+        local text = g and g.text or ""
+        local q, way = text:find("T Way of the Grill|QID|31311|", 1, true), text:find("= Train Charbroiled Tiger Steak|", 1, true)
+        check(q and way and q < way, ("mop Cooking band 8 (%s): the Way of the Grill quest comes before the first Way recipe"):format(fac))
+        check(text:find("ALT|376,53.0,51.3,Kol Ironpaw|", 1, true), ("mop Cooking band 8 (%s): the Way recipes are trained at Kol Ironpaw"):format(fac))
+    end
+end
+
+-- ---- no plan buys a recipe item the client gates behind a faction standing (2026-11-11 review).  ItemSparse
+-- MinFactionID / MinReputation >= 4 (Friendly) on these Cooking and First Aid recipe items, all clients: a skill plan
+-- cannot assume a reputation grind (Pandaria Cooking reached 75 only through Spicy Salmon, Exalted with the Tillers).
+do
+    local GATED = { [19442] = "Formula: Powerful Anti-Venom (Argent Dawn Honored)", [74657] = "Recipe: Spicy Salmon",
+        [74658] = "Recipe: Spicy Vegetable Chips", [85502] = "Recipe: Viseclaw Soup", [85505] = "Recipe: Krasarang Fritters",
+        [182668] = "Recipe: Feast of Gluttonous Hedonism", [142331] = "Recipe: Spiced Falcosaur Omelet",
+        [162287] = "Recipe: Galley Banquet", [162288] = "Recipe: Bountiful Captain's Feast", [162289] = "Recipe: Bountiful Captain's Feast",
+        [162292] = "Recipe: Grilled Catfish", [162293] = "Recipe: Seasoned Loins", [166263] = "Recipe: Sanguinated Feast",
+        [166367] = "Recipe: Wild Berry Bread", [166368] = "Recipe: Seasoned Steak and Potatoes", [166806] = "Recipe: Boralus Blood Sausage",
+        [168368] = "Recipe: Famine Evaluator And Snack Table", [168369] = "Recipe: Famine Evaluator And Snack Table" }
+    local gated = 0
+    for _, id in ipairs(ids) do
+        for line in G.registry[id].text:gmatch("[^\n]+") do
+            local it = line:match("^B [^|]*|L|(%d+) ")
+            if it and line:find("|RECIPE|", 1, true) and GATED[tonumber(it)] then
+                gated = gated + 1
+                print("  FAIL " .. id .. " buys " .. GATED[tonumber(it)] .. ", which needs a faction standing")
+            end
+        end
+    end
+    check(gated == 0, flavor .. ": " .. gated .. " recipe buy steps need a faction standing")
 end
 
 -- ---- why make steps carry SPELL and not RECIPE: the engine finishes a step on EITHER tag

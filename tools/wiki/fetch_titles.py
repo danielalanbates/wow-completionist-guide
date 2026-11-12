@@ -10,7 +10,10 @@
     nice -n 10 python3 tools/wiki/parse_wiki.py              # re-parse with the new pages
 
 Queue = quest start/end targets + objective targets + item drop sources + achievement page links (from wiki.sqlite)
-that are not in the raw cache and were never tried before.  --db2-names adds names taken from Blizzard client tables
+that are not in the raw cache and were never tried before, plus the places named in the {{Npcbox}}/{{Objectbox}}
+location field of those NPC and object pages that have no coordinate of their own (2026-11-11; the zone link at the end
+is left out), and the places linked in such a page's "Before the Cataclysm ... was located at [[Kargath]]" sentence
+(gen_wiki_guides.py Places.MOVED, read on the Classic clients).  --db2-names adds names taken from Blizzard client tables
 (tools/db2): every quest-starting item (ItemSparse.StartQuestID, all flavors) as "<name>" and "<name> (item)", the
 items achievement criteria ask for (Criteria types 36/42), and the NPC / object / place names criteria are named after
 (tools/gen_completion_guides.py NAMED_TYPES), so the wiki pages for them can be found.  Same etiquette and client as fetch_wiki.py (MediaWiki API only, serial,
@@ -28,6 +31,13 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fetch_wiki as F  # noqa: E402
+import re  # noqa: E402
+import wikitext as W  # noqa: E402
+
+T_BOX = re.compile(r"npcbox|objectbox", re.I)
+# the "Before the Cataclysm ... was located at [[Place]]" sentence, exactly as gen_wiki_guides.py reads it
+from gen_wiki_guides import Places  # noqa: E402
+MOVED = Places.MOVED
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PARSED = os.path.join(HERE, "wiki.sqlite")
@@ -84,18 +94,44 @@ def queue(raw, parsed, extra=()):
     have |= {r[0] for r in raw.execute("select title from title_attempts")}
     have |= {r[0] for r in raw.execute("select from_title from redirects")}
     want = []
-    sqls = ["select start_npc from quests", "select end_npc from quests",
-            "select target_title from quest_objectives",
-            "select value from items, json_each(items.sources_json)",
-            "select json_extract(e.value, '$.title') from quests, json_each(quests.start_json) e",
-            "select json_extract(e.value, '$.title') from quests, json_each(quests.end_json) e"]
+    used = set()
+    for sql in ("select start_npc from quests", "select end_npc from quests",
+                "select target_title from quest_objectives",
+                "select value from items, json_each(items.sources_json)",
+                "select json_extract(e.value, '$.title') from quests, json_each(quests.start_json) e",
+                "select json_extract(e.value, '$.title') from quests, json_each(quests.end_json) e"):
+        for (t,) in parsed.execute(sql):
+            if t:
+                used.add(t)
+            if t and t not in have and len(t) < 200 and ":" not in t[:12]:
+                have.add(t)
+                want.append(t)
+    # achievement page links and the --db2-names titles: fetched, but not searched for place links below
+    more = list(extra)
     if parsed.execute("select 1 from sqlite_master where name = 'achievement_links'").fetchone():
-        sqls.append("select link_title from achievement_links")
-    titles = [t for sql in sqls for (t,) in parsed.execute(sql)] + list(extra)
-    for t in titles:
+        more = [t for (t,) in parsed.execute("select link_title from achievement_links")] + more
+    for t in more:
         if t and t not in have and len(t) < 200 and ":" not in t[:12]:
             have.add(t)
             want.append(t)
+    # the places named in the location field of the NPC/object pages quests use that carry no coordinate of their own
+    # ("| location = [[Razor Hill]], [[Durotar]]"): gen_wiki_guides.py takes the place page's point for them
+    located = {r[0] for r in parsed.execute("select distinct title from npc_coords")}
+    titles = {r[0]: r[1] for r in parsed.execute("select title, page_title from titles")}
+    pages = {titles.get(t, t) for t in used} - located
+    for t in sorted(pages):
+        r = raw.execute("select wikitext from pages where title = ?", (t,)).fetchone()
+        box = next(W.find_templates(r[0] or "", T_BOX), None) if r else None
+        if not box:
+            continue
+        links = W.links(W.split_params(box[3])[1].get("location", ""))[:-1] or W.links(W.split_params(box[3])[1].get("location", ""))
+        moved = MOVED.search(r[0] or "")
+        if moved and moved.group(1):
+            links += W.links(moved.group(1))
+        for ln, _ in links:
+            if ln and ln not in have and ln not in titles and len(ln) < 200:
+                have.add(ln)
+                want.append(ln)
     return want
 
 

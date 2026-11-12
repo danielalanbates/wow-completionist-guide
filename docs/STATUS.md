@@ -132,6 +132,94 @@ Two measurements, both in `docs/verification.sqlite` (`coverage`, `coverage_ach_
   the unlocated rows above; TWW / Midnight glyph points; the Pandaria Cup; Forever-only item quests (no wiki pages);
   the NPC row choice above.
 
+## 2026-11-11: Coverage workstream B: professions, routes, coordinates, release-ready points (`coverage-prof`)
+
+Offline only. **Nothing here has run in a real WoW client.** Committed on `coverage-prof` (from `integration`), not
+merged, not installed. Generated data was rebuilt only in this worktree; the main checkout needs the generators re-run
+(docs/HANDOFF.md section 5, Phase 5). Every new data row names its source (wiki page or DB2 table).
+
+* **Retail Cooking tiers** (`tools/wiki/gen_professions.py`, [PROFESSIONS.md](PROFESSIONS.md)). Cause: with no orange
+  value in the wiki's recipe box the learn skill fell back to the yellow threshold, so no recipe was usable at skill 1
+  and 7 of 12 tiers had no trainer. Now the client's own value comes first (ItemSparse `RequiredSkillRank` of the
+  recipe item the wiki names; `MinSkillLineRank` for a recipe the client teaches by itself), then the wiki box, then the
+  recipe page's opening sentence; a recipe the wiki gives no source for but whose recipe item the client has is a buy
+  step; rows for one class only are skipped; tiers the trainer table leaves empty take trainers from
+  `Category:<prof> trainers` (Npcbox point, or the page of the building they stand in). `tools/prof_tiers.py` prints
+  the table (`prof_tier_runs`, labels `before-2026-11-11` / `after-2026-11-11`). Retail, reached / cap, trainers:
+
+  | Tier | Before | After |
+  |---|---|---|
+  | Outland Cooking | no guide | 75 / 75, 4 |
+  | Northrend Cooking | 73 / 75, 4 | 75 / 75, 4 |
+  | Cataclysm Cooking | 36 / 75, 0 | 75 / 75, 0 |
+  | Pandaria Cooking | 22 / 75, 3 | 75 / 75, 3 |
+  | Shadowlands Cooking | no guide | 75 / 175, 1 (the client's recipes stop at grey 75; the wiki table says 175) |
+  | Kul Tiran / Dragon Isles / Khaz Algar / Midnight Cooking | full, 0 trainers each | full, 3 / 1 / 3 / 1 |
+  | Khaz Algar / Midnight Fishing | full, 0 trainers | full, 5 / 5 |
+  | Legion, Draenor Cooking; Cataclysm Fishing | full, 0 trainers | unchanged (no located trainer page; Cataclysm has no landmass) |
+
+  Every other profession x tier on all five clients already reached its cap and still does (era/tbc/forever 300/375,
+  mop 600, Archaeology 600/950). Their plans changed: recipes the client teaches automatically now count from skill 1
+  (era Cooking opens with Charred Wolf Meat), and MoP's Death-Knight-only bandage rows are no longer planned.
+* **no_route** (`Data/Transit.lua`, `Data/Access.lua`, cited from the wiki). vplayer on the guides that had routable
+  no_route rows in the Nov 7 sweep (mop 19, retail 39 guide parts; same guide build before and after, so only the
+  data fix differs): **mop 14 -> 6, retail 57 -> 47** routable (all classes: mop 38 -> 27, retail 116 -> 102; tables
+  `noroute_rerun` / `noroute_steps`, labels `routable-before/after-2026-11-11`). The Nov 7 figures were 27 / 62 on
+  older guides. Causes and fixes: MoP Classic had no way into Pandaria and no Isle of Thunder chain (new mop-only access
+  chains from the quest pages and the "Isle of Thunder" portal camps); no Maelstrom edges (Earthshrine portals to
+  Thrall, Aggra's wyvern into Deepholm); no way out of K'aresh (Tazavesh portal to Dornogal). Left: Tol Barad on MoP
+  Classic is its own instance (2755) and the wiki gives no point for the Blackstone Span (6 rows); retail Midnight
+  (Voidstorm, Slayer's Rise, Naigtal, Val, Ritual Site, the Midnight Isle of Quel'Danas), Argus, the 10.0.7 Forbidden
+  Reach and the player-housing zones have no cited exit; one Ashran and one Underrot row.
+* **Blasted Lands offset: root cause found.** The transforms are right (the Nethergarde Keep flight master's wiki point
+  lands on the Blizzard TaxiNodes position on both maps; regression check in `wikimaps.py`). Patch 4.0.3 redrew the
+  map (it now reaches further south), and several pages still carry numbers measured on the Classic map with no
+  "(Classic)" tag (Daio the Decrepit 34,50; Kum'isha 52,36), so they were converted as retail numbers and moved
+  ~5.5 units. New `tools/wiki/fetch_coord_history.py` reads each page's last revision before 4.0.3 (87 pages, cached):
+  a coordinate already there number for number is a Classic-map number (24 in Blasted Lands). Median error of the
+  16 era Blasted Lands A/T steps against the local reference (measurement only): **5.54 -> 0.27** map units. What is
+  left there are NPCs that moved at the Cataclysm (Quartermaster Lungertz: the wiki has no pre-4.0.3 point).
+  Also fixed: "Dalaran" resolved to map 41, a micro map in Deadwind Pass (485 retail wiki steps; Classic drop
+  sources too); now the Northrend city, or the Broken Isles one for "Dalaran (Broken Isles)" or a Legion-on page.
+* **Release-ready wiki points** (`gen_wiki_guides.py --no-fallback`, the shipped build). Steps with a point,
+  before -> after (same inputs; `wiki_point_sources`):
+
+  | Client | Before | After: wiki + client quest POI + wiki place page | Zone-level | None |
+  |---|---|---|---|---|
+  | era | 3,881 / 9,644 (40.2%) | 4,829 (50.1%): 3,879 + 0 + 950 | 3,113 | 1,702 |
+  | tbc | 6,262 / 14,796 (42.3%) | 7,849 (53.0%): 6,260 + 0 + 1,589 | 5,561 | 1,386 |
+  | mop | 15,369 / 32,004 (48.0%) | 18,096 (56.5%): 15,369 + 0 + 2,727 | 11,525 | 2,383 |
+  | retail | 35,120 / 87,580 (40.1%) | 62,081 (70.9%): 35,122 + 23,989 + 2,970 | 18,569 | 6,930 |
+  | forever | 4,210 / 10,177 (41.4%) | 5,175 (50.9%): 4,208 + 0 + 967 | 3,252 | 1,750 |
+
+  Steps that lose their point under `--no-fallback` (dev-build points minus release-build points, before): era 4,727,
+  tbc 7,280, mop 15,026, retail 27,847, forever 4,731; recovered with a point: era 948, tbc 1,587, mop 2,727, retail
+  26,961, forever 965; most of the rest now name the quest's zone. Shippable quest coverage (`coverage.py --guides` on
+  the shipped files only, labels `ship_before` / `ship_after-2026-11-11`), quests with a located step: era 2,115 ->
+  2,470, tbc 3,353 -> 3,920, mop 7,775 -> 8,639, retail 18,130 -> 23,375, forever 2,274 -> 2,640. Sources: retail
+  `QuestPOIBlob`/`QuestPOIPoint` read directly (turn-in area for T, objective area for C, A only when the wiki names
+  the same NPC as giver and ender); the wiki page of the place an NPC page names when it has no point itself
+  (`fetch_titles.py` fetched 2,627 such pages); otherwise the quest's zone (`|Z|` only, honest note). Place-page
+  points against the local reference (measurement only; release build; era 203, tbc 322, mop 590 steps compared):
+  median 81 / 76 / 71 yd, p90 673 / 287 / 443 yd; 54-61% within 100 yd. Retail was not measured usefully (its
+  reference is itself a quest pin). The Classic clients have no quest pins.
+* **Packager dry run** (release build per RELEASE.md steps 1-2 in this worktree): **gate FAIL, 5 problems, all
+  `RouteOrder_<fl>.lua` rows that order Questie-derived `_gaps` guides** (era 56, tbc 101, mop 217, retail 159,
+  forever 55; plus stale-row notes). The wiki fallback lines, the old achievements/missions header and the local
+  QuestDeps build no longer fail. A rebake over the shipped guides only (RELEASE.md step 3) is still needed.
+* **Dev build** (fallback): quests with a located step, `coverage.py` label `dev-after-2026-11-11` against `ach-after`:
+  era 3,486 -> 3,488, tbc 5,593 -> 5,596, mop 15,093 -> 15,099, retail 28,730 -> 29,194, forever 3,646 -> 3,659.
+* **Tests.** New checks in `test_professions.lua` (tier reach and trainers; fails on the old retail file with 13
+  failures), `test_wiki.lua` (zone-level / place / POI tags, no wiki point on map 41, Blasted Lands accepts),
+  `wikimaps.py` (TaxiNodes calibration, Classic marks, Dalaran), `test_access.lua` (entries checked only on their
+  clients, plus a MoP pass). Full run on 2026-11-11 with the dev build in place (`luajit -joff`): all 17
+  `tools/test_*.lua` and `validate_toc.lua` pass (`test_skip.lua` 332/332, `test_quest_auto.lua` 1,272/1,272),
+  `tools/test_package.py` passes, `test_ingest_beta_reports.py` 5/5.
+* **Open:** nothing in a client; route orders are stale wherever points moved (Blasted Lands, Dalaran, every new POI,
+  place and zone-level step); the pre-4.0.3 history was fetched for Blasted Lands only (`--changed-zones` covers every
+  redrawn zone, not run); NPCs that moved at the Cataclysm keep their retail point on Classic; the routable no_route
+  gaps listed above; Shadowlands Cooking 75-175 and the Legion/Draenor Cooking trainers.
+
 ## 2026-11-10: Stable step keys (`stable-step-id`, IDEAS #6)
 
 Offline only. **Nothing here has run in a real WoW client.** Not merged, not installed. Details: [STEP_KEYS.md](STEP_KEYS.md).

@@ -82,10 +82,16 @@ are CC BY-SA 4.0 by the CompletionRoute contributors, as each file's header says
 
 ## Steps that are not wiki data
 
-Some steps come from a locally generated file that is *not* wiki data. A note in the step says
+**Client quest pins (retail, shipped).** In `Imported_Wiki_retail.lua`, a step whose note says
+`(location: Blizzard quest POI, the turn-in area)` or `(location: Blizzard quest POI, the objective area)` takes its map
+point from Blizzard's own quest map pins, the client tables `QuestPOIBlob` and `QuestPOIPoint` (via wago.tools; the
+file header names the client build). The tools use a pin only when the wiki has no coordinate for that step. A pin is
+client data (a fact: where the game draws the quest's area), not wiki text, and it is not covered by the wiki's licence.
+
+**Local fallback points (never shipped).** Some steps come from a locally generated file that is *not* wiki data. A note in the step says
 `(location: Blizzard data)` or `(location: Questie data)`. The tools only do this when the wiki has no usable
 coordinate for a step. Those coordinates come from `Imported_Quests_<flavor>.lua`: Blizzard quest-POI client data
 on retail, and the Questie database on Classic. Like every `Imported_*` file, they are generated locally and never
-committed. To get a file that is wiki data only (the shippable variant), run
-`python3 tools/wiki/gen_wiki_guides.py --no-fallback`. A release package holds only that variant:
+committed. To get a file without them (the shippable variant: wiki data plus the
+client quest pins above), run `python3 tools/wiki/gen_wiki_guides.py --no-fallback`. A release package holds only that variant:
 `tools/package_release.py` fails any build whose wiki files still carry such steps (`docs/RELEASE.md`).

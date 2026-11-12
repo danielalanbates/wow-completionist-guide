@@ -11,6 +11,7 @@ nice -n 10 python3 tools/wiki/fetch_titles.py      # 3. pages quests link to tha
 nice -n 10 python3 tools/wiki/parse_wiki.py        #    subzones, redirects); run 3+2 again for item drop sources.
                                                    #    --db2-names also tries quest-starting items, criteria items and
                                                    #    criteria NPC names from Blizzard tables (about 300 requests)
+nice -n 10 python3 tools/wiki/fetch_coord_history.py  # 3b. pre-4.0.3 revisions: Classic-map numbers (Blasted Lands by default)
 nice -n 10 python3 tools/wiki/fetch_db2.py         # 4. pinned QuestV2 per flavor (+ retail QuestObjective) -> tools/db2/
 nice -n 10 python3 tools/wiki/gen_wiki_guides.py   # 5. -> Guides/Imported_Wiki_<fl>.lua + Imported_Quests_<fl>_gaps.lua
 luajit tools/test_wiki.lua                         # 6. check
@@ -46,6 +47,19 @@ The rules live in [docs/WIKI_DATA_SPEC.md](../../docs/WIKI_DATA_SPEC.md); the co
   with only a current-retail location, used on Classic) is kept unless the client's own fallback data puts the
   step more than 300 yd away. In that case the fallback wins and the row goes to `docs/verification.sqlite`
   `wiki_db2_conflict` (`A_xy_version` / `C_xy_version` / `T_xy_version`).
+* **Release-ready points (2026-11-11).** After the wiki's own point: on retail the client's quest pin
+  (`QuestPOIBlob`/`QuestPOIPoint`, `(location: Blizzard quest POI, ...)`), then (dev build only) the fallback below,
+  then the wiki page of the place the NPC page names when it has no point (`(location: the wiki's <place> page; ...)`),
+  then a zone (`|Z|` only). `fetch_titles.py` also fetches those place pages. A coordinate that stood on its
+  page before patch 4.0.3 is read as a Classic-map number (`fetch_coord_history.py`). Counts per client and build:
+  `docs/verification.sqlite` `wiki_point_sources`. Review fixes (2026-11-11): a place page gives only its own point
+  (infobox, `{{Npclocations}}` or lead; never a portal, quest or NPC listed on it, never a `(Forever)` or Season of
+  Discovery coordinate on another client), and must lie in a zone the NPC page names (its location field, else the
+  zone the linked place's own page names); a place made or moved in a later patch than the client's is skipped. The
+  zone of a zone-level step is the NPC page's, not the quest-log category's (`zone_choice`); Warlords quests resolve to
+  Draenor. On era, tbc and forever an NPC page that says where the NPC stood before the Cataclysm ("was located at
+  [[Kargath]], [[Badlands]]") gives that place instead of its current location field. The file header names the
+  QuestPOI tables and the client build whenever a step uses a quest pin; `package_release.py` fails a file without it.
 * **Fallback.** Only used when the wiki has no usable point. The same step is taken from `Imported_Quests_<fl>.lua`
   and tagged in its note: `(location: Blizzard data)` for retail quest POI, `(location: Questie data)` for Classic.
   `--no-fallback` writes a wiki-only file, which is the shippable variant.
