@@ -6,14 +6,22 @@
 """Generate per-zone quest guides from the Warcraft Wiki (the source of truth), one file per client.
 
     nice -n 10 python3 tools/wiki/gen_wiki_guides.py [era tbc mop retail forever]
+                                 [--contributions DIR | --no-contributions] [--out DIR] [--no-spine]
 
 Inputs : tools/wiki/wiki.sqlite (tools/wiki/parse_wiki.py), tools/db2/<flavor>/QuestV2.csv (+ retail
          QuestObjective.csv, QuestPOIBlob.csv, QuestPOIPoint.csv; tools/wiki/fetch_db2.py, tools/wiki/db2_fetch.py),
-         tools/maps_<flavor>.lua.  Warcraft Wiki and Blizzard client data only.
+         tools/maps_<flavor>.lua.  Warcraft Wiki and Blizzard client data, plus players' own contributions:
+         <contributions>/areas/<flavor>.json, the merged areas of the open data repository (wow-completionist-data,
+         tools/contrib.py there; CC BY-SA 4.0; docs/CONTRIBUTE.md).  The contributions folder is --contributions DIR,
+         else $CR_CONTRIB, else ../wow-completionist-data/contributions next to this checkout when it exists;
+         --no-contributions reads none.  With no areas file for a client its output does not change by a byte.
 Outputs: CompletionRoute/Guides/Imported_Wiki_<flavor>.lua        the wiki guides (CC BY-SA 4.0 data)
          tools/wiki/wiki.sqlite tables flavor_quests / flavor_gap / flavor_skip / gen_stats
          docs/verification.sqlite tables wiki_db2_conflict, wiki_point_sources (build "no-fallback")
          then tools/wiki/gen_spine.py writes Imported_Spine_<flavor>.lua (--no-spine skips it)
+         --out DIR writes all of it into DIR instead and nothing anywhere else: the guide and spine files, the spine's
+         parts_<flavor>.json, the four wiki.sqlite tables (DIR/wiki.sqlite) and the chart (DIR/verification.sqlite).
+         tools/test_contrib_gen.py runs the generator that way.
 The output is gitignored like every other Imported_* file.  There is one build: this file is what the TOCs load,
 what tools/install.sh installs and what tools/package_release.py packages.
 
@@ -41,8 +49,16 @@ Step location priority (docs/WIKI_DATA_SPEC.md 3/4):
      that already stood on its page before patch 4.0.3 is a Classic-map number (tools/wiki/fetch_coord_history.py).
   3. retail only: the client's own quest pin (QuestPOIBlob/QuestPOIPoint): the turn-in area for T (and for A when the
      wiki names the same NPC for both), the objective area for C.  Note "(location: Blizzard quest POI, ...)".  Ships.
-  4. (--measure-fallback only, never in the build) the same step in the reference file; the note then says
-     "(location: Blizzard data)" or "(location: Questie data)".
+  4. a place players contributed (class Contributions): the merged area of the step's key, "A:<quest>" for an accept,
+     "T:<quest>" for a turn-in, "C:<quest>:<objective>" for an objective (the number of the step's |QO| tag, 0 for a
+     step without one: Core/Contribute.lua KeyFor).  Only areas marked "trusted" or "confirmed" on a map this client
+     has; accept and turn-in take the heaviest, an objective up to three on one map.  Note "(location: player
+     contributions, N players)".  Ships; the file header then names the data repository and its commit.
+     A wiki point more than 100 yd from the contributed area of the same step on the same map is logged
+     (wiki_db2_conflict, field A_xy_contrib / C_xy_contrib / T_xy_contrib): a lead for fixing the wiki, the guide
+     keeps the wiki point.
+     (--measure-fallback only, never in the build, reads no contributions: the same step in the reference file; the
+     note then says "(location: Blizzard data)" or "(location: Questie data)".)
   5. the wiki page of the place an NPC/object page with no point names first in its location field ("[[Razor Hill]],
      [[Durotar]]"), when that place is not a map itself.  Note "(location: the wiki's <place> page; ...)".  Ships.
   6. otherwise the step names the quest's zone (|Z| without |M|, "No coordinates on the wiki; the quest is in <zone>"),
@@ -64,8 +80,11 @@ import csv
 import datetime
 import json
 import math
+import os
 import re
+import shutil
 import sqlite3
+import subprocess
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -98,6 +117,15 @@ FALLBACK_OF = {"forever": "era"}
 SKIP_TYPES = re.compile(r"world quest|calling|emissary", re.I)
 DELIVERY = re.compile(r"^(speak|talk|report|return|bring|take|deliver|go|travel|meet|seek|find|visit|"
                       r"give|hand|show|tell|carry|ask)\b", re.I)
+# player contributions (docs/CONTRIBUTE.md): the merged areas of the open data repository
+CONTRIB_REPO = "wow-completionist-data"
+CONTRIB_URL = "https://github.com/danielalanbates/wow-completionist-data"
+CONTRIB_DEFAULT = ROOT.parent / CONTRIB_REPO / "contributions"      # a sibling checkout of the data repository
+CONTRIB_NOTE = "(location: player contributions"                    # tools/package_release.py looks for this
+CONTRIB_KEY = re.compile(r"^(?:[AT]:\d{1,7}|C:\d{1,7}:\d{1,2})$")    # quest step keys (Core/Contribute.lua KeyFor)
+CONTRIB_USED = ("trusted", "confirmed")     # "single" (one player, nobody agrees yet) is never used
+CONTRIB_POINTS = 3                          # an objective step takes up to this many areas; accept and turn-in one
+CONTRIB_FAR_YD = 100.0                      # a wiki point further than this from the contributed area is logged
 
 
 def pkey(p):
@@ -295,6 +323,164 @@ class QuestPOI:
         return self.q.get(qid, {}).get(oi)
 
 
+def contributions_dir(arg=None, env=None):
+    """the contributions folder to read: --contributions DIR, else $CR_CONTRIB, else the contributions folder of a
+    sibling checkout of the data repository (../wow-completionist-data) when there is one; None when there is none.
+    A folder asked for by name must exist."""
+    env = os.environ if env is None else env
+    for label, v in (("--contributions", arg), ("CR_CONTRIB", env.get("CR_CONTRIB"))):
+        if v:
+            d = Path(v).expanduser()
+            if not d.is_dir():
+                raise SystemExit(f"gen_wiki_guides: {label} {v}: no such folder")
+            return d
+    return CONTRIB_DEFAULT if CONTRIB_DEFAULT.is_dir() else None
+
+
+def contrib_commit(folder, fl):
+    """the data repository commit the areas of one client came from: HEAD of the git checkout whose top folder holds
+    this contributions folder.  "unknown" when the folder is not that (a plain copy, a folder inside some other
+    repository) or git cannot say; "<commit>-dirty" when areas/<fl>.json is not exactly what that commit holds.
+    tools/package_release.py ships a contributed step only under a plain commit."""
+    git = shutil.which("git", path="/usr/bin") or shutil.which("git")
+    if not git:
+        return "unknown"
+
+    def run(*a):
+        r = subprocess.run([git, "-C", str(folder), *a], capture_output=True, text=True, timeout=60)
+        return r.stdout.strip() if r.returncode == 0 else None
+    try:
+        top = run("rev-parse", "--show-toplevel")
+        if not top or (Path(top) / "contributions").resolve() != Path(folder).resolve():
+            return "unknown"
+        head = run("rev-parse", "HEAD")
+        if not head or not re.fullmatch(r"[0-9a-f]{40,64}", head):
+            return "unknown"
+        rel = f"areas/{fl}.json"
+        tracked, changed = run("ls-files", "--error-unmatch", "--", rel), run("status", "--porcelain", "--", rel)
+        return head if tracked and changed == "" else head + "-dirty"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
+class Contributions:
+    """the merged player contributions of one client: <folder>/areas/<flavor>.json, which tools/contrib.py of the open
+    data repository (wow-completionist-data, CC BY-SA 4.0) builds from the texts players export with the add-on's
+    Contribute box (docs/CONTRIBUTE.md).  Per step key it lists areas {map, x, y, r, weight, cells, contributors,
+    confidence}.  Kept here: quest step keys (A:<quest>, T:<quest>, C:<quest>:<objective>), confidence "trusted" (a
+    maintainer's own play) or "confirmed" (two or more players in the same place), on a map this client has and can
+    place a point on; heaviest first.  The file is public input: every field is checked, and only a map id, positions
+    and a player count ever reach a guide."""
+
+    def __init__(self, folder, fl, maps):
+        self.folder, self.fl = Path(folder), fl
+        self.path = self.folder / "areas" / f"{fl}.json"
+        self.areas = {}                 # key -> [{map, x, y, n (players), w (weight), confidence}], heaviest first
+        self.skipped = Counter()        # why -> areas not used
+        self.commit = None
+        if not self.path.is_file():
+            return
+        try:
+            doc = json.loads(self.path.read_text(encoding="utf-8"))
+            areas = doc["areas"]
+            if doc.get("flavor") != fl or not isinstance(areas, dict):
+                raise ValueError(f"flavor {doc.get('flavor')!r}, areas {type(areas).__name__}")
+        except (OSError, ValueError, KeyError, TypeError) as e:
+            raise SystemExit(f"gen_wiki_guides: {self.path} is not the contributions areas file of {fl}: {e}")
+        for key in sorted(areas):
+            rows = areas[key] if isinstance(areas[key], list) else [None]
+            if not CONTRIB_KEY.match(key):
+                self.skipped["not a quest step"] += len(rows)
+                continue
+            keep = []
+            for a in rows:
+                why = self.check(a, maps)
+                if why:
+                    self.skipped[why] += 1
+                else:
+                    keep.append({"map": int(a["map"]), "x": float(a["x"]), "y": float(a["y"]), "n": int(a["contributors"]),
+                                 "w": float(a["weight"]), "confidence": a["confidence"]})
+            if keep:
+                self.areas[key] = sorted(keep, key=lambda a: -a["w"])      # stable: the file's order breaks ties
+        self.commit = contrib_commit(self.folder, fl)
+
+    @staticmethod
+    def check(a, maps):
+        """why an area is not used, or None"""
+        if not isinstance(a, dict) or a.get("confidence") not in CONTRIB_USED + ("single",):
+            return "malformed"
+        if a["confidence"] == "single":
+            return "single"
+        v = [a.get(k) for k in ("map", "x", "y", "contributors", "weight")]
+        if not all(isinstance(n, (int, float)) and not isinstance(n, bool) and math.isfinite(n) for n in v):
+            return "malformed"
+        m, x, y, n, w = v
+        if m != int(m) or n != int(n) or n < 1 or w <= 0 or not (0 < x < 100 and 0 < y < 100):
+            return "malformed"
+        mm = maps.maps.get(int(m))
+        if not mm or not mm["w"] or not mm["h"]:
+            return "unknown map"
+        return None
+
+    def points(self, key, limit=1):
+        """the usable areas of a step, heaviest first: at most `limit`, all on the heaviest one's map (the points of a
+        step share one map: |M|x,y;x,y|Z|map|), no point twice"""
+        out, seen = [], set()
+        for a in self.areas.get(key, ()):
+            xy = fmt_xy(a["x"], a["y"])
+            if (out and a["map"] != out[0]["map"]) or xy in seen:
+                continue
+            seen.add(xy)
+            out.append(a)
+            if len(out) >= limit:
+                break
+        return out
+
+    @staticmethod
+    def tag(ar):
+        """(mapID, 'x,y;x,y') of points()"""
+        return ar[0]["map"], ";".join(fmt_xy(a["x"], a["y"]) for a in ar)
+
+    @staticmethod
+    def note(ar):
+        """the note suffix of a step that takes its point(s) from points(): the players behind the heaviest area"""
+        n = ar[0]["n"]
+        return (f" {CONTRIB_NOTE}, {n} player{'' if n == 1 else 's'}"
+                + (f", {len(ar)} areas" if len(ar) > 1 else "") + ")")
+
+    def far(self, key, mid, pts, yards):
+        """(area, yards) when the heaviest usable area of this step on map `mid` lies more than CONTRIB_FAR_YD from
+        every point of pts ('x,y;x,y' on that map); None when it is near, or when no area is on that map"""
+        a = next((a for a in self.areas.get(key, ()) if a["map"] == mid), None)
+        if not a:
+            return None
+        ds = []
+        for pr in pts.split(";"):
+            try:
+                x, y = (float(v) for v in pr.split(","))
+            except ValueError:
+                continue
+            d = yards(self.fl, mid, (x, y), (a["x"], a["y"]))
+            if d is not None:
+                ds.append(d)
+        return (a, min(ds)) if ds and min(ds) > CONTRIB_FAR_YD else None
+
+    def header(self):
+        """the header line of a file that ships contributed points: the source, its licence and the commit"""
+        return (f'-- Steps whose note says "{CONTRIB_NOTE}, ...)" take their map point from where players stood, not '
+                f"from the wiki: merged player contributions, {CONTRIB_REPO} contributions/areas/{self.fl}.json "
+                f"({CONTRIB_URL}, CC BY-SA 4.0), commit {self.commit} (see Guides/WIKI_DATA_LICENSE.md).")
+
+
+def objective_key(qid, qo, use_qo, steps):
+    """the contribution key of an objective step, as the add-on numbers it (Core/Contribute.lua KeyFor: "C:<quest>:" ..
+    (tonumber(step.qo) or 0)): the step's |QO| number, or 0 for a step written without the tag.  Several untagged
+    objective steps of one quest share key 0 in the add-on, so none of them can be told apart: no key (None)."""
+    if use_qo:
+        return f"C:{qid}:{qo}"
+    return f"C:{qid}:0" if steps <= 1 else None
+
+
 class Places:
     """an NPC or object page with no coordinates often names where it stands ("| location = [[Razor Hill]], [[Durotar]]").
     The first linked place that is not itself a map (a town, camp or building, not the zone) and whose own wiki page
@@ -368,11 +554,17 @@ class Places:
 
 
 class Gen:
-    def __init__(self, fallback=False):
-        self.db = sqlite3.connect(WIKI)
+    def __init__(self, fallback=False, contributions=None, out=None):
+        """contributions: the folder whose areas/<flavor>.json holds merged player contributions (None: read none;
+        never read by --measure-fallback).  out: write everything into this folder instead of the checkout (see the
+        module text)."""
+        self.db = sqlite3.connect(f"file:{WIKI}?mode=ro", uri=True) if out else sqlite3.connect(WIKI)
         self.db.row_factory = sqlite3.Row
         self.atlas = wikimaps.Atlas()
         self.use_fallback = fallback
+        self.contrib_dir = Path(contributions) if contributions and not fallback else None
+        self.out_dir = Path(out) if out else None
+        self.contrib_seen = {}              # client -> Contributions of its last run (main() reports it)
         self.titles = {r["title"]: (r["page_title"], r["kind"]) for r in self.db.execute("select * from titles")}
         self.npc_pts = defaultdict(list)
         # coordinates that already stood on their page before patch 4.0.3 are Classic-map numbers
@@ -814,6 +1006,11 @@ class Gen:
         maps = self.atlas.sets[fl]
         fb = Fallback(fl, self.era_to_forever if fl == "forever" else None) if self.use_fallback else None
         poi = QuestPOI(fl, maps) if fl == "retail" else None
+        contrib = Contributions(self.contrib_dir, fl, maps) if self.contrib_dir else None
+        if contrib is not None and not contrib.areas:
+            self.contrib_seen[fl], contrib = contrib, None      # no areas file, or nothing usable in it
+        elif contrib is not None:
+            self.contrib_seen[fl] = contrib
         st = Counter()
         skip = []
         by_id = defaultdict(list)
@@ -924,10 +1121,23 @@ class Gen:
                     return False
                 return True
 
+            def contrib_check(act, key, c):
+                """a wiki point against the contributed area of the same step: on the same map and more than 100 yd
+                apart, it is logged as a lead for fixing the wiki.  The guide keeps the wiki point."""
+                hit = contrib.far(key, c[0], c[1], self.atlas.yards) if (contrib and key and c[0] != "Z") else None
+                if hit:
+                    a, yd = hit
+                    self.conflicts.append((fl, qid, f"{act}_xy_contrib", f"{c[0]}:{c[1]}",
+                                           f"{a['map']}:{fmt_xy(a['x'], a['y'])}", r["page_title"], r["revid"],
+                                           f"{yd:.0f} yd from the player-contributed area of {key} ({a['n']} player"
+                                           f"{'' if a['n'] == 1 else 's'}, {a['confidence']})"))
+                    st["contrib_conflicts"] += 1
+
             def loc_tag(kind, ent_list, act, qo=None):
                 """-> (M/Z text, note suffix, source) for an A/T step.  Order: the wiki's own point, the client's quest
-                pin (retail), the reference file (--measure-fallback only).  The wiki place page and the zone-level answer
-                come after every step of the quest has been tried (resolve_pending)."""
+                pin (retail), the heaviest area players contributed, the reference file (--measure-fallback only, which
+                reads no contributions).  The wiki place page and the zone-level answer come after every step of the
+                quest has been tried (resolve_pending)."""
                 for e in ent_list:
                     if e.get("coords"):
                         c = self.coords_list([(x[2], x[0], x[1]) for x in e["coords"]], fl, classic_q, added, home_name)
@@ -950,6 +1160,10 @@ class Gen:
                     pin = poi.get(qid, -1) if (act == "T" or same) else None
                     if pin:
                         return pin, " (location: Blizzard quest POI, the turn-in area)", "poi"
+                if contrib:
+                    ar = contrib.points(f"{act}:{qid}")
+                    if ar:
+                        return contrib.tag(ar), contrib.note(ar), "contrib"
                 if fb:
                     f = fb.get(qid, act, qo)
                     if f:
@@ -1049,12 +1263,14 @@ class Gen:
                     page = next((self.item_by_id[i] for i, _ in starters if i in self.item_by_id), None) or next(
                         (self.resolve_title(e["title"])[0] for e in starts
                          if e.get("title") and self.resolve_title(e["title"])[0] in self.items), None)
-                    if not who or not c:
+                    if not who or not c or src == "contrib":
+                        # (a contributed point changes no wording: the note is what it is without contributions)
                         item = page or starters[0][1] or None
                     else:
                         # the wiki names a giver and has its point: keep it, and say the item starts it too
                         also = re.sub(r"\s*\(item\)$", "", page or starters[0][1] or "") or None
-                if page and (not c or src == "fallback"):
+                # (the wiki's item page outranks a contributed accept: the wiki's own point comes first)
+                if page and (not c or src in ("fallback", "contrib")):
                     e = self.entity_coords(page, fl, added, home_name)
                     if e and not item_point_ok(e, "A"):
                         e = None    # --measure-fallback: far from the reference point for the accept
@@ -1083,6 +1299,9 @@ class Gen:
                 if c[0] != "Z":
                     first_map = c[0]
                 st[f"steps_{src}"] += 1
+                if src == "wiki" and not starters:
+                    # (an item-started quest is accepted wherever the player opens the item: nothing to compare)
+                    contrib_check("A", f"A:{qid}", c)
             elif izone is not None:
                 lines.append(f"A {name}|QID|{qid}|{ptag}{utag}Z|{izone}; {maps.maps[izone]['name']}|{gate}"
                              f"N|{note} (zone only: the wiki's {clean(page, 60)} page names where it drops, with no point)|")
@@ -1122,6 +1341,15 @@ class Gen:
                     pin = poi.get(qid, qo - 1)
                     if pin:
                         cc = (pin, " (location: Blizzard quest POI, the objective area)", "poi")
+                ckey = objective_key(qid, qo, use_qo, len(counted))
+                if cc and cc[2] == "wiki":
+                    contrib_check("C", ckey, cc[0])
+                elif not cc and contrib and ckey:
+                    ar = contrib.points(ckey, CONTRIB_POINTS)
+                    if ar:
+                        cc = (contrib.tag(ar), contrib.note(ar), "contrib")
+                elif not cc and contrib and f"C:{qid}:0" in contrib.areas:
+                    st["contrib_ambiguous"] += 1    # several objective steps without |QO| share the add-on's key 0
                 if not cc and fb:
                     f = fb.get(qid, "C", qo)
                     if f:
@@ -1153,8 +1381,14 @@ class Gen:
                     st["steps_fallback"] += 1
                     st["steps"] += 1
                 elif r["objectives_text"] and not DELIVERY.match(r["objectives_text"]):
-                    lines.append(f"C {name}|QID|{qid}|{gate}N|{prose}|")
-                    st["steps_none"] += 1
+                    # the one objective step of a quest whose page lists no bullets carries no |QO|: the add-on's key 0
+                    ar = contrib.points(objective_key(qid, 0, False, 1), CONTRIB_POINTS) if contrib else None
+                    if ar:
+                        lines.append(f"C {name}|QID|{qid}|{mz(contrib.tag(ar))}{gate}N|{prose}{contrib.note(ar)}|")
+                        st["steps_contrib"] += 1
+                    else:
+                        lines.append(f"C {name}|QID|{qid}|{gate}N|{prose}|")
+                        st["steps_none"] += 1
                     st["steps"] += 1
             # T (skipped for bonus objectives: they complete on their own)
             if not re.search(r"bonus objective", r["qtype"] or "", re.I):
@@ -1164,6 +1398,8 @@ class Gen:
                 if c:
                     lines.append(f"T {name}|QID|{qid}|{mz(c)}{gate}N|{note}{suf}|")
                     st[f"steps_{src}"] += 1
+                    if src == "wiki":
+                        contrib_check("T", f"T:{qid}", c)
                     # the wiki's turn-in point against the client's own turn-in pin (both builds; WIKI_DATA_SPEC.md 3)
                     pin = poi.get(qid, -1) if (poi and src == "wiki" and c[0] != "Z") else None
                     if pin and pin[0] == c[0]:
@@ -1193,7 +1429,9 @@ class Gen:
 
         # ---- write ------------------------------------------------------------------------------------
         today = datetime.date.today().isoformat()
-        out = GUIDES / f"Imported_Wiki_{fl}.lua"
+        if self.out_dir:
+            self.out_dir.mkdir(parents=True, exist_ok=True)
+        out = (self.out_dir or GUIDES) / f"Imported_Wiki_{fl}.lua"
         hdr = []
         if self.use_fallback:
             # the measurement file: outside CompletionRoute/, and it stops any client that loads it
@@ -1216,6 +1454,8 @@ class Gen:
             hdr.append("-- Steps whose note says \"(location: Blizzard quest POI, ...)\" take their map point from the client's "
                        f"quest pins, not from the wiki: Blizzard QuestPOIBlob + QuestPOIPoint tables via wago.tools, build "
                        f"{poi.build} (client data, facts only; see Guides/WIKI_DATA_LICENSE.md).")
+        if contrib and st["steps_contrib"]:
+            hdr.append(contrib.header())
         hdr += ["local _, NS = ...", flavor_gate(fl), "local R = NS.Guide.Register", ""]
         body = []
         # zone order, split of huge zone guides and the step order inside each guide: tools/wiki/gen_spine.py
@@ -1240,10 +1480,10 @@ class Gen:
         st["file_kb"] = out.stat().st_size // 1024
         if self.use_fallback:
             return st       # the measurement writes nothing else: no spine sidecar, no wiki.sqlite tables
-        gen_spine.write_sidecar(fl, parts, pre, cycles)
+        gen_spine.write_sidecar(fl, parts, pre, cycles, self.out_dir)
 
         # ---- SQL ---------------------------------------------------------------------------------------
-        db = sqlite3.connect(WIKI)
+        db = sqlite3.connect(self.out_dir / "wiki.sqlite" if self.out_dir else WIKI)
         db.executescript("""
         create table if not exists flavor_quests(flavor text, quest_id int, page_title text, steps int,
             primary key(flavor, quest_id));
@@ -1261,18 +1501,28 @@ class Gen:
         db.executemany("insert into flavor_skip values (?,?,?,?)", skip)
         db.executemany("insert into gen_stats values (?,?,?)", [(fl, k, v) for k, v in st.items()])
         db.commit()
+        db.close()
         return st
+
+    def verif(self):
+        """the chart: docs/verification.sqlite, or the one in the --out folder"""
+        return sqlite3.connect(self.out_dir / "verification.sqlite" if self.out_dir else VERIF)
 
     def point_sources(self, fl, st):
         """where each step's point came from, per client and build, into docs/verification.sqlite wiki_point_sources.
         build "no-fallback" is the build (the only one that is installed or shipped); "fallback" is the
-        --measure-fallback comparison"""
-        con = sqlite3.connect(VERIF)
+        --measure-fallback comparison.  Column contrib (player contributions) was added on 2026-11-12: a chart made
+        before that gets it here, 0 for its older rows."""
+        con = self.verif()
         con.execute("""create table if not exists wiki_point_sources(flavor text, build text, steps int, wiki int, poi int,
-                       place int, fallback int, zone int, none int, measured text, primary key (flavor, build))""")
-        con.execute("insert or replace into wiki_point_sources values (?,?,?,?,?,?,?,?,?,datetime('now'))",
+                       place int, fallback int, zone int, none int, measured text, contrib int default 0,
+                       primary key (flavor, build))""")
+        if "contrib" not in [c[1] for c in con.execute("pragma table_info(wiki_point_sources)")]:
+            con.execute("alter table wiki_point_sources add column contrib int default 0")
+        con.execute("insert or replace into wiki_point_sources (flavor, build, steps, wiki, poi, place, fallback, zone, "
+                    "none, measured, contrib) values (?,?,?,?,?,?,?,?,?,datetime('now'),?)",
                     (fl, "fallback" if self.use_fallback else "no-fallback", st["steps"], st["steps_wiki"], st["steps_poi"],
-                     st["steps_place"], st["steps_fallback"], st["steps_zone"], st["steps_none"]))
+                     st["steps_place"], st["steps_fallback"], st["steps_zone"], st["steps_none"], st["steps_contrib"]))
         con.commit()
         con.close()
 
@@ -1289,26 +1539,58 @@ class Gen:
         return Counter((c[0], c[2]) for c in rows)
 
     def write_conflicts(self, flavors):
-        con = sqlite3.connect(VERIF)
+        con = self.verif()
         con.execute("""create table if not exists wiki_db2_conflict(flavor text, quest_id int, field text,
                        wiki_value text, db2_value text, page_title text, revid int, note text)""")
         con.executemany("delete from wiki_db2_conflict where flavor=?", [(f,) for f in flavors])
         con.executemany("insert into wiki_db2_conflict values (?,?,?,?,?,?,?,?)", self.conflicts)
         con.commit()
+        con.close()
         return Counter((c[0], c[2]) for c in self.conflicts)
 
 
-def main():
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    unknown = [a for a in sys.argv[1:] if a.startswith("--") and a not in ("--measure-fallback", "--no-fallback", "--no-spine")]
-    bad = [a for a in args if a not in FLAVORS]
-    if unknown or bad:
-        raise SystemExit(f"gen_wiki_guides: unknown argument(s) {' '.join(unknown + bad)}")
+FLAGS = ("--measure-fallback", "--no-fallback", "--no-spine", "--no-contributions")
+VALUED = ("--contributions", "--out")
+
+
+def parse_args(argv):
+    """-> (flavors, flags, {option: value}); stops on anything it does not know"""
+    flavors, flags, opts, bad = [], set(), {}, []
+    it = iter(argv)
+    for a in it:
+        name, eq, val = a.partition("=")
+        if name in VALUED:
+            val = val if eq else next(it, "")
+            if not val or val.startswith("--"):
+                raise SystemExit(f"gen_wiki_guides: {name} needs a folder")
+            opts[name] = val
+        elif a in FLAGS:
+            flags.add(a)
+        elif a in FLAVORS:
+            flavors.append(a)
+        else:
+            bad.append(a)
+    if bad:
+        raise SystemExit(f"gen_wiki_guides: unknown argument(s) {' '.join(bad)}")
+    if "--measure-fallback" in flags and "--out" in opts:
+        raise SystemExit("gen_wiki_guides: --measure-fallback writes tools/measure/out/ only; --out does not apply")
+    if "--no-contributions" in flags and "--contributions" in opts:
+        raise SystemExit("gen_wiki_guides: --contributions and --no-contributions exclude each other")
+    return flavors, flags, opts
+
+
+def main(argv=None):
+    args, flags, opts = parse_args(sys.argv[1:] if argv is None else argv)
     flavors = args or FLAVORS
-    measure = "--measure-fallback" in sys.argv
-    g = Gen(fallback=measure)
+    measure = "--measure-fallback" in flags
+    cdir = None if (measure or "--no-contributions" in flags) else contributions_dir(opts.get("--contributions"))
+    g = Gen(fallback=measure, contributions=cdir, out=opts.get("--out"))
     if measure:
         print("MEASUREMENT ONLY (--measure-fallback): writing tools/measure/out/, nothing under CompletionRoute/")
+    elif g.out_dir:
+        print(f"writing everything into {g.out_dir} (--out): no guide, table or chart of the checkout is changed")
+    if not measure:
+        print(f"player contributions: {cdir}" if cdir else "player contributions: none read (no contributions folder)")
     print(f"{len(g.rows)} wiki quest rows, {len({r['id'] for r in g.rows})} ids; "
           f"{g.history_marked} NPC coordinates read as Classic-map numbers (pre-4.0.3 page history)")
     for fl in flavors:
@@ -1316,7 +1598,7 @@ def main():
         s = st["steps"] or 1
         print(f"{fl:6} wiki ids {st['wiki_quest_ids']}, assigned {st['assigned']}, guides {st['guides']}, "
               f"steps {st['steps']}: wiki coords {st['steps_wiki']} ({100*st['steps_wiki']/s:.1f}%), client quest POI "
-              f"{st['steps_poi']}, wiki place page {st['steps_place']}, "
+              f"{st['steps_poi']}, player contributions {st['steps_contrib']}, wiki place page {st['steps_place']}, "
               + (f"reference file {st['steps_fallback']} ({100*st['steps_fallback']/s:.1f}%), " if measure else "")
               + f"zone only {st['steps_zone']}, none {st['steps_none']} "
               f"({100*st['steps_none']/s:.1f}%); DB2-only gap {st['db2_only_gap']}; {st['file_kb']} KB")
@@ -1326,8 +1608,16 @@ def main():
               f"{st['item_quests_zone']}"
               + (f"; item-page points dropped for the reference point (over 300 yd): {st['item_points_far_from_fallback']}"
                  if measure else ""))
-        if not measure and "--no-spine" not in sys.argv:
-            gen_spine.build_spine(fl, flavor_gate(fl))
+        cb = g.contrib_seen.get(fl)
+        if cb is not None and not cb.path.is_file():
+            print(f"       player contributions: no areas/{fl}.json in that folder (nothing changes for {fl})")
+        elif cb is not None:
+            print(f"       player contributions: {len(cb.areas)} step keys usable, commit {cb.commit}; areas not used: "
+                  f"{dict(sorted(cb.skipped.items()))}; steps located {st['steps_contrib']}, wiki points over "
+                  f"{CONTRIB_FAR_YD:.0f} yd from a contributed area {st['contrib_conflicts']}, objective steps with an "
+                  f"ambiguous key {st['contrib_ambiguous']}")
+        if not measure and "--no-spine" not in flags:
+            gen_spine.build_spine(fl, flavor_gate(fl), g.out_dir)
     if measure:
         c = g.write_fallback_conflicts(flavors)
         print("wiki points far from the reference (docs/verification.sqlite wiki_fallback_conflict):", dict(c))

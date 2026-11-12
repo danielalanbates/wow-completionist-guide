@@ -917,13 +917,14 @@ def build_parts(fl, guides, pre, maps, chosen, rounds=80):
     return parts, cycles
 
 
-def write_sidecar(fl, parts, pre, cycles):
-    CACHE.mkdir(parents=True, exist_ok=True)
+def write_sidecar(fl, parts, pre, cycles, out_dir=None):
+    """out_dir (gen_wiki_guides.py --out): the sidecar goes there instead of tools/wiki/cache"""
+    (out_dir or CACHE).mkdir(parents=True, exist_ok=True)
     side = {"flavor": fl, "generated": datetime.date.today().isoformat(),
             "parts": [{k: v for k, v in p.items() if k != "lines"} for p in parts],
             "pre": {str(q): sorted(ps) for q, ps in pre.items() if ps},
             "cycles": cycles, "hard": list(HARD), "orders": dict(ORDERS)}
-    (CACHE / f"parts_{fl}.json").write_text(json.dumps(side), encoding="utf-8")
+    ((out_dir or CACHE) / f"parts_{fl}.json").write_text(json.dumps(side), encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -1072,8 +1073,10 @@ def lua_str(s):
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def build_spine(fl, gate_line=None):
-    side_p = CACHE / f"parts_{fl}.json"
+def build_spine(fl, gate_line=None, out_dir=None):
+    """out_dir (gen_wiki_guides.py --out): read the sidecar from that folder and write the spine file and the chart
+    (verification.sqlite) there, nothing in the checkout"""
+    side_p = (out_dir or CACHE) / f"parts_{fl}.json"
     if not side_p.exists():
         print(f"  spine {fl}: no {side_p.name} - run tools/wiki/gen_wiki_guides.py {fl} first")
         return None
@@ -1123,9 +1126,9 @@ def build_spine(fl, gate_line=None):
         stats[faction] = {"guides": len(seq), "quests": sum(len(p["quests"]) for p in seq),
                           "steps": sum(p["steps"] for p in seq), "pre_after": c.get("pre_after", 0),
                           "pre_not_in_spine": c.get("pre_not_in_spine", 0), "cycles_forced": forced}
-    out = GUIDES / f"Imported_Spine_{fl}.lua"
+    out = (out_dir or GUIDES) / f"Imported_Spine_{fl}.lua"
     out.write_text("\n".join(hdr + body) + "\n", encoding="utf-8")
-    con = sqlite3.connect(VERIF)
+    con = sqlite3.connect(out_dir / "verification.sqlite" if out_dir else VERIF)
     con.executescript("""
     create table if not exists spine_order(flavor text, faction text, position int, guide_id text, zone text,
         level_min int, level_max int, quests int, steps int, spine_id text, name text);
