@@ -22,7 +22,7 @@ f:Hide()
 tinsert(UISpecialFrames, "CompletionRouteGuideMenu")
 
 local title = f:CreateFontString(nil, "OVERLAY", U.Font("Large"))
-title:SetPoint("TOP", 0, -10); title:SetText("CompletionRoute Guides")
+title:SetPoint("TOP", 0, -10); title:SetText("Routes")
 local close = CreateFrame("Button", nil, f, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -2, -2)
 
 -- Scope selector: whose progress the numbers below are about.  Four settings, narrow to wide (this character, this

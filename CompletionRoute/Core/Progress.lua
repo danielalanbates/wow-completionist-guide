@@ -633,7 +633,7 @@ function P.Refresh(force)
         if G.IsSideGuide(P.guide) then
             if P.finishedNotice ~= P.guide.id then
                 P.finishedNotice = P.guide.id
-                NS:Print("Guide finished: " .. (P.guide.name or P.guide.id) .. ". Pick the next one with /cr guides.")
+                NS:Print("Guide finished: " .. (P.guide.name or P.guide.id) .. ". Pick the next one with /cr routes.")
             end
             return
         end
@@ -779,7 +779,7 @@ local function autoload(attempt)
             NS.db.char.welcomed = true
             if NS.GuideMenu and NS.GuideMenu.Show then
                 NS.GuideMenu.Show()
-                NS:Print("Pick a guide to start: the list is open (/cr guides opens it again).")
+                NS:Print("Pick a route to start: the list is open (/cr routes opens it again).")
                 return
             end
         end
@@ -787,7 +787,7 @@ local function autoload(attempt)
         local s = G.SuggestNext(nil) or G.Suggest()  -- location-aware pick at login too
         if s then P.Load(s.id)
         elseif attempt < 3 then NS:After(6, function() autoload(attempt + 1) end)  -- adapters may still be importing
-        else NS:Print("No guide matched your level/faction. /or guides") end
+        else NS:Print("No route matched your level/faction. /cr routes") end
     end)
     if not ok then
         P.chainLoading = nil     -- the failed Load never reached the line that clears it

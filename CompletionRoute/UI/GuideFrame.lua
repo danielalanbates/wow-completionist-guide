@@ -8,7 +8,8 @@ NS.GuideFrame = GF
 
 local f = CreateFrame("Frame", "CompletionRouteFrame", UIParent, "BackdropTemplate")
 GF.frame = f
-f:SetSize(430, 196)
+GF.BASE_W, GF.BASE_H = 460, 150      -- width; the least height (FitHeight grows it to fit the text)
+f:SetSize(GF.BASE_W, GF.BASE_H)
 f:SetPoint("CENTER")
 f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
 f:SetBackdropColor(0.03, 0.03, 0.05, 0.93)
@@ -19,8 +20,10 @@ f:RegisterForDrag("LeftButton")
 f:SetScript("OnDragStart", function(self) if not NS.db.profile.frame.lock then self:StartMoving() end end)
 f:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
-    local p, _, _, x, y = self:GetPoint()
-    NS.db.profile.frame.point, NS.db.profile.frame.x, NS.db.profile.frame.y = p, x, y
+    if not (NS.GuideFrame.AnchorTopLeft and NS.GuideFrame.AnchorTopLeft()) then
+        local p, _, _, x, y = self:GetPoint()
+        NS.db.profile.frame.point, NS.db.profile.frame.x, NS.db.profile.frame.y = p, x, y
+    end
 end)
 f:SetFrameStrata("MEDIUM")
 
@@ -39,7 +42,7 @@ local function smallButton(text, w, tip, onClick, parent)
 end
 local bClose = smallButton("x", 20, "Hide (/or show)", function() f:Hide() end)
 bClose:SetPoint("TOPRIGHT", -6, -6)
-local bMenu = smallButton("Guides", 48, "Choose a guide", function() NS.GuideMenu.Toggle() end)
+local bMenu = smallButton("Routes", 52, "Choose a route", function() NS.GuideMenu.Toggle() end)
 bMenu:SetPoint("RIGHT", bClose, "LEFT", -2, 0)
 -- Contribute (Core/Contribute.lua): while ticked, the addon notes where steps are done to build the location database
 local cbContrib = CreateFrame("CheckButton", "CompletionRouteContributeCheck", f, "UICheckButtonTemplate")
@@ -75,25 +78,60 @@ bBug:SetPoint("LEFT", bOpt, "RIGHT", 2, 0)
 local pathText = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 pathText:SetPoint("BOTTOMLEFT", 10, 8); pathText:SetPoint("RIGHT", -24, 0)
 pathText:SetJustifyH("LEFT"); pathText:SetTextColor(0.6, 0.85, 1)
-pathText:SetWordWrap(false)
+pathText:SetWordWrap(true); if pathText.SetMaxLines then pathText:SetMaxLines(2) end
 
--- resize grip (bottom-right): drag to scale the whole window
+-- Keep the window hung from its top-left corner: it then grows down and to the right, both when the grip scales it
+-- and when its height follows the text (fitHeight below).  Anchored by its centre (the old default) it grew in every
+-- direction at once, which read as "bigger the opposite way from the drag".
+local function anchorTopLeft()
+    local l, t = f.GetLeft and f:GetLeft(), f.GetTop and f:GetTop()
+    local ph = UIParent and UIParent.GetHeight and UIParent:GetHeight()
+    local sc = (f.GetScale and f:GetScale()) or 1
+    if not (l and t and ph and sc and sc > 0) then return false end
+    local x, y = l, t - ph / sc
+    f:ClearAllPoints(); f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", x, y)
+    local p = NS.db and NS.db.profile.frame
+    if p then p.point, p.x, p.y = "TOPLEFT", x, y end
+    return true
+end
+GF.AnchorTopLeft = anchorTopLeft
+
+-- resize grip (bottom-right): drag away from the window to make it bigger, toward it to make it smaller.  The whole
+-- window scales; its top-left corner stays where it is and the grip follows the mouse.
 local grip = CreateFrame("Button", nil, f)
 grip:SetSize(20, 20); grip:SetPoint("BOTTOMRIGHT", -2, 2)
 grip:SetNormalTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
 grip:SetHighlightTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Highlight")
 grip:SetScript("OnMouseDown", function()
-    grip.drag = true
-    grip.y0 = select(2, GetCursorPosition())
-    grip.s0 = f:GetScale()
+    local us = (UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+    local cx, cy = GetCursorPosition()
+    local s0 = f:GetScale()
+    local l, t = f:GetLeft(), f:GetTop()
+    if not (cx and cy and l and t and us > 0) then return end
+    grip.drag = { cx = cx / us, cy = cy / us, s0 = s0, left = l * s0, top = t * s0, w = f:GetWidth() * s0, h = f:GetHeight() * s0 }
 end)
-grip:SetScript("OnMouseUp", function() grip.drag = nil NS.db.profile.frame.scale = f:GetScale() end)
-grip:SetScript("OnUpdate", function()
-    if not grip.drag then return end
-    local y = select(2, GetCursorPosition())
-    local s = math.max(0.6, math.min(2.0, grip.s0 + (grip.y0 - y) / 400))
+local function gripApply()
+    local d = grip.drag
+    if not d then return end
+    local us = (UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+    local cx, cy = GetCursorPosition()
+    if not (cx and cy) then return end
+    local dx, dy = cx / us - d.cx, d.cy - cy / us            -- right and down are positive
+    local grow = (dx / d.w + dy / d.h) / 2                   -- the corner follows the mouse along the diagonal
+    local s = math.max(0.6, math.min(2.5, d.s0 * (1 + grow)))
     f:SetScale(s)
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", d.left / s, (d.top - UIParent:GetHeight()) / s)
+end
+grip:SetScript("OnMouseUp", function()
+    if not grip.drag then return end
+    gripApply()
+    grip.drag = nil
+    local p = NS.db.profile.frame
+    p.scale = f:GetScale()
+    anchorTopLeft()
 end)
+grip:SetScript("OnUpdate", function() if grip.drag then gripApply() end end)
 
 -- shown instead of an empty list, so finishing the last step never looks like the addon died
 local empty = f:CreateFontString(nil, "OVERLAY", U.Font("Body"))
@@ -110,10 +148,10 @@ card.bg = card:CreateTexture(nil, "BACKGROUND"); card.bg:SetAllPoints(); card.bg
 card.icon = card:CreateTexture(nil, "ARTWORK"); card.icon:SetSize(30, 30); card.icon:SetPoint("TOPLEFT", 6, -6)
 card.title = card:CreateFontString(nil, "OVERLAY", U.Font("Large"))
 card.title:SetPoint("TOPLEFT", card.icon, "TOPRIGHT", 8, -2); card.title:SetPoint("RIGHT", -6, 0)
-card.title:SetJustifyH("LEFT"); card.title:SetWordWrap(true); card.title:SetMaxLines(2)
+card.title:SetJustifyH("LEFT"); card.title:SetWordWrap(true); card.title:SetMaxLines(3)
 card.note = card:CreateFontString(nil, "OVERLAY", U.Font("Body"))
 card.note:SetPoint("TOPLEFT", card.icon, "BOTTOMLEFT", 0, -8); card.note:SetPoint("RIGHT", -6, 0)
-card.note:SetJustifyH("LEFT"); card.note:SetWordWrap(true); card.note:SetMaxLines(4); card.note:SetTextColor(0.85, 0.85, 0.85)
+card.note:SetJustifyH("LEFT"); card.note:SetWordWrap(true); card.note:SetMaxLines(8); card.note:SetTextColor(0.85, 0.85, 0.85)
 card.where = card:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 card.where:SetPoint("BOTTOMLEFT", 6, 6); card.where:SetPoint("RIGHT", -6, 0)
 card.where:SetJustifyH("LEFT"); card.where:SetWordWrap(false); card.where:SetTextColor(0.6, 0.85, 1)
@@ -167,10 +205,11 @@ end
 
 function GF.Update()
     if not P.guide then
-        titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r - no guide (/cr guides)")
+        titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r - no route (/cr routes)")
         card:Hide()
-        empty:SetText("No guide loaded.\nClick |cffffd200Guides|r above, or type /cr guides.")
+        empty:SetText("No route loaded.\nClick |cffffd200Routes|r above, or type /cr routes.")
         empty:Show()
+        GF.FitHeight()
         bBack:Disable() bFwd:Disable()
         return
     end
@@ -198,13 +237,14 @@ function GF.Update()
         card:Hide()
         local applicable = #P.Pending(1)
         if done >= total and total > 0 then
-            empty:SetText(("|cff00ff00Guide complete|r - all %d steps done.\nClick |cffffd200Guides|r for the next one (the |cff7ddf8fNext Step|r category lists everything matched to your level)."):format(total))
+            empty:SetText(("|cff00ff00Guide complete|r - all %d steps done.\nClick |cffffd200Routes|r for the next one (the |cff7ddf8fNext Step|r category lists everything matched to your level)."):format(total))
         elseif applicable == 0 then
             empty:SetText("No steps in this guide apply to you right now.\nThey may be for the other faction, another class, or a level you have passed.\nTry |cffffd200Guides|r -> |cff7ddf8fNext Step|r, or /cr why.")
         else
             empty:SetText("Nothing to show - type /cr why for the reason.")
         end
         empty:Show()
+        GF.FitHeight()
         pathText:SetText("")
         return
     end
@@ -236,6 +276,25 @@ function GF.Update()
     card.where:SetText(where)
     local path = NS.Router and NS.Router.CurrentPath()
     pathText:SetText(path and NS.TravelGraph.Summary(path) or "")
+    GF.FitHeight()
+end
+
+-- The window is as tall as its text: the step's title (up to 3 lines), its note (up to 8), the distance line and
+-- the travel line.  A fixed 170 px cut long notes off once the text grew (beta feedback, 2026-11-11).
+local function sh(fs) local h = fs.GetStringHeight and fs:GetStringHeight() return (type(h) == "number" and h > 0) and h or 0 end
+function GF.FitHeight()
+    if not card:IsShown() then
+        f:SetHeight(math.max(GF.BASE_H, 56 + (empty:IsShown() and sh(empty) or 0) + 30))
+        return
+    end
+    local head = math.max(30, sh(card.title) + 2)
+    local note = sh(card.note)
+    local where = sh(card.where)
+    local cardH = 6 + head + (note > 0 and (8 + note) or 0) + (where > 0 and (8 + where) or 0) + 8
+    local foot = math.max(26, sh(pathText) + 14)
+    card:ClearAllPoints()
+    card:SetPoint("TOPLEFT", 34, -50); card:SetPoint("BOTTOMRIGHT", -34, foot)
+    f:SetHeight(math.max(GF.BASE_H, 50 + cardH + foot))
 end
 
 function GF.RowsShown() return (P.guide and P.current and card:IsShown()) and 1 or 0 end
@@ -394,7 +453,8 @@ function GF.ApplySettings()
     local p = NS.db.profile.frame
     f:ClearAllPoints(); f:SetPoint(p.point or "CENTER", UIParent, p.point or "CENTER", p.x or 0, p.y or 0)
     f:SetScale(p.scale or 1); f:SetAlpha(p.alpha or 1)
-    f:SetSize(430, 196)   -- one-step window: fixed height (old profiles carry the multi-row height)
+    f:SetSize(GF.BASE_W, GF.BASE_H)   -- one-step window: the height then follows the text (GF.FitHeight)
+    anchorTopLeft()                   -- old profiles are anchored by their centre: re-hang from the top-left corner
 end
 function GF.Toggle() if f:IsShown() then f:Hide() else f:Show() GF.Update() end end
 NS:On("PLAYER_READY", GF.ApplySettings)
