@@ -88,9 +88,9 @@ client data (a fact: where the game draws the quest's area), not wiki text, and 
 
 **Player contributions (shipped when there are any).** A step whose note says
 `(location: player contributions, N players)` takes its map point from where players of this add-on stood when they
-accepted the quest, turned it in or made progress on the objective. Players switch this on themselves (the
-**Contribute** box), export a text that holds map positions and quest ids only (no character, realm or account
-name, no times) and send it to the open data repository, `wow-completionist-data`
+accepted the quest, turned it in, made progress on the objective or ticked the step by hand. Players switch this on
+themselves (the **Contribute** box), export a text that holds the client flavor and build, quest ids or step keys,
+map ids, positions and weights (no character, realm or account name, no times) and send it to the open data repository, `wow-completionist-data`
 (<https://github.com/danielalanbates/wow-completionist-data>), where the contributions are merged and published under
 CC BY-SA 4.0. Only places a maintainer played or two or more players agree on are used, and only for a step that
 neither the wiki nor a quest pin places. A file with such steps names the repository and the commit of the merged

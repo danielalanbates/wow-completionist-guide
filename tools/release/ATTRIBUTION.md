@@ -43,9 +43,10 @@ Blizzard Entertainment. Files built only from these tables:
 ## Player contributions (CC BY-SA 4.0)
 
 A step whose note says "(location: player contributions, N players)" takes its map point from positions that
-players of this add-on chose to share: where they stood when they accepted a quest, turned it in or made progress on
-an objective. The contributions hold map positions and quest ids only (no character, realm or account names). They
-are merged and published in the open data repository wow-completionist-data,
+players of this add-on chose to share: where they stood when they accepted a quest, turned it in, made progress on
+an objective or ticked the step by hand. A contribution holds the client flavor and build, quest ids or step keys,
+map ids, positions and weights, and nothing else (no character, realm or account names, no times). Contributions are merged
+and published in the open data repository wow-completionist-data,
 https://github.com/danielalanbates/wow-completionist-data, under CC BY-SA 4.0
 (https://creativecommons.org/licenses/by-sa/4.0/). A point is used only for a step that the wiki and the client's
 quest pin do not place. Each file with such steps names the repository and the commit of the merged data in its
