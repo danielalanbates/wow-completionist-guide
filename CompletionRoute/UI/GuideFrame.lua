@@ -8,78 +8,118 @@ NS.GuideFrame = GF
 
 local f = CreateFrame("Frame", "CompletionRouteFrame", UIParent, "BackdropTemplate")
 GF.frame = f
-GF.BASE_W, GF.BASE_H = 460, 150      -- width; the least height (FitHeight grows it to fit the text)
+-- The window, top to bottom (one hierarchy, nothing shares a line with anything it could run into):
+--   title line   route name (cut with "..." when long) . "step N of M" (never cut) . Contribute, Routes, "...", x
+--   card         icon + "<Action>  <title>" (up to L.titleLines lines), the note (up to L.noteLines), one distance line
+--   travel line  how to get there (up to L.pathLines lines)
+-- with the back and forward arrows left and right of the card.  Everything used rarely lives behind the "..." button.
+-- GF.L holds the layout numbers; tools/audit_step_text.lua reads this table from the source to size the texts and
+-- tools/test_step_window.lua checks the rules FitHeight follows, so keep it one literal table of numbers.
+GF.BASE_W, GF.BASE_H = 460, 120      -- width; the least height (FitHeight grows it to fit the text)
+GF.L = { side = 34, top = 30, pad = 6, icon = 30, gap = 8, titleLines = 3, noteLines = 8, pathLines = 3, pathInset = 34 }
+local L = GF.L
 f:SetSize(GF.BASE_W, GF.BASE_H)
 f:SetPoint("CENTER")
 f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
 f:SetBackdropColor(0.03, 0.03, 0.05, 0.93)
 f:SetBackdropBorderColor(0.3, 0.6, 0.9, 0.9)
 f:SetMovable(true); f:EnableMouse(true); f:SetClampedToScreen(true); f:SetResizable(true)
-if f.SetResizeBounds then f:SetResizeBounds(240, 120) elseif f.SetMinResize then f:SetMinResize(240, 120) end
+if f.SetResizeBounds then f:SetResizeBounds(240, 100) elseif f.SetMinResize then f:SetMinResize(240, 100) end
 f:RegisterForDrag("LeftButton")
-f:SetScript("OnDragStart", function(self) if not NS.db.profile.frame.lock then self:StartMoving() end end)
-f:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
+local function dragStart() if not NS.db.profile.frame.lock then f:StartMoving() end end
+local function dragStop()
+    f:StopMovingOrSizing()
     if not (NS.GuideFrame.AnchorTopLeft and NS.GuideFrame.AnchorTopLeft()) then
-        local p, _, _, x, y = self:GetPoint()
+        local p, _, _, x, y = f:GetPoint()
         NS.db.profile.frame.point, NS.db.profile.frame.x, NS.db.profile.frame.y = p, x, y
     end
-end)
+end
+f:SetScript("OnDragStart", dragStart)
+f:SetScript("OnDragStop", dragStop)
 f:SetFrameStrata("MEDIUM")
-
--- title bar
-local titleText = f:CreateFontString(nil, "OVERLAY", U.Font("Title"))
-titleText:SetPoint("TOPLEFT", 10, -8); titleText:SetPoint("RIGHT", -180, 0); titleText:SetJustifyH("LEFT")
-titleText:SetWordWrap(false)      -- one line, cut with "..." : a wrapped title ran over the button row under it
-titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r")
 
 local function smallButton(text, w, tip, onClick, parent)
     local b = CreateFrame("Button", nil, parent or f, "UIPanelButtonTemplate")
     b:SetSize(w, 18); b:SetText(text)
     b:SetScript("OnClick", onClick)
-    b:SetScript("OnEnter", function(self) GameTooltip:SetOwner(self, "ANCHOR_TOP") GameTooltip:SetText(tip) GameTooltip:Show() end)
+    b:SetScript("OnEnter", function(self) GameTooltip:SetOwner(self, "ANCHOR_TOP") GameTooltip:SetText(tip, 1, 1, 1, 1, true) GameTooltip:Show() end)
     b:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return b
 end
-local bClose = smallButton("x", 20, "Hide (/or show)", function() f:Hide() end)
+
+-- title line, right to left: close, "..." (the rarely used things), Routes, the Contribute box and its word
+local bClose = smallButton("x", 20, "Hide this window", function() f:Hide() end)
 bClose:SetPoint("TOPRIGHT", -6, -6)
+local bMore = smallButton("...", 24, "More: step order, options, report a bug, start this route over", function(self) GF.ToggleMore(self) end)
+bMore:SetPoint("RIGHT", bClose, "LEFT", -2, 0)
 local bMenu = smallButton("Routes", 52, "Choose a route", function() NS.GuideMenu.Toggle() end)
-bMenu:SetPoint("RIGHT", bClose, "LEFT", -2, 0)
+bMenu:SetPoint("RIGHT", bMore, "LEFT", -2, 0)
 -- Contribute (Core/Contribute.lua): while ticked, the addon notes where steps are done to build the location database
 local cbContrib = CreateFrame("CheckButton", "CompletionRouteContributeCheck", f, "UICheckButtonTemplate")
 cbContrib:SetSize(20, 20); cbContrib:SetPoint("RIGHT", bMenu, "LEFT", -4, 0)
-local cbLabel = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
-cbLabel:SetPoint("RIGHT", cbContrib, "LEFT", -1, 0); cbLabel:SetText("Contribute")
+-- the word is a button: a click opens the text to share (the owner does not type /cr contribute export)
+local cbLabel = CreateFrame("Button", "CompletionRouteContributeLabel", f)
+cbLabel:SetSize(62, 18); cbLabel:SetPoint("RIGHT", cbContrib, "LEFT", -1, 0)
+cbLabel.text = cbLabel:CreateFontString(nil, "OVERLAY", U.Font("Small"))
+cbLabel.text:SetPoint("RIGHT", 0, 0); cbLabel.text:SetText("Contribute")
+cbLabel.line = cbLabel:CreateTexture(nil, "HIGHLIGHT")
+cbLabel.line:SetPoint("BOTTOMLEFT", 0, 1); cbLabel.line:SetPoint("BOTTOMRIGHT", 0, 1); cbLabel.line:SetHeight(1)
+cbLabel.line:SetColorTexture(0.6, 0.85, 1, 0.9)
+cbLabel:SetScript("OnClick", function() if NS.Contribute and NS.Contribute.ShowExport then NS.Contribute.ShowExport() end end)
+cbLabel:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetText("Contribute: share what you collected")
+    GameTooltip:AddLine("Click to open the places this client has collected as a text you can copy and send to the open quest database.", 1, 1, 1, true)
+    GameTooltip:AddLine("Tick the box on the right to collect.", 0.6, 0.85, 1, true)
+    GameTooltip:Show()
+end)
+cbLabel:SetScript("OnLeave", function() GameTooltip:Hide() end)
 cbContrib:SetScript("OnClick", function(self) NS.Contribute.SetEnabled(self:GetChecked() and true or false) end)
 cbContrib:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:SetText("Contribute locations")
     GameTooltip:AddLine("While this is ticked, the addon notes where you are standing when you accept or turn in a quest, when a quest objective ticks up, and when you click the forward arrow.", 1, 1, 1, true)
     GameTooltip:AddLine("It builds the most likely spot for every step, uses it for steps that have no location, and draws the areas on your map.", 1, 1, 1, true)
-    GameTooltip:AddLine("Only map positions and quest ids are kept, on this computer. /cr contribute export gives a text you can share.", 0.6, 0.85, 1, true)
+    GameTooltip:AddLine("Only map positions and quest ids are kept, on this computer. Click the word Contribute for a text you can share.", 0.6, 0.85, 1, true)
     GameTooltip:Show()
 end)
 cbContrib:SetScript("OnLeave", function() GameTooltip:Hide() end)
 local function syncContrib() cbContrib:SetChecked(NS.Contribute and NS.Contribute.Enabled() or false) end
 NS:On("PLAYER_READY", syncContrib)
 NS:On("CONTRIBUTE_CHANGED", syncContrib)
-GF.contribute = cbContrib
-local bRoute = smallButton("Route", 44, "Toggle route optimizer (reordering)", function()
-    NS.db.profile.routing.reorder = not NS.db.profile.routing.reorder
-    NS:Print("Step reordering " .. (NS.db.profile.routing.reorder and "ON" or "OFF"))
-    P.Refresh()
+GF.contribute, GF.contributeLabel, GF.more = cbContrib, cbLabel, bMore
+
+-- "step N of M": its own string so a long route name can never push it off the line
+local stepText = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
+stepText:SetPoint("RIGHT", cbLabel, "LEFT", -8, 0)
+stepText:SetJustifyH("RIGHT"); stepText:SetWordWrap(false); stepText:SetTextColor(0.62, 0.62, 0.62)
+-- route name: one line between the window's left edge and the step count, cut with "..." (a wrapped title ran over
+-- whatever was under it); the whole name is in the tooltip of the title line
+local titleText = f:CreateFontString(nil, "OVERLAY", U.Font("Title"))
+titleText:SetPoint("LEFT", f, "TOPLEFT", 10, -15); titleText:SetPoint("RIGHT", stepText, "LEFT", -8, 0)
+titleText:SetJustifyH("LEFT"); titleText:SetWordWrap(false)
+titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r")
+GF.titleText, GF.stepText = titleText, stepText
+local titleHit = CreateFrame("Frame", nil, f)
+titleHit:SetPoint("TOPLEFT", f, "TOPLEFT", 6, -5); titleHit:SetPoint("RIGHT", stepText, "RIGHT", 0, 0); titleHit:SetHeight(20)
+titleHit:EnableMouse(true); titleHit:RegisterForDrag("LeftButton")
+titleHit:SetScript("OnDragStart", dragStart)
+titleHit:SetScript("OnDragStop", dragStop)
+titleHit:SetScript("OnEnter", function(self)
+    if not P.guide then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetText(P.guide.name or P.guide.id, 0.24, 0.78, 1, 1, true)
+    if GF.stepLine and GF.stepLine ~= "" then GameTooltip:AddLine(GF.stepLine, 1, 1, 1, true) end
+    GameTooltip:AddLine("Drag to move the window.", 0.6, 0.6, 0.6, true)
+    GameTooltip:Show()
 end)
-bRoute:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -28)
-local bOpt = smallButton("Opts", 40, "Options", function() NS.Options.Open() end)
-bOpt:SetPoint("LEFT", bRoute, "RIGHT", 2, 0)
-local bBug = smallButton("Report", 52, "Save a bug report: guide, step, position, route and recent log (/cr bug [note])",
-    function() NS.BugReport.FromButton() end)
-bBug:SetPoint("LEFT", bOpt, "RIGHT", 2, 0)
+titleHit:SetScript("OnLeave", function() GameTooltip:Hide() end)
 
 local pathText = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
-pathText:SetPoint("BOTTOMLEFT", 10, 8); pathText:SetWidth(GF.BASE_W - 34)
+pathText:SetPoint("BOTTOMLEFT", 10, 8); pathText:SetWidth(GF.BASE_W - L.pathInset)
 pathText:SetJustifyH("LEFT"); pathText:SetTextColor(0.6, 0.85, 1)
-pathText:SetWordWrap(true); if pathText.SetMaxLines then pathText:SetMaxLines(2) end
+pathText:SetWordWrap(true); if pathText.SetMaxLines then pathText:SetMaxLines(L.pathLines) end
+GF.pathText = pathText
 
 -- Keep the window hung from its top-left corner: it then grows down and to the right, both when the grip scales it
 -- and when its height follows the text (fitHeight below).  Anchored by its centre (the old default) it grew in every
@@ -134,27 +174,33 @@ grip:SetScript("OnMouseUp", function()
 end)
 grip:SetScript("OnUpdate", function() if grip.drag then gripApply() end end)
 
--- shown instead of an empty list, so finishing the last step never looks like the addon died
+-- shown instead of an empty list, so finishing the last step never looks like the addon died; a route with marks
+-- gets a Start over button under the text (GF.StartOver)
 local empty = f:CreateFontString(nil, "OVERLAY", U.Font("Body"))
-empty:SetPoint("TOPLEFT", 36, -56); empty:SetPoint("RIGHT", -36, 0)
+empty:SetPoint("TOPLEFT", L.side + 2, -(L.top + 6)); empty:SetWidth(GF.BASE_W - 2 * (L.side + 2))
 empty:SetJustifyH("LEFT"); empty:SetWordWrap(true); empty:Hide()
+local bRestart = smallButton("Start over", 96, "Clear this route's finished steps for this character and begin again at its first step", function() GF.StartOver() end)
+bRestart:SetHeight(22)
+bRestart:SetPoint("TOPLEFT", empty, "BOTTOMLEFT", 0, -8)
+bRestart:Hide()
+GF.empty, GF.restart = empty, bRestart
 
 -- ---------------------------------------------------------------------------
 -- ONE step at a time. Nothing to tick: steps complete themselves from quest log,
 -- inventory, position and taxi/bind events (Progress.CheckStep). The arrows move by hand.
 -- ---------------------------------------------------------------------------
 local card = CreateFrame("Button", nil, f)
-card:SetPoint("TOPLEFT", 34, -50); card:SetPoint("BOTTOMRIGHT", -34, 26)
+card:SetPoint("TOPLEFT", L.side, -L.top); card:SetPoint("BOTTOMRIGHT", -L.side, 26)
 card.bg = card:CreateTexture(nil, "BACKGROUND"); card.bg:SetAllPoints(); card.bg:SetColorTexture(0.3, 0.6, 0.9, 0.10)
-card.icon = card:CreateTexture(nil, "ARTWORK"); card.icon:SetSize(30, 30); card.icon:SetPoint("TOPLEFT", 6, -6)
+card.icon = card:CreateTexture(nil, "ARTWORK"); card.icon:SetSize(L.icon, L.icon); card.icon:SetPoint("TOPLEFT", L.pad, -L.pad)
 card.title = card:CreateFontString(nil, "OVERLAY", U.Font("Large"))
-card.title:SetPoint("TOPLEFT", card.icon, "TOPRIGHT", 8, -2)
-card.title:SetJustifyH("LEFT"); card.title:SetWordWrap(true); card.title:SetMaxLines(3)
+card.title:SetPoint("TOPLEFT", card.icon, "TOPRIGHT", L.gap, -2)
+card.title:SetJustifyH("LEFT"); card.title:SetWordWrap(true); card.title:SetMaxLines(L.titleLines)
 card.note = card:CreateFontString(nil, "OVERLAY", U.Font("Body"))
-card.note:SetPoint("TOPLEFT", card.icon, "BOTTOMLEFT", 0, -8)
-card.note:SetJustifyH("LEFT"); card.note:SetWordWrap(true); card.note:SetMaxLines(8); card.note:SetTextColor(0.85, 0.85, 0.85)
+card.note:SetPoint("TOPLEFT", card.icon, "BOTTOMLEFT", 0, -L.gap)
+card.note:SetJustifyH("LEFT"); card.note:SetWordWrap(true); card.note:SetMaxLines(L.noteLines); card.note:SetTextColor(0.85, 0.85, 0.85)
 card.where = card:CreateFontString(nil, "OVERLAY", U.Font("Small"))
-card.where:SetPoint("BOTTOMLEFT", 6, 6)
+card.where:SetPoint("BOTTOMLEFT", L.pad, 6)
 card.where:SetJustifyH("LEFT"); card.where:SetWordWrap(false); card.where:SetTextColor(0.6, 0.85, 1)
 card:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 card:SetScript("OnClick", function(self, button)
@@ -171,7 +217,7 @@ card:SetScript("OnEnter", function(self)
     if s.qid then GameTooltip:AddLine("Quest ID: " .. table.concat(s.qid, ", "), 0.6, 0.6, 0.6) end
     if s.zone then GameTooltip:AddLine("Zone: " .. U.MapName(s.zone) .. (s.coords and (" " .. string.format("%.1f, %.1f", s.coords[1].x * 100, s.coords[1].y * 100)) or ""), 0.6, 0.6, 0.6) end
     if s.item then GameTooltip:AddLine("Uses item: " .. U.ItemName(s.item), 0.6, 1, 0.6) end
-    GameTooltip:AddLine("|cff888888Click for details, right-click to skip. Steps complete themselves; use the arrows to move by hand.|r", 1, 1, 1, true)
+    GameTooltip:AddLine("|cff888888Click for details, right-click to skip or to start the route over. Steps complete themselves; use the arrows to move by hand.|r", 1, 1, 1, true)
     GameTooltip:Show()
 end)
 card:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -190,9 +236,9 @@ local function arrow(dir, tip, fn)
     return b
 end
 local bBack = arrow("L", "Back one step (reopens the previous step and keeps it open)", function() P.Undo() end)
-bBack:SetPoint("LEFT", f, "LEFT", 4, -6)
+bBack:SetPoint("RIGHT", card, "LEFT", -4, 0)     -- beside the card, so neither arrow can reach the title or travel line
 local bFwd = arrow("R", "Forward one step (mark this one done)", function() P.Forward() end)
-bFwd:SetPoint("RIGHT", f, "RIGHT", -4, -6)
+bFwd:SetPoint("LEFT", card, "RIGHT", 4, 0)
 GF.card, GF.back, GF.forward = card, bBack, bFwd
 
 local function stepColor(step)
@@ -204,13 +250,26 @@ local function stepColor(step)
     return 1, 1, 1
 end
 
+-- title line: the route's name on the left, where you are in it on the right (GF.stepLine is the plain text, for the tooltip)
+local function setTitle(name, stepLine, extra)
+    titleText:SetText(name)
+    GF.stepLine = stepLine or ""
+    stepText:SetText((stepLine or "") .. (extra or ""))
+end
+local function showEmpty(text, restart)
+    card:Hide()
+    empty:SetText(text)
+    empty:Show()
+    GF.restartShown = restart and true or false
+    if GF.restartShown then bRestart:Show() else bRestart:Hide() end
+    pathText:SetText("")
+    GF.FitHeight()
+end
+
 function GF.Update()
     if not P.guide then
-        titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r - no route (/cr routes)")
-        card:Hide()
-        empty:SetText("No route loaded.\nClick |cffffd200Routes|r above, or type /cr routes.")
-        empty:Show()
-        GF.FitHeight()
+        setTitle("|cff7ddf8fCompletion|r|cffffd200Route|r", "")
+        showEmpty("No route loaded.\nClick |cffffd200Routes|r above to pick one.", false)
         bBack:Disable() bFwd:Disable()
         return
     end
@@ -221,35 +280,36 @@ function GF.Update()
     if s then   -- position in the loaded list (access-chain steps carry negative indices and sit in front)
         for i, st in ipairs(P.steps) do if st == s then pos = i break end end
     end
-    local label = (s and s.access) and "unlock step" or "step"
+    local name = ("|cff3ec6ff%s|r"):format(P.guide.name or P.guide.id)
+    local worth = ""
     if P.guide.loop then
-        -- a circuit has no end: show which lap you are on and what it has been worth
+        -- a circuit has no end: show which lap you are on; what it has been worth goes on the card's distance line
         local st = NS.Farm and NS.Farm.Stats(P.guide.id)
-        local worth = st and (" |cffffd200%s/hr|r"):format(U.FmtMoney(st.perHour)) or ""
-        titleText:SetText(("|cff3ec6ff%s|r  |cff888888lap %d - waypoint %d of %d|r%s"):format(
-            P.guide.name or P.guide.id, (P.Lap and P.Lap(P.guide.id) or 0) + 1, math.min(pos, total), total, worth))
+        worth = st and ("%s/hr"):format(U.FmtMoney(st.perHour)) or ""
+        setTitle(name, ("lap %d, stop %d of %d"):format((P.Lap and P.Lap(P.guide.id) or 0) + 1, math.min(pos, total), total))
     else
-    titleText:SetText(("|cff3ec6ff%s|r  |cff888888%s %d of %d|r%s"):format(P.guide.name or P.guide.id, label, math.min(pos, total), total,
-        (NS.Replan and NS.Replan.running) and "  |cff6ac9ffre-planning...|r" or ""))
+        setTitle(name, ("%s %d of %d"):format((s and s.access) and "unlock step" or "step", math.min(pos, total), total),
+            (NS.Replan and NS.Replan.running) and "  |cff6ac9ffre-planning...|r" or "")
     end
-    bBack:SetEnabled(done > 0 or next((select(2, P.MarkSets()))) ~= nil)
+    local _, skippedSet = P.MarkSets()
+    local marks = done > 0 or next(skippedSet) ~= nil
+    bBack:SetEnabled(marks)
     bFwd:SetEnabled(s ~= nil)
     if not s then
-        card:Hide()
         local applicable = #P.Pending(1)
         if done >= total and total > 0 then
-            empty:SetText(("|cff00ff00Guide complete|r - all %d steps done.\nClick |cffffd200Routes|r for the next one (the |cff7ddf8fNext Step|r category lists everything matched to your level)."):format(total))
+            showEmpty(("|cff00ff00Route complete|r - all %d steps done.\n|cffffd200Start over|r runs it again from the first step; |cffffd200Routes|r has the next one (|cff7ddf8fFor level|r lists what fits you now)."):format(total), true)
         elseif applicable == 0 then
-            empty:SetText("No steps in this guide apply to you right now.\nThey may be for the other faction, another class, or a level you have passed.\nTry |cffffd200Guides|r -> |cff7ddf8fNext Step|r, or /cr why.")
+            showEmpty("No steps left in this route apply to you right now.\nThey may be for the other faction, another class, or a level you have passed.\n"
+                .. (marks and "|cffffd200Start over|r runs it again from the first step; " or "") .. "|cffffd200Routes|r has others (|cff7ddf8fFor level|r lists what fits you now).", marks)
         else
-            empty:SetText("Nothing to show - type /cr why for the reason.")
+            showEmpty("Nothing to show for this route right now.\nClick |cffffd200Routes|r to pick another.", marks)
         end
-        empty:Show()
-        GF.FitHeight()
-        pathText:SetText("")
         return
     end
     empty:Hide()
+    bRestart:Hide()
+    GF.restartShown = false
     card.step = s
     card:Show()
     card.icon:SetTexture(G.ACTION_ICON[s.action] or "Interface\\Icons\\INV_Misc_QuestionMark")
@@ -261,10 +321,12 @@ function GF.Update()
     end
     card.title:SetText(("|cffffd200%s|r  %s%s"):format(label, G.StepTitle(s), extra))
     card.title:SetTextColor(stepColor(s))
-    local note = s.note or ""
+    -- the card shows what to do; where a map point came from ("(location: ...)", "(zone only ...)") stays in the
+    -- tooltip and the Details panel, which show the note whole (Core/Guide.lua G.CardNote)
+    local note = G.CardNote(s)
     if s.optional then note = "|cff888888(optional)|r " .. note end
     card.note:SetText(note)
-    -- where: distance if we can measure it, else the zone name; blank rather than a guess
+    -- one distance line: how far if we can measure it, and the zone; blank rather than a guess
     local where = ""
     if NS.Router then
         local _, _, _, pinst, pwx, pwy = U.PlayerPos()
@@ -274,38 +336,55 @@ function GF.Update()
             elseif s.zone then where = U.MapName(s.zone) end
         elseif s.zone then where = U.MapName(s.zone) end
     end
+    if worth ~= "" then where = (where ~= "" and (where .. "  -  ") or "") .. "|cffffd200" .. worth .. "|r" end
     card.where:SetText(where)
     local path = NS.Router and NS.Router.CurrentPath()
     pathText:SetText(path and NS.TravelGraph.Summary(path) or "")
     GF.FitHeight()
 end
 
--- The window is as tall as its text: the step's title (up to 3 lines), its note (up to 8), the distance line and
--- the travel line.  A fixed 170 px cut long notes off once the text grew (beta feedback, 2026-11-11).
+-- The window is as tall as its text: the step's title (up to L.titleLines lines), its note (up to L.noteLines), the
+-- distance line and the travel line.  A fixed 170 px cut long notes off once the text grew (beta feedback, 2026-11-11).
+-- Rules (tools/test_step_window.lua holds the code to them):
+--   1. every text gets an explicit width BEFORE its height is read: a string anchored by two points reports a
+--      one-line height until the client has laid it out, and a height read too small is how the note ended up
+--      printed over a wrapped title;
+--   2. no text gets a fixed height: heights are only ever read;
+--   3. the note hangs under whichever is taller, the icon or the (possibly wrapped) title;
+--   4. the card ends above the travel line, and the window is the sum of the three.
+-- The whole window scales (the grip, Options), so one layout holds at every scale from 0.6 to 2.5.
 local function sh(fs) local h = fs.GetStringHeight and fs:GetStringHeight() return (type(h) == "number" and h > 0) and h or 0 end
+local function fitHeader()
+    -- the word Contribute grows with the text-size setting: keep its button as wide as the word, so the step count
+    -- (anchored to it) moves left instead of being covered
+    local w = cbLabel.text.GetStringWidth and cbLabel.text:GetStringWidth()
+    if type(w) == "number" and w > 0 then cbLabel:SetWidth(w + 2) end
+end
 function GF.FitHeight()
+    fitHeader()
+    local W = f:GetWidth()
+    if type(W) ~= "number" or W <= 0 then W = GF.BASE_W end
     if not card:IsShown() then
-        f:SetHeight(math.max(GF.BASE_H, 56 + (empty:IsShown() and sh(empty) or 0) + 30))
+        empty:SetWidth(math.max(160, W - 2 * (L.side + 2)))
+        local eh = (empty:IsShown() and sh(empty) or 0)
+        f:SetHeight(math.max(GF.BASE_H, L.top + 6 + eh + (GF.restartShown and 30 or 0) + 14))
         return
     end
-    -- Give every text its width first: a string anchored by two points reports a one-line height until the client
-    -- has laid it out, and a height measured too small is how the note ended up printed over a wrapped title.
-    local cardW = math.max(160, (f:GetWidth() or GF.BASE_W) - 68)
-    card.title:SetWidth(cardW - 50)       -- 6 pad + 30 icon + 8 gap ... 6 pad
-    card.note:SetWidth(cardW - 12)
-    card.where:SetWidth(cardW - 12)
-    pathText:SetWidth(math.max(120, (f:GetWidth() or GF.BASE_W) - 34))
-    local head = math.max(30, sh(card.title) + 2)
+    local cardW = math.max(160, W - 2 * L.side)
+    card.title:SetWidth(cardW - (2 * L.pad + L.icon + L.gap))       -- pad, icon, gap ... pad
+    card.note:SetWidth(cardW - 2 * L.pad)
+    card.where:SetWidth(cardW - 2 * L.pad)
+    pathText:SetWidth(math.max(120, W - L.pathInset))
+    local head = math.max(L.icon, sh(card.title) + 2)
     local note = sh(card.note)
     local where = sh(card.where)
-    -- the note starts under whichever is taller, the icon or the (possibly wrapped) title
     card.note:ClearAllPoints()
-    card.note:SetPoint("TOPLEFT", card, "TOPLEFT", 6, -(6 + head + 8))
-    local cardH = 6 + head + (note > 0 and (8 + note) or 0) + (where > 0 and (10 + where) or 0) + 8
+    card.note:SetPoint("TOPLEFT", card, "TOPLEFT", L.pad, -(L.pad + head + L.gap))
+    local cardH = L.pad + head + (note > 0 and (L.gap + note) or 0) + (where > 0 and (10 + where) or 0) + 8
     local foot = math.max(26, sh(pathText) + 14)
     card:ClearAllPoints()
-    card:SetPoint("TOPLEFT", 34, -50); card:SetPoint("BOTTOMRIGHT", -34, foot)
-    f:SetHeight(math.max(GF.BASE_H, 50 + cardH + foot))
+    card:SetPoint("TOPLEFT", L.side, -L.top); card:SetPoint("BOTTOMRIGHT", -L.side, foot)
+    f:SetHeight(math.max(GF.BASE_H, L.top + cardH + foot))
 end
 
 function GF.RowsShown() return (P.guide and P.current and card:IsShown()) and 1 or 0 end
@@ -339,7 +418,7 @@ end)
 -- ---------------------------------------------------------------------------
 local detail = CreateFrame("Frame", "CompletionRouteStepDetail", UIParent, "BackdropTemplate")
 GF.detail = detail
-detail:SetSize(360, 260)
+detail:SetSize(360, 160)
 detail:SetPoint("LEFT", f, "RIGHT", 8, 0)
 detail:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
 detail:SetBackdropColor(0.03, 0.03, 0.05, 0.96)
@@ -350,14 +429,16 @@ detail:SetScript("OnDragStart", detail.StartMoving); detail:SetScript("OnDragSto
 detail:Hide()
 tinsert(UISpecialFrames, "CompletionRouteStepDetail")
 
+GF.DETAIL_W, GF.DETAIL_H = 360, 160      -- width; the least height (the panel grows to fit its text, like the window)
 local dTitle = detail:CreateFontString(nil, "OVERLAY", U.Font("Large"))
-dTitle:SetPoint("TOPLEFT", 12, -10); dTitle:SetPoint("RIGHT", -30, 0)
+dTitle:SetPoint("TOPLEFT", 12, -10); dTitle:SetWidth(GF.DETAIL_W - 42)
 dTitle:SetJustifyH("LEFT"); dTitle:SetWordWrap(true)
 local dClose = CreateFrame("Button", nil, detail, "UIPanelCloseButton")
 dClose:SetPoint("TOPRIGHT", -2, -2)
 local dBody = detail:CreateFontString(nil, "OVERLAY", U.Font("Body"))
-dBody:SetPoint("TOPLEFT", dTitle, "BOTTOMLEFT", 0, -8); dBody:SetPoint("RIGHT", -12, 0)
+dBody:SetPoint("TOPLEFT", dTitle, "BOTTOMLEFT", 0, -8); dBody:SetWidth(GF.DETAIL_W - 24)
 dBody:SetJustifyH("LEFT"); dBody:SetWordWrap(true)
+GF.detailTitle, GF.detailBody = dTitle, dBody
 
 local dDone = smallButton("Complete", 76, "Mark this step done", function()
     if detail.step then P.MarkDone(detail.step, true) detail:Hide() end
@@ -422,34 +503,50 @@ function GF.ShowDetail(step)
             (step == P.current and path) and ("\n   " .. NS.TravelGraph.Describe(path)) or "")
     end
     dBody:SetText(table.concat(lines, "\n"))
+    -- as tall as its text (both strings have explicit widths): a fixed 260 let a long note run over the buttons
+    local th, bh = dTitle.GetStringHeight and dTitle:GetStringHeight(), dBody.GetStringHeight and dBody:GetStringHeight()
+    th = (type(th) == "number" and th > 0) and th or 18
+    bh = (type(bh) == "number" and bh > 0) and bh or 0
+    detail:SetHeight(math.max(GF.DETAIL_H, 10 + th + 8 + bh + 14 + 18 + 10))
     detail:Show()
 end
 
 -- ---------------------------------------------------------------------------
--- Right-click on the step: skip the step, skip its quest, or open the details.  A plain frame of buttons (the
--- dropdown APIs differ between the five clients).
+-- Menus.  Plain frames of buttons (the dropdown APIs differ between the five clients).
+--   right-click on the step card: skip the step, skip its quest, details, start the route over
+--   the "..." button of the title line: everything used rarely (step order, options, bug report, start over)
 -- ---------------------------------------------------------------------------
-local menu = CreateFrame("Frame", "CompletionRouteStepMenu", UIParent, "BackdropTemplate")
-GF.stepMenu = menu
-menu:SetSize(170, 92)
-menu:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-menu:SetBackdropColor(0.03, 0.03, 0.05, 0.96)
-menu:SetBackdropBorderColor(0.3, 0.6, 0.9, 0.9)
-menu:SetFrameStrata("DIALOG")
-menu:EnableMouse(true)
-menu:Hide()
-tinsert(UISpecialFrames, "CompletionRouteStepMenu")
-local function menuButton(text, tip, y, fn)
-    local b = smallButton(text, 154, tip, function() local st = menu.step menu:Hide() if st then fn(st) end end, menu)
-    b:SetPoint("TOP", menu, "TOP", 0, y)
-    return b
+local BACKDROP = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } }
+local function popup(name, rows)
+    local m = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
+    m:SetSize(170, 12 + rows * 20)
+    m:SetBackdrop(BACKDROP)
+    m:SetBackdropColor(0.03, 0.03, 0.05, 0.96)
+    m:SetBackdropBorderColor(0.3, 0.6, 0.9, 0.9)
+    m:SetFrameStrata("DIALOG")
+    m:EnableMouse(true)
+    m:Hide()
+    tinsert(UISpecialFrames, name)
+    m.rows = 0
+    -- fn gets the menu's step (nil for the "..." menu)
+    function m.Add(text, tip, fn)
+        local b = smallButton(text, 154, tip, function() local st = m.step m.open = false m:Hide() fn(st) end, m)
+        b:SetPoint("TOP", m, "TOP", 0, -8 - m.rows * 20)
+        m.rows = m.rows + 1
+        return b
+    end
+    return m
 end
-menu.skipStep = menuButton("Skip this step", "Skip this step. On the accept of a quest you do not have, that skips the quest (its objectives and turn-in go too); you are warned first when other quests need it", -8, function(st) NS.Skip.SkipStep(st) end)
-menu.skipQuest = menuButton("Skip this quest", "Drop the whole quest from every guide; quests that need it are listed before anything changes", -28, function(st)
-    if st.qid then NS.Skip.SkipQuest(st.qid[1]) end
+
+local menu = popup("CompletionRouteStepMenu", 5)
+GF.stepMenu = menu
+menu.skipStep = menu.Add("Skip this step", "Skip this step. On the accept of a quest you do not have, that skips the quest (its objectives and turn-in go too); you are warned first when other quests need it", function(st) if st then NS.Skip.SkipStep(st) end end)
+menu.skipQuest = menu.Add("Skip this quest", "Drop the whole quest from every guide; quests that need it are listed before anything changes", function(st)
+    if st and st.qid then NS.Skip.SkipQuest(st.qid[1]) end
 end)
-menu.details = menuButton("Details", "Everything known about this step", -48, function(st) GF.ShowDetail(st) end)
-menu.close = menuButton("Cancel", "Close this menu", -68, function() end)
+menu.details = menu.Add("Details", "Everything known about this step", function(st) if st then GF.ShowDetail(st) end end)
+menu.startOver = menu.Add("Start over", "Clear this route's finished steps for this character and begin again at its first step (asks first)", function() GF.StartOver() end)
+menu.close = menu.Add("Cancel", "Close this menu", function() end)
 function GF.ShowStepMenu(step, anchor)
     if not step then return end
     menu.step = step
@@ -458,6 +555,68 @@ function GF.ShowStepMenu(step, anchor)
     menu:SetPoint("TOPLEFT", anchor or f, "BOTTOMLEFT", 0, -2)
     menu:Show()
 end
+
+local more = popup("CompletionRouteMoreMenu", 5)
+GF.moreMenu = more
+local function reorderText() return "Reorder steps: " .. ((NS.db and NS.db.profile.routing.reorder) and "ON" or "OFF") end
+more.reorder = more.Add("Reorder steps", "The route optimizer reorders the next steps by travel time. Click to turn it on or off.", function()
+    NS.db.profile.routing.reorder = not NS.db.profile.routing.reorder
+    NS:Print("Step reordering " .. (NS.db.profile.routing.reorder and "ON" or "OFF"))
+    P.Refresh()
+end)
+more.options = more.Add("Options", "Open the options", function() NS.Options.Open() end)
+more.report = more.Add("Report a bug", "Save a bug report: route, step, position, travel route and recent log", function() NS.BugReport.FromButton() end)
+more.startOver = more.Add("Start over", "Clear this route's finished steps for this character and begin again at its first step (asks first unless the route is finished)", function() GF.StartOver() end)
+more.close = more.Add("Cancel", "Close this menu", function() end)
+function GF.ToggleMore(anchor)
+    if more.open then more.open = false more:Hide() return end
+    more.reorder:SetText(reorderText())
+    more.startOver:SetEnabled(P.guide ~= nil)
+    more:ClearAllPoints()
+    more:SetPoint("TOPRIGHT", anchor or bMore, "BOTTOMRIGHT", 0, -2)
+    more.open = true
+    more:Show()
+end
+more:SetScript("OnHide", function() more.open = false end)
+
+-- ---------------------------------------------------------------------------
+-- Start over: clear the loaded route's marks for this character and go back to its first step (Progress.StartOver,
+-- the code behind /cr reset).  A finished route starts over at once; a route with steps left asks first.
+-- ---------------------------------------------------------------------------
+local confirm = CreateFrame("Frame", "CompletionRouteStartOver", UIParent, "BackdropTemplate")
+GF.confirm = confirm
+confirm:SetSize(320, 120)
+confirm:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+confirm:SetBackdrop(BACKDROP)
+confirm:SetBackdropColor(0.03, 0.03, 0.05, 0.97)
+confirm:SetBackdropBorderColor(0.3, 0.6, 0.9, 0.9)
+confirm:SetFrameStrata("DIALOG")
+confirm:EnableMouse(true)
+confirm:Hide()
+tinsert(UISpecialFrames, "CompletionRouteStartOver")
+confirm.text = confirm:CreateFontString(nil, "OVERLAY", U.Font("Body"))
+confirm.text:SetPoint("TOPLEFT", 14, -12); confirm.text:SetWidth(320 - 28)
+confirm.text:SetJustifyH("LEFT"); confirm.text:SetWordWrap(true)
+confirm.yes = smallButton("Start over", 100, "Clear the finished steps and go back to the first step", function()
+    local id = confirm.guide
+    confirm:Hide()
+    if id and P.guide and P.guide.id == id then P.StartOver() end
+end, confirm)
+confirm.yes:SetHeight(22); confirm.yes:SetPoint("BOTTOMLEFT", 14, 12)
+confirm.no = smallButton("Cancel", 80, "Keep the route as it is", function() confirm:Hide() end, confirm)
+confirm.no:SetHeight(22); confirm.no:SetPoint("LEFT", confirm.yes, "RIGHT", 6, 0)
+function GF.StartOver()
+    if not P.guide then return end
+    if not P.current then P.StartOver() return end      -- nothing left to do in it: no question to ask
+    local done = P.VisibleDone()
+    confirm.guide = P.guide.id
+    confirm.text:SetText(("Start |cff3ec6ff%s|r over?\n%d finished step%s will be cleared for this character. Steps the game itself reports as done (quests, skills, items in your bags) tick again by themselves."):format(
+        P.guide.name or P.guide.id, done, done == 1 and "" or "s"))
+    local h = confirm.text.GetStringHeight and confirm.text:GetStringHeight()
+    confirm:SetHeight(12 + ((type(h) == "number" and h > 0) and h or 60) + 12 + 22 + 12)
+    confirm:Show()
+end
+
 NS:On("REPLAN_STATE", function() GF.SafeUpdate() end)
 
 function GF.ApplySettings()
