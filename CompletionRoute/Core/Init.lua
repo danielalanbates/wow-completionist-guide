@@ -50,7 +50,6 @@ NS.defaults = {
         accountQuests = true,    -- when accountWide is on, also union by quest ID across guides
         farm = { record = true,          -- remember every world-object node you loot (account-wide)
                  recordUnknown = false,  -- also remember loots whose source the client will not name
-                 autoImport = true,      -- pull GatherMate2 / Routes data at login if those addons are present
                  radius = 40,            -- yards: how close counts as "reached this waypoint"
                  seeds = true,           -- register the shipped coarse circuits (Data/Farm_routes.lua)
                  circuitizeGold = true }, -- fold imported gold guides into a loop instead of a click-through list

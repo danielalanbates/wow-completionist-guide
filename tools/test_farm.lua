@@ -1,6 +1,6 @@
 -- Offline test for the farm-circuit (gold guide) engine: luajit tools/test_farm.lua
 -- Covers: G waypoint parsing, loop guides that never "finish", lap wrap, entering the ring at the
--- nearest waypoint, the TSP loop builder, GatherMate2 decode, node record/export/import, lap value.
+-- nearest waypoint, the TSP loop builder, node record/export/import as text, lap value; no other addon's database is read.
 package.path = "./?.lua;" .. package.path
 local ADDON, NS = "CompletionRoute", {}
 dofile("tools/stubs.lua")
@@ -141,20 +141,23 @@ F.OnLoot()
 assert(F.NodeCount(1429) == 1, "a corpse was recorded as a gather node")
 print("recorder OK: objects in, corpses out")
 
--- 8) GatherMate2 decode + import
+-- 8) no other addon's data is read (the GatherMate2 / Routes import was removed on 2026-11-12): with both databases
+--    present nothing is imported, the importers are gone, and the source names neither global
 _G.GatherMate2DB = { Herb = { [1429] = { [(math.floor(0.5 * 10000) * 10000) + math.floor(0.25 * 10000)] = 765 } } }
-local added = F.ImportGatherMate2()
-assert(added == 1, "GatherMate2 import added " .. tostring(added))
-local found = false
-for _, node in pairs(NS.db.global.farmNodes[1429]) do
-    if node.src == "GatherMate2" then
-        assert(math.abs(node.x - 0.5) < 0.001 and math.abs(node.y - 0.25) < 0.001, "GatherMate2 coords decoded wrong")
-        assert(node.kind == "Herbalism", "kind lost")
-        found = true
-    end
+_G.RoutesDB = { global = { routes = { [1429] = { r = { zone = 1429, route = { 50002500 } } } } } }
+assert(F.ImportGatherMate2 == nil and F.ImportRoutes == nil and F.ImportAll == nil, "an other-addon importer is still defined")
+do
+    local fh = assert(io.open("CompletionRoute/Core/Farm.lua", "r"))
+    local src = fh:read("*a") fh:close()
+    assert(not src:find("GatherMate2DB", 1, true) and not src:find("RoutesDB", 1, true), "Core/Farm.lua reads another addon's database")
+    local fi = assert(io.open("CompletionRoute/Core/Init.lua", "r"))
+    local init = fi:read("*a") fi:close()
+    assert(not init:find("autoImport", 1, true), "the autoImport option is still a default")
 end
-assert(found, "imported node missing")
-print("GatherMate2 import OK")
+assert(F.NodeCount(1429) == 1, "nodes appeared from another addon's database")
+_G.GatherMate2DB, _G.RoutesDB = nil, nil
+assert(F.Record(1429, 0.5, 0.25, "Herbalism"), "a second node was not recorded")
+print("no other addon's node database is read OK")
 
 -- 9) export / import round trip
 local text = F.Export(1429)

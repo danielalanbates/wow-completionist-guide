@@ -11,7 +11,7 @@ That is what this describes. A gold guide in CompletionRoute is no longer a list
 | File | Job |
 |---|---|
 | `Routing/Loop.lua` | Turns a cloud of points into the shortest closed tour: cluster → nearest-neighbour → 2-opt → Or-opt → 2-opt, all in world yards. |
-| `Core/Farm.lua` | Node store, node recorder, GatherMate2/Routes importers, circuit builder, lap stats, `Circuitize` (folds an imported gold guide into a ring). |
+| `Core/Farm.lua` | Node store, node recorder, circuit builder, lap stats, `Circuitize` (folds an imported gold guide into a ring). |
 | `Data/Farm_routes.lua` | Fallback ellipse rings, one per gathering profession, registered only when no generated Gathering guide is installed. Labelled "(coarse)". |
 | `tools/wiki/gen_gold.py` | Generates `Guides/Imported_Gold_<flavor>.lua` (see *Generated gold guides*). |
 | `tools/test_gold.lua` | Offline invariants for those files, printed as a table per flavor. |
@@ -36,10 +36,13 @@ otherwise a closing lap would tick every waypoint in sequence and eat itself (th
 
 1. **You.** Every world-object loot (`GameObject-…` loot source) records a node, account-wide. Corpses are
    ignored, so a farm route never fills up with mob kills.
-2. **Addons you already have.** `GatherMate2` and `Routes` databases are imported at login if present
-   (`/cr farm import`). Their coordinate packing is decoded in `Farm.ImportGatherMate2`.
-3. **Other people.** `/cr farm export` writes a plain-text node list (`map x y kind count`) into
-   `CompletionRouteDB.farmExport`; `Farm.ImportText` reads it back. Hand the file to a guildmate.
+2. **Other people.** `/cr farm export` writes a plain-text node list (`map x y kind count`) into
+   `CompletionRouteDB.farmExport`. `Farm.ImportText` can read such a list back, but no command or window calls it
+   yet, so today the list is for sharing outside the game.
+
+No other addon's database is read. Until 2026-11-12 the addon imported GatherMate2 and Routes nodes at login
+(`profile.farm.autoImport`, `/cr farm import`); that was removed, because an addon for the public cannot depend on
+data another addon holds.
 
 ## Folding an imported gold guide into a circuit
 
@@ -86,7 +89,6 @@ pricing source, instance entrances known, and whether a dungeon step resolves to
 /cr farm              status: nodes here, nodes on the account, current circuit + gold/hr
 /cr farm build [kind] solve a circuit for the zone you are standing in ("Herbalism", "Mining", ...)
 /cr farm record       toggle node recording
-/cr farm import       pull GatherMate2 / Routes now
 /cr farm export [all] dump nodes to CompletionRouteDB.farmExport for sharing
 /cr farm stats        laps, average lap time, gold/hr per circuit
 /cr farm radius <yd>  how close counts as reaching a waypoint
@@ -130,7 +132,7 @@ Retail has no skill gate on old nodes (the wiki: since patch 6.0.2 nodes are gat
 ## Honesty about the fallback rings
 
 `Data/Farm_routes.lua` ships ellipse rings over well-known gathering zones, one per profession. They are **not surveyed node routes** — no free, redistributable node database exists
-(commercial ones are proprietary; the GatherMate packs carry no licence). They register only when no generated Gathering guide is installed. A ring waypoint that lands on a cliff is
+(none is free to redistribute). They register only when no generated Gathering guide is installed. A ring waypoint that lands on a cliff is
 expected until the zone has been farmed once.
 
 ## Dungeon steps (the other odd guide type)

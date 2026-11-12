@@ -43,7 +43,7 @@ Still needs a real play session: turn-in/objective completion during actual ques
 to confirm learned-taxi persistence, reorder quality over hours. Everything mechanical is verified.
 
 - [x] **gold guides are circuits, not click-throughs** (`docs/GOLD_ROUTES.md`): `G` waypoints, proximity
-  advance, endless laps, measured gold/hr, node recorder + GatherMate2/Routes import, authored `path` rings kept
+  advance, endless laps, measured gold/hr, node recorder (no other addon's node data is read), authored `path` rings kept
   in the author's order
 - [x] dungeon steps route to the instance ENTRANCE (learned door + retail encounter-journal), not "no route"
 

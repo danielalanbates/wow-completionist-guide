@@ -750,7 +750,7 @@ do
     for name in src:gmatch('cmd%s*==%s*"([%w_]+)"') do handled[name] = true end
     local required = { "routes", "load", "icon", "why", "next", "skip", "undo", "reset", "arrow", "beacon", "demo",
                        "chars", "accountwide", "forget", "options", "route", "order", "taxi", "teleports",
-                       "hearth", "import", "switch", "scan", "verify", "verifyfeatures",
+                       "hearth", "switch", "scan", "verify", "verifyfeatures",
                        "verifyall", "autoverify", "log", "stats", "debug", "test", "list", "gold", "prof",
                        "skipstep", "unskip", "skipped", "marks", "auto" }
     local missing = {}

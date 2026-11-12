@@ -7,7 +7,7 @@
 -- the same zone and profession, so there are never two circuits for one zone.
 --
 -- HONESTY NOTE (read before "fixing" these): these are COARSE rings, not surveyed node routes.  No third-party node
--- database ships with CompletionRoute (commercial ones are proprietary; GatherMate packs are unlicensed).  Each seed is
+-- database ships with CompletionRoute or is read by it (none is free to redistribute).  Each seed is
 -- an ellipse of waypoints over the gatherable body of a zone: it gets you circling the right ground, and every node you
 -- actually loot is recorded (Core/Farm.lua) so `/cr farm build` replaces the ring with the real harvest route.  Seeds are
 -- labelled "(coarse)" in the guide list for exactly this reason.
