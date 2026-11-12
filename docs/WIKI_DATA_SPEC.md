@@ -7,6 +7,8 @@ MoP 28, WoD 27, TBC 26, DF 23, Forever 22, Classic 12, unknown 11.
 
 Source rules (Daniel, 2026-11-07): community sources only. The wiki is the source of truth. DB2 fills only the gaps and decides
 flavor membership. Log every wiki-vs-DB2 disagreement in SQL. Wiki-derived files carry a CC BY-SA 4.0 header.
+Since 2026-11-12 players' own contributions fill gaps too (section 3, source 4; `docs/CONTRIBUTE.md`): after the wiki and
+the client's quest pin, never instead of them.
 
 ## 1. Fetching
 
@@ -74,7 +76,18 @@ Where a quest's giver or ender gets coordinates, in priority order:
    `tools/package_release.py` fails a wiki file whose steps use a pin without that line. In both builds a disagreement row
    (`turnin_xy`) is written when the wiki's own T point is more than 50 yd from the turn-in pin on the same map (694 on retail,
    2026-11-11).
-4. The page of the place the NPC/object page names first in its location field (`[[Razor Hill]], [[Durotar]]`) when the NPC page itself
+4. **Player contributions** (2026-11-12; `docs/CONTRIBUTE.md`). The merged areas of the open data repository
+   (`wow-completionist-data`, `contributions/areas/<flavor>.json`, CC BY-SA 4.0): where players stood when they accepted the
+   quest (`A:<quest>`), turned it in (`T:<quest>`) or made progress on an objective (`C:<quest>:<QO number>`, 0 for a step
+   without `QO`; the add-on's own keys, `Core/Contribute.lua` `KeyFor`). Only areas marked `trusted` or `confirmed`, on a zone, city, dungeon or micro map
+   the client has; `single` is ignored. Accept and turn-in take the heaviest area; an objective takes up to three on one map
+   (`M|x,y;x,y`). Note `(location: player contributions, N players)`; it ships, and the file header then names the data
+   repository, its licence and the commit; `tools/package_release.py` fails a file that credits contributions without that
+   line or with an unknown commit. The folder is `--contributions DIR`, else `CR_CONTRIB`, else
+   `../wow-completionist-data/contributions`; with no areas file the output is unchanged. A wiki point (source 1 or 2) more
+   than 100 yd from the contributed area of the same step on the same map is logged (`A_xy_contrib`, `T_xy_contrib`,
+   `C_xy_contrib`): a lead for fixing the wiki, the guide keeps the wiki point.
+5. The page of the place the NPC/object page names first in its location field (`[[Razor Hill]], [[Durotar]]`) when the NPC page itself
    has no point and that place is not a map. `tools/wiki/fetch_titles.py` fetches those pages. Note `(location: the wiki's <place>
    page; ...)`; it ships. Rules (2026-11-11 review):
    * only the place page's own point: its infobox, `{{Npclocations}}` or lead coordinate. A coordinate in a section of the page
@@ -92,15 +105,16 @@ Where a quest's giver or ender gets coordinates, in priority order:
    Measured against the local reference (measurement only; release build; all A/T place steps on a map the reference also uses):
    median 83 / 78 / 65 / 85 yd on era / tbc / mop / forever, p90 287 / 232 / 365 / 288 yd, 8% / 5% / 9% / 8% over 500 yd or on another
    map (first pass, same script: median 96 / 81 / 67 / 113, p90 1,385 / 855 / 543 / 1,326, 22% / 14% / 10% / 20%).
-5. Otherwise the step names a zone (`|Z|` without `M`) with `N|... No coordinates on the wiki; the quest is in <zone>.|`, so the router
+6. Otherwise the step names a zone (`|Z|` without `M`) with `N|... No coordinates on the wiki; the quest is in <zone>.|`, so the router
    still takes the player to the zone. The zone is the one the NPC/object page names (location field, or its linked place's zone; on
    the Classic clients the pre-Cataclysm place above), not the quest-log category: the category is where the quest is filed (Foreboding
    Plans under Alterac Mountains, Magistrate Henry Maleb in Southshore; In Defense of Frostwolf under the battleground, Rokhstrom in
    Orgrimmar). Among several page maps the one that agrees with the category, then with the quest's located steps, wins. With no page
    map, the category, else the first located step's map. A quest added in 6.x or filed under "(alternate universe)" resolves to
    Draenor's map. With no zone at all the step goes out without a location. Era/TBC/MoP quests have no DB2 pin.
-Nothing else is read (2026-11-11: one build). The retired dev build put a local Questie-derived fallback file between 3 and 4; today only
-the explicit offline comparison does (`gen_wiki_guides.py --measure-fallback`, `tools/measure/README.md`), and it writes outside `CompletionRoute/`.
+Nothing else is read (2026-11-11: one build). The retired dev build put a local Questie-derived fallback file after 3; today only
+the explicit offline comparison does (`gen_wiki_guides.py --measure-fallback`, `tools/measure/README.md`); it writes outside `CompletionRoute/`
+and reads no contributions.
 
 Classic-map numbers without a tag (2026-11-11). Patch 4.0.3 redrew the zone maps. A coordinate that already stood on its page, number for
 number, in the page's last revision before 2010-11-23 was measured on the Classic map, whatever the zone name says; read as a retail
@@ -166,7 +180,8 @@ Retail live-ness cannot come from POI: 131/402 live sampled quests have no Quest
 
 Disagreement log (SQL, `docs/verification.sqlite`):
 `wiki_db2_conflict(flavor, quest_id, field, wiki_value, db2_value, page_title, revid, note)`. Fields: `membership`, `turnin_xy`,
-`objective_count`, `zone`, `id_missing`.
+`objective_count`, `zone`, `id_missing`, and `A_xy_contrib` / `T_xy_contrib` / `C_xy_contrib` (a wiki point against a
+player-contributed area; `db2_value` then holds the area as `map:x,y`).
 
 ## 7. Zone names → uiMapID
 

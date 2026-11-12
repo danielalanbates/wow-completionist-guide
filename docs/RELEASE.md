@@ -3,7 +3,8 @@
 **There is one build (owner's decision, 2026-11-11).** What the six TOC files list, what `tools/install.sh` installs
 on the owner's clients, what the generators write by default and what the route bake covers is the set a player gets
 from a public release: the project's own code and data, Warcraft Wiki data (CC BY-SA 4.0), Blizzard client data via
-wago.tools, and the bundled libraries under their own licences. Nothing derived from Questie or from any other addon
+wago.tools, players' own location contributions merged in the open data repository (CC BY-SA 4.0; none merged yet,
+`docs/CONTRIBUTE.md`), and the bundled libraries under their own licences. Nothing derived from Questie or from any other addon
 is generated, loaded, installed, baked or packaged. Packaging adds nothing and removes nothing: a packaged TOC is the
 source TOC with the version stamped in.
 
@@ -99,12 +100,12 @@ also lists any never-shipped file found in `CompletionRoute/` (each one fails th
 
 | Files | Category | Real source (from the generator) | Generator |
 |---|---|---|---|
-| `Guides/Imported_Wiki_*` | wiki CC BY-SA | Warcraft Wiki quest pages; QuestV2 decides which quests a client has; on Retail, Blizzard quest pins for steps the wiki gives no point for (the note and the file header say so) | `tools/wiki/gen_wiki_guides.py` (split, order: `gen_spine.py`) |
+| `Guides/Imported_Wiki_*` | wiki CC BY-SA | Warcraft Wiki quest pages; QuestV2 decides which quests a client has; on Retail, Blizzard quest pins for steps the wiki gives no point for (the note and the file header say so); for a step neither places, players' merged contributions from the open data repository `wow-completionist-data` (CC BY-SA 4.0; the note says `(location: player contributions, N players)`, the file header names the repository and its commit) | `tools/wiki/gen_wiki_guides.py` (split, order: `gen_spine.py`) |
 | `Guides/Imported_Spine_*` | wiki CC BY-SA | the wiki zone guides chained by level band and wiki chains (retail: also QuestLine/Campaign order); no step text copied | `tools/wiki/gen_spine.py` |
 | `Guides/Imported_Gold_*` | wiki CC BY-SA | wiki herb, ore, fishing, NPC, quest and instance pages | `tools/wiki/gen_gold.py` |
 | `Guides/Imported_Professions_*` | wiki CC BY-SA | wiki trainer, recipe, reagent and fishing pages; recipes, skill levels and dig sites from Blizzard tables | `tools/wiki/gen_professions.py` |
-| `Guides/Imported_Achievements_*` | wiki CC BY-SA | Blizzard Achievement/Criteria/Map, QuestPOI, WorldMapOverlay, AreaTable and DungeonEncounter tables; points from wiki quest steps and wiki NPC, object, item, glyph, race and achievement pages; each located step names its source | `tools/gen_completion_guides.py` |
-| `Guides/Imported_QuestLines_retail` | wiki CC BY-SA | Blizzard QuestLine/QuestLineXQuest order and QuestPOI pins; step text, gates and points from `Imported_Wiki_retail.lua`; quests without a wiki page are "Quest <id>" steps | `tools/gen_completion_guides.py` |
+| `Guides/Imported_Achievements_*` | wiki CC BY-SA | Blizzard Achievement/Criteria/Map, QuestPOI, WorldMapOverlay, AreaTable and DungeonEncounter tables; points from wiki quest steps (a player-contributed quest point is credited as such) and wiki NPC, object, item, glyph, race and achievement pages; each located step names its source | `tools/gen_completion_guides.py` |
+| `Guides/Imported_QuestLines_retail` | wiki CC BY-SA | Blizzard QuestLine/QuestLineXQuest order and QuestPOI pins; step text, gates and points from `Imported_Wiki_retail.lua` (player-contributed points with their note; the header repeats the provenance line); quests without a wiki page are "Quest <id>" steps | `tools/gen_completion_guides.py` |
 | `Data/QuestDeps_*` | wiki CC BY-SA | quest chains and names from the wiki guides, breadcrumb wording from the wiki pages | `tools/gen_quest_deps.py` |
 | `Data/Teleports.lua` | wiki CC BY-SA | hand-authored teleport list; ids checked against Blizzard tables, landing points from wiki coordinates or TaxiNodes, cited per entry | hand-authored, checked by `tools/check_teleports.py` |
 | `Guides/Imported_Missions_retail` | Blizzard data | GarrMission table; the travel step to each table is written in the generator | `tools/gen_completion_guides.py` |
@@ -132,7 +133,7 @@ The gate fails the build on any of these. `tools/test_package.py` plants one bad
 
 | Rule | Fails when |
 |---|---|
-| `no-provenance` | a packaged file matches no rule; a file whose rule says "tracked" is not tracked by git; a `--data-root` holds anything but generated data; not a git checkout |
+| `no-provenance` | a packaged file matches no rule; a file whose rule says "tracked" is not tracked by git; a `--data-root` holds anything but generated data; not a git checkout; a wiki file has Blizzard quest-pin steps and its header does not name the tables and the client build; a data file has a step that credits player contributions (`location: player contributions`) and its header does not name the data repository (`wow-completionist-data`, CC BY-SA 4.0) with the full commit the areas came from (`unknown` and `<commit>-dirty` fail) |
 | `interop-derived` | a never-shipped file (table above) is anywhere in `CompletionRoute/`, a TOC lists one, or an XML include would package one; a data file mentions Questie or WoW-Pro (for example a `(location: Questie data)` step of the retired dev build or of the offline measurement file); a `RouteOrder` row orders a guide registered only in a never-shipped file |
 | `not-redistributable` | a non-doc file says "do not redistribute", "do not commit", "local use only" or "not for redistribution" |
 | `commercial-reference` | a file name or content names the commercial guide product this project replaced (case-insensitive; the name is stored encoded in the tool and never printed) |
@@ -164,13 +165,16 @@ their client build. `tools/gen_completion_guides.py` now repeats the wiki file's
 
 The everyday workflow is the release workflow. In the checkout that holds the generated data, one heavy job at a time:
 
-1. Regenerate what changed (all of it after a wiki or generator change):
+1. Regenerate what changed (all of it after a wiki or generator change, or after new player contributions were
+   merged: update the `../wow-completionist-data` checkout first and commit nothing by hand in it, so the header
+   carries a clean commit):
    `python3 tools/wiki/gen_wiki_guides.py` (also rebuilds the spine), `python3 tools/wiki/gen_gold.py`,
    `python3 tools/wiki/gen_professions.py`, `python3 tools/gen_completion_guides.py retail mop`,
    `python3 tools/gen_quest_deps.py`.
 2. Bake the route orders: `python3 tools/bake_resume.py` (resumable; it bakes the shipped wiki quest guides and
    rewrites `Data/RouteOrder_<flavor>.lua` with rows for current guides only; `docs/ROUTING.md` "Bake gate").
-3. Test: `luajit tools/validate_toc.lua`, the `tools/test_*.lua` harnesses, `python3 tools/test_package.py`.
+3. Test: `luajit tools/validate_toc.lua`, the `tools/test_*.lua` harnesses, `python3 tools/test_package.py`,
+   `python3 tools/test_contrib_gen.py`.
 4. `python3 tools/package_release.py` (dry run: the gate). `tools/install.sh <client folders>` installs the same set
    on the owner's clients for the beta.
 5. To publish, the only extra step is the version:

@@ -86,5 +86,15 @@ point from Blizzard's own quest map pins, the client tables `QuestPOIBlob` and `
 file header names the client build). The tools use a pin only when the wiki has no coordinate for that step. A pin is
 client data (a fact: where the game draws the quest's area), not wiki text, and it is not covered by the wiki's licence.
 
-**Nothing else.** No step takes its text or its map point from another add-on's data. A step for which neither the
-wiki nor (on Retail) a quest pin gives a point names its zone only, or has no location and says so.
+**Player contributions (shipped when there are any).** A step whose note says
+`(location: player contributions, N players)` takes its map point from where players of this add-on stood when they
+accepted the quest, turned it in, made progress on the objective or ticked the step by hand. Players switch this on
+themselves (the **Contribute** box), export a text that holds the client flavor and build, quest ids or step keys,
+map ids, positions and weights (no character, realm or account name, no times) and send it to the open data repository, `wow-completionist-data`
+(<https://github.com/danielalanbates/wow-completionist-data>), where the contributions are merged and published under
+CC BY-SA 4.0. Only places a maintainer played or two or more players agree on are used, and only for a step that
+neither the wiki nor a quest pin places. A file with such steps names the repository and the commit of the merged
+data in its header. The achievement and quest-line files repeat that line when they take such a step or its point.
+
+**Nothing else.** No step takes its text or its map point from another add-on's data. A step for which the wiki, a
+quest pin (on Retail) and player contributions give no point names its zone only, or has no location and says so.

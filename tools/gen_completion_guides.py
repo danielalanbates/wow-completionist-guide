@@ -13,8 +13,9 @@
       |ACH|<achievement>;<criteria-tree id>| and tick from GetAchievementCriteriaInfoByID.  Locations come only from
       Warcraft Wiki data and Blizzard tables, never from another addon's data (Places below); every located step's note
       names its source ("wiki: <page>", "Blizzard WorldMapOverlay <id>", ...).  By Criteria.Type:
-        point (|M|..|Z|..)  27 "complete quest N": the quest's step in Imported_Wiki_<fl>, else Blizzard
-                              QuestPOIBlob/QuestPOIPoint (the turn-in pin);
+        point (|M|..|Z|..)  27 "complete quest N": the quest's step in Imported_Wiki_<fl> (a point players contributed
+                              is credited as such: "location: player contributions, N players; quest N"), else
+                              Blizzard QuestPOIBlob/QuestPOIPoint (the turn-in pin);
                             0 "kill creature N": the wiki NPC page with that id, else the page named like the criterion;
                             43 "explore area": the centre of the Blizzard WorldMapOverlay hit rectangle on its map
                               (UiMapXMapArt, UiMapArt, UiMapArtStyleLayer);
@@ -49,11 +50,13 @@
   Guides/Imported_QuestLines_retail.lua   one guide per Blizzard QuestLine, quests in the client's OrderIndex order
       (QuestLineXQuest; guide name from QuestLine).  Each accept carries |PRE|<previous quest>| so the optimizer can
       interleave travel but can never break the story order.  A quest's steps are its Imported_Wiki_retail lines
-      (wiki text, gates and points); a step left without a point takes the Blizzard
-      QuestPOI pin (turn-in pin for T, objective area for C), an accept without one names the quest's map as zone only.
+      (wiki text, gates and points, a point players contributed with its note); a step left without a point takes the
+      Blizzard QuestPOI pin (turn-in pin for T, objective area for C), an accept without one names the quest's map as zone only.
       A quest the wiki lacks gets "Quest <id>" steps from QuestPOI alone (the client shows the live name).  Wiki
       CC BY-SA + Blizzard facts.
-  Both files read Imported_Wiki_<fl>.lua, so run this after tools/wiki/gen_wiki_guides.py.  A wiki file that still holds
+  Both files read Imported_Wiki_<fl>.lua, so run this after tools/wiki/gen_wiki_guides.py.  When that file's header
+  names the player-contributions source and its commit, both files repeat the line (tools/package_release.py ships a
+  step that credits player contributions only under it).  A wiki file that still holds
   points from another addon's data (a leftover of the dev build retired on 2026-11-11, or the --measure-fallback
   comparison file) stops this script: nothing is written from it.
   Guides/Imported_Missions_retail.lua     one guide per mission table (WoD garrison + shipyard, Legion
@@ -111,6 +114,11 @@ STORY_FILE = "Imported_QuestLines_{fl}.lua"
 # a point taken from another addon's data (the dev build retired on 2026-11-11, or the --measure-fallback comparison
 # file of tools/wiki/gen_wiki_guides.py): a wiki file that holds one is refused (require_wiki_build)
 FALLBACK_NOTE = re.compile(r"\(location: (?:Questie|Blizzard) data")
+# a wiki step whose point players contributed (tools/wiki/gen_wiki_guides.py class Contributions, docs/CONTRIBUTE.md):
+# "(location: player contributions, 3 players)" or "..., 3 players, 2 areas)"
+CONTRIB_CREDIT = re.compile(r"\((location: player contributions, \d+ players?)(?:, \d+ areas)?\)")
+# the header line of a wiki file that ships such steps: the data repository and the commit the areas came from
+CONTRIB_HEADER = "merged player contributions, wow-completionist-data"
 # outdoor collectibles named after the place they are at: never an instance map, a wiki glyph list gives the point
 COLLECTIBLE = re.compile(r"^(?:Dragon|Skyriding) Glyphs?: ")
 
@@ -132,18 +140,28 @@ def clean(s):
     return re.sub(r"\s+", " ", (s or "").replace("|", "/")).strip()
 
 
+def shown(path):
+    """a written file as the run prints it: relative to the checkout, or as it is when GUIDES points elsewhere (a test)"""
+    try:
+        return path.relative_to(ROOT)
+    except ValueError:
+        return path
+
+
 def lua_str(s):
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def located(lines, action_pref=("T", "A", "C")):
-    """(M, Z) of the best located step among a quest's lines"""
+    """(M, Z, credit) of the best located step among a quest's lines.  credit: "location: player contributions, N
+    players" when players contributed that step's point, None when the point is the wiki file's own"""
     for a in action_pref:
         for l in lines:
             if l.startswith(a + " "):
                 m = re.search(r"\|M\|([^|]+)\|Z\|([^|]+)\|", l)
                 if m:
-                    return m.group(1), m.group(2)
+                    c = CONTRIB_CREDIT.search(l)
+                    return m.group(1), m.group(2), c.group(1) if c else None
     return None
 
 
@@ -459,6 +477,8 @@ class Places:
         page = self.quest.get(q, (None, None, None))[2]
         loc = located(self.qlines.get(q, []))
         if loc and self.current_map(self.zone_of(f"Z|{loc[1]}")):
+            if loc[2]:      # the wiki file took this point from player contributions: say so, never "wiki:"
+                return f"M|{loc[0]}|Z|{loc[1]}|", "quest-contrib", f"{loc[2]}; quest {q}"
             return f"M|{loc[0]}|Z|{loc[1]}|", "quest", f"wiki: {page or 'quest %d' % q}"
         p = self.poi.get(q)
         if p:
@@ -744,10 +764,8 @@ def require_wiki_build(fl):
     return True
 
 
-def wiki_poi_line(fl):
-    """the header line of Imported_Wiki_<fl>.lua that names the Blizzard quest-pin tables and their client build
-    (tools/wiki/gen_wiki_guides.py writes it on Retail), or None.  A file that copies such steps repeats the line:
-    tools/package_release.py fails a file with "(location: Blizzard quest POI" steps and no such header."""
+def wiki_header_line(fl, mark):
+    """the header line of Imported_Wiki_<fl>.lua that holds `mark`, or None"""
     p = GUIDES / f"Imported_Wiki_{fl}.lua"
     if not p.exists():
         return None
@@ -756,9 +774,24 @@ def wiki_poi_line(fl):
             ln = fh.readline()
             if not ln.startswith("--"):
                 break
-            if "QuestPOIBlob + QuestPOIPoint tables via wago.tools, build" in ln:
+            if mark in ln:
                 return ln.rstrip("\n")
     return None
+
+
+def wiki_poi_line(fl):
+    """the header line of Imported_Wiki_<fl>.lua that names the Blizzard quest-pin tables and their client build
+    (tools/wiki/gen_wiki_guides.py writes it on Retail), or None.  A file that copies such steps repeats the line:
+    tools/package_release.py fails a file with "(location: Blizzard quest POI" steps and no such header."""
+    return wiki_header_line(fl, "QuestPOIBlob + QuestPOIPoint tables via wago.tools, build")
+
+
+def wiki_contrib_line(fl):
+    """the header line of Imported_Wiki_<fl>.lua that names the player-contributions source (the open data repository,
+    CC BY-SA 4.0) and the commit its areas came from, or None when that file ships no contributed point.  A file that
+    takes such steps or points from the wiki file repeats the line: tools/package_release.py fails a file that credits
+    player contributions without it."""
+    return wiki_header_line(fl, CONTRIB_HEADER)
 
 
 def header(fl, what):
@@ -774,6 +807,9 @@ def header(fl, what):
         poi = wiki_poi_line(fl) if have and what == "questlines" else None
         if poi:
             out.append(poi)     # the quest-line steps copied from the wiki file keep their quest-pin notes
+        contrib = wiki_contrib_line(fl) if have else None
+        if contrib:
+            out.append(contrib)     # steps and criterion points taken from the wiki file keep their contribution credit
     return out + ["local _, NS = ...", f'if NS.flavor ~= "{fl}" then return end', "local R = NS.Guide.Register"]
 
 
@@ -1074,7 +1110,7 @@ def gen_achievements(fl):
     out = GUIDES / f"Imported_Achievements_{fl}.lua"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"{fl}: {len(ach)} achievements ({len(every) - len(ach)} internal left out) -> {len(guides)} category guides, "
-          f"{nsteps} steps -> {out.relative_to(ROOT)}")
+          f"{nsteps} steps -> {shown(out)}")
     print(f"  achievements by best location: {dict(achs)}")
     print(f"  zone-only achievements by reason: {dict(gained)}")
     print(f"  non-geographic by reason: {dict(nogeo_why)}")
@@ -1172,7 +1208,7 @@ def gen_questlines(fl="retail"):
         lines.append("]==] })")
     out_path = GUIDES / STORY_FILE.format(fl=fl)
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"{fl}: {ng} quest lines, {nsteps} steps -> {out_path.relative_to(ROOT)}")
+    print(f"{fl}: {ng} quest lines, {nsteps} steps -> {shown(out_path)}")
     print(f"  {dict(st)}")
 
 
@@ -1213,7 +1249,7 @@ def gen_missions():
     left = [gt for gt in by if gt not in TABLES]
     out = GUIDES / "Imported_Missions_retail.lua"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"retail: {len(ms)} missions -> {n} mission steps (unmapped table types: {left}) -> {out.relative_to(ROOT)}")
+    print(f"retail: {len(ms)} missions -> {n} mission steps (unmapped table types: {left}) -> {shown(out)}")
 
 
 def _selfcheck():
@@ -1308,6 +1344,21 @@ def _selfcheck():
     check(wiki_file_problem("-- MEASUREMENT ONLY, never part of the add-on\n") is not None, "measurement file refused")
     check(wiki_file_problem("-- hdr\nT Q|QID|1|M|1,2|Z|1; X|N|Go. (location: Blizzard quest POI, the turn-in area)|\n") is None,
           "the build's own file is read")
+    # a point players contributed (docs/CONTRIBUTE.md): the wiki file is still the build's own, and an achievement
+    # criterion that takes the quest's point credits the players, never the wiki
+    cl = "T Q|QID|77001|M|41.5,62.0;43.0,60.5|Z|84; Stormwind City|N|To Foo. (location: player contributions, 3 players, 2 areas)|"
+    check(wiki_file_problem("-- hdr\n" + cl + "\n") is None, "a file with contributed points is read")
+    check(located([cl]) == ("41.5,62.0;43.0,60.5", "84; Stormwind City", "location: player contributions, 3 players"),
+          f"located() on a contributed step -> {located([cl])}")
+    check(located(["A Q|QID|1|M|1.0,2.0|Z|84; Stormwind City|N|From Foo.|"])[2] is None, "a wiki point was credited to players")
+    P.qlines[77001] = [cl]
+    w, why, src = P.quest_place(77001)
+    check(w == "M|41.5,62.0;43.0,60.5|Z|84; Stormwind City|" and why == "quest-contrib"
+          and src == "location: player contributions, 3 players; quest 77001", f"contributed quest point -> {w!r} {why!r} {src!r}")
+    check(zone_note(w, src) == " (location: player contributions, 3 players; quest 77001)", "contributed point note")
+    P.qlines[77002] = ["T Q|QID|77002|M|41.5,62.0|Z|84; Stormwind City|N|To Foo. (location: player contributions, 1 player)|"]
+    check(P.quest_place(77002)[2] == "location: player contributions, 1 player; quest 77002", "one player")
+    del P.qlines[77001], P.qlines[77002]
     for f in fails:
         print("FAIL gen_completion_guides:", f)
     if fails:

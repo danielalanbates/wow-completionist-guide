@@ -2,8 +2,9 @@
 
 Warcraft Wiki (<https://warcraft.wiki.gg>, CC BY-SA 4.0) is the **source of truth** for quest data (Daniel,
 2026-11-07). Blizzard client data (wago.tools DB2) does two jobs only: it decides which client has a quest, and on Retail its
-quest pins fill coordinates the wiki lacks. Nothing in this pipeline reads commercial guide data or another addon's
-data: there is one build, and what this pipeline writes by default is what ships (2026-11-11).
+quest pins fill coordinates the wiki lacks. Since 2026-11-12 players' own contributions, merged in the open data
+repository, fill what both leave open (`docs/CONTRIBUTE.md`). Nothing in this pipeline reads commercial guide data or
+another addon's data: there is one build, and what this pipeline writes by default is what ships (2026-11-11).
 
 ```
 nice -n 10 python3 tools/wiki/fetch_wiki.py        # 1. infobox pages -> cache/wiki_raw.sqlite (~51 min, resumable)
@@ -61,7 +62,17 @@ The rules live in [docs/WIKI_DATA_SPEC.md](../../docs/WIKI_DATA_SPEC.md); the co
   Draenor. On era, tbc and forever an NPC page that says where the NPC stood before the Cataclysm ("was located at
   [[Kargath]], [[Badlands]]") gives that place instead of its current location field. The file header names the
   QuestPOI tables and the client build whenever a step uses a quest pin; `package_release.py` fails a file without it.
-* **No fallback, no gaps guides (2026-11-11).** A step with no wiki point, quest pin or place page names its zone,
+* **Player contributions (2026-11-12).** Between the quest pin and the place page: the merged area of the step's key
+  in `<contributions>/areas/<flavor>.json` (`A:<quest>`, `T:<quest>`, `C:<quest>:<QO number>`), when it is marked
+  `trusted` or `confirmed` and lies on a zone, city, dungeon or micro map the client has (never a continent or the
+  world map). A broken areas file is not used: the run warns and goes on as with no contributions. Accept and turn-in take the heaviest area, an objective
+  up to three on one map. Note `(location: player contributions, N players)`; the file header names the data
+  repository and its commit, and `package_release.py` fails a file without that line. The folder is
+  `--contributions DIR`, else `$CR_CONTRIB`, else `../wow-completionist-data/contributions`; `--no-contributions`
+  reads none, and with no areas file the output does not change. A wiki point more than 100 yd from the contributed
+  area of the same step is logged in `wiki_db2_conflict` (`A_xy_contrib`, `T_xy_contrib`, `C_xy_contrib`).
+  `--out DIR` writes a whole run into another folder (`tools/test_contrib_gen.py` uses it).
+* **No fallback, no gaps guides (2026-11-11).** A step with no wiki point, quest pin, contributed area or place page names its zone,
   or has no location and says so. A quest with no wiki page is in no zone guide. Until that day a local dev build
   filled both from Questie-derived files (`Imported_Quests_<fl>.lua`, `_gaps` guides); those never shipped and are no
   longer generated, loaded or installed. `install.sh`, the TOC validator and the packager refuse such a file.

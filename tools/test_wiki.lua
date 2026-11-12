@@ -117,7 +117,7 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
         -- zone and has no point; a place-page or quest-POI step has one; retail no longer puts a wiki point on map 41 (a
         -- Deadwind Pass micro map called "Dalaran" that the lowest-id rule used to pick for the city)
         do
-            local zoneOnly, place, poi, bad41 = 0, 0, 0, 0
+            local zoneOnly, place, poi, bad41, contrib = 0, 0, 0, 0, 0
             for _, id in ipairs(NS.Guide.list) do
                 if id:find("^wiki:" .. flavor .. ":") then
                     for ln in NS.Guide.registry[id].text:gmatch("[^\n]+") do
@@ -133,13 +133,22 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
                             poi = poi + 1
                             check(flavor == "retail" and ln:find("|M|[%d.]+,[%d.]+|Z|%d+"), flavor .. ": quest-POI step off retail or without a point: " .. ln:sub(1, 90))
                         end
+                        -- 2026-11-12: a point players contributed (docs/CONTRIBUTE.md) says so and how many players
+                        if ln:find("(location: player contributions", 1, true) then
+                            contrib = contrib + 1
+                            check(ln:find("|M|[%d.]+,[%d.]+") and ln:find("|Z|%d+") and ln:find("%(location: player contributions, %d+ players?[,)]"),
+                                flavor .. ": player-contributed step without a point or a player count: " .. ln:sub(1, 90))
+                        end
                         -- the client's own quest pins do use map 41 for a few Legion quests; only wiki points must not
                         if flavor == "retail" and ln:find("|Z|41;", 1, true) and not ln:find("(location: Blizzard", 1, true) then bad41 = bad41 + 1 end
                     end
                 end
             end
             check(bad41 == 0, ("retail: %d steps on map 41 (Deadwind Pass 'Dalaran')"):format(bad41))
-            print(("%-6s zone-level steps %d, wiki place-page points %d, client quest-POI points %d"):format(flavor, zoneOnly, place, poi))
+            -- such steps ship only under a header that names the data repository and the commit of the merged areas
+            check(contrib == 0 or (head:find("merged player contributions, wow-completionist-data", 1, true) and head:find("CC BY%-SA 4%.0%), commit %x+")),
+                flavor .. ": " .. contrib .. " player-contributed steps but the file header does not name the data repository and its commit")
+            print(("%-6s zone-level steps %d, wiki place-page points %d, client quest-POI points %d, player-contributed points %d"):format(flavor, zoneOnly, place, poi, contrib))
         end
         -- 2026-11-11 review: a zone-level step names the map the NPC's own page names, not the quest-log category; a
         -- WoD quest's zone is Draenor's; a place page gives only its own point (not a portal, quest or note listed on it,
