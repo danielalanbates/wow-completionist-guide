@@ -264,7 +264,8 @@ local function importSet(old, dst, map, c, me)
     end
     return n, lost
 end
-local function nonEmpty(t) return t ~= nil and next(t) ~= nil end
+-- (a saved entry that is not a table, from a damaged file, counts as empty)
+local function nonEmpty(t) return type(t) == "table" and next(t) ~= nil end
 -- This character's old stepped-back set (character file) into its keyed one; sets meta.ro.  Returns whether it had any.
 local function importReopened(meta, gid, steps, ctx)
     local c = NS.db.char
@@ -299,6 +300,10 @@ local function migrateOne(c, gid, steps, me, touch, ctx)
     end
     local od, osk = c.done and c.done[gid], c.skipped and c.skipped[gid]
     local ro = me and NS.db.char.reopened and NS.db.char.reopened[gid] or nil
+    -- an entry that is not a table (a damaged file) holds no marks
+    if type(od) ~= "table" then od = nil end
+    if type(osk) ~= "table" then osk = nil end
+    if type(ro) ~= "table" then ro = nil end
     local has = nonEmpty(od) or nonEmpty(osk) or nonEmpty(ro)
     if not has and not (me and touch) then return false end
     c.stepDone, c.stepSkipped, c.stepMeta = c.stepDone or {}, c.stepSkipped or {}, c.stepMeta or {}
@@ -369,7 +374,12 @@ end
 -- rule).  At the end CompletionRouteCharDB.marksImported is set and it never runs again for that character.  A bulk
 -- sweep (A.BeginScratch) pauses it; a logout in the middle leaves the flag unset and the next login finishes the rest
 -- (A.Migrate never converts a guide twice).  Guides marked dynamic (live dig sites) are left to their load.
+-- One guide is one parse and cannot be split, so a guide whose text is longer than A.IMPORT_MAX_TEXT (the huge
+-- achievement lists of MoP and Retail: tens of ms each, up to about 90) is not converted here: its old marks stay
+-- for the lazy path (A.Migrate when the guide is loaded, or parsed by the routes list), as before this import existed.
+-- An error in a slice ends the job for this session (A.ImportTick): the flag stays unset, the next login tries again.
 A.IMPORT_MS = 4
+A.IMPORT_MAX_TEXT = 40 * 1024
 A.IMPORT_DELAY = 10     -- after the saved route has loaded (2 s) and the completed quests were read (3 s)
 
 -- guides of one record with old marks still to convert (me: the logged-in character, whose stepped-back marks live in
@@ -415,7 +425,7 @@ local function finishImport(J)
     importFrame:Hide()
     NS.db.char.marksImported = NS.Guide and NS.Guide.KEY_VERSION or 1
     A.lastImport = { guides = J.list and #J.list or 0, converted = J.guides, records = J.records, slices = J.slices, cpu = J.cpu,
-                     maxSlice = J.maxSlice }
+                     maxSlice = J.maxSlice, left = J.left }
     if J.records > 0 then
         A.ClearCompletionCaches()
         local P = NS.Progress
@@ -448,10 +458,13 @@ function A.ImportStep(budget)
             if type(text) == "string" then len = #text end
         end
         local guess = (len > 0 and J.rate) and len * J.rate or (J.avg or 0)
-        if done > 0 and clock() - t0 + guess > budget then break end
+        local big = len > A.IMPORT_MAX_TEXT
+        if not big and done > 0 and clock() - t0 + guess > budget then break end
         J.pos = J.pos + 1
-        done = done + 1
-        if g then
+        if big then
+            J.left = J.left + 1                 -- too long for one frame: left to the lazy path
+        elseif g then
+            done = done + 1
             local had = g.steps ~= nil
             local g0 = clock()
             local ok, steps
@@ -481,13 +494,23 @@ function A.ImportStep(budget)
     if J.pos > #J.list then finishImport(J) return false end
     return true
 end
-importFrame:SetScript("OnUpdate", function() A.ImportStep() end)
+-- The frame's tick.  A slice that throws (damaged saved data) must not throw again every frame: the job is dropped
+-- and the frame hidden; the flag stays unset, and loading or listing a guide still converts its marks.
+function A.ImportTick()
+    local ok, err = pcall(A.ImportStep)
+    if ok then return true end
+    imp = nil
+    importFrame:Hide()
+    A.importError = tostring(err)
+    return false
+end
+importFrame:SetScript("OnUpdate", A.ImportTick)
 -- Arm the import (once per character; opts.force: again, for tests).  opts.sliceLog: keep every slice's CPU.
 function A.StartImport(opts)
     if imp then return imp end
     if not (A.me and NS.db and NS.db.char) then return nil end
     if NS.db.char.marksImported and not (opts and opts.force) then return nil end
-    imp = { pos = 1, guides = 0, records = 0, slices = 0, cpu = 0, maxSlice = 0, sliceLog = (opts and opts.sliceLog) and {} or nil }
+    imp = { pos = 1, guides = 0, records = 0, slices = 0, cpu = 0, maxSlice = 0, left = 0, sliceLog = (opts and opts.sliceLog) and {} or nil }
     importFrame:Show()
     return imp
 end

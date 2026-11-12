@@ -395,6 +395,51 @@ do
     end
     t(("slicing rule (test clock, 1 ms per KB): %d guides in %d slices, none over 4 ms with more than one guide in it"):format(n, #J.sliceLog),
         n == 40 and overMany == 0 and single == 0 and #J.sliceLog < 40, ("%d slices over 4 ms with more than one guide, %d with one"):format(overMany, single))
+
+    -- a guide too long to parse within one frame is left to the lazy path: not converted by the import, converted
+    -- when it is loaded
+    db, chardb = dbWithMany()
+    NS = session(db, chardb)
+    local bigLines = {}
+    for _ = 1, 3 do for _, l in ipairs(V1) do bigLines[#bigLines + 1] = l end end
+    register(NS, "t:imp:big", bigLines)
+    NS.Account.me.done["t:imp:big"] = { [1] = true }
+    NS.Account.IMPORT_MAX_TEXT = #table.concat(V1, "\n") + 10
+    NS.Account.StartImport()
+    pump(NS.Account)
+    local Lb = NS.Account.lastImport
+    local metaB = NS.Account.me.stepMeta
+    t("a guide over the text limit is left out: the 12 others converted, the flag set, its old marks untouched", Lb.converted == 12 and Lb.left == 1
+        and NS.db.char.marksImported == 1 and not (metaB and metaB["t:imp:big"]) and NS.Account.me.done["t:imp:big"] ~= nil
+        and NS.Guide.registry["t:imp:big"].steps == nil and allTables(NS) == reference, ser(Lb))
+    NS.Progress.Load("t:imp:big")
+    metaB = NS.Account.me.stepMeta
+    t("loading that guide converts its marks (the lazy path)", metaB and metaB["t:imp:big"] ~= nil
+        and NS.Progress.guide and NS.Progress.guide.id == "t:imp:big")
+
+    -- damaged saved data (an entry that is not a table) does not stop the import
+    db, chardb = dbWithMany()
+    db.chars["Tester-Test"].done["t:imp:07"] = true
+    db.chars["Tester-Test"].skipped["t:imp:08"] = 5
+    NS = session(db, chardb)
+    NS.Account.StartImport()
+    local okD, errD = pcall(pump, NS.Account, nil, 100)
+    t("a saved entry that is not a table: the import runs to its end", okD and NS.Account.ImportJob() == nil and NS.db.char.marksImported == 1
+        and NS.Account.lastImport.converted == 11, tostring(errD) .. " " .. ser(NS.Account.lastImport or {}))
+    local okL = pcall(NS.Progress.Load, "t:imp:07")
+    t("and loading the guide with the damaged entry does not fail", okL and NS.Progress.guide and NS.Progress.guide.id == "t:imp:07")
+    -- an error in a slice outside its inner pcalls: the frame's tick drops the job instead of throwing every frame
+    db, chardb = dbWithMany()
+    NS = session(db, chardb)
+    local calls = 0
+    NS.Account.PendingImports = function() calls = calls + 1 error("boom") end
+    NS.Account.StartImport()
+    local ok1, r1 = pcall(NS.Account.ImportTick)
+    local ok2 = pcall(NS.Account.ImportTick)
+    local ok3 = pcall(NS.Account.ImportTick)
+    t("an error in a slice: the tick does not throw, the job is dropped, it is not tried again this session", ok1 and r1 == false and ok2 and ok3
+        and calls == 1 and NS.Account.ImportJob() == nil and NS.db.char.marksImported == nil
+        and tostring(NS.Account.importError):find("boom") ~= nil, ("%s %s calls %d"):format(tostring(ok1), tostring(r1), calls))
 end
 
 -- ---------------------------------------------------------------------------
@@ -523,7 +568,9 @@ for _, fl in ipairs(FLAVORS) do
             print(("       slow slice %d: %.1f ms, %d guide%s, last %s (%s KB of text)"):format(i, w[1], w[2], w[2] == 1 and "" or "s", tostring(w[3]),
                 type(tx) == "string" and ("%.0f"):format(#tx / 1024) or "?"))
         end
-        t(fl .. ": every guide with old marks was converted", L.guides == n and L.converted >= n - 5, ("%s of %d"):format(tostring(L.converted), n))
+        print(("       %d guides over %d KB of text left to the lazy path"):format(L.left or 0, A.IMPORT_MAX_TEXT / 1024))
+        t(fl .. ": every guide with old marks was converted, but the ones too long for a frame", L.guides == n and L.converted >= n - 5 - (L.left or 0)
+            and (L.left or 0) <= n * 0.05, ("%s of %d, %s left"):format(tostring(L.converted), n, tostring(L.left)))
         t(fl .. ": no parsed steps kept afterwards", kept == 0, kept)
         t(fl .. ": the character is marked as converted", NS.db.char.marksImported == 1)
         -- CPU time on a machine shared with other jobs is noisy: the median is the check; the overruns are reported above
