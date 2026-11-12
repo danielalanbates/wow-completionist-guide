@@ -133,8 +133,8 @@ them in `--force-file` to solve them again. No bake was run here.
 
 **Independent check (2026-11-12, second pass on the same branch; offline only, nothing ran in a real client)**
 
-A second agent re-checked the work above in `wt-public` and fixed what it confirmed (5 commits, `f5a0b3f` to the
-docs commit after `c381177`).
+A second agent re-checked the work above in `wt-public` and fixed what it confirmed (the commits from
+`f5a0b3f` on).
 
 * **Content.** Every file the six TOCs and `Guides.xml` load (88 files, plus the library file one XML includes) was searched, the regenerated data
   included: no `(location: Questie data)` or `(location: Blizzard data)` note, no `qdb:` or `qpoi:` id, no `_gaps`,
