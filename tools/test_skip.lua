@@ -314,6 +314,52 @@ do
     t("reload: no second re-plan for the same rebuild", not NS2.Replan.running)
     t("reload: skips and locks persisted", NS2.Skip.IsRoot(101) and NS2.Skip.IsRoot(109) and NS2.Skip.LockedBy(103) == 101)
     t("reload: ticks persisted", NS2.Progress.VisibleDone() == 0 and ticked(NS2, "t:skip:a", base[3]))
+    -- the saved locks follow the prerequisite data (Skip.CheckData): the same data leaves them alone, a data update that
+    -- chains the quests differently works them out again when the first guide of the session is loaded
+    local function sameSet(a, b)
+        for k, v in pairs(a) do if b[k] ~= v then return false end end
+        for k, v in pairs(b) do if a[k] ~= v then return false end end
+        return true
+    end
+    local locks0, deps0 = S.Store().locks, S.Store().deps     -- as the first session left them
+    t("reload on the same data: locks are as saved, the data's signature is saved with them",
+        deps0 ~= nil and NS2.Skip.Store().deps == deps0 and deps0 == NS2.Skip.DepsSig() and next(locks0) ~= nil and sameSet(NS2.Skip.Store().locks, locks0),
+        tostring(NS2.Skip.Store().deps))
+    do
+        local function reload(deps, strip, from)
+            local d2 = roundTrip(from or db)
+            if strip then d2.chars["Tester-Test"].questSkip.deps = nil end
+            local NS3 = harness("era", { db = d2, chardb = roundTrip(chardb) })
+            NS3.QuestDeps = deps
+            NS3.Guide.Register({ id = "t:skip:a", name = "Skip A", type = "Quests", zone = 1429, faction = "Alliance", minlevel = 1, maxlevel = 10, text = table.concat(lines, "\n") })
+            NS3.Account.Init()
+            place(1429, 0.4, 0.4)
+            local calls, real = 0, NS3.Skip.Recompute
+            NS3.Skip.Recompute = function(...) calls = calls + 1 return real(...) end
+            NS3.Progress.Load("t:skip:a")
+            NS3.Replan.Cancel()
+            return NS3, function() return calls end, d2
+        end
+        -- new data: quest 110 (in no loaded guide) now needs the dropped 101
+        local newDeps = { flavor = "era", pre = saved.pre .. "110:101\n", free = saved.free, crumb = saved.crumb, never = saved.never, name = saved.name }
+        local NS3, calls3, db3 = reload(newDeps)
+        local S3 = NS3.Skip
+        t("data update: the locks are worked out again once, at the first guide load", calls3() == 1 and S3.Store().deps == S3.DepsSig() and S3.Store().deps ~= deps0, calls3())
+        t("data update: a quest the new data ties to the dropped one is locked (110), the others as before",
+            S3.LockedBy(110) == 101 and S3.LockedBy(102) == 101 and S3.LockedBy(103) == 101 and S3.LockedBy(106) == 101 and S3.IsRoot(101) and S3.IsRoot(109))
+        NS3.Progress.Load("t:skip:a")
+        NS3.Replan.Cancel()
+        t("data update: asked once per session, not on every guide load", calls3() == 1, calls3())
+        local NS6, calls6 = reload(saved, false, db3)
+        t("data update the other way: a quest the data no longer ties to the dropped one is free again (110)", calls6() == 1
+            and not NS6.Skip.IsRemoved(110) and sameSet(NS6.Skip.Store().locks, locks0), calls6())
+        local NS4, calls4 = reload(saved, true)
+        t("locks saved by a build that kept no signature are worked out once, to the same result", calls4() == 1
+            and sameSet(NS4.Skip.Store().locks, locks0) and NS4.Skip.Store().deps == NS4.Skip.DepsSig(), calls4())
+        local _, calls5 = reload(saved)
+        t("same data: nothing is worked out again", calls5() == 0, calls5())
+        place(1429, 0.4, 0.4)
+    end
     -- unskip on the reloaded character: the identical list, then a re-plan
     NS2.Skip.Unskip(101)
     NS2.Skip.Unskip(109)

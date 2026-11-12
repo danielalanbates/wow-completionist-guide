@@ -376,9 +376,29 @@ function S.Dependents(q)
     return S.Closure(S.Index(decisionGuides()), { q }, removed)
 end
 
+-- Which prerequisite data the saved locks were worked out from: length and hash of the four strings of
+-- Data/QuestDeps_<flavor>.lua the lock rule reads.  Hashed once per session, and only for a character that has
+-- dropped a quest (S.CheckData, S.Recompute).
+local sigOf, sigVal
+local function depsSig()
+    local D = NS.QuestDeps
+    if sigVal and sigOf == D then return sigVal end
+    local parts = {}
+    if type(D) == "table" then
+        for _, f in ipairs({ "pre", "free", "crumb", "never" }) do
+            local v = D[f]
+            parts[#parts + 1] = type(v) == "string" and (#v .. "." .. G.Base36(G.Hash45(v))) or "-"
+        end
+    end
+    sigOf, sigVal = D, "d1:" .. table.concat(parts, ":")
+    return sigVal
+end
+S.DepsSig = depsSig
+
 -- Locks from scratch for the current roots (after a drop, an unskip, or a change of what the character has done)
 function S.Recompute()
     local t = store(true)
+    t.deps = depsSig()
     local roots, removed, label = {}, {}, {}
     for q in pairs(t.roots) do roots[#roots + 1] = q removed[q] = true label[q] = q end
     table.sort(roots)
@@ -388,6 +408,21 @@ function S.Recompute()
     t.locks = locks
     S.version = S.version + 1
     return locked
+end
+
+-- The saved locks follow the prerequisite data they were worked out from.  A data update can chain quests differently:
+-- a quest the new data no longer ties to a dropped one must come back, and a newly tied one must go.  Asked once per
+-- session, when the first guide is loaded (Progress.Load, before the guide is rebuilt): locks saved under other data
+-- (or by a build that kept no record of it) are worked out again.  Returns true when it did.
+function S.CheckData()
+    if S.dataChecked then return false end
+    S.dataChecked = true
+    local t = store()
+    if next(t.roots) == nil then return false end
+    if t.deps == depsSig() then return false end
+    S.Recompute()
+    if NS.Account and NS.Account.ClearCompletionCaches then NS.Account.ClearCompletionCaches() end
+    return true
 end
 
 -- Conditions.StepApplies asks this for a step with PRE: true / false once a predecessor was removed (a soft one -

@@ -104,6 +104,8 @@ function P.Load(id)
     -- P.baseSteps keeps the guide's own list; progress stays keyed by step key either way.
     if NS.Replan then NS.Replan.Cancel() end
     P.baseSteps = P.steps
+    -- once per session: quest locks saved under other prerequisite data are worked out again (Core/Skip.lua)
+    if NS.Skip and NS.Skip.CheckData then NS.Skip.CheckData() end
     local cut, key
     P.steps, cut, key = P.Rebuilt(P.baseSteps)
     NS.db.char.guide = id
