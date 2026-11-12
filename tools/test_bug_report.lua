@@ -195,6 +195,10 @@ t("travel: taxi policy and known flight paths", r.travel.taxiPolicy == NS.Travel
     J.encode(r.travel))
 t("travel: hearth", r.travel.hasHearthstone == true and r.travel.bindName == "Goldshire")
 t("options: routing settings", r.options.routing.window == 24 and r.options.routing.reorder == true and r.options.scope ~= nil)
+-- settings that no longer exist are not reported; the text size and the step window's scale are (layout reports)
+t("options: no removed settings (arrow style, autoAdvance)", r.options.arrowStyle == nil and r.options.autoAdvance == nil, J.encode(r.options))
+t("options: text size, step window scale, minimap button", r.options.textSize == 2 and r.options.frameScale == 1 and r.options.minimapButton == true,
+    J.encode(r.options))
 t("log: the last lines, at most 30", #r.log >= 2 and #r.log <= 30 and r.log[#r.log]:find("Scope", 1, true) ~= nil, #r.log)
 t("last addon error", r.lastError and r.lastError.msg:find("repeated", 1, true) and r.lastError.count == 2 and r.lastError.source == "hook",
     r.lastError and J.encode(r.lastError))
@@ -489,6 +493,16 @@ else
     local stext = ps:read("*a") ps:close()
     t("--show prints the report without loading a world", stext:find("REPORT", 1, true) ~= nil and not stext:find("REPLAY", 1, true)
         and stext:find("EXIT=0", 1, true) ~= nil, stext:sub(-400))
+end
+
+-- the "Report a bug" note window (built on first use): it opens with the report's id, in the addon's title font, and
+-- is as tall as its title needs
+do
+    local ok, rb = pcall(BR.FromButton)
+    local box = BR.box
+    t("Report a bug: the note window opens on the new report", ok and rb and box and box.id == rb.id and box.title:GetText():find(rb.id, 1, true) ~= nil,
+        ok and "" or tostring(rb))
+    if box then box:Hide() end
 end
 
 os.execute("rm -rf '" .. TMP .. "'")

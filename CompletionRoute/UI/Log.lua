@@ -24,7 +24,9 @@ local function build()
     f:SetMovable(true); f:EnableMouse(true); f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
     f:SetFrameStrata("DIALOG")
-    local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormal"); t:SetPoint("TOP", 0, -8); t:SetText("CompletionRoute log  (Ctrl-A, Ctrl-C to copy)")
+    -- the title in the addon's own font (Core/Util.lua U.Font: the Options "Text size" slider covers it); the log
+    -- lines below stay in the client's chat font (ChatFontNormal), which is not one of its small fonts
+    local t = f:CreateFontString(nil, "OVERLAY", NS.Util.Font("Title")); t:SetPoint("TOP", 0, -8); t:SetText("CompletionRoute log  (Ctrl-A, Ctrl-C to copy)")
     local close = CreateFrame("Button", nil, f, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -2, -2)
     local sf = CreateFrame("ScrollFrame", "CompletionRouteLogScroll", f, "UIPanelScrollFrameTemplate")
     sf:SetPoint("TOPLEFT", 10, -28); sf:SetPoint("BOTTOMRIGHT", -30, 10)

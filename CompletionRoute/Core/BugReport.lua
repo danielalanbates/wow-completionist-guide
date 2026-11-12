@@ -484,9 +484,12 @@ local function secOptions(r)
         if t == "number" or t == "boolean" or t == "string" then routing[k] = v end
     end
     r.options = { routing = routing, scope = p.scope, accountWide = p.accountWide and true or false,
-                  accountQuests = p.accountQuests and true or false, autoAdvance = p.autoAdvance and true or false,
+                  accountQuests = p.accountQuests and true or false,
                   debug = p.debug and true or false, arrow = p.arrow and p.arrow.enabled and true or false,
-                  arrowStyle = p.arrow and p.arrow.style, beacon = p.beacon and p.beacon.enabled and true or false,
+                  beacon = p.beacon and p.beacon.enabled and true or false,
+                  -- the text size and the step window's scale, for reports about text that runs over or is cut
+                  textSize = tonumber(p.textSize), frameScale = p.frame and tonumber(p.frame.scale) and num(p.frame.scale, 2) or nil,
+                  minimapButton = p.minimapButton ~= false,
                   circuitizeGold = p.farm and p.farm.circuitizeGold and true or false,
                   guideShown = NS.GuideFrame and NS.GuideFrame.frame and NS.GuideFrame.frame:IsShown() and true or false }
     -- auto accept / turn-in (Core/QuestAuto.lua): its settings and the last decisions ("why was this not accepted?")
@@ -640,7 +643,7 @@ function BR.Command(rest)
         NS:Print(("%d bug report(s), newest first:"):format(#store))
         for i, r in ipairs(store) do
             if i > 10 then break end
-            NS:Print(("  %s  %s step %s%s"):format(r.id, r.guide and (r.guide.name or r.guide.id) or "no guide",
+            NS:Print(("  %s  %s step %s%s"):format(r.id, r.guide and (r.guide.name or r.guide.id) or "no route",
                 tostring(r.step and r.step.index or "-"), r.note and ("  \"" .. trunc(r.note, 50) .. "\"") or ""))
         end
         return
@@ -660,10 +663,15 @@ local function noteBox()
     f:SetFrameStrata("DIALOG")
     f:SetMovable(true); f:EnableMouse(true); f:RegisterForDrag("LeftButton")
     f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    local t = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    t:SetPoint("TOPLEFT", 12, -10); t:SetPoint("RIGHT", -12, 0); t:SetJustifyH("LEFT")
+    -- texts and button labels in the addon's own fonts, so the Options "Text size" slider covers them (Core/Util.lua
+    -- U.Font, UI/GuideFrame.lua GF.ButtonFonts)
+    local GF = NS.GuideFrame
+    local t = f:CreateFontString(nil, "OVERLAY", NS.Util.Font("Title"))
+    -- an explicit width, so its height can be read before the client has laid it out (see UI/GuideFrame.lua FitHeight)
+    t:SetPoint("TOPLEFT", 12, -10); t:SetWidth(380 - 24); t:SetJustifyH("LEFT"); t:SetWordWrap(true)
     local eb = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-    eb:SetSize(340, 20); eb:SetPoint("TOPLEFT", 20, -36); eb:SetAutoFocus(false); eb:SetMaxLetters(BR.NOTE_MAX)
+    -- under the title, however many lines the title takes at the chosen text size
+    eb:SetSize(340, 20); eb:SetPoint("TOPLEFT", t, "BOTTOMLEFT", 8, -8); eb:SetAutoFocus(false); eb:SetMaxLetters(BR.NOTE_MAX)
     local function commit()
         local txt = eb:GetText()
         if f.id and BR.SetNote(f.id, txt) then NS:Print("Note added to " .. f.id .. ".") end
@@ -677,8 +685,10 @@ local function noteBox()
     local skip = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     skip:SetSize(70, 20); skip:SetPoint("RIGHT", save, "LEFT", -4, 0); skip:SetText("No note")
     skip:SetScript("OnClick", function() eb:ClearFocus() f:Hide() end)
+    save.minW, skip.minW = 90, 70
+    if GF and GF.ButtonFonts then GF.ButtonFonts(save) GF.ButtonFonts(skip) end
     tinsert(UISpecialFrames, "CompletionRouteBugNote")
-    f.title, f.eb = t, eb
+    f.title, f.eb, f.save, f.skip = t, eb, save, skip
     f:Hide()
     BR.box = f
     return f
@@ -689,6 +699,13 @@ function BR.FromButton()
     if not ok or not f then return r end
     f.id = r.id
     f.title:SetText(("Saved %s. What went wrong? (optional)"):format(r.id))
+    -- the button labels follow the text size: as wide as they need
+    local GF = NS.GuideFrame
+    if GF and GF.FitButton then GF.FitButton(f.save) GF.FitButton(f.skip) end
+    -- title, edit box, buttons: as tall as the title's lines need
+    local th = f.title.GetStringHeight and f.title:GetStringHeight()
+    th = (type(th) == "number" and th > 0) and th or 14
+    f:SetHeight(math.max(100, math.ceil(10 + th + 8 + 20 + 8 + 20 + 10)))
     f.eb:SetText("")
     f:Show()
     f.eb:SetFocus()
