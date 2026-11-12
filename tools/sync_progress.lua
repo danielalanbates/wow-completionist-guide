@@ -3,7 +3,8 @@
 -- is invisible to Classic until something merges the files. This does that: it loads CompletionRouteDB from
 -- every flavor, unions the per-character account records (chars[key].stepDone / stepSkipped by step key, their
 -- stepMeta migration records, the index-keyed done / skipped of earlier releases, quests; newest scalars), and writes
--- the merged `chars` table back into each file. Idempotent; safe to run any time (a client that is running will
+-- the merged `chars` table back into each file that it changes (a file that already holds everything is not touched).
+-- Idempotent; safe to run any time (a client that is running will
 -- overwrite its file at logout with its own newer data, and the next run re-merges it).  A record's marks were written
 -- against its own client's guide data: each client migrates (Core/Account.lua A.Migrate) only records of its own game
 -- type, so copying records across clients never maps one client's step indices onto another client's guides.
@@ -70,48 +71,99 @@ local function unionInto(dst, src)
 end
 local function newer(a, b) return (a.updated or "") >= (b.updated or "") and a or b end
 
+-- The saved-variable layout this script understands (Core/Init.lua writes CompletionRouteDB.dataFormat).  A file from
+-- a later layout is never rewritten by an older copy of this script: the launchd agent keeps its own copy
+-- (tools/install_sync_agent.sh), and a stale one once dropped every record table it did not know.
+local FORMAT = 2
+-- the file's content without the stamp this script adds, in the stable order of dump(): equal text = nothing to write
+local function body(db)
+    local keep = db.lastSync
+    db.lastSync = nil
+    local text = dump("CompletionRouteDB", db)
+    db.lastSync = keep
+    return text
+end
+
 local svs = {}
 for _, path in ipairs(files()) do
     local env, err = loadSV(path)
-    if env and env.CompletionRouteDB then svs[#svs + 1] = { path = path, db = env.CompletionRouteDB }
+    if env and env.CompletionRouteDB then svs[#svs + 1] = { path = path, db = env.CompletionRouteDB, before = body(env.CompletionRouteDB) }
     else io.stderr:write("skip " .. path .. ": " .. tostring(err) .. "\n") end
 end
 if #svs < 2 then print("sync: fewer than two SavedVariables files, nothing to merge") return end
+for _, sv in ipairs(svs) do
+    local f = tonumber(sv.db.dataFormat)
+    if f and f > FORMAT then
+        io.stderr:write(("sync: %s was written by a newer release (layout %d, this script knows %d); nothing written. "
+            .. "Update this copy of sync_progress.lua (tools/refresh_sync_agent.sh).\n"):format(sv.path, f, FORMAT))
+        os.exit(3)
+    end
+end
 
--- merge chars
+-- merge chars.  The mark tables below are unioned.  Every other table of a record - questSkip (quests the player
+-- dropped: a choice, not progress), and any table a later release adds - is carried through whole from the newest
+-- record that has it, never dropped.
+local UNION = { "done", "skipped", "quests", "stepDone", "stepSkipped", "stepMeta" }
+local isUnion = {}
+for _, f in ipairs(UNION) do isUnion[f] = true end
 local merged = {}
 for _, sv in ipairs(svs) do
     for key, c in pairs(sv.db.chars or {}) do
         local m = merged[key]
-        if not m then m = { done = {}, skipped = {}, quests = {}, stepDone = {}, stepSkipped = {}, stepMeta = {} } merged[key] = m end
-        unionInto(m.done, c.done) unionInto(m.skipped, c.skipped) unionInto(m.quests, c.quests)
+        if not m then
+            m = {}
+            for _, f in ipairs(UNION) do m[f] = {} end
+            merged[key] = m
+        end
         -- marks by step key, and the per-guide record that the old index-keyed marks were migrated (one copy having it is
         -- enough: the old marks must never be imported a second time)
-        unionInto(m.stepDone, c.stepDone) unionInto(m.stepSkipped, c.stepSkipped) unionInto(m.stepMeta, c.stepMeta)
+        for _, f in ipairs(UNION) do if type(c[f]) == "table" then unionInto(m[f], c[f]) end end
         local pick = newer(c, m)
-        for f, v in pairs(c) do if type(v) ~= "table" and (pick == c or m[f] == nil) then m[f] = v end end
-        -- quests the player dropped (Core/Skip.lua): a choice, not progress - the newest record's choice wins whole
-        if c.questSkip and (pick == c or m.questSkip == nil) then m.questSkip = c.questSkip end
+        for f, v in pairs(c) do
+            if not isUnion[f] and (pick == c or m[f] == nil) then m[f] = v end
+        end
     end
 end
--- also union the recorded road traces (one road network for the account)
-local roads = {}
-for _, sv in ipairs(svs) do for inst, segs in pairs(sv.db.roadTrace or {}) do roads[inst] = roads[inst] or {} for _, s in ipairs(segs) do roads[inst][#roads[inst] + 1] = s end end end
+-- also union the recorded road traces (one road network for the account); a segment already in the list is not added
+-- again (every run used to append every file's copy: 3 segments became 12, then 48, and pushed real ones out in game)
+local roads, haveSeg = {}, {}
+for _, sv in ipairs(svs) do
+    for inst, segs in pairs(sv.db.roadTrace or {}) do
+        roads[inst] = roads[inst] or {}
+        for _, s in ipairs(segs) do
+            local out = { tostring(inst), "|" }
+            ser(s, "", out)
+            local sig = table.concat(out)
+            if not haveSeg[sig] then
+                haveSeg[sig] = true
+                roads[inst][#roads[inst] + 1] = s
+            end
+        end
+    end
+end
 
 local nChars, nQuests = 0, 0
 for _, m in pairs(merged) do nChars = nChars + 1 for _ in pairs(m.quests) do nQuests = nQuests + 1 end end
+local written = 0
 for _, sv in ipairs(svs) do
     local before = 0 for _ in pairs(sv.db.chars or {}) do before = before + 1 end
     sv.db.chars = merged
-    sv.db.roadTrace = roads
-    sv.db.lastSync = os.date("%Y-%m-%d %H:%M:%S")
-    local text = dump("CompletionRouteDB", sv.db)
-    if dry then print(("would write %s (%d -> %d chars)"):format(sv.path, before, nChars))
+    if sv.db.roadTrace ~= nil or next(roads) ~= nil then sv.db.roadTrace = roads end
+    local name = sv.path:match("World of Warcraft/(.-)/WTF") or sv.path
+    if body(sv.db) == sv.before then
+        -- nothing new for this file: leave it alone (the watch agent is started by writes to these files)
+        print(("unchanged %s (%d chars)"):format(name, before))
     else
-        local f = io.open(sv.path, "r") local old = f and f:read("*a") if f then f:close() end
-        if old then local b = io.open(sv.path .. ".presync.bak", "w") b:write(old) b:close() end
-        local w = assert(io.open(sv.path, "w")) w:write(text) w:close()
-        print(("synced %s (%d -> %d chars)"):format(sv.path:match("World of Warcraft/(.-)/WTF") or sv.path, before, nChars))
+        sv.db.lastSync = os.date("%Y-%m-%d %H:%M:%S")
+        local text = dump("CompletionRouteDB", sv.db)
+        if dry then print(("would write %s (%d -> %d chars)"):format(sv.path, before, nChars))
+        else
+            local f = io.open(sv.path, "r") local old = f and f:read("*a") if f then f:close() end
+            if old then local b = io.open(sv.path .. ".presync.bak", "w") b:write(old) b:close() end
+            local w = assert(io.open(sv.path, "w")) w:write(text) w:close()
+            written = written + 1
+            print(("synced %s (%d -> %d chars)"):format(name, before, nChars))
+        end
     end
 end
-print(("sync: %d characters, %d completed-quest records unioned across %d clients"):format(nChars, nQuests, #svs))
+print(("sync: %d characters, %d completed-quest records unioned across %d clients, %d file%s written"):format(nChars, nQuests, #svs, written, written == 1 and "" or "s"))

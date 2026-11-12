@@ -1,7 +1,8 @@
 #!/bin/bash
 # Install the cross-client progress sync as a launchd WatchPaths agent (fires whenever any WoW client
 # writes CompletionRoute's SavedVariables, i.e. at logout / reload). The script is COPIED out of iCloud
-# first - launchd must never point at an iCloud path (eviction crash-loops).
+# first - launchd must never point at an iCloud path (eviction crash-loops).  tools/install.sh keeps that copy current
+# (tools/refresh_sync_agent.sh): a copy older than the addon must never rewrite the saved variables.
 set -e
 SRC="$(cd "$(dirname "$0")" && pwd)/sync_progress.lua"
 DST_DIR="$HOME/Library/Application Support/CompletionRoute"

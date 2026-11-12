@@ -4,6 +4,8 @@
 set -e
 SRC="$(cd "$(dirname "$0")/.." && pwd)/CompletionRoute"
 WOW="${WOW_DIR:-/Volumes/x10/Video Games/Mac/World of Warcraft}"
+# The background sync agent keeps its own copy of sync_progress.lua: never leave one older than the addon installed here.
+"$(dirname "$0")/refresh_sync_agent.sh" || echo "install.sh: warning: could not refresh the sync agent's copy of sync_progress.lua" >&2
 # Guides/ now holds a baked set per flavor (the retail install alone is ~30 MB); ship each client
 # only its own, or every game folder carries ~90 MB of other eras' guides it will never load.
 # Guard: the quest guides every client loads are Imported_Wiki_<flavor>.lua (Warcraft Wiki, CC BY-SA 4.0) plus
