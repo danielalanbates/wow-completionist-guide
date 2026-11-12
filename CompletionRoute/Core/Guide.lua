@@ -563,6 +563,7 @@ local function guideStart(g)
         if (s.coords or s.zone) and s.action ~= "h" then return s end
     end
 end
+G.GuideStart = guideStart     -- the first located step (parses the guide); UI/GuideMenu.lua prices a few of them
 
 -- Next most optimal leveling guide after finishing one: level fit first,
 -- then actual travel time from the player's position to the guide's start.

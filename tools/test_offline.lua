@@ -109,23 +109,23 @@ local T = NS.GuideMenu._test
 local root = T.buildTree()
 assert(#root.kids >= 1, "tree has no top-level categories")
 if BAKED then assert(#root.kids > 1, "tree has only " .. #root.kids .. " top-level categories") end
--- "For level N" is the synthetic section of per-category picks and always sorts first when non-empty;
--- Leveling is the first real category after it.
-local firstReal = root.kids[1].forLevel and root.kids[2] or root.kids[1]
+-- "Recommended" is the synthetic section of the closest routes that fit the level and always sorts first when
+-- non-empty; Leveling is the first real category after it.
+local firstReal = root.kids[1].recommended and root.kids[2] or root.kids[1]
 assert(firstReal and firstReal.name == "Leveling", "first real category is " .. tostring(firstReal and firstReal.name))
 local total = #NS.Guide.Available()
 local nextN = #NS.GuideMenu.NextStepGuides(true)
 assert(root.count == total + nextN, ("tree count %d ~= available %d + picks %d"):format(root.count, total, nextN))
-assert(root.kids[1].forLevel or nextN == 0, "For level section is not the first category")
+assert(root.kids[1].recommended or nextN == 0, "Recommended section is not the first category")
 -- every pick must actually fit the level (or be level-agnostic)
 UnitLevel = function() return 8 end
 for _, g in ipairs(NS.GuideMenu.NextStepGuides(true)) do
     if g.minlevel or g.maxlevel then
         assert((not g.minlevel or 8 >= g.minlevel) and (not g.maxlevel or 8 <= g.maxlevel),
-            ("For level picked %s [%s-%s] at level 8"):format(g.id, tostring(g.minlevel), tostring(g.maxlevel)))
+            ("Recommended picked %s [%s-%s] at level 8"):format(g.id, tostring(g.minlevel), tostring(g.maxlevel)))
     end
 end
-print(("For level section OK: %d picks at level 8"):format(#NS.GuideMenu.NextStepGuides(true)))
+print(("Recommended section OK: %d routes at level 8"):format(#NS.GuideMenu.NextStepGuides(true)))
 -- expand everything: every guide must appear exactly once as a row
 local function expandAll(n) for _, k in ipairs(n.kids) do T.expanded[k.path] = true expandAll(k) end end
 expandAll(root)

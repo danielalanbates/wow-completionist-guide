@@ -1052,7 +1052,7 @@ local function autoload(attempt)
             return
         end
         -- First launch on this character (no guide was ever loaded): do not pick a guide and open it unasked.  Show
-        -- the guide list instead, whose "For level N" section starts open with the best picks (beta feedback,
+        -- the guide list instead, whose "Recommended" section starts open with the closest routes for your level (beta feedback,
         -- 2026-11-11).  Once per character; a character whose saved guide no longer exists still gets a suggestion.
         if id == nil and not NS.db.char.welcomed then
             NS.db.char.welcomed = true

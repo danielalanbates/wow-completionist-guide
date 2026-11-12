@@ -231,13 +231,28 @@ t("preferences live in the profile, defaults off", NS.db.profile.guideList == pr
 t("level defaults to the character's", M.ViewLevel() == 8, M.ViewLevel())
 do
     local root = T.buildTree()
-    t("For level section is first", root.kids[1].forLevel and root.kids[1].name == "For level 8", root.kids[1].name)
+    t("Recommended section is first", root.kids[1].recommended and root.kids[1].name == "Recommended", root.kids[1].name)
     local sec = root.kids[1]
-    local order = {}
-    for i, k in ipairs(sec.kids) do order[i] = k.name end
-    t("section order: Leveling first", sec.kids[1].name == "Leveling", table.concat(order, ","))
-    t("Gold circuits appear there", sec.kidByName.Gold ~= nil and (function() for _, g in ipairs(sec.kidByName.Gold.guides) do if g.loop then return true end end end)())
-    t("Professions picks appear there", sec.kidByName.Professions ~= nil)
+    -- what it holds: unfinished quest routes (Leveling / Quests) that fit level 8, one per zone part, at most 10,
+    -- closest first (owner's request 2026-11-12; it replaced the per-category "For level N" picks)
+    local okType, okFit, okDup, okOrder, seenPart, lastEta = true, true, true, true, {}, -1
+    for _, g in ipairs(sec.guides) do
+        local cat = G.NormalizeType(g.type)
+        if cat ~= "Leveling" and cat ~= "Quests" then okType = false end
+        if (g.minlevel and 8 < g.minlevel) or (g.maxlevel and 8 > g.maxlevel) then okFit = false end
+        local k = g.part or g.id
+        if seenPart[k] then okDup = false end
+        seenPart[k] = true
+        local eta = g.__nextETA or math.huge
+        if eta < lastEta then okOrder = false end
+        lastEta = eta
+    end
+    t("Recommended holds quest routes only", okType)
+    t("Recommended routes fit the level", okFit)
+    t("Recommended lists a zone part once", okDup)
+    t("Recommended is closest first", okOrder)
+    t("Recommended shows at most 10", #sec.guides >= 1 and #sec.guides <= 10, #sec.guides)
+    t("no sub-folders in Recommended", #sec.kids == 0)
     local total = #G.Available()
     t("the section plus the categories count every guide", root.count == total + sec.count, root.count .. " vs " .. total .. "+" .. sec.count)
 end
@@ -264,7 +279,7 @@ do
     local root = T.buildTree()
     local names = {}
     for i, k in ipairs(root.kids) do names[i] = k.name end
-    t("grouped tree: section, then bands in level order, Any level last", root.kids[1].forLevel and names[2] == "1-9" and names[#names] == "Any level", table.concat(names, ","))
+    t("grouped tree: section, then bands in level order, Any level last", root.kids[1].recommended and names[2] == "1-9" and names[#names] == "Any level", table.concat(names, ","))
     local b = root.kids[2]
     t("a band holds categories, category order Leveling first", b.kids[1].name == "Leveling", b.kids[1].name)
     local cat = b.kidByName.Leveling
@@ -295,7 +310,7 @@ do
     M.SetViewLevel(12)
     t("SetViewLevel changes the level", M.ViewLevel() == 12 and prefs.level == 12)
     local root = T.buildTree()
-    t("the section follows the level box", root.kids[1].name == "For level 12", root.kids[1].name)
+    t("the section follows the level box", root.kids[1].name == "Recommended for level 12", root.kids[1].name)
     t("Refresh is the same level everywhere", T.levelBox:GetText() == "12", T.levelBox:GetText())
     M.SetViewLevel(nil)
     t("Mine resets the level and clears the override", M.ViewLevel() == 8 and prefs.level == nil)

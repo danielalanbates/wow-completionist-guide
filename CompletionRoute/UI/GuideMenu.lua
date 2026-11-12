@@ -4,7 +4,7 @@
 -- Typing in the filter box switches to a flat search across all guides.
 -- On top of the tree sits "Recent": the routes this character has finished steps in, most recently used first
 -- (Core/Progress.lua P.RecentList, a small saved table: no guide is parsed for it).
--- The level box under the search field drives Core/Recommend.lua: the "For level N" section, the "Only guides for this
+-- The level box under the search field drives Core/Recommend.lua: the "Recommended" section, the "Only guides for this
 -- level" filter and the "Group by level" tree all read the same cached per-level ranking, which never parses guide steps.
 local ADDON, NS = ...
 local U, G, P, Rec = NS.Util, NS.Guide, NS.Progress, NS.Recommend
@@ -207,10 +207,9 @@ scroll:SetScrollChild(content)
 local buttons = {}
 local ROW_H = 22      -- 20 px until the list text grew from 10 pt to 12 pt
 local expanded = {}   -- [nodePath] = true
--- the "For level N" section starts open with its Leveling picks showing
-local FOR_LEVEL_PATH = "\\For level"
-expanded[FOR_LEVEL_PATH] = true
-expanded[FOR_LEVEL_PATH .. "\\Leveling"] = true
+-- "Recommended" starts open: the closest routes that fit your level
+local REC_PATH = "\\Recommended"
+expanded[REC_PATH] = true
 -- "Recent" starts open too: it is what the player came back for
 local RECENT_PATH = "\\Recent"
 expanded[RECENT_PATH] = true
@@ -230,15 +229,15 @@ local function normCat(s)
 end
 
 -- Category display order; anything else lands after, alphabetical
-local NEXT_CAT = "For level"      -- style key; the row itself reads "For level N"
+local REC_CAT = "Recommended"     -- style key; the row reads "Recommended" (or "Recommended for level N")
 local RECENT_CAT = "Recent"
-local CAT_ORDER = { [RECENT_CAT] = -2, [NEXT_CAT] = 0, Leveling = 1, Quests = 2, Dungeons = 3, Dailies = 4, Daily = 4, Gold = 5, Professions = 6, Profession = 6,
+local CAT_ORDER = { [RECENT_CAT] = -2, [REC_CAT] = 0, Leveling = 1, Quests = 2, Dungeons = 3, Dailies = 4, Daily = 4, Gold = 5, Professions = 6, Profession = 6,
     Reputation = 7, Reputations = 7, Achievements = 8, Achievement = 8, Titles = 9, ["Pets & Mounts"] = 10, Events = 11 }
 
 -- Per-category icon + tint (TBC-era icons only). Rendered inline via |T escapes.
 local CAT_STYLE = {
     [RECENT_CAT] = { icon = "Interface\\Icons\\INV_Misc_PocketWatch_01", color = "9fd0ff" },
-    [NEXT_CAT] = { icon = "Interface\\Icons\\Ability_Tracking",           color = "7ddf8f" },
+    [REC_CAT]  = { icon = "Interface\\Icons\\Ability_Tracking",           color = "7ddf8f" },
     Leveling   = { icon = "Interface\\Icons\\INV_Misc_Map_01",           color = "ffd200" },
     Quests     = { icon = "Interface\\GossipFrame\\AvailableQuestIcon",   color = "ffee66" },
     Dungeons   = { icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01",   color = "ff6a5a" },
@@ -267,57 +266,119 @@ local function guidePath(g)
 end
 
 -- ---------------------------------------------------------------------------
--- "For level N": the best picks per category for the level in the box (Core/Recommend.lua ranks them).  The Leveling
--- picks get one extra step: they are ordered by how long it takes to get there.  That parses the guides it prices, so
--- it is capped and cached; the rest of the list never touches guide steps.
+-- "Recommended" (owner's request, 2026-11-12; it replaced the "For level N" section of per-category picks): the quest
+-- routes that fit the level in the box and that this character has not finished, CLOSEST FIRST.  Closeness is the
+-- travel time from where you stand to the route's zone, all of them priced by one graph search (Router.TravelRow); a
+-- route in the zone you are in, or in a zone that contains it, counts as 0, and the first REC_PRICED are priced again
+-- to their first step (that parses those guides).  A spine part and the zone guide it is made from are one entry (the
+-- spine one: it chains on to the next route).  Gold, profession, dungeon and other routes stay in their own folders.
+-- Cached for 30 s and until the level, your zone or the guide list changes.
 -- ---------------------------------------------------------------------------
-local PRICED = 6
-local etaOf, etaLevel, etaAt = {}, nil, 0
-local function orderByTravel(entries, level, force)
-    local now = GetTime and GetTime() or 0
-    if force or etaLevel ~= level or (now - etaAt) >= 30 then
-        etaOf, etaLevel, etaAt = {}, level, now
-        for i = 1, math.min(PRICED, #entries) do
-            local g = entries[i].g
-            local ok, eta = pcall(G.GuideETA, g)
-            etaOf[g.id] = ok and eta or nil
-            g.__nextETA = etaOf[g.id]
-        end
-    end
-    local head, guides = {}, {}
-    for i = 1, math.min(PRICED, #entries) do head[i] = entries[i] end
-    table.sort(head, function(a, b)
-        local ea, eb = etaOf[a.g.id] or math.huge, etaOf[b.g.id] or math.huge
-        if ea ~= eb then return ea < eb end
-        return a.score > b.score
-    end)
-    for i, e in ipairs(head) do guides[i] = e.g end
-    for i = #head + 1, #entries do guides[i] = entries[i].g end
-    return guides
+local REC_SHOWN, REC_PRICED = 10, 6
+local REC_TYPES = { Leveling = true, Quests = true }
+local recCache = { key = nil, at = -1e9, list = {} }
+
+local function zoneWorld(mid)
+    local HBD = NS.HBD
+    if not (mid and HBD) then return nil end
+    local x, y = 0.5, 0.5
+    if U.EraToForever then x, y = U.EraToForever(mid, 0.5, 0.5) end
+    local ok, wx, wy, inst = pcall(HBD.GetWorldCoordinatesFromZone, HBD, x, y, mid)
+    if ok and wx then return { wx = wx, wy = wy, inst = inst } end
 end
 
--- { { cat = "Leveling", guides = { ... } }, ... }, in section order
-function M.ForLevelSections(level, force)
-    local out = {}
-    for _, sec in ipairs(Rec.Picks(level)) do
-        local guides
-        if sec.cat == "Leveling" then guides = orderByTravel(sec.entries, level, force)
-        else
-            guides = {}
-            for i, e in ipairs(sec.entries) do guides[i] = e.g end
+-- the player's map and every map that contains it: a route in any of them is "here"
+local function hereMaps(map)
+    local out, guard = {}, 0
+    while map and map ~= 0 and guard < 6 do
+        out[map] = true
+        local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(map)
+        map = info and info.parentMapID
+        guard = guard + 1
+    end
+    return out
+end
+
+local function byCloseness(x, y)
+    local ex, ey = x.eta or math.huge, y.eta or math.huge
+    if ex ~= ey then return ex < ey end
+    if x.score ~= y.score then return x.score > y.score end
+    return (x.g.name or x.g.id) < (y.g.name or y.g.id)
+end
+
+-- { guide, ... }, closest first (each guide's g.__nextETA = its travel seconds, nil when unknown)
+function M.Recommended(level, force)
+    level = level or M.ViewLevel()
+    local map = U.PlayerPos()
+    local now = GetTime and GetTime() or 0
+    local key = table.concat({ level, tostring(map), #G.list, (NS.Account and NS.Account.Scope and NS.Account.Scope()) or "" }, "|")
+    if not force and recCache.key == key and (now - recCache.at) < 30 then return recCache.list end
+    local cands, seen = {}, {}
+    local parked = P and P.ParkedWaiting
+    for _, e in ipairs(Rec.ForLevel(level)) do
+        local g = e.g
+        if e.fit and not e.finished and REC_TYPES[e.cat] and not (parked and parked(g.id)) then
+            local k = g.part or g.id
+            local at = seen[k]
+            if not at then
+                seen[k] = #cands + 1
+                cands[#cands + 1] = { g = g, score = e.score }
+            elseif e.cat == "Leveling" and cands[at].g.type ~= "Leveling" then
+                cands[at].g = g
+            end
         end
-        out[#out + 1] = { cat = sec.cat, guides = guides }
     end
-    return out
-end
--- every pick of the section as one flat list, for the old callers and the tests
-function M.NextStepGuides(force)
-    local out = {}
-    for _, sec in ipairs(M.ForLevelSections(M.ViewLevel(), force)) do
-        for _, g in ipairs(sec.guides) do out[#out + 1] = g end
+    -- closeness by zone, one search for all
+    local here = hereMaps(map)
+    local R = NS.Router
+    local a = R and R.PlayerPoint and R.PlayerPoint()
+    local goals, goalOf, byZone = {}, {}, {}
+    for i, c in ipairs(cands) do
+        local z = tonumber(c.g.zone)
+        if z and here[z] then
+            c.eta = 0
+        elseif z then
+            local gi = byZone[z]
+            if gi == nil then
+                local w = zoneWorld(z)
+                if w then goals[#goals + 1] = w gi = #goals else gi = false end
+                byZone[z] = gi
+            end
+            if gi then goalOf[i] = gi end
+        end
     end
-    return out
+    if a and #goals > 0 and R.TravelRow then
+        local ok, res = pcall(R.TravelRow, a, goals)
+        if ok and res then for i, gi in pairs(goalOf) do cands[i].eta = res[gi] end end
+    end
+    table.sort(cands, byCloseness)
+    -- the first few, priced again to their first step (one more search for all of them): inside one zone that decides
+    -- which part is nearest
+    if a and R.TravelRow and R.StepWorld and G.GuideStart then
+        local pts, at = {}, {}
+        for i = 1, math.min(REC_PRICED, #cands) do
+            local ok, s0 = pcall(G.GuideStart, cands[i].g)
+            if ok and s0 then
+                local wx, wy, inst = R.StepWorld(s0)
+                if wx then pts[#pts + 1] = { wx = wx, wy = wy, inst = inst } at[#at + 1] = i end
+            end
+        end
+        if #pts > 0 then
+            local ok, res = pcall(R.TravelRow, a, pts)
+            if ok and res then for j, i in ipairs(at) do if res[j] then cands[i].eta = res[j] end end end
+        end
+    end
+    table.sort(cands, byCloseness)
+    local list = {}
+    for i = 1, math.min(REC_SHOWN, #cands) do
+        list[i] = cands[i].g
+        cands[i].g.__nextETA = cands[i].eta
+    end
+    recCache.key, recCache.at, recCache.list = key, now, list
+    return list
 end
+-- the old name (tools and tests): the recommended routes for the level in the box
+function M.NextStepGuides(force) return M.Recommended(M.ViewLevel(), force) end
 
 -- Build tree: node = { name, path, kids = {ordered}, kidByName = {}, guides = {}, count }
 local function buildTree()
@@ -337,20 +398,13 @@ local function buildTree()
             root.count = root.count + node.count
         end
     end
-    -- synthetic second category: the picks for the level in the box
+    -- synthetic second category: the closest routes that fit the level in the box
     do
-        local sections = M.ForLevelSections(level)
-        if #sections > 0 then
-            local label = NEXT_CAT .. " " .. level
-            local node = { name = label, path = FOR_LEVEL_PATH, kids = {}, kidByName = {}, guides = {}, count = 0,
-                           synthetic = true, forLevel = true, styleKey = NEXT_CAT, order = -1 }
-            for i, sec in ipairs(sections) do
-                local kid = { name = sec.cat, path = node.path .. "\\" .. sec.cat, kids = {}, kidByName = {}, guides = sec.guides,
-                              count = #sec.guides, synthetic = true, order = i, styleKey = sec.cat }
-                node.kids[i] = kid
-                node.kidByName[sec.cat] = kid
-                node.count = node.count + #sec.guides
-            end
+        local recs = M.Recommended(level)
+        if #recs > 0 then
+            local label = (level == myLevel()) and REC_CAT or (REC_CAT .. " for level " .. level)
+            local node = { name = label, path = REC_PATH, kids = {}, kidByName = {}, guides = recs, count = #recs,
+                           synthetic = true, recommended = true, styleKey = REC_CAT, order = -1 }
             root.kidByName[label] = node
             root.kids[#root.kids + 1] = node
             root.count = root.count + node.count
@@ -522,7 +576,10 @@ local function savedPct(g)
 end
 
 local function guideLabel(g, inNext)
-    local eta = inNext and g.__nextETA and ("  |cff6ac9ff~%dm|r"):format(math.max(1, math.floor(g.__nextETA / 60 + 0.5))) or ""
+    local eta = ""
+    if inNext and g.__nextETA then
+        eta = g.__nextETA < 45 and "  |cff6ac9ffnearby|r" or ("  |cff6ac9ff~%dm|r"):format(math.max(1, math.floor(g.__nextETA / 60 + 0.5)))
+    end
     local band = Rec.GuideLabel(g)
     local entry = Rec.EntryFor(M.ViewLevel(), g.id)
     local needs = (entry and entry.missing) and ("  |cffff9900needs %s|r"):format(entry.missing) or ""
@@ -681,5 +738,5 @@ function M.Show() openMenu() end
 -- exposed for tools/test_offline.lua (headless tree checks); not used in-game
 M._test = { buildTree = buildTree, guidePath = guidePath, visibleRows = visibleRows, searchRows = searchRows, expanded = expanded,
             nodeCompletion = nodeCompletion, scanSlice = scanSlice, scanned = function() return scanned end,
-            prefs = listPrefs, levelBox = levelBox, onlyLevel = onlyLevel, groupLevel = groupLevel, FOR_LEVEL_PATH = FOR_LEVEL_PATH,
+            prefs = listPrefs, levelBox = levelBox, onlyLevel = onlyLevel, groupLevel = groupLevel, REC_PATH = REC_PATH,
             RECENT_PATH = RECENT_PATH, savedPct = savedPct, title = title, buttons = buttons }
