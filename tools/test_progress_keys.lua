@@ -426,16 +426,18 @@ do
     local me = A.me
     local function keysOf(set) local o = {} for k in pairs(set or {}) do o[#o + 1] = k end table.sort(o) return table.concat(o, " ") end
     local function keysAt(list) local o = {} for _, i in ipairs(list) do o[#o + 1] = s[i].key end table.sort(o) return table.concat(o, " ") end
-    t("this character's ticks (author indices 1 2 3 9 16) are on their steps' keys", keysOf(me.stepDone["t:keys:a"]) == keysAt({ 1, 2, 3, 9, 16 }), keysOf(me.stepDone["t:keys:a"]))
+    t("this character's ticks on steps without a quest (author indices 2 9 16) are on their steps' keys", keysOf(me.stepDone["t:keys:a"]) == keysAt({ 2, 9, 16 }), keysOf(me.stepDone["t:keys:a"]))
+    t("...its ticks on quest steps whose quest it has not completed (1 A Alpha, 3 C Alpha) are not carried over: position alone is not trusted",
+        not me.stepDone["t:keys:a"][s[1].key] and not me.stepDone["t:keys:a"][s[3].key] and not P.IsDone(s[1]) and not P.IsDone(s[3]))
     t("its skipped step (7)", keysOf(me.stepSkipped["t:keys:a"]) == keysAt({ 7 }))
     t("its reopened step (4, character file)", keysOf(NS.db.char.stepReopened["t:keys:a"]) == keysAt({ 4 }))
     local meta = me.stepMeta["t:keys:a"]
-    t("migration record: version, checksum, 7 imported, 2 without a step (index 99, access-chain index -2)",
-        meta and meta.v == 1 and meta.sum == G.GuideSum("t:keys:a") and meta.mig == 7 and meta.lost == 2, meta and ser(meta))
+    t("migration record: version, checksum, 5 imported, 3 not (the two quest steps, access-chain index -2)",
+        meta and meta.v == 1 and meta.sum == G.GuideSum("t:keys:a") and meta.mig == 5 and meta.lost == 3 and meta.stale == nil, meta and ser(meta))
     t("IsDone after migration: ticks and the skip count, the reopened step does not",
-        P.IsDone(s[1]) and P.IsDone(s[9]) and P.IsDone(s[16]) and P.IsDone(s[7]) and not P.IsDone(s[4]) and not P.IsDone(s[5]))
+        P.IsDone(s[2]) and P.IsDone(s[9]) and P.IsDone(s[16]) and P.IsDone(s[7]) and not P.IsDone(s[4]) and not P.IsDone(s[5]))
     local alt = chars["Alt-Test"]
-    t("another character of this game type is migrated too (5, 10)", alt.stepMeta and alt.stepMeta["t:keys:a"] and keysOf(alt.stepDone["t:keys:a"]) == keysAt({ 5, 10 }),
+    t("another character of this game type is migrated too (5, 10: turn-ins of quests its record has completed)", alt.stepMeta and alt.stepMeta["t:keys:a"] and keysOf(alt.stepDone["t:keys:a"]) == keysAt({ 5, 10 }),
         alt.stepDone and keysOf(alt.stepDone["t:keys:a"]))
     t("a record without a game type on an era client is left alone (Era and Forever both say 'era')", chars["Old-Test"].stepDone == nil and chars["Old-Test"].stepMeta == nil)
     t("records of other clients are left alone (retail, mop)", chars["Ret-Other"].stepDone == nil and chars["Mop-Other"].stepDone == nil)
@@ -457,8 +459,11 @@ do
         local list = G.Steps(REAL)
         local n = A.GuideProgress(REAL, #list, "char")
         local rs = author(list)
-        t("real guide " .. REAL .. ": old ticks 1 2 4 5 migrate on first view (guide list)", n == 4 and me.stepDone[REAL] and me.stepDone[REAL][rs[1].key] and me.stepDone[REAL][rs[2].key]
-            and me.stepDone[REAL][rs[4].key] and me.stepDone[REAL][rs[5].key] and not me.stepDone[REAL][rs[3].key], n)
+        -- ticks 1 2 are on quest 783 (not in the record's completed quests), 4 5 on quest 7 (completed)
+        t("real guide " .. REAL .. ": old ticks 4 5 (quest completed) migrate on first view (guide list), 1 2 (quest not completed) do not",
+            n == 2 and me.stepDone[REAL] and not me.stepDone[REAL][rs[1].key] and not me.stepDone[REAL][rs[2].key]
+            and me.stepDone[REAL][rs[4].key] and me.stepDone[REAL][rs[5].key] and not me.stepDone[REAL][rs[3].key]
+            and me.stepMeta[REAL].mig == 2 and me.stepMeta[REAL].lost == 2, n)
         -- with the real bake (Data/RouteOrder_era.lua, applied while its checksum matches the generated guide) author step 5
         -- is further down the list than position 5
         if G.registry[REAL].baked and list[5].index > 5 then
@@ -468,10 +473,40 @@ do
             skip("real guide baked order", "Data/RouteOrder_era.lua does not apply to the current " .. REAL .. " or keeps position 5")
         end
         P.Load(REAL)
-        t("...and show as done when it is loaded", P.IsDone(rs[1]) and P.IsDone(rs[4]) and P.IsDone(rs[5]) and not P.IsDone(rs[3]))
+        t("...and show as done when it is loaded", not P.IsDone(rs[1]) and P.IsDone(rs[4]) and P.IsDone(rs[5]) and not P.IsDone(rs[3]))
         P.Load("t:keys:a")
     else
         skip("real guide migration", REAL .. " not generated here")
+    end
+
+    -- 3a) position alone is not trusted (Core/Account.lua indexMap): a set that reaches past the guide's last step was
+    --     written on another version of the guide, and none of that character's marks for it is placed
+    do
+        local SHORT = "t:keys:short"
+        register(NS, SHORT, V1)
+        me.done[SHORT] = { [2] = true, [9] = true, [25] = true }      -- 25 > 19 steps
+        me.skipped[SHORT] = { [7] = true }
+        NS.db.char.reopened[SHORT] = { [4] = true }
+        alt.done[SHORT] = { [5] = true }                              -- the alt's own set fits: judged on its own
+        local oldDone, oldRo = ser(me.done[SHORT]), ser(NS.db.char.reopened[SHORT])
+        P.Load(SHORT)
+        local m = me.stepMeta[SHORT]
+        t("a guide shorter than its old marks reach: nothing is carried over (done, skipped, stepped back)",
+            next(me.stepDone[SHORT] or {}) == nil and next(me.stepSkipped[SHORT] or {}) == nil and next(NS.db.char.stepReopened[SHORT] or {}) == nil
+            and not P.IsDone(author(P.baseSteps)[2]) and not P.IsDone(author(P.baseSteps)[7]))
+        t("...recorded as such, once (stale, 5 marks not carried), the old tables untouched",
+            m and m.stale == 1 and m.mig == 0 and m.lost == 5 and m.ro == true and ser(me.done[SHORT]) == oldDone and ser(NS.db.char.reopened[SHORT]) == oldRo
+            and A.Migrate(SHORT, P.baseSteps, true) == 0, m and ser(m))
+        t("...the alt's record is judged by its own marks (its tick 5, quest completed, is carried)",
+            alt.stepMeta[SHORT] and alt.stepMeta[SHORT].stale == nil and (alt.stepDone[SHORT] or {})[author(P.baseSteps)[5].key] == true, ser(alt.stepMeta[SHORT]))
+        local said = false
+        for _, line in ipairs(P.MarksReport()) do if line:find("Not carried over", 1, true) and line:find("5 marks", 1, true) then said = true end end
+        t("/cr marks says so", said, table.concat(P.MarksReport(), " | "))
+        -- a guide with no steps yet (a live guide before its first scan): the old marks wait for a real list
+        me.done["t:keys:none"] = { [1] = true }
+        t("a guide with no steps yet: nothing is migrated and nothing recorded", A.Migrate("t:keys:none", {}, true) == 0 and me.stepMeta["t:keys:none"] == nil)
+        me.done["t:keys:none"] = nil
+        P.Load("t:keys:a")
     end
 
     -- 4) idempotence
@@ -574,6 +609,7 @@ do
 
     -- 4c) the main migrates (step 4 stepped back to), ticks step 4 forward again, logs out
     local NS1, s1 = login("Tester", roundTrip(db0), roundTrip(char0))
+    NS1.Progress.MarkDone(s1[3], true)     -- (its old tick on objective 1 is not carried over: quest 201 is not completed)
     NS1.Progress.MarkDone(s1[4], true)
     local afterDB, afterChar = roundTrip(CompletionRouteDB), roundTrip(CompletionRouteCharDB)
     local function markTables(db, cdb)
@@ -601,6 +637,124 @@ do
             next(NS.db.char.stepReopened[GID] or {}) == nil, ser(NS.db.char.stepReopened[GID]))
         t("sweep, " .. case[1] .. ": objectives 1 and 2 of Alpha are still done", P.IsDone(c1) and P.IsDone(c2))
         t("sweep, " .. case[1] .. ": every mark table and migration record is as before the sweep", markTables(CompletionRouteDB, CompletionRouteCharDB) == before)
+    end
+
+    -- 4d) A bulk sweep (/cr sweep, /cr verifyall) leaves the saved state alone whatever happens during it: a logout or
+    --     /reload in the middle, a second sweep started while one runs, the character file's guide / parked guides
+    SlashCmdList = SlashCmdList or {}
+    do
+        local NS = login("Tester", roundTrip(afterDB), roundTrip(afterChar), V1, { "Core/Sweep.lua", "Core/Slash.lua" })
+        local P, A = NS.Progress, NS.Account
+        local c = NS.db.char
+        c.parked = { ["t:parked"] = { level = 30 } }
+        c.parkReturn = "t:return"
+        c.laps = { ["t:loop"] = 2 }
+        local function state() return markTables(CompletionRouteDB, CompletionRouteCharDB) .. ser({ c.guide, c.parked, c.parkReturn, c.laps }) end
+        local before = state()
+        local realCF, frames = CreateFrame, {}
+        CreateFrame = function(...) local f = realCF(...) frames[#frames + 1] = f return f end
+        NS.RunRouteSweep("keys " .. GID)
+        t("mid-sweep: the scratch store is in place", A.scratch ~= nil and A.scratchDepth == 1 and NS.bulkRun == "sweep")
+        local n0, nf = #NS.printed, #frames
+        local r = NS.RunVerifyAll()
+        t("a second sweep while one runs is refused (no frame, no second scratch level, one chat line)",
+            r == false and #frames == nf and A.scratchDepth == 1 and NS.bulkRun == "sweep" and (NS.printed[n0 + 1] or ""):find("still running", 1, true) ~= nil, NS.printed[n0 + 1])
+        -- what a sweep writes while it runs
+        A.Done("t:sweep-noise")["N~x"] = true
+        A.me.stepMeta["t:sweep-noise"] = { v = 1 }
+        c.guide = "t:sweep-noise"
+        c.parked["t:sweep-noise"] = { level = 9 }
+        c.parkReturn = "t:sweep-noise"
+        c.laps["t:sweep-noise"] = 1
+        -- logout or /reload now: PLAYER_LOGOUT, then the client writes the tables
+        for _, h in ipairs(NS.wowHandlers.PLAYER_LOGOUT or {}) do h("PLAYER_LOGOUT") end
+        t("logout in the middle of a sweep: the saved variables hold the character's own marks, guide and parked guides", A.scratch == nil and state() == before,
+            state())
+        local saved = roundTrip(CompletionRouteDB).chars["Tester-Test"]
+        t("...nothing of the sweep is in the record that gets written", saved.stepDone["t:sweep-noise"] == nil and saved.stepMeta["t:sweep-noise"] == nil)
+        for _, f in ipairs(frames) do f.scripts.OnUpdate = nil end     -- the session is over
+        NS.bulkRun = nil
+        -- Begin / End are counted
+        A.BeginScratch() A.BeginScratch()
+        A.Done("t:sweep-noise")["N~x"] = true
+        A.EndScratch()
+        t("the scratch store stays until the last sweep ends", A.scratch ~= nil and A.me.stepDone["t:sweep-noise"] ~= nil)
+        A.EndScratch()
+        t("...and then everything is back", A.scratch == nil and state() == before)
+        -- a whole sweep: back on the guide that was loaded, the character file as it was (a detour's return kept)
+        frames = {}
+        NS.RunRouteSweep("keys " .. GID)
+        c.guide, c.parkReturn = "t:sweep-noise", nil
+        c.parked["t:sweep-noise"] = { level = 9 }
+        local pumps = 0
+        while frames[1] and frames[1].scripts.OnUpdate and pumps < 100 do frames[1].scripts.OnUpdate(frames[1], 0) pumps = pumps + 1 end
+        CreateFrame = realCF
+        t("after a whole sweep: marks, saved guide, parked guides and the detour's return are as before",
+            A.scratch == nil and NS.bulkRun == nil and state() == before and P.guide and P.guide.id == GID, state())
+    end
+
+    -- 4e) Login.  Keys of a developer verification run left in the saved variables (autoVerifyAll, autoSweep,
+    --     autoQuitAfter: tools/queue_verify.py) start nothing without devRun; the login self-test leaves the progress
+    --     scope alone and prints nothing.
+    do
+        local function session(db, scope)
+            local NS = harness("era", { db = db, chardb = roundTrip(afterChar), files = { "Core/Sweep.lua", "Core/Slash.lua" } })
+            register(NS, GID, V1)
+            NS.Account.Init()
+            place(1429, 0.1, 0.9)
+            W.level = 5
+            if scope then NS.Account.SetScope(scope) end
+            -- virtual clock: every timer of the first 60 s after login, in order (stubs.lua runs timers at once, which
+            -- would loop the 180 s road timer for ever)
+            local clock, queue, seq = 0, {}, 0
+            C_Timer = { After = function(sec, fn) seq = seq + 1 queue[#queue + 1] = { at = clock + (sec or 0), seq = seq, fn = fn } end }
+            local errs = 0
+            for _, fn in ipairs(NS.callbacks.PLAYER_READY or {}) do if not pcall(fn) then errs = errs + 1 end end
+            while true do
+                local best
+                for i, e in ipairs(queue) do
+                    if e.at <= 60 and (not best or e.at < queue[best].at or (e.at == queue[best].at and e.seq < queue[best].seq)) then best = i end
+                end
+                if not best then break end
+                local e = table.remove(queue, best)
+                clock = e.at
+                if not pcall(e.fn) then errs = errs + 1 end
+            end
+            return NS
+        end
+        local armed = roundTrip(afterDB)
+        armed.autoVerifyAll, armed.autoSweep, armed.autoQuitAfter, armed.autoDemo, armed.autoFarmTest, armed.autoVerifyQuit = "resume", "resume", 1770, true, true, true
+        local before = markTables(armed, afterChar)
+        local NS = session(armed)
+        local left = {}
+        for _, k in ipairs({ "autoVerifyAll", "autoSweep", "autoQuitAfter", "autoDemo", "autoFarmTest", "autoVerifyQuit", "devRun" }) do
+            if CompletionRouteDB[k] ~= nil then left[#left + 1] = k end
+        end
+        t("keys of an old verification run in the saved variables are dropped at load (no devRun with them)", #left == 0 and NS.devRun == false, table.concat(left, " "))
+        local swept = false
+        for _, line in ipairs(NS.printed) do if line:find("^verifyall") or line:find("^sweep") or line:find("verification") then swept = true end end
+        t("...and 60 s into the login no sweep has started: no result table, no scratch store, no chat line, no quit button",
+            CompletionRouteDB.verifyAll == nil and CompletionRouteDB.routeSweep == nil and CompletionRouteDB.verifyRunDone == nil
+            and NS.Account.scratch == nil and NS.bulkRun == nil and not swept and _G.CompletionRouteVerifyQuit == nil)
+        t("...the character's marks are untouched", markTables(CompletionRouteDB, afterChar) == before)
+        local said = false
+        for _, line in ipairs(NS.printed) do if line:find("feature verify", 1, true) then said = true end end
+        t("the login self-test ran and printed nothing", CompletionRouteDB.featureVerify ~= nil and not said)
+        -- a developer run: the same keys with devRun
+        local dev = roundTrip(afterDB)
+        dev.devRun, dev.autoSweep = true, true
+        local NSd = session(dev)
+        t("with devRun the armed sweep starts, and devRun is used up", NSd.devRun == true and CompletionRouteDB.devRun == nil and CompletionRouteDB.autoSweep == nil
+            and CompletionRouteDB.routeSweep ~= nil and NSd.bulkRun == "sweep")
+        NSd.Account.EndScratch(true)
+        -- the progress scope across a login (the self-test used to flip the saved accountWide flag: "This server" and
+        -- "This game type" became "All characters" 30 s after every login)
+        for _, sc in ipairs({ "char", "realm", "flavor", "account" }) do
+            local NSs = session(roundTrip(afterDB), sc)
+            t("progress scope '" .. sc .. "' is still set after the login self-tests", NSs.db.profile.scope == sc and NSs.Account.Scope() == sc
+                and NSs.db.profile.accountWide == (sc ~= "char"), tostring(NSs.db.profile.scope) .. " / " .. tostring(NSs.Account.Scope()))
+        end
+        dofile("tools/stubs.lua")     -- C_Timer as the other sections expect it
     end
 end
 
@@ -630,7 +784,7 @@ do
             t("previous release: the skipped step (7) and the reopened step (4) as before", P.IsDone(s[7]) and not P.IsDone(s[4]))
             t("previous release: a tick made after the update (18) is not seen (documented)", not P.IsDone(s[18]))
             local n = NS.Account.GuideProgress("t:keys:a", #s, "char")
-            t("previous release: guide progress reads its own tables (6 of 19, plus the 2 marks without a step)", n == 8, n)
+            t("previous release: guide progress reads its own tables (6 of 19, plus the mark without a step)", n == 7, n)
         end)
         t("previous release's code loads the new files without an error", okRun, err)
     end
@@ -658,9 +812,70 @@ if postUpgradeDB then
     t("sync: both files hold the same characters", same(a.chars, b.chars))
     t("sync: old index tables are kept (unioned, unchanged here)", same(a.chars["Tester-Test"].done, me0.done))
     local function body(p) local f = io.open(p) local x = f:read("*a") f:close() return (x:gsub('%["lastSync"%] = "[^"]*"', "")) end
+    local function raw(p) local f = io.open(p) local x = f:read("*a") f:close() return x end
     local before = body(svPath("_retail_"))
-    sh("luajit tools/sync_progress.lua --wow '" .. wow .. "' > /dev/null 2>&1")
+    local rawEra, rawRetail = raw(svPath("_classic_era_")), raw(svPath("_retail_"))
+    sh("luajit tools/sync_progress.lua --wow '" .. wow .. "' > '" .. TMP .. "/sync2.log' 2>&1")
     t("sync: a second run changes nothing (idempotent)", body(svPath("_retail_")) == before)
+    t("sync: a file that already holds everything is not written at all (the watch agent is started by writes)",
+        raw(svPath("_classic_era_")) == rawEra and raw(svPath("_retail_")) == rawRetail and raw(TMP .. "/sync2.log"):find("0 files written", 1, true) ~= nil,
+        raw(TMP .. "/sync2.log"))
+
+    -- a record table this script does not know (one a later release adds), dropped quests, and recorded roads
+    local wow2 = TMP .. "/wow2"
+    local function sv2(fl) return wow2 .. "/" .. fl .. "/WTF/Account/ACCT/SavedVariables/CompletionRoute.lua" end
+    local function write2(fl, db)
+        sh("mkdir -p '" .. sv2(fl):match("^(.*)/") .. "'")
+        local f = assert(io.open(sv2(fl), "w")) f:write("CompletionRouteDB = " .. ser(db) .. "\n") f:close()
+    end
+    local newer = roundTrip(postUpgradeDB)
+    local rec = newer.chars["Tester-Test"]
+    rec.updated = "2026-12-01 10:00:00"
+    rec.questSkip = { roots = { [204] = "t:keys:a" }, locks = { [205] = 204 }, plans = {} }
+    rec.futureTable = { a = { b = 1 }, list = { 3, 2, 1 } }
+    newer.roadTrace = { [0] = { { 1, 2, 3, 4, 5, 6, 7, 8 }, { 9, 10, 11, 12, 13, 14, 15, 16 } } }
+    local older = loadSV(FIX_ACCT, "CompletionRouteDB")
+    older.roadTrace = { [0] = { { 1, 2, 3, 4, 5, 6, 7, 8 }, { 21, 22, 23, 24, 25, 26, 27, 28 } }, [1] = { { 31, 32, 33, 34, 35, 36, 37, 38 } } }
+    write2("_classic_era_", newer)
+    write2("_retail_", older)
+    write2("_classic_", older)
+    local function segs(db) local n = 0 for _, l in pairs(db.roadTrace or {}) do n = n + #l end return n end
+    local okA = sh("luajit tools/sync_progress.lua --wow '" .. wow2 .. "' > '" .. TMP .. "/sync3.log' 2>&1")
+    local r1 = loadSV(sv2("_retail_"), "CompletionRouteDB")
+    local t1 = r1.chars["Tester-Test"]
+    t("sync: a record table the script does not know is carried through from the newest record, with the dropped quests",
+        okA and same(t1.futureTable, rec.futureTable) and same(t1.questSkip, rec.questSkip) and same(t1.stepDone, rec.stepDone) and same(t1.stepMeta, rec.stepMeta),
+        ser(t1.futureTable))
+    t("sync: recorded roads are unioned, a segment both files have is kept once (4 of 5)", segs(r1) == 4, segs(r1))
+    sh("luajit tools/sync_progress.lua --wow '" .. wow2 .. "' > /dev/null 2>&1")
+    sh("luajit tools/sync_progress.lua --wow '" .. wow2 .. "' > '" .. TMP .. "/sync4.log' 2>&1")
+    local r3 = loadSV(sv2("_classic_"), "CompletionRouteDB")
+    t("sync: three runs later the roads have not multiplied and nothing is written", segs(r3) == 4 and segs(loadSV(sv2("_classic_era_"), "CompletionRouteDB")) == 4
+        and raw(TMP .. "/sync4.log"):find("0 files written", 1, true) ~= nil, segs(r3))
+    -- a file from a later layout than the script knows: nothing is written anywhere
+    local future = roundTrip(newer)
+    future.dataFormat = 99
+    future.chars["Tester-Test"].updated = "2027-01-01 10:00:00"
+    write2("_classic_era_", future)
+    local rawBefore = raw(sv2("_retail_"))
+    local okF = sh("luajit tools/sync_progress.lua --wow '" .. wow2 .. "' > '" .. TMP .. "/sync5.log' 2>&1")
+    t("sync: a saved-variables file of a later layout stops the script before it writes anything", not okF and raw(sv2("_retail_")) == rawBefore
+        and raw(TMP .. "/sync5.log"):find("newer release", 1, true) ~= nil, raw(TMP .. "/sync5.log"))
+    t("this release stamps the layout the sync script knows", postUpgradeDB.dataFormat == 2, tostring(postUpgradeDB.dataFormat))
+
+    -- the launchd agent's own copy of the script (tools/install_sync_agent.sh) is replaced when it is out of date
+    local agent = TMP .. "/agent"
+    sh("mkdir -p '" .. agent .. "'")
+    local okNone = sh("CR_SYNC_AGENT_DIR='" .. agent .. "' bash tools/refresh_sync_agent.sh > /dev/null 2>&1")
+    t("agent refresh: no agent copy, nothing is created", okNone and not exists(agent .. "/sync_progress.lua"))
+    local f = assert(io.open(agent .. "/sync_progress.lua", "w")) f:write("-- the copy made in August\n") f:close()
+    local okRef = sh("CR_SYNC_AGENT_DIR='" .. agent .. "' bash tools/refresh_sync_agent.sh > '" .. TMP .. "/refresh.log' 2>&1")
+    t("agent refresh: an out-of-date copy is replaced by the current script", okRef and raw(agent .. "/sync_progress.lua") == raw("tools/sync_progress.lua")
+        and raw(TMP .. "/refresh.log"):find("replaced", 1, true) ~= nil)
+    local okSame = sh("CR_SYNC_AGENT_DIR='" .. agent .. "' bash tools/refresh_sync_agent.sh > '" .. TMP .. "/refresh2.log' 2>&1")
+    t("agent refresh: a current copy is left alone", okSame and raw(TMP .. "/refresh2.log") == "")
+    local inst = raw("tools/install.sh")
+    t("tools/install.sh runs the agent refresh", inst:find("refresh_sync_agent.sh", 1, true) ~= nil)
 else
     skip("sync_progress", "no post-upgrade files (section 3 failed)")
 end

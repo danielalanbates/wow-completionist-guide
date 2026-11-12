@@ -21,13 +21,18 @@ def arm(sv: Path, also_quit: bool, demo: bool = False, account_wide: bool = Fals
     text = sv.read_text(errors="replace")
     if not text.lstrip().startswith("CompletionRouteDB"):
         return False
-    text = re.sub(r'\n\["auto(VerifyAll|VerifyQuit|Demo|Sweep|QuitAfter)"\][^\n]*\n', "\n", text)
+    # Drop keys of an earlier run.  Each key on its own (two adjacent keys share a newline, which one pass of an
+    # alternation does not match twice) and with the tab the client indents them with when it rewrites the file.
+    for key in ("autoVerifyAll", "autoVerifyQuit", "autoDemo", "autoSweep", "autoQuitAfter", "autoFarmTest", "devRun"):
+        text = re.sub(r'\n[ \t]*\["%s"\][^\n]*(?=\n)' % key, "", text)
     if account_wide:
         text = re.sub(r'\["accountWide"\]\s*=\s*(true|false)', '["accountWide"] = true', text)
     # insert right after the opening brace of the root table
     i = text.index("{")
     val = '"resume"' if resume else 'true'   # "resume" continues an unfinished sweep/verifyall of the same flavor
-    add = '' if sweep_only else '\n["autoVerifyAll"] = %s,' % val
+    # devRun: the addon acts on the auto* keys only when this comes with them, and drops them otherwise (Core/Init.lua)
+    add = '\n["devRun"] = true,'
+    add += '' if sweep_only else '\n["autoVerifyAll"] = %s,' % val
     if sweep:
         add += '\n["autoSweep"] = %s,' % val
     if quit_after:

@@ -140,15 +140,36 @@ function A.Enabled() return A.Scope() ~= "char" end
 
 -- Sandbox: while a bulk sweep is loading every guide in the catalogue, progress writes must not
 -- land in the character's real record (otherwise /cr verifyall marks thousands of steps "done").
+-- Loading a guide also writes the character file: the saved guide, parked guides and where a detour returns to (the
+-- end-of-guide chain runs for every guide the sweep finds finished), farm laps.  Those are kept aside as well.
+-- Begin / End are counted, so the store stays in place until the last sweep ends, and a logout or /reload in the middle
+-- of a sweep puts everything back before the client writes the saved variables (PLAYER_LOGOUT below).
 local SCRATCH = { "done", "skipped", "stepDone", "stepSkipped", "stepMeta" }
-function A.BeginScratch()
-    if A.scratch then return end
-    A.scratch = {}
-    for _, f in ipairs(SCRATCH) do A.scratch[f], A.me[f] = A.me[f], {} end
+local SCRATCH_CHAR = { "guide", "parked", "parkReturn", "laps" }
+local function shallow(v)
+    if type(v) ~= "table" then return v end
+    local c = {}
+    for k, x in pairs(v) do c[k] = x end
+    return c
 end
-function A.EndScratch()
-    if not A.scratch then return end
+function A.BeginScratch()
+    if not A.me then return false end
+    A.scratchDepth = (A.scratchDepth or 0) + 1
+    if A.scratch then return true end
+    A.scratch = { char = {} }
+    for _, f in ipairs(SCRATCH) do A.scratch[f], A.me[f] = A.me[f], {} end
+    local c = NS.db.char
+    for _, f in ipairs(SCRATCH_CHAR) do A.scratch.char[f] = c[f] c[f] = shallow(c[f]) end
+    return true
+end
+-- force: put the real tables back whatever the count (logout)
+function A.EndScratch(force)
+    if not A.scratch then A.scratchDepth = 0 return end
+    A.scratchDepth = force and 0 or math.max(0, (A.scratchDepth or 1) - 1)
+    if A.scratchDepth > 0 then return end
     for _, f in ipairs(SCRATCH) do A.me[f] = A.scratch[f] end
+    local c = NS.db.char
+    for _, f in ipairs(SCRATCH_CHAR) do c[f] = A.scratch.char[f] end
     A.scratch = nil
 end
 
@@ -175,8 +196,9 @@ end
 -- Migration of index-keyed marks (earlier releases) to step keys
 -- ---------------------------------------------------------------------------
 -- Once per character and guide: the old marks are mapped index -> key with the guide as it is NOW.  That is right only
--- because the guide data has not been re-ordered since those marks were written (this is the first release with keys);
--- from here on keys carry the marks across data changes.  stepMeta[guide] records that it ran, so it never runs again:
+-- where the guide data has not been re-ordered since those marks were written, which nothing stored can prove, so two
+-- checks drop marks that cannot be right (indexMap below); from here on keys carry the marks across data changes.
+-- stepMeta[guide] records that it ran, so it never runs again:
 -- marks a downgraded client later writes into the old tables, maybe on different data, are never mapped.
 -- Characters other than the one logged in are migrated too (their marks count for account-wide progress), but only
 -- those of this client's game type: a record copied in from another client by tools/sync_progress.lua was written
@@ -194,18 +216,47 @@ local function migratable(c, k)
     return c.flavor ~= nil and c.flavor ~= "era" and c.flavor == NS.flavor and not NS.isForever
 end
 A.Migratable = migratable
--- author index -> key for the guide's own steps
+-- author index -> key and -> step for the guide's own steps; n = the highest author index (the guide's length)
 local function indexMap(steps)
-    local m = {}
-    for _, s in ipairs(steps) do if (s.index or 0) > 0 and s.key then m[s.index] = s.key end end
-    return m
+    local m, st, n = {}, {}, 0
+    for _, s in ipairs(steps) do
+        local i = s.index or 0
+        if i > 0 and s.key then
+            m[i], st[i] = s.key, s
+            if i > n then n = i end
+        end
+    end
+    return { key = m, step = st, n = n }
 end
--- Copy one old index-keyed set into a key set; returns copied, lost
-local function importSet(old, dst, map)
+-- Position alone is not trusted (the gap guides were regenerated and shortened between the marks and this release):
+--   * a set with an index above the guide's length was written on another version of the guide: nothing of that
+--     character's marks for the guide is carried over (stale())
+--   * a done mark lands on a quest step only when the character's completed quests agree (its record's list; for the
+--     logged-in character also the client).  Nothing real is lost: a quest step re-ticks itself from the quest log.
+-- Marks on steps without a quest, skips and stepped-back marks have nothing to be checked against beyond the first rule.
+local function stale(map, ...)
+    for n = 1, select("#", ...) do
+        local set = select(n, ...)
+        if set then for i, v in pairs(set) do if v and type(i) == "number" and i > map.n then return true end end end
+    end
+    return false
+end
+local function count(set) local n = 0 if set then for _, v in pairs(set) do if v then n = n + 1 end end end return n end
+local function questAgrees(step, c, me)
+    local q = step.qid
+    if not q or #q == 0 then return true end
+    for i = 1, #q do
+        if (c.quests and c.quests[q[i]]) or (me and NS.Util.IsQuestComplete(q[i])) then return true end
+    end
+    return false
+end
+-- Copy one old index-keyed set into a key set; returns copied, lost.  c (optional): the record whose completed quests
+-- a mark on a quest step must agree with (done marks only).
+local function importSet(old, dst, map, c, me)
     local n, lost = 0, 0
     for i, v in pairs(old) do
-        local k = v and map[i]
-        if k then
+        local k = v and map.key[i]
+        if k and (not c or questAgrees(map.step[i], c, me)) then
             if not dst[k] then dst[k] = true end
             n = n + 1
         elseif v then lost = lost + 1 end
@@ -220,6 +271,10 @@ local function importReopened(meta, gid, steps, ctx)
     meta.ro = true
     if not nonEmpty(ro) then return false end
     ctx.map = ctx.map or indexMap(steps)
+    if meta.stale or stale(ctx.map, ro) then
+        meta.lost = (meta.lost or 0) + count(ro)
+        return true
+    end
     c.stepReopened = c.stepReopened or {}
     local dst = c.stepReopened[gid] or {}
     local n, lost = importSet(ro, dst, ctx.map)
@@ -249,17 +304,26 @@ local function migrateOne(c, gid, steps, me, touch, ctx)
     meta = { v = NS.Guide.KEY_VERSION, sum = ctx.sum(), mig = 0 }
     if has then
         ctx.map = ctx.map or indexMap(steps)
-        local lost = 0
-        local function into(old, all)
-            if not nonEmpty(old) then return end
-            local dst = all[gid] or {}
-            local n, l = importSet(old, dst, ctx.map)
-            meta.mig, lost = meta.mig + n, lost + l
-            if next(dst) then all[gid] = dst end
+        -- a guide with no steps yet (a live guide before its first scan) is not the guide the marks were made on: wait
+        if ctx.map.n == 0 then return false end
+        if stale(ctx.map, od, osk, ro) then
+            -- not the guide these marks were made on: none is placed (stale = 1 keeps the reason in the record)
+            meta.stale = 1
+            local lost = count(od) + count(osk)
+            if lost > 0 then meta.lost = lost end
+        else
+            local lost = 0
+            local function into(old, all, rec)
+                if not nonEmpty(old) then return end
+                local dst = all[gid] or {}
+                local n, l = importSet(old, dst, ctx.map, rec, me)
+                meta.mig, lost = meta.mig + n, lost + l
+                if next(dst) then all[gid] = dst end
+            end
+            into(od, c.stepDone, c)
+            into(osk, c.stepSkipped)
+            if lost > 0 then meta.lost = lost end
         end
-        into(od, c.stepDone)
-        into(osk, c.stepSkipped)
-        if lost > 0 then meta.lost = lost end
     end
     if me then importReopened(meta, gid, steps, ctx) else meta.ro = false end
     c.stepMeta[gid] = meta
@@ -318,10 +382,12 @@ end
 
 -- Did ANY *other* character finish this step?  (never counts skips — a skip is a personal choice)
 -- key: the step's stable key (step.key).
-function A.OtherDid(guideid, key)
-    if not A.Enabled() or key == nil then return false end
+-- sc (optional): ask for one scope instead of the saved one (the self-test does; it must not touch the setting).
+function A.OtherDid(guideid, key, sc)
+    sc = sc or A.Scope()
+    if sc == "char" or key == nil then return false end
     for k, c in pairs(NS.db.global.chars) do
-        if k ~= A.key and A.CharInScope(k, c) then
+        if k ~= A.key and A.CharInScope(k, c, sc) then
             local g = doneSet(c, guideid)
             if g and g[key] then return k end
         end
@@ -521,4 +587,6 @@ NS:RegisterEvent("QUEST_TURNED_IN", function(_, qid) A.RecordQuest(qid) end)
 -- the server's completed-quest list arrived (classic): harvest it and let the loaded guide autofill
 NS:RegisterEvent("QUEST_QUERY_COMPLETE", function() pcall(A.HarvestCompleted, true) if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end end)
 NS:RegisterEvent("PLAYER_LEVEL_UP", function(_, lvl) if A.me then A.me.level = lvl or UnitLevel("player") end end)
+-- a logout or /reload during a bulk sweep: the saved variables must hold the character's own marks, not the sweep's
+NS:RegisterEvent("PLAYER_LOGOUT", function() A.EndScratch(true) end)
 NS:RegisterEvent("PLAYER_LOGOUT", function() if A.me then A.me.updated = date("%Y-%m-%d %H:%M:%S") A.me.level = UnitLevel("player") end end)
