@@ -62,9 +62,15 @@ function P.MarksReport()
             gd + gs == 1 and " belongs" or "s belong", gd + gs == 1 and "it counts" or "they count")
     end
     local meta = NS.Account and NS.Account.me and NS.Account.me.stepMeta and NS.Account.me.stepMeta[P.guide.id]
-    if meta and (meta.mig or 0) > 0 then
+    if meta and meta.stale then
+        out[#out + 1] = ("Not carried over from the previous release: %d mark%s. The guide has changed since they were made (it is shorter than they reach)."):format(
+            meta.lost or 0, (meta.lost or 0) == 1 and "" or "s")
+    elseif meta and (meta.mig or 0) > 0 then
         out[#out + 1] = ("Carried over from the previous release (by step position): %d mark%s%s."):format(meta.mig, meta.mig == 1 and "" or "s",
-            (meta.lost or 0) > 0 and (", %d without a matching step"):format(meta.lost) or "")
+            (meta.lost or 0) > 0 and (", %d not carried (no matching step, or on a quest this character has not completed)"):format(meta.lost) or "")
+    elseif meta and (meta.lost or 0) > 0 then
+        out[#out + 1] = ("Not carried over from the previous release: %d mark%s (no matching step, or on a quest this character has not completed)."):format(
+            meta.lost, meta.lost == 1 and "" or "s")
     elseif meta then
         out[#out + 1] = "No marks from the previous release for this guide."
     end
@@ -220,6 +226,8 @@ function P.Load(id)
     -- P.baseSteps keeps the guide's own list; progress stays keyed by step key either way.
     if NS.Replan then NS.Replan.Cancel() end
     P.baseSteps = P.steps
+    -- once per session: quest locks saved under other prerequisite data are worked out again (Core/Skip.lua)
+    if NS.Skip and NS.Skip.CheckData then NS.Skip.CheckData() end
     local cut, key
     P.steps, cut, key = P.Rebuilt(P.baseSteps)
     NS.db.char.guide = id
@@ -1075,6 +1083,7 @@ NS:On("PLAYER_READY", function()
     -- File-driven verification pathway: set CompletionRouteDB.autoVerifyAll = true in the
     -- SavedVariables before launching and the client sweeps every guide by itself, then clears
     -- the flag. Far more reliable than typing a slash command through synthetic keystrokes.
+    -- Developer runs only: every auto* key below is dropped at load unless devRun came with it (Core/Init.lua).
     NS:After(40, function()
         if CompletionRouteDB and CompletionRouteDB.autoDemo and NS.Beacon then
             CompletionRouteDB.autoDemo = nil
@@ -1120,7 +1129,12 @@ NS:On("PLAYER_READY", function()
         if CompletionRouteDB and CompletionRouteDB.autoSweep and NS.RunRouteSweep then
             local resume = CompletionRouteDB.autoSweep == "resume"
             CompletionRouteDB.autoSweep = nil
-            pcall(NS.RunRouteSweep, nil, resume)
+            -- one bulk run at a time (the verifyall armed with it starts 10 s earlier): wait for it to end
+            local function start()
+                if NS.bulkRun then NS:After(5, start) return end
+                pcall(NS.RunRouteSweep, nil, resume)
+            end
+            start()
         end
     end)
     if CompletionRouteDB and tonumber(CompletionRouteDB.autoQuitAfter) then

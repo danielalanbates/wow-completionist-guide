@@ -123,6 +123,7 @@ function R.TravelSeconds(a, b, tick)
     return p and p.cost or nil
 end
 local EXIT_INSTANCE_SECONDS = 30
+R.EXIT_INSTANCE_SECONDS = EXIT_INSTANCE_SECONDS   -- Routing/Replan.lua prices the leg from the player the same way
 function R.TravelSecondsFromPlayer(b, tick)
     local map, x, y, inst, wx, wy = U.PlayerPos()
     local bx, by, bi = R.StepWorld(b)

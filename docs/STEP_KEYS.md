@@ -107,14 +107,26 @@ converted once when it still matches the guide (same rule as the marks, below).
 `Account.Migrate(guide, steps)` runs when a guide is loaded (`Progress.Load`), and when its progress or completion is
 read for the guide list (`GuideProgress`, `GuideIsComplete` / `GuideCompletedBy` for guides without quests).
 
-- It maps old index marks to keys with the guide **as it is now**. That is right only because the data has not been
-  re-ordered since those marks were written: this is the first release with keys. From here on the keys carry marks
-  across data changes.
+- It maps old index marks to keys with the guide **as it is now**. That is right only where the data has not been
+  re-ordered since those marks were written, which nothing stored can prove (the 2026-11-12 review found a real
+  character whose zone guides had been regenerated and shortened in between: 56 of the 81 marks position alone placed
+  were on quests it had never done). So position alone is not trusted:
+  - when any old index of a character's marks for the guide is above the guide's highest author index, the marks were
+    made on another version of the guide and none of them is carried over (`stepMeta[guide].stale = 1`, all counted in
+    `lost`);
+  - a done mark lands on a quest step only when the record's completed quests (for the logged-in character also the
+    client) include one of the step's quests. Nothing real is lost: a quest step re-ticks itself from the quest log;
+  - marks on steps without a quest, skips and stepped-back marks have only the first check. A guide re-ordered
+    without getting shorter can still put such a mark on the wrong step.
+  From here on the keys carry marks across data changes.
 - It runs once: `stepMeta[guide]` records that it ran, and is written for the logged-in character on every guide it
   loads, even without old marks, so index marks that a downgraded client writes later (perhaps on older data) are never
   mapped onto this data.
 - Not during a bulk sweep (`/cr sweep`, `/cr verifyall`: `Account.BeginScratch`). The sweep swaps the logged-in
-  character's record tables (`stepMeta` included) for empty ones, but not its character file, so a migration there
+  character's record tables (`stepMeta` included) for empty ones and keeps the character file's saved guide, parked
+  guides, detour return and laps aside (Begin / End are counted, one bulk run at a time, and `PLAYER_LOGOUT` puts
+  everything back, so a logout or `/reload` in the middle of a sweep saves the character's own state). Its
+  stepped-back marks stay where they are, so a migration there
   would find no record and import the old stepped-back set again, pinning steps the player has since ticked forward
   (or, after a data update, other steps). The logged-in character is skipped while the scratch store is in place;
   other characters' records migrate as usual. Found in review; the test drives the real `Core/Sweep.lua`.

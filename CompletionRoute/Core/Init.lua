@@ -79,6 +79,10 @@ local function fill(dst, src) for k, v in pairs(src) do
     if type(v) == "table" then if type(dst[k]) ~= "table" then dst[k] = {} end fill(dst[k], v)
     elseif dst[k] == nil then dst[k] = v end end end
 NS.deepcopy, NS.filldefaults = deepcopy, fill
+-- the saved-variable layout (2: marks by step key, questSkip); tools/sync_progress.lua FORMAT must know it
+NS.DATA_FORMAT = 2
+-- saved-variable keys only a developer run may act on (see ADDON_LOADED below)
+NS.DEV_KEYS = { "autoVerifyAll", "autoSweep", "autoQuitAfter", "autoVerifyQuit", "autoDemo", "autoFarmTest" }
 
 -- ---------------------------------------------------------------------------
 -- Tiny event bus + WoW event frame
@@ -130,12 +134,30 @@ NS:RegisterEvent("ADDON_LOADED", function(_, name)
     CompletionRouteDB = CompletionRouteDB or {}
     CompletionRouteCharDB = CompletionRouteCharDB or {}
     fill(CompletionRouteDB, { profile = deepcopy(NS.defaults.profile) })
+    -- the layout of this file, for tools that rewrite it from outside the game (tools/sync_progress.lua refuses a file
+    -- of a later layout than it knows)
+    CompletionRouteDB.dataFormat = NS.DATA_FORMAT
+    -- Developer runs: tools/queue_verify.py arms a login that sweeps every guide by itself (autoVerifyAll, autoSweep,
+    -- autoQuitAfter, autoVerifyQuit, autoDemo, autoFarmTest; read in Core/Progress.lua and Core/Sweep.lua).  Those keys
+    -- count only together with devRun, which the same tool writes for that one login.  Without it they are dropped, so
+    -- keys left in a saved-variables file by an old verification run never start a sweep on a player's login.
+    NS.devRun = CompletionRouteDB.devRun == true
+    CompletionRouteDB.devRun = nil
+    if not NS.devRun then
+        for _, k in ipairs(NS.DEV_KEYS) do CompletionRouteDB[k] = nil end
+    end
     -- the live window grew from 12 to 24 steps (routing tier B); a saved profile still on the old default follows it,
     -- once, so a player who later sets 12 on the Options slider keeps it
     local routing = CompletionRouteDB.profile.routing
     if routing and not routing.window24 then
         if routing.window == 12 then routing.window = 24 end
         routing.window24 = true
+    end
+    -- 10 was the default before 12, and every profile saved by the first builds still holds it.  Its own one-time
+    -- step, with its own marker: a build that converted only 12 has already set window24 on such a profile.
+    if routing and not routing.window10 then
+        if routing.window == 10 then routing.window = 24 end
+        routing.window10 = true
     end
     -- Flight paths: the route now flies only into flight paths this character has discovered (docs/ROUTING.md). A profile
     -- saved under the old "faction" default moves to "known" once; Options still offers the old rule.
@@ -151,7 +173,12 @@ NS:RegisterEvent("ADDON_LOADED", function(_, name)
     CompletionRouteDB.knownTaxi = CompletionRouteDB.knownTaxi or {}
     CompletionRouteCharDB.knownTaxi = CompletionRouteCharDB.knownTaxi or {}
     for id in pairs(CompletionRouteCharDB.knownTaxi) do CompletionRouteDB.knownTaxi[id] = true end
-    if not NS.taxiShared and not CompletionRouteCharDB.taxiOwn then
+    -- The same again after a session on such an older build (a downgrade and back): it copies the account-wide set into
+    -- the character once more.  Those builds (0.x, 1.x) leave their version in luaErrorsVersion, which this build
+    -- overwrites only after this point (the ADDON_READY handler below), so it still names the build that ran last.
+    local lastMajor = tonumber(tostring(CompletionRouteCharDB.luaErrorsVersion or ""):match("^(%d+)%."))
+    local olderRanLast = CompletionRouteCharDB.taxiOwn and lastMajor ~= nil and lastMajor < 2
+    if not NS.taxiShared and (not CompletionRouteCharDB.taxiOwn or olderRanLast) then
         if next(CompletionRouteCharDB.knownTaxi) then CompletionRouteCharDB.knownTaxiMerged = CompletionRouteCharDB.knownTaxi end
         CompletionRouteCharDB.knownTaxi = {}
     end

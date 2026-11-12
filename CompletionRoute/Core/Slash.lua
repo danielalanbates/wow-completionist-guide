@@ -101,8 +101,10 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "verifyall" then
         NS.RunVerifyAll()
     elseif cmd == "autoverify" then
-        CompletionRouteDB.autoVerifyAll = not CompletionRouteDB.autoVerifyAll
-        NS:Print("Run verifyall automatically at next login: " .. tostring(CompletionRouteDB.autoVerifyAll))
+        -- a developer run: the flag counts only together with devRun (Core/Init.lua)
+        local on = not CompletionRouteDB.autoVerifyAll
+        CompletionRouteDB.autoVerifyAll, CompletionRouteDB.devRun = on or nil, on or nil
+        NS:Print("Run verifyall automatically at next login: " .. tostring(on))
     elseif cmd == "chars" or cmd == "account" then
         NS:Print(("Account-wide progress: %s (toggle: /cr accountwide)"):format(NS.db.profile.accountWide and "|cff00ff00ON|r" or "|cff888888OFF|r"))
         for _, c in ipairs(NS.Account.Characters()) do
@@ -341,6 +343,9 @@ end
 -- through synthetic keystrokes is unreliable, this pathway is not.
 function NS.RunVerifyAll(onDone, resume)
     local G = NS.Guide
+    -- one bulk run at a time: two of them loading guides in turn would end each other's scratch store (Core/Account.lua)
+    if NS.bulkRun then NS:Print("verifyall: a " .. NS.bulkRun .. " is still running; wait for it to finish.") return false end
+    NS.bulkRun = "verifyall"
     local ids = {}
     for _, id in ipairs(G.list) do ids[#ids + 1] = id end
     local res = { flavor = NS.flavor, total = #ids, done = 0, failed = 0, errors = {}, startedAt = date("%Y-%m-%d %H:%M:%S") }
@@ -392,7 +397,9 @@ function NS.RunVerifyAll(onDone, resume)
             fr:SetScript("OnUpdate", nil)
             res.finishedAt = date("%Y-%m-%d %H:%M:%S")
             if NS.Account and NS.Account.EndScratch then NS.Account.EndScratch() end
-            if prevGuide then pcall(NS.Progress.Load, prevGuide) end
+            NS.bulkRun = nil
+            -- back to the guide that was loaded, the way a login reloads it (not as a guide the player just picked)
+            if prevGuide then NS.Progress.chainLoading = true pcall(NS.Progress.Load, prevGuide) NS.Progress.chainLoading = nil end
             NS:Print(("verifyall DONE: %d/%d guides OK, %d failed"):format(res.total - res.failed, res.total, res.failed))
             for k = 1, math.min(10, #res.errors) do NS:Print("  FAIL " .. res.errors[k]) end
             if onDone then pcall(onDone) end
@@ -462,10 +469,9 @@ function NS.RunFeatureVerify(quiet)
     end)
     chk("account", "opt-in gate honoured", function()
         -- with the opt-in OFF, another character's completion must never mark a step done
-        local was = NS.db.profile.accountWide
-        NS.db.profile.accountWide = false
-        local leaked = A.OtherDid(P.guide and P.guide.id or "none", P.steps and P.steps[1] and P.steps[1].key or "?")
-        NS.db.profile.accountWide = was
+        -- asked with an explicit scope: flipping the saved accountWide flag here turned a "This server" or "This game
+        -- type" setting into "All characters" at every login (Account.Scope adopts the flag)
+        local leaked = A.OtherDid(P.guide and P.guide.id or "none", P.steps and P.steps[1] and P.steps[1].key or "?", "char")
         return leaked == false, "off => other characters ignored"
     end)
 
@@ -571,6 +577,6 @@ function NS.RunFeatureVerify(quiet)
     local pass, fail = 0, 0
     for _, c in ipairs(res.checks) do if c.pass then pass = pass + 1 else fail = fail + 1 end end
     res.passed, res.failed = pass, fail
-    NS:Print(("feature verify: %d passed, %d failed (%s) - saved to CompletionRouteDB.featureVerify"):format(pass, fail, NS.flavor))
+    if not quiet then NS:Print(("feature verify: %d passed, %d failed (%s) - saved to CompletionRouteDB.featureVerify"):format(pass, fail, NS.flavor)) end
     return res
 end

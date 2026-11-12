@@ -218,8 +218,9 @@ local cn, cp = NS.Account.GuideProgress("t:acct", 4, "char")
 assert(cn == 1 and cp == 25, ("char progress %d/%d%%"):format(cn, cp))
 -- a second character on the account finished steps 2 and 3
 -- (written in the layout of the release before step keys, by author index: Core/Account.lua migrates it on first read)
+-- (its record has completed quests 902 and 903: an old tick on a quest step is carried over only when it has)
 NS.db.global.chars["Alt-Test"] = { name = "Alt", realm = "Test", class = "MAGE", faction = "Alliance", flavor = "tbc", gametype = "tbc",
-    done = { ["t:acct"] = { [2] = true, [3] = true } }, skipped = {} }
+    done = { ["t:acct"] = { [2] = true, [3] = true } }, skipped = {}, quests = { [902] = true, [903] = true } }
 local an, ap = NS.Account.GuideProgress("t:acct", 4, "account")
 assert(an == 3 and ap == 75, ("account progress %d/%d%%"):format(an, ap))
 -- opt-in OFF: the alt's work must not affect this character
@@ -655,9 +656,49 @@ do
     for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
     assert(NS.db.profile.routing.taxiPolicy == "faction", "migration ran twice and overrode the player's choice")
     assert(NS.db.char.knownTaxi[7], "a later load wiped the character's own flight paths")
+    -- one session on the previous beta (1.0.0) and back: that build copies the account-wide set into the character again
+    -- and leaves its version in luaErrorsVersion; the character's set starts empty once more
+    assert(NS.db.char.luaErrorsVersion == "test", "this build did not leave its version in luaErrorsVersion: " .. tostring(NS.db.char.luaErrorsVersion))
+    NS.db.char.luaErrorsVersion = "1.0.0"
+    NS.db.char.knownTaxi = { [2] = true, [6] = true, [7] = true, [44] = true }
+    for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
+    assert(next(NS.db.char.knownTaxi) == nil and NS.db.char.knownTaxiMerged[44], "after a session on the previous beta the character keeps flight paths it never discovered")
+    -- ...but not after a session on this build or a later one
+    for _, ver in ipairs({ "2.0.0-beta", "2.1.0", "test" }) do
+        NS.db.char.luaErrorsVersion = ver
+        NS.db.char.knownTaxi = { [7] = true }
+        for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
+        assert(NS.db.char.knownTaxi[7], "the character's own flight paths were wiped after a session on " .. ver)
+    end
+    -- the live window: a profile on either earlier default (10, then 12) follows the new one, once
+    for _, case in ipairs({ { 10, 24 }, { 12, 24 }, { 8, 8 }, { 30, 30 } }) do
+        CompletionRouteDB = { profile = { routing = { window = case[1] } } }
+        CompletionRouteCharDB = {}
+        for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
+        assert(NS.db.profile.routing.window == case[2] and NS.db.profile.routing.window24 and NS.db.profile.routing.window10, ("live window %d became %s, want %d"):format(case[1], tostring(NS.db.profile.routing.window), case[2]))
+    end
+    -- a profile on 10 that a build converting only 12 has already marked (window24 set, 10 kept) still follows, once
+    CompletionRouteDB = { profile = { routing = { window = 10, window24 = true } } }
+    CompletionRouteCharDB = {}
+    for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
+    assert(NS.db.profile.routing.window == 24 and NS.db.profile.routing.window10, "a window of 10 kept by a build that converted only 12 was not converted: " .. tostring(NS.db.profile.routing.window))
+    NS.db.profile.routing.window = 10
+    for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
+    assert(NS.db.profile.routing.window == 10, "a window of 10 chosen after the one-time step was changed again")
+    -- keys of a developer verification run count only with devRun (tools/queue_verify.py writes both)
+    CompletionRouteDB = { autoVerifyAll = "resume", autoSweep = "resume", autoQuitAfter = 1770, autoDemo = true, autoFarmTest = true, autoVerifyQuit = true }
+    CompletionRouteCharDB = {}
+    for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
+    for _, k in ipairs(NS.DEV_KEYS) do assert(CompletionRouteDB[k] == nil, "developer key " .. k .. " survived a load without devRun") end
+    assert(NS.devRun == false and CompletionRouteDB.dataFormat == NS.DATA_FORMAT, "devRun / dataFormat after a plain load")
+    CompletionRouteDB = { devRun = true, autoSweep = "resume" }
+    CompletionRouteCharDB = {}
+    for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
+    assert(NS.devRun == true and CompletionRouteDB.devRun == nil and CompletionRouteDB.autoSweep == "resume", "devRun must keep the armed keys for that one login")
+    NS.devRun = false
     CompletionRouteDB, CompletionRouteCharDB, NS.db = savedDB, savedChar, savedNS
     NS.db.profile.routing.assumeAllTaxi = true
-    print("taxi migration OK: once to known, classic characters keep only their own flight paths")
+    print("taxi migration OK: once to known, classic characters keep only their own flight paths (also after a downgrade and back); live window 10/12 -> 24 once; developer keys need devRun")
 end
 
 -- roads: authored polylines become graph vertices; a detour road beats the straight line only when cheaper,

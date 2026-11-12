@@ -12,7 +12,6 @@ CompletionRouteCharDB = {
 			[3] = true,
 			[9] = true,
 			[16] = true,
-			[99] = true,
 			[-2] = true,
 		},
 		["t:keys:empty"] = {

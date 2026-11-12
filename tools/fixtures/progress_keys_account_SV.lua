@@ -4,7 +4,9 @@
 -- in from other clients by tools/sync_progress.lua, records without `gametype`).  No real character or realm names:
 -- "Tester-Test" is the offline stubs' own character (tools/stubs.lua), the others are placeholders.
 -- Guide "t:keys:a" is the test's synthetic guide (v1, 19 steps); "wiki:era:1429:Alliance" is a real generated guide,
--- used only when that file is present.
+-- used only when that file is present.  A done mark on a quest step is carried over only when the record's completed
+-- quests agree (Core/Account.lua): the alt has completed the quests of its two ticks (201, 202); the main has completed
+-- 7 and 15 but not 201 or 783, so its ticks on steps of those two quests are the ones that must stay behind.
 CompletionRouteDB = {
 	["chars"] = {
 		["Tester-Test"] = {
@@ -16,7 +18,6 @@ CompletionRouteDB = {
 					[3] = true,
 					[9] = true,
 					[16] = true,
-					[99] = true,
 					[-2] = true,
 				},
 				["t:keys:empty"] = {
@@ -70,6 +71,8 @@ CompletionRouteDB = {
 			["migrated"] = true,
 			["name"] = "Alt",
 			["quests"] = {
+				[201] = true,
+				[202] = true,
 			},
 			["race"] = "Gnome",
 			["realm"] = "Test",

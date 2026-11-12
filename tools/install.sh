@@ -4,6 +4,8 @@
 set -e
 SRC="$(cd "$(dirname "$0")/.." && pwd)/CompletionRoute"
 WOW="${WOW_DIR:-/Volumes/x10/Video Games/Mac/World of Warcraft}"
+# The background sync agent keeps its own copy of sync_progress.lua: never leave one older than the addon installed here.
+"$(dirname "$0")/refresh_sync_agent.sh" || echo "install.sh: warning: could not refresh the sync agent's copy of sync_progress.lua" >&2
 # There is one build: what this script installs is what a player gets from a public release. Every client folder
 # gets the whole add-on folder, file for file what the release zip holds (tools/package_release.py, universal
 # layout); the zip only adds LICENSE.txt, ATTRIBUTION.md, README.md and the stamped version line of the TOCs. A client

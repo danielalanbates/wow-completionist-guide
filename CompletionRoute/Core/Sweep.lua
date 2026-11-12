@@ -64,6 +64,9 @@ function NS.RunRouteSweep(zoneFilter, resume)
         end
     end
     if #ids == 0 then NS:Print("sweep: no guides match '" .. tostring(zoneFilter) .. "'") return end
+    -- one bulk run at a time: two of them loading guides in turn would end each other's scratch store (Core/Account.lua)
+    if NS.bulkRun then NS:Print("sweep: a " .. NS.bulkRun .. " is still running; wait for it to finish.") return false end
+    NS.bulkRun = "sweep"
     local res = { flavor = NS.flavor, zoneFilter = zoneFilter, total = #ids, done = 0, loadFail = 0, precedence = 0, slower = 0, noRoute = 0,
                   steps = 0, located = 0, uiEmpty = 0, errors = {}, startedAt = date("%Y-%m-%d %H:%M:%S"), where = GetZoneText and GetZoneText() or "?" }
     -- resume: retail logs an idle character out after 30 min, which ends the session long before 9k guides are
@@ -129,7 +132,9 @@ function NS.RunRouteSweep(zoneFilter, resume)
             fr:SetScript("OnUpdate", nil)
             res.finishedAt = date("%Y-%m-%d %H:%M:%S")
             if NS.Account and NS.Account.EndScratch then NS.Account.EndScratch() end
-            if prevGuide then pcall(P.Load, prevGuide) end
+            NS.bulkRun = nil
+            -- back to the guide that was loaded, the way a login reloads it (not as a guide the player just picked)
+            if prevGuide then P.chainLoading = true pcall(P.Load, prevGuide) P.chainLoading = nil end
             NS:Print(("|cff00ff00sweep DONE|r %d guides: located %d/%d steps (%.1f%%), order violations %d, optimizer slower %d, no route %d, empty window %d, load fail %d"):format(
                 res.total, res.located, res.steps, 100 * res.located / math.max(1, res.steps), res.precedence, res.slower, res.noRoute, res.uiEmpty, res.loadFail))
             for k = 1, math.min(8, #res.errors) do NS:Print("  " .. res.errors[k]) end

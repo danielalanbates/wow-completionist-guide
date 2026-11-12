@@ -524,12 +524,38 @@ local function plan(list, ctx)
     local PLAYER = ctx.player
     -- the remaining route from the player along an item order: every priced step, as the arrow walks it (exact = only
     -- the steps with a firm point)
+    -- The leg that starts at the player is priced as the arrow prices it (Router.TravelSecondsFromPlayer): the
+    -- hearthstone and the other one-shot legs count there and nowhere else.  Every other leg is the hearth-free row.
+    -- (Without this a baked order whose first step is one hearth away looked 800 s dearer than it is, and a slower
+    -- re-plan was accepted against it.)  Never dearer than the hearth-free row; at the job's speed and walking factor.
+    local fromPlayer = {}
+    local function playerCost(p)
+        local v = fromPlayer[p]
+        if v == nil then
+            v = C.get(PLAYER, p)
+            local src, extra = PLAYER, 0
+            if PLAYER.exit and PLAYER.inst ~= p.inst then src, extra = PLAYER.exit, ctx.router.EXIT_INSTANCE_SECONDS or 30 end
+            local short = false
+            if src.inst == p.inst then
+                local dx, dy = src.wx - p.wx, src.wy - p.wy
+                short = math.sqrt(dx * dx + dy * dy) < CM.WALK_ONLY_BELOW
+            end
+            if not short or src ~= PLAYER then
+                local path = NS.TravelGraph.FindPath(src.wx, src.wy, src.inst, p.wx, p.wy, p.inst, { speed = ctx.speed, walkFactor = ctx.walkFactor, tick = tick })
+                local c = path and path.cost
+                if c and c + extra < v then v = c + extra end
+            end
+            fromPlayer[p] = v
+        end
+        return v
+    end
     local function routeCost(order, exact)
         local t, prev = 0, PLAYER
         for n, k in ipairs(order) do
             local p = pt[k]
             if p and (not exact or firm[k]) then
-                if prev then t = t + C.get(prev, p) end
+                if prev == PLAYER and prev then t = t + playerCost(p)
+                elseif prev then t = t + C.get(prev, p) end
                 prev = p
             end
             if n % 16 == 0 then tick() end
@@ -571,7 +597,8 @@ local function plan(list, ctx)
     for k = 1, #items do base[k] = k end
     local baseCost, exactBase = routeCost(base), routeCost(base, true)
     local SO = NS.StepOrder or {}
-    local margin = math.max(SO.MIN_GAIN or 15, baseCost * (SO.GAIN_FRAC or 0.05))
+    local function marginOf(cost) return math.max(SO.MIN_GAIN or 15, cost * (SO.GAIN_FRAC or 0.05)) end
+    local margin = marginOf(baseCost)
     -- A step with no firm point is priced where the arrow points before its quest is taken: a new zone's centre, a rough
     -- stand-in for the objective.  So a saving must not come from that stand-in alone: the legs between steps with a
     -- firm point (own |M| or an NPC's) may not get longer either.  The search runs on every step the arrow visits; when
@@ -581,6 +608,12 @@ local function plan(list, ctx)
     local order
     for pass = 1, 2 do
         local o = solveAll(pass == 2)
+        -- the legs from the player are priced again here, for both orders together: a hearthstone cooldown runs down
+        -- while a job works, and the order priced later must not look cheaper for that
+        fromPlayer = {}
+        baseCost, exactBase = routeCost(base), routeCost(base, true)
+        margin = marginOf(baseCost)
+        res.baseCost, res.exactBase, res.margin = baseCost, exactBase, margin
         local a, x = routeCost(o), routeCost(o, true)
         res.passes[pass] = { a, x }
         local ok = (baseCost - a >= margin) and x <= exactBase + EPS
