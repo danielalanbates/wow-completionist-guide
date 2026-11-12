@@ -109,7 +109,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         NS:Print(("Account-wide progress: %s (toggle: /cr accountwide)"):format(NS.db.profile.accountWide and "|cff00ff00ON|r" or "|cff888888OFF|r"))
         for _, c in ipairs(NS.Account.Characters()) do
             NS:Print(("  %s%s  %s %s lvl %s  %s  %d steps in %d guides  (%s)"):format(
-                c.key == NS.Account.key and "|cffffd200*|r " or "  ", c.key,
+                c.key == NS.Account.key and "|cffffd200*|r " or "  ", c.surname and (c.display .. "-" .. tostring(c.realm)) or c.key,
                 tostring(c.faction), tostring(c.class), tostring(c.level), tostring(c.flavor),
                 c.steps or 0, c.guides or 0, tostring(c.updated)))
         end

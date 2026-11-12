@@ -253,8 +253,33 @@ do
     t("Recommended is closest first", okOrder)
     t("Recommended shows at most 10", #sec.guides >= 1 and #sec.guides <= 10, #sec.guides)
     t("no sub-folders in Recommended", #sec.kids == 0)
+
     local total = #G.Available()
     t("the section plus the categories count every guide", root.count == total + sec.count, root.count .. " vs " .. total .. "+" .. sec.count)
+end
+-- Recommended asks the leveling chain where a zone route belongs (a "both factions" zone route can span 1-60 because of a
+-- few low neutral quests; the chain puts it at 54-60), and leaves out a wide zone route the chain does not place
+do
+    reg("wide:placed", { name = "Wintery Quests 1-60", type = "Quests", minlevel = 1, maxlevel = 60, zone = 1452 })
+    reg("spine:t:067", { name = "067. Wintery Quests 1-60", type = "Leveling", minlevel = 54, maxlevel = 60, part = "wide:placed" })
+    reg("wide:loose", { name = "Loose Quests 1-60", type = "Quests", minlevel = 1, maxlevel = 60 })
+    reg("near:ok", { name = "Nearby Quests 5-12", type = "Quests", minlevel = 5, maxlevel = 12 })
+    R.Invalidate()
+    local ids = {}
+    for _, g in ipairs(M.Recommended(8, true)) do ids[g.id] = true end
+    t("a zone route the chain places at 54-60 is not recommended at level 8", not ids["wide:placed"] and not ids["spine:t:067"])
+    t("a 1-60 zone route the chain does not place is not recommended", not ids["wide:loose"])
+    t("a narrow zone route that fits is recommended", ids["near:ok"] == true)
+    t("Recommended names drop the level range and the chain number",
+        M.RecName({ name = "002. Zephras Isle Quests 1-5" }) == "Zephras Isle Quests"
+        and M.RecName({ name = "Durotar Quests 1-8 (Horde) - Part 1/2" }) == "Durotar Quests (Horde) - Part 1/2"
+        and M.RecName({ name = "Elwynn Forest Quests 1" }) == "Elwynn Forest Quests", M.RecName({ name = "002. Zephras Isle Quests 1-5" }))
+    -- a character's surname (WoW Forever: UnitNameUnmodified returns it second) is shown, never put in the key
+    local A = NS.Account
+    if A and A.DisplayName then
+        t("display name with a surname", A.DisplayName({ name = "Meln", surname = "Ashford" }) == "Meln Ashford")
+        t("display name without one", A.DisplayName({ name = "Meln" }) == "Meln" and A.DisplayName({ name = "Meln", surname = "" }) == "Meln")
+    end
 end
 do
     local level8tree = T.buildTree()
