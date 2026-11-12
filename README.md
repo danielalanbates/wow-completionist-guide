@@ -31,9 +31,9 @@ smart arrow — while the guide content is community-driven and open.
 | Quest coverage | ✅ generated zone guides from the **Warcraft Wiki**, with **Blizzard's own quest pins** on Retail where the wiki gives no point, then **players' contributed places** where neither has one (`tools/wiki/gen_wiki_guides.py`; none merged yet). A quest the wiki has no page for is not in a zone guide; Retail's live per-zone list (`Adapters/DynamicQuests.lua`) and the quest-line guides cover some of those. Numbers per client: [docs/STATUS.md](docs/STATUS.md) |
 | Gold guides | ✅ realm-independent money guides by level, on every client: gathering, mob farming and fishing **circuits** you walk with nothing to click, plus daily gold, instance runs and step-by-step methods. No prices are shipped; laps are priced in game from Auctionator if present, else vendor value — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
 | Secondary professions | ✅ Cooking, Fishing, First Aid and Archaeology by client, with nearest trainer, a computed recipe path, skill targets that tick themselves, and live Archaeology dig-site circuits — [docs/PROFESSIONS.md](docs/PROFESSIONS.md) |
-| Guides listed by level | ✅ `UI/GuideMenu.lua` + `Core/Recommend.lua`: a **Recommended** section on top of the routes list (the closest unfinished quest routes that fit your level, closest first, with the travel time; one graph search prices them all), *Only guides for this level* filter, *Group by level* tree, and profession guides matched to your real skill |
+| Guides listed by level | ✅ `UI/GuideMenu.lua` + `Core/Recommend.lua`: a **Recommended** section on top of the routes list (the closest unfinished quest routes that fit your level, closest first, with the travel time; one graph search prices them all), *Only routes for this level* filter, *Group by level* tree, and profession guides matched to your real skill |
 | Dungeon guides | ✅ steps inside an instance route to the **entrance** once it is known: a door you have walked through, or the Retail encounter journal (`Core/Instances.lua`). No door table ships, so a door you have not seen yet is "no route" on the Classic clients |
-| Options | ✅ `/or options` (Settings panel), `/or` commands |
+| Options | ✅ `/or options` (Settings panel), `/or` commands. Built 2026-11-12, offline-tested only (`tools/test_ui.lua`, `tools/test_step_window.lua`): **Text size** also covers button labels and the options pages, whose rows re-flow when a label wraps; **Step window scale** runs 60-250 like the resize grip and keeps the window's top-left corner in place; a **minimap button** (left click: step window, right click: Routes, drag it around the edge; Options > *Minimap button* hides it) |
 | Progress survives guide updates | Built, offline-tested only: ticks, skips and stepped-back steps are stored by a stable step key (quest + objective, or a hash of the step's words; never its line number or coordinates), so in a regenerated guide marks stay on their steps when lines are added, removed or moved. Two exceptions: a step whose quest-less text is reworded loses its mark (it is not given to another step), and among identical repeated steps (same quest and objective, or same words: 2.4-4.0% of steps) adding or removing one ahead of the others shifts their marks to a neighbouring identical step. Old progress is carried over once per character and guide; the previous release still reads its own tables after a downgrade. `/cr marks` shows how the loaded guide's progress is stored — [docs/STEP_KEYS.md](docs/STEP_KEYS.md) |
 | Contribute | Built, offline-tested only: a **Contribute** box on the guide window. While ticked, the addon notes where you stand when you accept or turn in a quest, when an objective ticks and when you click the forward arrow; works out the most likely place for every step; routes steps that have no location to it; and draws the areas on the world map. Positions and quest ids only, kept locally; clicking the word **Contribute** (or `/cr contribute export`) gives a text to share — [docs/CONTRIBUTE.md](docs/CONTRIBUTE.md) |
 | Beta bug reports | Built, offline-tested only: `/cr bug [note]` or **Report a bug** in the guide window's `...` menu saves a snapshot (guide, step, open steps, position, route, quest log including quests that only gate a step, profession skill, last 30 log lines, last addon Lua error; no character or realm name). `tools/ingest_beta_reports.py` loads reports into SQL and `vplayer --repro <id>` replays one offline — [docs/BETA_REPORTS.md](docs/BETA_REPORTS.md) |
@@ -94,7 +94,9 @@ To rebuild and deploy:
 
 ## Use
 
-* `/or` — toggle guide window · `/or guides` — pick a guide · `/or route` — explain the current route
+* `/cr` — show or hide the step window · `/cr routes` — pick a route (`/cr guides` still works) · `/cr route` — explain the current route
+* `/cr next` — mark the current step done · `/cr suggest` — the leveling route that fits your level best, weighed against the travel to it (`/cr switch` loads it)
+* Minimap button: left click = step window, right click = Routes, drag = move it around the minimap's edge (Options > *Minimap button* hides it)
 * `/or order` — show the optimizer's order for the upcoming steps · `/or taxi` — flight paths discovered (this character, account) and the flight rule · `/or hearth`
 * `/cr teleports` — every teleport, transporter and hearth toy the router knows for your class, and whether it is offered
 * `/cr farm` — farm circuits: status, `build`, `record`, `export`, `stats`, `radius`
@@ -124,7 +126,7 @@ CompletionRoute/            the addon (copy this folder into Interface/AddOns)
   Core/               Init, Util (HBD wrappers, quest/item helpers), Conditions, Guide parser, Progress, Slash
   Routing/            TravelGraph (Dijkstra), Teleports (teleport legs), StepOrder (optimizer), Router (facade + arrow recommendation)
   Data/               Taxi_<flavor>.lua (generated), Transit.lua (hand-authored), Teleports.lua (DB2 ids + wiki landing points), Inns.lua (seed)
-  UI/                 Arrow, GuideFrame, GuideMenu, Options
+  UI/                 Arrow, GuideFrame, GuideMenu, Options, Minimap
   Adapters/           DynamicQuests.lua (Retail: live per-zone quest lists from the client)
   Guides/             native community guides (CC BY-SA)
   Libs/               LibStub, CallbackHandler, HereBeDragons-2.0
