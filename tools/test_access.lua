@@ -208,8 +208,8 @@ for _, ed in ipairs(extended_destinations) do
     check(ep ~= nil, ed.name .. " routable from capital (cost " .. tostring(ep and math.floor(ep.cost)) .. "s)")
 end
 
--- Dungeon doors (Core/Instances.lua).  No door table ships: a door is known once the player has walked in (learned),
--- imported one, or the Retail journal gives it.  Without one a step inside The Deadmines is not sent to a door; with a
+-- Dungeon doors (Core/Instances.lua).  No door table ships: a door is known once the player has walked in (learned)
+-- or the Retail journal gives it.  Without one a step inside The Deadmines is not sent to a door; with a
 -- learned door it routes there from Stormwind, and a player standing inside routes back out through it.
 do
     load("Core/Instances.lua")
