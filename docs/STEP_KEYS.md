@@ -107,6 +107,26 @@ converted once when it still matches the guide (same rule as the marks, below).
 `Account.Migrate(guide, steps)` runs when a guide is loaded (`Progress.Load`), and when its progress or completion is
 read for the guide list (`GuideProgress`, `GuideIsComplete` / `GuideCompletedBy` for guides without quests).
 
+**Every guide at once after login (2026-11-12).** Until then a guide the character did not open kept its old marks
+unconverted, so they were mapped onto whatever the data was when it was finally opened (a data update in between
+that re-orders it without making it shorter puts a mark on a step without a quest in the wrong place), and the routes
+list counted only keyed marks for it. Now `Account.StartImport`, 10 s after `PLAYER_READY`, converts every registered
+guide that still holds old marks of a character this client migrates, through the same path as a load
+(`Progress.ReadSteps`: a gold guide folded into its circuit first, then the parsed steps; the access-chain prefix is
+left out because it holds only negative indices, which no old mark is mapped to, and `tools/test_mark_import.lua`
+shows the result is the same with it). Time-sliced from an OnUpdate: guides one after another until 4 ms of CPU are
+spent in a frame, a guide that would not fit in what is left (its text length at the rate measured so far) waits for
+the next frame, at least one guide a frame; parsed steps are not kept. At the end `CompletionRouteCharDB.marksImported`
+is set and it never runs again for that character. A bulk sweep pauses it; a logout in the middle leaves the flag
+unset and the next login converts the rest. Guides marked `dynamic` (live dig sites) are left to their load. Cost
+under `luajit -joff` with old marks on EVERY guide (this character and an alt; a real character has them only in the
+guides it played), three runs on a machine shared with other jobs: era 511 guides 450-530 ms of CPU in 143-162 slices,
+tbc 681 / 0.71-0.83 s, mop 1,230 / 1.75-2.07 s, retail 4,439 / 7.0-8.4 s in 2,000-2,170 slices, forever 528 /
+0.49-0.57 s; median slice 3.1-3.4 ms. A single big guide cannot be split (its parse is one call): on Retail
+`ach:retail:expansion_features_skyriding` (588 KB of text) takes 82-107 ms on its own, and 12-32 slices pass one 60 fps
+frame there (2-3 on mop: `ach:mop:feats_of_strength`, 121 KB, 25-35 ms; none on era, tbc and forever, whose largest
+single guide took 7-14 ms). The routes list's completion scan parses the same guides.
+
 - It maps old index marks to keys with the guide **as it is now**. That is right only where the data has not been
   re-ordered since those marks were written, which nothing stored can prove (the 2026-11-12 review found a real
   character whose zone guides had been regenerated and shortened in between: 56 of the 81 marks position alone placed
@@ -117,7 +137,8 @@ read for the guide list (`GuideProgress`, `GuideIsComplete` / `GuideCompletedBy`
   - a done mark lands on a quest step only when the record's completed quests (for the logged-in character also the
     client) include one of the step's quests. Nothing real is lost: a quest step re-ticks itself from the quest log;
   - marks on steps without a quest, skips and stepped-back marks have only the first check. A guide re-ordered
-    without getting shorter can still put such a mark on the wrong step.
+    without getting shorter can still put such a mark on the wrong step; since the import after login (above) that
+    can only happen to a re-order that came before this release, not to one that comes later.
   From here on the keys carry marks across data changes.
 - It runs once: `stepMeta[guide]` records that it ran, and is written for the logged-in character on every guide it
   loads, even without old marks, so index marks that a downgraded client writes later (perhaps on older data) are never

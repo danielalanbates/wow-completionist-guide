@@ -352,6 +352,146 @@ function A.Migrate(gid, steps, touch)
     end
     return n
 end
+
+-- ---------------------------------------------------------------------------
+-- Every guide's old marks at once, after login (2026-11-12)
+-- ---------------------------------------------------------------------------
+-- A.Migrate ran for one guide when it was loaded (Progress.Load) or counted with its steps parsed (the routes list).  A
+-- guide the character did not open kept its old marks unconverted, so they were mapped later, onto the guide data as it
+-- is THEN: a data update in between that re-orders a guide without making it shorter puts a mark on a step without a
+-- quest in the wrong place (indexMap's length check cannot see that), and the routes list counted only keyed marks.
+-- Now, once per character, A.IMPORT_DELAY seconds after login, every registered guide that still holds old marks of a
+-- character this client migrates is converted through the same path as a load: Progress.ReadSteps (the gold circuit
+-- fold, then the parsed steps).  The access-chain prefix a load puts in front is left out on purpose: it holds only
+-- steps with negative indices, and indexMap maps no old mark to those, so the result is the same without it (and
+-- pricing it would cost a graph search per guide).  The work is time-sliced: guides one after another until
+-- A.IMPORT_MS of CPU are spent in a frame (at least one guide per frame), parsed steps are not kept (the routes list's
+-- rule).  At the end CompletionRouteCharDB.marksImported is set and it never runs again for that character.  A bulk
+-- sweep (A.BeginScratch) pauses it; a logout in the middle leaves the flag unset and the next login finishes the rest
+-- (A.Migrate never converts a guide twice).  Guides marked dynamic (live dig sites) are left to their load.
+A.IMPORT_MS = 4
+A.IMPORT_DELAY = 10     -- after the saved route has loaded (2 s) and the completed quests were read (3 s)
+
+-- guides of one record with old marks still to convert (me: the logged-in character, whose stepped-back marks live in
+-- the character file)
+local function pendingOf(c, me, out)
+    local meta = c.stepMeta
+    for _, f in ipairs({ "done", "skipped" }) do
+        for gid, set in pairs(c[f] or {}) do
+            if type(gid) == "string" and not (meta and meta[gid]) and nonEmpty(set) then out[gid] = true end
+        end
+    end
+    if me then
+        for gid, set in pairs(NS.db.char.reopened or {}) do
+            local m = meta and meta[gid]
+            if type(gid) == "string" and (not m or m.ro == false) and nonEmpty(set) then out[gid] = true end
+        end
+    end
+end
+-- The registered guides that still hold old marks to convert, sorted by id
+function A.PendingImports()
+    local out = {}
+    if not A.me then return out end
+    local want = {}
+    pendingOf(A.me, true, want)
+    for k, c in pairs(NS.db.global.chars or {}) do
+        if c ~= A.me and k ~= A.key and type(c) == "table" and migratable(c, k) then pendingOf(c, false, want) end
+    end
+    local G = NS.Guide
+    for gid in pairs(want) do
+        local g = G and G.registry[gid]
+        if g and not g.empty and not g.dynamic then out[#out + 1] = gid end
+    end
+    table.sort(out)
+    return out
+end
+
+local imp               -- the running import: { list, pos, guides, records, slices, cpu, maxSlice, sliceLog }
+local importFrame = CreateFrame("Frame")
+importFrame:Hide()
+local clock = debugprofilestop or function() return os.clock() * 1000 end
+local function finishImport(J)
+    if imp == J then imp = nil end
+    importFrame:Hide()
+    NS.db.char.marksImported = NS.Guide and NS.Guide.KEY_VERSION or 1
+    A.lastImport = { guides = J.list and #J.list or 0, converted = J.guides, records = J.records, slices = J.slices, cpu = J.cpu,
+                     maxSlice = J.maxSlice }
+    if J.records > 0 then
+        A.ClearCompletionCaches()
+        local P = NS.Progress
+        if J.loaded and P and P.guide then P.Refresh() end
+    end
+end
+-- One slice: convert guides until `budget` ms (default A.IMPORT_MS) are spent, at least one.  Returns true while work
+-- is left.  Tests and tools call it directly; in game the frame's OnUpdate does.
+function A.ImportStep(budget)
+    local J = imp
+    if not J then importFrame:Hide() return false end
+    if A.scratch or not A.me then return true end         -- a bulk sweep holds the store: wait for it to end
+    local t0 = clock()
+    local G, P = NS.Guide, NS.Progress
+    -- the list is read here, not when the job is armed: during a sweep the record's old tables are swapped out
+    if not J.list then J.list, J.pos = A.PendingImports(), 1 end
+    budget = budget or A.IMPORT_MS
+    local done = 0
+    while true do
+        local gid = J.list[J.pos]
+        if not gid then break end
+        local g = G.registry[gid]
+        -- most of a guide's cost is parsing its text: a guide that would not fit in what is left of the budget (its
+        -- length at the rate measured so far; a spine entry reads its zone guide's text; else the mean cost of a guide)
+        -- waits for the next frame, unless it is the first of this slice
+        local len = 0
+        if g and not g.steps then
+            local text = g.text
+            if type(text) ~= "string" and g.part and G.registry[g.part] then text = G.registry[g.part].text end
+            if type(text) == "string" then len = #text end
+        end
+        local guess = (len > 0 and J.rate) and len * J.rate or (J.avg or 0)
+        if done > 0 and clock() - t0 + guess > budget then break end
+        J.pos = J.pos + 1
+        done = done + 1
+        if g then
+            local had = g.steps ~= nil
+            local g0 = clock()
+            local ok, steps
+            if P and P.ReadSteps then ok, steps = pcall(P.ReadSteps, g, true) else ok, steps = pcall(G.Steps, gid) end
+            if ok and type(steps) == "table" and #steps > 0 then
+                local okM, n = pcall(A.Migrate, gid, steps)
+                if okM and n > 0 then
+                    J.records, J.guides = J.records + n, J.guides + 1
+                    if P and P.guide == g then J.loaded = true end
+                end
+            end
+            -- keep no step tables that were parsed only for this
+            if not had and g.steps and not (P and P.guide == g) then g.steps = nil end
+            local cost = clock() - g0
+            J.avg = J.avg and (J.avg * 0.8 + cost * 0.2) or cost
+            if len > 1000 then
+                local r = cost / len
+                J.rate = J.rate and (J.rate * 0.7 + r * 0.3) or r
+            end
+        end
+        if clock() - t0 >= budget then break end
+    end
+    local spent = clock() - t0
+    J.slices, J.cpu = J.slices + 1, J.cpu + spent
+    if spent > J.maxSlice then J.maxSlice = spent end
+    if J.sliceLog then J.sliceLog[#J.sliceLog + 1] = { spent, done, J.list[J.pos - 1] } end
+    if J.pos > #J.list then finishImport(J) return false end
+    return true
+end
+importFrame:SetScript("OnUpdate", function() A.ImportStep() end)
+-- Arm the import (once per character; opts.force: again, for tests).  opts.sliceLog: keep every slice's CPU.
+function A.StartImport(opts)
+    if imp then return imp end
+    if not (A.me and NS.db and NS.db.char) then return nil end
+    if NS.db.char.marksImported and not (opts and opts.force) then return nil end
+    imp = { pos = 1, guides = 0, records = 0, slices = 0, cpu = 0, maxSlice = 0, sliceLog = (opts and opts.sliceLog) and {} or nil }
+    importFrame:Show()
+    return imp
+end
+function A.ImportJob() return imp end
 -- A character's done set for a guide, read only (nil when it has none)
 local function doneSet(c, gid) return c.stepDone and c.stepDone[gid] or nil end
 A.DoneSetOf = doneSet
@@ -582,6 +722,8 @@ NS:On("PLAYER_READY", function()
     if QueryQuestsCompleted then pcall(QueryQuestsCompleted) end
     NS:After(3, function() pcall(A.HarvestCompleted, true) if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end end)
     NS:After(20, function() pcall(A.HarvestCompleted, true) if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end end)
+    -- every guide's old index marks, once per character (see "Every guide's old marks at once")
+    NS:After(A.IMPORT_DELAY, function() pcall(A.StartImport) end)
 end)
 NS:RegisterEvent("QUEST_TURNED_IN", function(_, qid) if qid and A.me then A.me.quests[qid] = true A.completedCache = {} end end)
 NS:RegisterEvent("QUEST_TURNED_IN", function(_, qid) A.RecordQuest(qid) end)
