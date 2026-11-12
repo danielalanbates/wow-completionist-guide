@@ -14,12 +14,15 @@ for both factions) and proves that
   * --gate-only gives every row a verdict; a guide for both factions is played as Alliance AND as Horde and is rejected
     when either play is slower than the gate allows; the RouteOrder entry carries va / vb (and vah / vbh);
   * the gate limits come from the rows (the cost model's GATE_FRAC / GATE_ABS), never from a copy in the optimizer.
+  * several optimizers can save into one rows file (tools/bake_resume.py --jobs): each puts in only its own rows under a
+    lock and re-reads the file first, so no row another run saved meanwhile is lost or replaced by an older copy.
 Every file goes to a temp folder (CR_TEST_TMP, else /private/tmp/claude-501 when it exists); nothing in the repo is
 written.
 """
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -139,6 +142,45 @@ class BakeGate(unittest.TestCase):
                       % rows["t:gate:both"]["sum"], text)
         self.assertIn('O["t:gate:alliance"] = { n = 4, sum = %d, o = "1,3,2,4", va = 1000, vb = 900 }'
                       % rows["t:gate:alliance"]["sum"], text)
+
+    def test_a_row_saved_meanwhile_by_another_run_survives(self):
+        """--merge: the rows file is read when the run starts; a row another optimizer saves while this one solves must
+        still be there afterwards, and with ITS content, not this run's older copy (tools/bake_resume.py --jobs)"""
+        os.makedirs(os.path.dirname(self.out), exist_ok=True)
+        with open(self.out, "w") as f:
+            f.write(json.dumps({"id": "t:other:old", "v": 1, "violations": 0}) + "\n")
+        real_solve, n = opt.solve_guide, []
+
+        def solve(rec, *a, **k):
+            if not n:       # "another run" finishes while this one is solving its first guide
+                opt.save_rows(self.out, [], own=[{"id": "t:other:old", "v": 2, "violations": 0},
+                                                 {"id": "t:other:new", "v": 1, "violations": 0}])
+            n.append(rec["id"])
+            return real_solve(rec, *a, **k)
+        opt.solve_guide = solve
+        opt.run_vplayer = self.fake()
+        try:
+            self.assertEqual(self.main("--in", self.inp, "--merge", "--gate"), 0)
+        finally:
+            opt.solve_guide = real_solve
+        rows = read_rows(self.out)
+        self.assertEqual(set(rows), {"t:other:old", "t:other:new", "t:gate:alliance", "t:gate:both"})
+        self.assertEqual(rows["t:other:old"]["v"], 2, "the other run's newer row was replaced by this run's older copy")
+        self.assertIn("gate", rows["t:gate:both"])
+        self.assertEqual([f for f in os.listdir(os.path.dirname(self.out)) if ".solving." in f or ".part" in f], [])
+
+    def test_many_writers_lose_no_row(self):
+        """six processes save their own rows into one file at the same time, thirty saves each"""
+        os.makedirs(os.path.dirname(self.out), exist_ok=True)
+        code = ("import sys, json; sys.path.insert(0, %r); import optimize_routes as opt\n"
+                "path, w = sys.argv[1], sys.argv[2]\n"
+                "for j in range(30):\n"
+                "    opt.save_rows(path, [], own=[{'id': 't:%%s:%%d' %% (w, j), 'w': w, 'j': j}])\n" % HERE)
+        procs = [subprocess.Popen([sys.executable, "-c", code, self.out, str(w)]) for w in range(6)]
+        self.assertEqual([p.wait() for p in procs], [0] * 6)
+        rows = read_rows(self.out)
+        self.assertEqual(len(rows), 180)
+        self.assertEqual({(r["w"], r["j"]) for r in rows.values()}, {(str(w), j) for w in range(6) for j in range(30)})
 
     def test_gate_limits_come_from_the_rows(self):
         self.assertEqual(opt.gate_limits([{"cm": {"gate_frac": 0.02, "gate_abs": 45}}]), (0.02, 45.0))

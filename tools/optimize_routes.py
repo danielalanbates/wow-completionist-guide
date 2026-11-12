@@ -61,6 +61,8 @@ import heapq
 import json
 import math
 import os
+import contextlib
+import fcntl
 import subprocess
 import sys
 import time
@@ -1079,12 +1081,46 @@ def gate_summary(rows):
                                                 unfinished))
 
 
-def save_rows(path, rows):
-    """write result rows atomically (a reader never sees half a file)"""
-    with open(path + ".part", "w") as fo:
-        for r in rows:
-            fo.write(json.dumps(r) + "\n")
-    os.replace(path + ".part", path)
+@contextlib.contextmanager
+def rows_lock(path):
+    """one writer at a time on a rows file: tools/bake_resume.py --jobs runs several optimizers on the same file"""
+    with open(path + ".lock", "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lf, fcntl.LOCK_UN)
+
+
+def read_rows(path):
+    """{id: row} of a rows file, in file order ({} when it does not exist)"""
+    out = {}
+    if os.path.exists(path):
+        with open(path) as f:
+            for line in f:
+                if line.strip():
+                    r = json.loads(line)
+                    out[r["id"]] = r
+    return out
+
+
+def save_rows(path, rows, own=None):
+    """Write result rows atomically (a reader never sees half a file) and return what was written.
+    own (a list of this run's rows; --merge and --gate-only): another optimizer may have saved rows to the same file
+    since this run read it, so the file is read again under a lock and only this run's rows are put into it; every
+    other row is the file's, never this run's older copy of it.  Without `own` the file is replaced by `rows`."""
+    with rows_lock(path):
+        if own is not None:
+            latest = read_rows(path)
+            for r in own:
+                latest[r["id"]] = r
+            rows = list(latest.values())
+        tmp = "%s.part.%d" % (path, os.getpid())
+        with open(tmp, "w") as fo:
+            for r in rows:
+                fo.write(json.dumps(r) + "\n")
+        os.replace(tmp, path)
+    return rows
 
 
 def check_sums(path):
@@ -1132,11 +1168,8 @@ def main():
     work = a.gate_work or os.path.join(os.path.dirname(os.path.abspath(outp)), "gate")
     os.makedirs(os.path.dirname(os.path.abspath(outp)), exist_ok=True)
     rows = []
-    prev = {}
-    if (a.merge or a.gate_only) and os.path.exists(outp):
-        for line in open(outp):
-            r = json.loads(line)
-            prev[r["id"]] = r
+    merging = a.merge or a.gate_only        # the rows file is shared: save only this run's rows into it (save_rows own=)
+    prev = read_rows(outp) if merging else {}
     t0 = time.time()
     gate_failed = None
     if a.gate_only:
@@ -1147,9 +1180,12 @@ def main():
             print("gate %s: %d rows; %s" % (fl, len(todo), gate_summary(todo)), file=sys.stderr)
         except RuntimeError as e:
             gate_failed = str(e)
+        own = todo
         rows = list(prev.values())
     else:
-        with open(outp + ".part", "w") as fo:
+        # progress file of this run only (never the rows file's own .part: several runs may solve at once)
+        solving = "%s.solving.%d" % (outp, os.getpid())
+        with open(solving, "w") as fo:
             for k, line in enumerate(open(inp)):
                 rec = json.loads(line)
                 if a.guide and rec["id"] != a.guide:
@@ -1168,14 +1204,19 @@ def main():
         if a.gate:
             # save the solves before the gate: a run killed during the gate (or a vplayer failure) loses no solve, and
             # the next --gate-only (tools/bake_resume.py) gates these rows without solving them again
-            save_rows(outp, rows + list(prev.values()))
+            save_rows(outp, rows + list(prev.values()), own=rows if merging else None)
             try:
                 gate(fl, rows, work, a.gate_cap)
                 print("gate %s: %s" % (fl, gate_summary(rows)), file=sys.stderr)
             except RuntimeError as e:
                 gate_failed = str(e)
+        own = list(rows)
         rows += list(prev.values())
-    save_rows(outp, rows)
+        try:
+            os.remove(solving)
+        except OSError:
+            pass
+    rows = save_rows(outp, rows, own=own if merging else None)
     if gate_failed:
         print("gate %s FAILED, rows saved without a verdict (re-run --gate-only): %s" % (fl, gate_failed), file=sys.stderr)
         sys.exit(3)
