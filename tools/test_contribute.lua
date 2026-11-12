@@ -47,6 +47,9 @@ function GetLootSourceInfo(slot) local l = W.loot[slot] return l and l.guid, 1 e
 function GetLootSlotLink(slot) local l = W.loot[slot] return l and l.link end
 function IsFishingLoot() return W.fishing end
 function CombatLogGetCurrentEventInfo() return unpack(W.cl) end
+-- Retail 12 secret values: the test marks a value secret by putting it in W.secret
+W.secret = {}
+function issecretvalue(v) return v ~= nil and W.secret[v] == true end
 -- the world map pins Contribute places (HereBeDragons-Pins): kept so the test can see the circles
 local PINS = { world = {} }
 function PINS:AddWorldMapIconMap(ref, frame, map, x, y) if ref == NS.Contribute then self.world[#self.world + 1] = { frame = frame, map = map, x = x, y = y } end end
@@ -65,6 +68,8 @@ CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
 NS.Print, NS.Debug, NS.Error = function() end, function() end, function() end
 local C, P = NS.Contribute, NS.Progress
+local realPending = P.Pending
+local function fire(evt, ...) for _, h in ipairs(NS.wowHandlers[evt] or {}) do h(evt, ...) end end
 
 -- keys
 t("accept key is the quest's", C.KeyFor({ action = "A", qid = { 179 } }) == "A:179")
@@ -271,8 +276,19 @@ W.guids.target, W.class.target = nil, nil
 stand(60, 61)
 cl("SWING_DAMAGE", ME, npc(777, 1), "Old Greypaw")
 cl("UNIT_DIED", nil, npc(777, 1), "Old Greypaw")
-t("a rare creature: one N: key with the rare flag in its record", C.IsRare("N:777") == true and weight("N:777") == C.WEIGHT.k
+t("a rare creature: one N: key, flagged rare", C.IsRare("N:777") == true and weight("N:777") == C.WEIGHT.k
     and rec("R:777") == nil and rec("N:777:rare") == nil)
+-- the flag sits beside the cells (contrib.rare), never inside a record: a build without the creature keys adds up
+-- every value of every record (/cr contribute there), so a record must hold numbers only
+local function onlyNumbers()
+    for _, cs in pairs(NS.db.global.contrib.spots[FL] or {}) do
+        for _, v in pairs(cs) do if type(v) ~= "number" then return false end end
+    end
+    return true
+end
+t("the rare flag is kept beside the cells", NS.db.global.contrib.rare and NS.db.global.contrib.rare[FL]
+    and NS.db.global.contrib.rare[FL]["N:777"] == true and rec("N:777").rare == nil)
+t("every record holds numbers only (an older build can add them up)", onlyNumbers())
 t("an ordinary creature carries no flag", C.IsRare("N:2345") == false)
 
 -- a looted corpse: the player stands at it (weight 2); a rare elite the target is
@@ -357,6 +373,8 @@ local cells = 0
 for _, v in pairs(rec("N:777")) do if type(v) == "number" then cells = cells + 1 end end
 t("a creature key never holds more than MAX_CELLS cells", cells <= C.MAX_CELLS, cells)
 t("the rare flag survives the cap", C.IsRare("N:777") == true)
+t("records still hold numbers only after the rare samples", onlyNumbers())
+t("the counts by kind tell the rares", C.StatsByKind().rare == 2, C.StatsByKind().rare)
 local keys, cellsAll = C.Stats()
 t("Stats counts cells, not the flag", type(keys) == "number" and type(cellsAll) == "number")
 
@@ -425,21 +443,43 @@ t("the map gets a purple circle for the item the step names", id and id.rgb == C
 t("the item step's creature (its item dropped from it) is linked and drawn red",
     C.LinksFor("C:512:1") and C.LinksFor("C:512:1")["N:2242"] and has(drawn(), "N:2242") and has(drawn(), "N:2242").rgb == C.RGB.N)
 
--- a treasure step: the chest looted at its spot is linked; gold
-local chest = { action = "$", title = "Open the chest", zone = 1429, coords = { { x = 0.50, y = 0.50 } }, guide = "g:t", key = "h:chest" }
-P.current = chest
-NS:Fire("STEP_CHANGED", chest)
+-- a treasure step, in the client's real order: LOOT_READY then LOOT_OPENED, every handler in the order the files
+-- registered them.  Core/Progress.lua comes first and ticks the treasure step, so the step on screen has already
+-- moved on when Contribute reads the loot.  Two chests side by side: the chest belongs to the first.
+P.Pending = realPending
+NS.Guide.Register({ id = "t:chests", name = "Chests", type = "Professions",
+    text = "$ Hidden chest|M|50.0,50.0|Z|1429; Elwynn Forest|\n$ Second chest|M|50.2,50.1|Z|1429; Elwynn Forest|\nN Last|" })
+P.Load("t:chests")
+local chest = P.current
+local chestKey = C.KeyFor(chest)
+local second
+for _, s in ipairs(P.steps or {}) do if s.title == "Second chest" then second = s end end
+t("the treasure step is on screen", chest and chest.title == "Hidden chest" and chestKey ~= nil and second ~= nil, chest and chest.title)
 later()
 stand(50.1, 50.0)
-loot({ { guid = obj(178000, 3), link = itemLink(2770) } })
-t("a chest looted at the treasure step's spot is linked to it", C.LinksFor("G:g:t#h:chest") and C.LinksFor("G:g:t#h:chest")["O:178000"] == true)
+W.loot, W.fishing = { { guid = obj(178000, 3), link = itemLink(2770) } }, false
+fire("LOOT_READY")
+t("Progress ticked the treasure step before the loot was read", P.IsDone(chest) and P.current ~= chest)
+t("the chest is linked to its treasure step at LOOT_READY already", C.LinksFor(chestKey) and C.LinksFor(chestKey)["O:178000"] == true)
+fire("LOOT_OPENED")
+t("a chest looted at the treasure step's spot is linked to it", C.LinksFor(chestKey) and C.LinksFor(chestKey)["O:178000"] == true)
+t("the chest is recorded once for the two events", weight("O:178000") == C.WEIGHT.g, weight("O:178000"))
+local l2 = C.LinksFor(C.KeyFor(second))
+t("the chest is not linked to the treasure step beside it", not (l2 and l2["O:178000"]))
+P.current = chest
 C.UpdateMap()
 local od = has(drawn(), "O:178000")
 t("the map gets a gold circle for the step's object", od and od.rgb == C.RGB.O)
+-- after the loot window the ticked step no longer takes what is looted there
 later()
+P.current = { action = "N", title = "Last", guide = "t:chests", key = "h:last" }
+loot({ { guid = obj(1733, 1), link = itemLink(2771) } })
+t("a node looted there later is not linked to the finished treasure step", not C.LinksFor(chestKey)["O:1733"] and weight("O:1733") == C.WEIGHT.g)
+later()
+P.current = chest
 stand(80, 80)
 loot({ { guid = obj(1732, 1), link = itemLink(2771) } })
-t("an object looted away from the spot is not linked", not C.LinksFor("G:g:t#h:chest")["O:1732"])
+t("an object looted away from the spot is not linked", not C.LinksFor(chestKey)["O:1732"])
 
 -- the step's own key keeps its colour, beside what it names
 later()
@@ -472,9 +512,105 @@ cl("UNIT_DIED", nil, npc(2345, 40), "Crushridge Warmonger")
 t("only a sample of what the step names redraws the map", quiet == 0 and redraws == 1, quiet .. "/" .. redraws)
 C.UpdateMap = real
 
--- clear takes the links too
+-- ---------------------------------------------------------------------------
+-- Retail 12 secret values: a value the client keeps secret is never read
+-- ---------------------------------------------------------------------------
+later()
+stand(15, 15)
+local sg = npc(6200, 1)
+W.secret[sg] = true
+loot({ { guid = sg }, { guid = npc(6201, 1) } })
+t("a secret loot source ends the read: nothing is recorded", rec("N:6200") == nil and rec("N:6201") == nil)
+W.secret[sg] = nil
+P.Pending = function() return { signet } end
+NS:Fire("PROGRESS_REFRESHED")
+later()
+local sl, wBefore = itemLink(3505), weight("I:3505")
+W.secret[sl] = true
+loot({ { guid = npc(2242, 5), link = sl } })
+t("a secret loot link records no item", weight("I:3505") == wBefore, weight("I:3505"))
+W.secret[sl] = nil
+local function mapHas(step, key) for _, k in ipairs(C.MapKeys(step)) do if k == key then return true end end return false end
+W.guids.target, W.class.target, W.targetName = npc(6300, 1), "normal", "Hidden Beast"
+W.secret["Hidden Beast"] = true
+fire("PLAYER_TARGET_CHANGED")
+t("a secret target name is not learned",
+    not mapHas({ action = "K", target = "Hidden Beast", title = "Kill Hidden Beast", guide = "g:x", key = "h:hb" }, "N:6300"))
+W.secret["Hidden Beast"] = nil
+W.guids.target, W.class.target, W.targetName = npc(6301, 1), "rare", "Seen Beast"
+W.secret[npc(6301, 1)] = true
+fire("PLAYER_TARGET_CHANGED")
+W.secret[npc(6301, 1)] = nil
+W.guids.target, W.class.target, W.targetName = nil, nil, nil
+later()
+C.Killed(npc(6301, 1), nil)
+t("a secret target GUID tells nothing (no rare, no name)", weight("N:6301") == C.WEIGHT.k and C.IsRare("N:6301") == false
+    and not mapHas({ action = "K", target = "Seen Beast", title = "Kill Seen Beast", guide = "g:x", key = "h:sb" }, "N:6301"))
+
+-- a rare seen only at a kill inside the throttle window: no sample, but the flag is kept
+later()
+stand(25, 75)
+C.Killed(npc(6400, 1), "Late Rare")
+t("not known to be rare at the first kill", C.IsRare("N:6400") == false and weight("N:6400") == C.WEIGHT.k)
+W.guids.target, W.class.target = npc(6400, 2), "rare"
+C.Killed(npc(6400, 2), "Late Rare")
+W.guids.target, W.class.target = nil, nil
+t("a rare kill inside the throttle adds no sample but keeps the flag", C.IsRare("N:6400") == true and weight("N:6400") == C.WEIGHT.k)
+t("the flag of a throttled sample is beside the cells too", onlyNumbers())
+
+-- at most C.MAX_LINKS creatures per step
+local many = { action = "C", qid = { 505 }, qo = "1", target = "Shared Name", title = "Shared Names" }
+P.Pending = function() return { many } end
+NS:Fire("PROGRESS_REFRESHED")
+stand(26, 76)
+for i = 1, C.MAX_LINKS + 3 do C.Killed(npc(6500 + i, 1), "Shared Name") end
+local nl = 0
+for _ in pairs(C.LinksFor("C:505:1") or {}) do nl = nl + 1 end
+t("a step keeps at most MAX_LINKS links", nl == C.MAX_LINKS, nl)
+
+-- the player's killing blow takes the creature out of the ring: its UNIT_DIED, however late, is not a second kill
+later()
+stand(27, 77)
+cl("SWING_DAMAGE", ME, npc(6600, 1), "Slow Death")
+cl("PARTY_KILL", ME, npc(6600, 1), "Slow Death")
+later()
+cl("UNIT_DIED", nil, npc(6600, 1), "Slow Death")
+t("a killing blow and a late death of the same creature are one kill", weight("N:6600") == C.WEIGHT.k, weight("N:6600"))
+
+-- many hits on one creature take one place in the ring: a creature hurt before it is still known
+later()
+cl("SWING_DAMAGE", ME, npc(6700, 1), "First Hurt")
+for _ = 1, 20 do cl("SWING_DAMAGE", ME, npc(6701, 1), "Punching Bag") end
+cl("UNIT_DIED", nil, npc(6700, 1), "First Hurt")
+t("twenty hits on another creature do not push the first out of the ring", weight("N:6700") == C.WEIGHT.k, weight("N:6700"))
+
+-- a step change alone refreshes what the next steps name
+C._want()
+local ore = { action = "C", qid = { 506 }, qo = "1", loot = { { id = 9999, qty = 1 } }, title = "Strange Ore" }
+P.Pending = function() return {} end
+P.current = ore
+NS:Fire("STEP_CHANGED", ore)
+later()
+loot({ { guid = npc(6800, 1), link = itemLink(9999) } })
+t("after a step change the new step's item is recorded", weight("I:9999") == C.WEIGHT.l, weight("I:9999"))
+
+-- the map: two areas at most for each thing a step names, sixteen circles in all
+local big = { action = "C", qid = { 507 }, qo = "1", loot = {}, title = "Ten things" }
+for i = 1, 10 do
+    big.loot[i] = { id = 9100 + i, qty = 1 }
+    for _, p in ipairs({ { 10, 10 }, { 50, 50 }, { 85, 20 } }) do stand(p[1], p[2]) C.Record("I:" .. (9100 + i), "l") end
+end
+P.current = big
+C.UpdateMap()
+local of1 = 0
+for _, x in ipairs(drawn()) do if x.key == "I:9101" then of1 = of1 + 1 end end
+t("a named item with three areas gets two circles", #C.Areas("I:9101") == 3 and of1 == C.EXTRA_AREAS, #C.Areas("I:9101") .. "/" .. of1)
+t("twenty candidate circles: sixteen drawn", #PINS.world == C.MAX_CIRCLES and C.drawn == C.MAX_CIRCLES, #PINS.world)
+
+-- clear takes the links and the rare flags too
 C.Clear()
 t("clear empties the creature, object and item keys and the links", C.Stats() == 0 and C.LinksFor("C:504:1") == nil)
+t("clear empties the rare flags", C.IsRare("N:777") == false and C.IsRare("N:6400") == false and C.StatsByKind().rare == 0)
 C.SetEnabled(false)
 t("off again: the combat log is let go", C.combatLogOn == false)
 

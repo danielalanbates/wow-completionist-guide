@@ -15,8 +15,8 @@
 --   * a game object is looted: chest, treasure, herb, ore        (kind g, weight 3, key O:<object id>)
 --   * the loot holds an item one of the guide's next steps names (its L or U tag): key I:<item id>, weight of the
 --     loot it came from
--- A rare creature (UnitClassification "rare" or "rareelite") gets a flag in its record (rare = true), not a key of
--- its own.  Creatures, objects and items are never noted inside an instance, and each such key takes at most one
+-- A rare creature (UnitClassification "rare" or "rareelite") gets a flag beside its record (contrib.rare), not a key
+-- of its own.  Creatures, objects and items are never noted inside an instance, and each such key takes at most one
 -- sample every C.THROTTLE seconds.
 -- Nothing else is stored: a map id, a position on it, the quest, creature, object or item id or the step key, a
 -- weight.  No character, realm, account or creature name, no time stamps.  Nothing is sent anywhere; the data sits in
@@ -55,7 +55,8 @@ local function inInstance() return (IsInInstance and IsInInstance()) and true or
 local function wipe(t) for k in pairs(t) do t[k] = nil end return t end
 
 -- account-wide store: contrib.spots[flavor][key][cell] = weight ; cell = "<map>,<x*5>,<y*5>" on the CELL grid.
--- A record may also hold rare = true (a creature key); every reader skips entries whose value is not a number.
+-- A record holds cells and nothing else: a build without the creature keys reads the same table and adds every
+-- value up.  (Readers here still skip a value that is not a number.)
 local function store(create)
     if not NS.db then return nil end
     local g = NS.db.global
@@ -66,6 +67,26 @@ local function store(create)
     local t = g.contrib.spots[flavor()]
     if not t and create then t = {} g.contrib.spots[flavor()] = t end
     return t
+end
+-- contrib.rare[flavor][N:<id>] = true: the creature is a rare.  Kept beside the cells, never inside a record.
+local function rareStore(create)
+    if not NS.db then return nil end
+    local g = NS.db.global
+    if not g.contrib then
+        if not create then return nil end
+        g.contrib = { v = 1, spots = {} }
+    end
+    if not g.contrib.rare then
+        if not create then return nil end
+        g.contrib.rare = {}
+    end
+    local t = g.contrib.rare[flavor()]
+    if not t and create then t = {} g.contrib.rare[flavor()] = t end
+    return t
+end
+local function flagRare(key)
+    local t = rareStore(true)
+    if t then t[key] = true end
 end
 -- contrib.links[flavor][step key][N:<id> or O:<id>] = true: the creature or object a step was seen to be about
 -- (killed or looted while it was one of the next steps and its name or item matched).  Ids only; never exported.
@@ -102,7 +123,7 @@ end
 local areasCache, worldCache = {}, {}
 local function forget(key) areasCache[key] = nil worldCache[key] = nil end
 
--- one sample at the player's position; rare = true flags the record (a rare creature)
+-- one sample at the player's position; rare = true flags the key (a rare creature)
 function C.Record(key, kind, rare)
     if not key or not enabled() then return false end
     if (UnitOnTaxi and UnitOnTaxi("player")) or (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player")) then return false end
@@ -125,7 +146,7 @@ function C.Record(key, kind, rare)
         if n >= C.MAX_CELLS and lightest then cells[lightest] = nil end
     end
     cells[cell] = (cells[cell] or 0) + (C.WEIGHT[kind] or 1)
-    if rare then cells.rare = true end
+    if rare then flagRare(key) end
     forget(key)
     C.lastKey, C.lastKind = key, kind
     NS:Fire("CONTRIBUTE_SAMPLE", key, kind)
@@ -142,8 +163,7 @@ function C.RecordSeen(key, kind, rare)
     if last and now - last < C.THROTTLE then
         if rare then
             local t = store(false)
-            local rec = t and t[key]
-            if rec then rec.rare = true end
+            if t and t[key] then flagRare(key) end
         end
         return false
     end
@@ -153,9 +173,8 @@ function C.RecordSeen(key, kind, rare)
 end
 
 function C.IsRare(key)
-    local t = store(false)
-    local rec = key and t and t[key]
-    return rec and rec.rare == true or false
+    local t = rareStore(false)
+    return key and t and t[key] == true or false
 end
 
 local function parse(cells)
@@ -270,10 +289,10 @@ end
 -- keys by what they are: quest = A/T/C/G step keys, N creatures (rare: of them flagged rare), O objects, I items
 function C.StatsByKind()
     local out = { quest = 0, N = 0, O = 0, I = 0, rare = 0 }
-    for k, cs in pairs(store(false) or {}) do
+    for k in pairs(store(false) or {}) do
         local p = k:sub(1, 1)
         if out[p] then out[p] = out[p] + 1 else out.quest = out.quest + 1 end
-        if cs.rare == true then out.rare = out.rare + 1 end
+        if C.IsRare(k) then out.rare = out.rare + 1 end
     end
     return out
 end
@@ -288,6 +307,7 @@ function C.Clear()
     if NS.db and NS.db.global.contrib then
         NS.db.global.contrib.spots[flavor()] = nil
         if NS.db.global.contrib.links then NS.db.global.contrib.links[flavor()] = nil end
+        if NS.db.global.contrib.rare then NS.db.global.contrib.rare[flavor()] = nil end
     end
     areasCache, worldCache = {}, {}
     wipe(lastAt)
@@ -554,14 +574,39 @@ local function nearStep(s)
     end
     return false
 end
+-- Core/Progress.lua hears LOOT_READY and LOOT_OPENED first (it is loaded first) and ticks a treasure step at once,
+-- so by the time the loot is read here the step on screen is already the next one.  The treasure step it just
+-- ticked is kept for C.LOOT_WINDOW seconds: the chest in this loot window is that step's.  The first one stays for
+-- the whole window (a second treasure step right beside it, ticked by the same loot, does not take the chest).
+C.LOOT_WINDOW = 1
+local doneTreasure, doneAt
+NS:On("STEP_DONE", function(step, manual, wasCurrent)
+    if manual or not wasCurrent or not enabled() then return end
+    local Sig = NS.StepSignal
+    if not (Sig and Sig.LootAtSpot and Sig.LootAtSpot(step)) then return end
+    local now = (GetTime and GetTime()) or 0
+    if doneTreasure and doneAt and now - doneAt >= 0 and now - doneAt <= C.LOOT_WINDOW then return end
+    doneTreasure, doneAt = step, now
+end)
+-- the treasure step this loot window belongs to: the one just ticked, else the one on screen; the player stands at it
+local function treasureStep()
+    local now = (GetTime and GetTime()) or 0
+    if doneTreasure and (now - doneAt < 0 or now - doneAt > C.LOOT_WINDOW) then doneTreasure, doneAt = nil, nil end
+    local s = doneTreasure
+    if not s then
+        local cur = NS.Progress and NS.Progress.current
+        local Sig = NS.StepSignal
+        if cur and Sig and Sig.LootAtSpot and Sig.LootAtSpot(cur) then s = cur end
+    end
+    if s and nearStep(s) then return s end
+    return false
+end
 local looted = {}       -- reused: source GUIDs already noted in this loot window
 local function onLoot()
     if not enabled() or inInstance() then return end
     if not (GetNumLootItems and GetLootSourceInfo) then return end
     local fishing = IsFishingLoot and IsFishingLoot() and true or false
-    local cur = NS.Progress and NS.Progress.current
-    local Sig = NS.StepSignal
-    local treasure            -- the step on screen is a treasure at a spot and the player stands there (lazy)
+    local treasure            -- the treasure step whose spot the player stands at, false when none (lazy)
     wipe(looted)
     for slot = 1, GetNumLootItems() or 0 do
         local guid = GetLootSourceInfo(slot)
@@ -578,10 +623,8 @@ local function onLoot()
                 if steps then for i = 1, #steps do link(C.KeyFor(steps[i]), skey) end end
                 C.RecordSeen(skey, "l", isRare(guid, id))
             else
-                if treasure == nil then
-                    treasure = (cur and Sig and Sig.LootAtSpot and Sig.LootAtSpot(cur) and nearStep(cur)) and true or false
-                end
-                if treasure then link(C.KeyFor(cur), skey) end
+                if treasure == nil then treasure = treasureStep() end
+                if treasure then link(C.KeyFor(treasure), skey) end
                 C.RecordSeen(skey, "g")
             end
         end
@@ -595,6 +638,9 @@ local function onLoot()
     end
 end
 C.OnLoot = onLoot
+-- both events, as Core/Progress.lua: LOOT_READY comes first, and with fast auto-loot the window may be gone by
+-- LOOT_OPENED.  The second read of the same loot adds nothing (the throttle per key; a link is made once).
+NS:RegisterEvent("LOOT_READY", onLoot)
 NS:RegisterEvent("LOOT_OPENED", onLoot)
 
 -- ---------------------------------------------------------------------------
