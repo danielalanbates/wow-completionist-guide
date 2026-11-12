@@ -146,6 +146,14 @@ for _, id in ipairs(ids) do
             if not s then parseFail = parseFail + 1 fail(id .. " does not parse: " .. tostring(err) .. " :: " .. line:sub(1, 90)) end
             local a = line:sub(1, 1)
             if not ACTIONS_OK[a] then fail(id .. " unexpected action '" .. a .. "'") end
+            -- every step has a name (2026-11-12: retail Midnight Cooking had "M |SKILL|...|SPELL|1296257|", a recipe the
+            -- client's SpellName table does not name; tools/wiki/gen_professions.py now leaves such a recipe out)
+            check(s == nil or (s.title or ""):find("%S") ~= nil, id .. " step without a name: " .. line:sub(1, 90))
+            -- no note ends in a price with its currency lost ("... and Shim'dak in Zul'Aman for 120": the wiki's
+            -- currency template does not survive as text; tools/wiki/gen_professions.py display_source drops it)
+            local note = line:match("|N|([^|]*)|")
+            check(not (note and (note:find(" for %d[%d,]*%s*%.?%s*$") or note:find(" for %d[%d,]*%s*%.?%)"))),
+                id .. " note ends in a cut-off price: " .. line:sub(1, 160))
             total = total + 1
             local alt = line:match("|ALT|([^|]*)|")
             if alt then

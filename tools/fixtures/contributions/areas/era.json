@@ -204,6 +204,110 @@
     "y": 60.0
    }
   ],
+  "G:gold:era:fish:1448:23#N~eohyak8l5": [
+   {
+    "cells": 2,
+    "confidence": "confirmed",
+    "contributors": 2,
+    "map": 1448,
+    "r": 0.4,
+    "weight": 6,
+    "x": 50.2,
+    "y": 18.4
+   }
+  ],
+  "G:prof:era:Cooking:1:Alliance#M~ccphbexgm": [
+   {
+    "cells": 2,
+    "confidence": "single",
+    "contributors": 1,
+    "map": 1429,
+    "r": 0.4,
+    "weight": 9,
+    "x": 44.0,
+    "y": 65.8
+   },
+   {
+    "cells": 2,
+    "confidence": "trusted",
+    "contributors": 1,
+    "map": 1429,
+    "r": 0.4,
+    "weight": 4,
+    "x": 42.2,
+    "y": 64.6
+   }
+  ],
+  "G:prof:era:Fishing:1:Alliance#=~j30rr3glb": [
+   {
+    "cells": 2,
+    "confidence": "confirmed",
+    "contributors": 4,
+    "map": 1429,
+    "r": 0.4,
+    "weight": 12,
+    "x": 47.0,
+    "y": 62.0
+   }
+  ],
+  "G:prof:era:Fishing:1:Alliance#M~short": [
+   {
+    "cells": 2,
+    "confidence": "confirmed",
+    "contributors": 2,
+    "map": 1429,
+    "r": 0.4,
+    "weight": 4,
+    "x": 50.0,
+    "y": 50.0
+   }
+  ],
+  "G:prof:era:Fishing:1:Alliance#N~b0p3fig8g": [
+   {
+    "cells": 2,
+    "confidence": "confirmed",
+    "contributors": 2,
+    "map": 1453,
+    "r": 0.4,
+    "weight": 5,
+    "x": 63.1,
+    "y": 75.4
+   }
+  ],
+  "G:prof:era:Fishing:1:Alliance#R~bisrkzq54": [
+   {
+    "cells": 2,
+    "confidence": "confirmed",
+    "contributors": 3,
+    "map": 1429,
+    "r": 0.4,
+    "weight": 9,
+    "x": 41.0,
+    "y": 66.0
+   }
+  ],
+  "G:prof:era:Fishing:1:Horde#R~a5g7q7wci": [
+   {
+    "cells": 9,
+    "confidence": "confirmed",
+    "contributors": 4,
+    "map": 1414,
+    "r": 0.4,
+    "weight": 30,
+    "x": 58.0,
+    "y": 44.0
+   },
+   {
+    "cells": 2,
+    "confidence": "trusted",
+    "contributors": 1,
+    "map": 1411,
+    "r": 0.4,
+    "weight": 3,
+    "x": 52.2,
+    "y": 41.8
+   }
+  ],
   "G:wiki:era:1429:Alliance#h:1a2b3c": [
    {
     "cells": 3,

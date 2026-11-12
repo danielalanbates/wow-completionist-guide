@@ -8,14 +8,16 @@
     python3 tools/gen_completion_guides.py [retail] [mop] [--achievements-only]
 
   Guides/Imported_Achievements_<fl>.lua   one guide per achievement category (retail, mop).  Every
-      achievement that is not a statistic and not internal (INTERNAL: DNT, <Hidden>, Hidden Tracking) becomes a block
+      achievement that is not a statistic and not internal (INTERNAL: DNT, <Hidden>, [HIDDEN], <Tracking Achievement>,
+      Hidden Tracking; a meta's internal part keeps its step, named without the marker) becomes a block
       of steps: one per criterion (cap 60), then a FIXED "earn it" step.  Criteria carry
       |ACH|<achievement>;<criteria-tree id>| and tick from GetAchievementCriteriaInfoByID.  Locations come only from
       Warcraft Wiki data and Blizzard tables, never from another addon's data (Places below); every located step's note
       names its source ("wiki: <page>", "Blizzard WorldMapOverlay <id>", ...).  By Criteria.Type:
         point (|M|..|Z|..)  27 "complete quest N": the quest's step in Imported_Wiki_<fl> (a point players contributed
-                              is credited as such: "location: player contributions, N players; quest N"), else
-                              Blizzard QuestPOIBlob/QuestPOIPoint (the turn-in pin);
+                              is credited as such: "location: player contributions, N players; quest N"; a point that
+                              file took from the client's quest pin is credited to the pin: "Blizzard QuestPOI, quest N,
+                              the turn-in area"), else Blizzard QuestPOIBlob/QuestPOIPoint (the turn-in pin);
                             0 "kill creature N": the wiki NPC page with that id, else the page named like the criterion;
                             43 "explore area": the centre of the Blizzard WorldMapOverlay hit rectangle on its map
                               (UiMapXMapArt, UiMapArt, UiMapArtStyleLayer);
@@ -50,7 +52,8 @@
   Guides/Imported_QuestLines_retail.lua   one guide per Blizzard QuestLine, quests in the client's OrderIndex order
       (QuestLineXQuest; guide name from QuestLine).  Each accept carries |PRE|<previous quest>| so the optimizer can
       interleave travel but can never break the story order.  A quest's steps are its Imported_Wiki_retail lines
-      (wiki text, gates and points, a point players contributed with its note); a step left without a point takes the
+      (wiki text, gates and points, a point players contributed with its note; template braces a wiki page left unclosed
+      are taken out); a step left without a point takes the
       Blizzard QuestPOI pin (turn-in pin for T, objective area for C), an accept without one names the quest's map as zone only.
       A quest the wiki lacks gets "Quest <id>" steps from QuestPOI alone (the client shows the live name).  Wiki
       CC BY-SA + Blizzard facts.
@@ -107,8 +110,16 @@ NAME_WRAP = re.compile(r"^(?:Defeat|Kill|Slay|Destroy|Rescue|Free|Find|Visit|Dis
 # of the guides and of the coverage universe (tools/coverage.py), and counted apart.  Case matters: "Hidden Treasures"
 # and "A Test of Valor" are real achievements.  "(char specific hidden copy)" rows are per-character copies of account
 # achievements that the achievement window never shows.
-INTERNAL = re.compile(r"\bDNT\b|<DND>|<Hidden>|\[Hidden\]|\([Hh]idden\)|^Hidden Tracking\b|^Hidden - |\bUNUSED\b|\bDEPRECATED\b"
-                      r"|[Hh]idden [Cc]opy\)|\(Hidden Character Achievement\)")
+INTERNAL = re.compile(r"\bDNT\b|<DND>|<Hidden>|\[Hidden\]|\[HIDDEN\]|\([Hh]idden\)|^Hidden Tracking\b|^Hidden - |\bUNUSED\b"
+                      r"|\bDEPRECATED\b|[Hh]idden [Cc]opy\)|\(Hidden Character Achievement\)|<Tracking Achievement>"
+                      r"|\[DO NOT USE\]|\[[^\]]*\bREMOVED\]")
+# the internal markers themselves, cut from the name of an internal achievement a real meta achievement still counts
+# ("1st level 80 on account (DNT)" is a part of "Two Warband Mentors"): the step stays, the marker is not shown
+INTERNAL_MARK = re.compile(r"\s*(?:\((?:DNT|DND|[Hh]idden)\)|\[(?:DNT|DND|Hidden|HIDDEN|DO NOT USE)\]|<(?:DNT|DND|Hidden|Account|"
+                           r"Tracking Achievement)>)")
+# wiki template braces a page left unclosed, as the wiki file copies them: "on <Normal/Heroic/Mythic}} difficulty"
+# (Worldsoul: The Rookery).  The words stay, the braces go.
+WIKI_BRACES = re.compile(r"<([^<>{}|]*)\}\}|\{\{|\}\}")
 # the storyline guides (wiki and Blizzard data)
 STORY_FILE = "Imported_QuestLines_{fl}.lua"
 # a point taken from another addon's data (the dev build retired on 2026-11-11, or the --measure-fallback comparison
@@ -119,6 +130,9 @@ FALLBACK_NOTE = re.compile(r"\(location: (?:Questie|Blizzard) data")
 CONTRIB_CREDIT = re.compile(r"\((location: player contributions, \d+ players?)(?:, \d+ areas)?\)")
 # the header line of a wiki file that ships such steps: the data repository and the commit the areas came from
 CONTRIB_HEADER = "merged player contributions, wow-completionist-data"
+# a wiki step whose point is the client's quest pin, not the wiki's (tools/wiki/gen_wiki_guides.py, retail):
+# "(location: Blizzard quest POI, the turn-in area)" or "(location: Blizzard quest POI, the objective area)"
+POI_CREDIT = re.compile(r"\(location: Blizzard quest POI, the (turn-in|objective) area\)")
 # outdoor collectibles named after the place they are at: never an instance map, a wiki glyph list gives the point
 COLLECTIBLE = re.compile(r"^(?:Dragon|Skyriding) Glyphs?: ")
 
@@ -136,8 +150,19 @@ def rows(fl, table):
     return list(csv.DictReader(p.open(encoding="utf-8")))
 
 
+def unbrace(s):
+    """text with stray wiki template braces taken out (WIKI_BRACES)"""
+    return re.sub(r" {2,}", " ", WIKI_BRACES.sub(lambda m: m.group(1) or "", s)) if "{{" in s or "}}" in s else s
+
+
 def clean(s):
-    return re.sub(r"\s+", " ", (s or "").replace("|", "/")).strip()
+    return re.sub(r"\s+", " ", unbrace((s or "").replace("|", "/"))).strip()
+
+
+def shown_title(r):
+    """an achievement's name as a step shows it: an internal one (a part of a real meta) without its marker"""
+    t = clean(r["Title_lang"])
+    return INTERNAL_MARK.sub("", t).strip() or t if internal_achievement(r) else t
 
 
 def shown(path):
@@ -154,14 +179,16 @@ def lua_str(s):
 
 def located(lines, action_pref=("T", "A", "C")):
     """(M, Z, credit) of the best located step among a quest's lines.  credit: "location: player contributions, N
-    players" when players contributed that step's point, None when the point is the wiki file's own"""
+    players" when players contributed that step's point, "Blizzard quest pin, the turn-in area" (or "objective area")
+    when the wiki file took it from the client's quest pin, None when the point is the wiki's own"""
     for a in action_pref:
         for l in lines:
             if l.startswith(a + " "):
                 m = re.search(r"\|M\|([^|]+)\|Z\|([^|]+)\|", l)
                 if m:
-                    c = CONTRIB_CREDIT.search(l)
-                    return m.group(1), m.group(2), c.group(1) if c else None
+                    c, p = CONTRIB_CREDIT.search(l), POI_CREDIT.search(l)
+                    return m.group(1), m.group(2), (c.group(1) if c else
+                                                    f"Blizzard quest pin, the {p.group(1)} area" if p else None)
     return None
 
 
@@ -477,6 +504,9 @@ class Places:
         page = self.quest.get(q, (None, None, None))[2]
         loc = located(self.qlines.get(q, []))
         if loc and self.current_map(self.zone_of(f"Z|{loc[1]}")):
+            if loc[2] and loc[2].startswith("Blizzard quest pin"):
+                # the wiki file took this point from the client's quest pin: credit the pin, never "wiki:"
+                return f"M|{loc[0]}|Z|{loc[1]}|", "quest-poi", f"Blizzard QuestPOI, quest {q}, {loc[2].partition(', ')[2]}"
             if loc[2]:      # the wiki file took this point from player contributions: say so, never "wiki:"
                 return f"M|{loc[0]}|Z|{loc[1]}|", "quest-contrib", f"{loc[2]}; quest {q}"
             return f"M|{loc[0]}|Z|{loc[1]}|", "quest", f"wiki: {page or 'quest %d' % q}"
@@ -727,9 +757,9 @@ class Places:
 PROVENANCE = {
     # no interop names in shippable headers: the packager reads them as derived content
     "achievements": ["-- (wago.tools DB2 exports, facts only: Achievement, Criteria, Map, QuestPOI, WorldMapOverlay, AreaTable,",
-                     "-- DungeonEncounter) and Warcraft Wiki points: quest steps from Imported_Wiki_<flavor>.lua (only rows whose",
-                     "-- point is the wiki's own) and wiki NPC, object, item, glyph, race and achievement pages,",
-                     "-- https://warcraft.wiki.gg, by its contributors, licensed under CC BY-SA 4.0",
+                     "-- DungeonEncounter) and Warcraft Wiki points: quest steps from Imported_Wiki_<flavor>.lua (a point that file",
+                     "-- took from a Blizzard quest pin or from player contributions is credited as such) and wiki NPC, object, item,",
+                     "-- glyph, race and achievement pages, https://warcraft.wiki.gg, by its contributors, licensed under CC BY-SA 4.0",
                      "-- (https://creativecommons.org/licenses/by-sa/4.0/); this data file is shared under the same licence,",
                      "-- see Guides/WIKI_DATA_LICENSE.md.  Each located step's note names the wiki page or Blizzard table."],
     "questlines": ["-- (wago.tools DB2 exports, facts only: QuestLine, QuestLineXQuest, QuestPOIBlob, QuestPOIPoint) and",
@@ -872,7 +902,7 @@ def gen_achievements(fl):
         kids[int(r["Parent"])].append(r)
     for k in kids:
         kids[k].sort(key=lambda r: (int(r["OrderIndex"] or 0), int(r["ID"])))
-    achname = {int(r["ID"]): clean(r["Title_lang"]) for r in every}
+    achname = {int(r["ID"]): shown_title(r) for r in every}
     place = Places(fl)
 
     def rootcat(cid):
@@ -1158,6 +1188,9 @@ def gen_questlines(fl="retail"):
                 st["wiki quests"] += 1
                 out = []
                 for l in src:
+                    if unbrace(l) != l:     # a wiki page left a template unclosed ("on <Normal/Heroic/Mythic}} difficulty")
+                        l = unbrace(l)
+                        st["steps with wiki braces cleaned"] += 1
                     if "|M|" not in l:
                         act = l[0]
                         qo = re.search(r"\|QO\|(\d+)\|", l)
@@ -1358,7 +1391,33 @@ def _selfcheck():
     check(zone_note(w, src) == " (location: player contributions, 3 players; quest 77001)", "contributed point note")
     P.qlines[77002] = ["T Q|QID|77002|M|41.5,62.0|Z|84; Stormwind City|N|To Foo. (location: player contributions, 1 player)|"]
     check(P.quest_place(77002)[2] == "location: player contributions, 1 player; quest 77002", "one player")
-    del P.qlines[77001], P.qlines[77002]
+    # a point the wiki file took from the client's quest pin is Blizzard's, never "wiki:" (2026-11-12: 866 retail
+    # criteria said "wiki: <page>" for such a point)
+    pl = "T Q|QID|77003|M|49.7,51.3|Z|84; Stormwind City|N|To Foo. (location: Blizzard quest POI, the turn-in area)|"
+    check(located([pl])[2] == "Blizzard quest pin, the turn-in area", f"located() on a quest-pin step -> {located([pl])}")
+    P.qlines[77003] = [pl]
+    w, why, src = P.quest_place(77003)
+    check(w == "M|49.7,51.3|Z|84; Stormwind City|" and why == "quest-poi"
+          and src == "Blizzard QuestPOI, quest 77003, the turn-in area", f"quest-pin point -> {w!r} {why!r} {src!r}")
+    P.qlines[77004] = ["C Q|QID|77004|QO|1|M|50.3,51.0|Z|84; Stormwind City|N|Do it (location: Blizzard quest POI, the "
+                       "objective area)|"]
+    check(P.quest_place(77004)[2] == "Blizzard QuestPOI, quest 77004, the objective area", "objective-area pin credit")
+    del P.qlines[77001], P.qlines[77002], P.qlines[77003], P.qlines[77004]
+    # Blizzard's internal rows are left out, whatever form their marker takes; a meta's internal part loses the marker
+    for t in ("[HIDDEN] Awakening the Dragonflight Raid Portals", "G-99 Breakneck <Tracking Achievement>",
+              "[Hidden] [DO NOT USE] Draconically Epic", "8.0 Lordaeron Push - Alliance and Horde [CRITERIA 66724 and SPELL "
+              "273245 REMOVED]", "1st level 80 on account (DNT)"):
+        check(internal_achievement({"Title_lang": t}), f"internal: {t}")
+    for t in ("Hidden Treasures", "A Test of Valor", "Removed from Time"):
+        check(not internal_achievement({"Title_lang": t}), f"not internal: {t}")
+    check(shown_title({"Title_lang": "1st level 80 on account (DNT)"}) == "1st level 80 on account"
+          and shown_title({"Title_lang": "<Hidden> Completed Shadowlands Story (DNT) <Account>"}) == "Completed Shadowlands Story"
+          and shown_title({"Title_lang": "Hidden Treasures"}) == "Hidden Treasures", "an internal part's name without its marker")
+    # a wiki template the page left unclosed: the words stay, the braces go
+    check(unbrace("Complete the Rookery dungeon on <Normal/Heroic/Mythic}} difficulty or higher.")
+          == "Complete the Rookery dungeon on Normal/Heroic/Mythic difficulty or higher.", "unclosed template braces")
+    check(unbrace("Decide how your path is entwined with the Purpose. }}") == "Decide how your path is entwined with the Purpose. "
+          and unbrace("a {{b}} c") == "a b c" and unbrace("no braces <here>") == "no braces <here>", "stray braces")
     for f in fails:
         print("FAIL gen_completion_guides:", f)
     if fails:
