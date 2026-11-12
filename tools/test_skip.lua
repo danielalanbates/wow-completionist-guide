@@ -375,6 +375,48 @@ do
 end
 
 -- ---------------------------------------------------------------------------
+-- 1b) The leg from the player is priced as the arrow prices it (hearthstone included)
+-- ---------------------------------------------------------------------------
+-- The player stands in Redridge, the hearth is in Goldshire (tools/stubs.lua).  The guide's next step is in Goldshire
+-- (one hearth away: about 70 s by the arrow, 470 s on foot), the one after it in the east of Elwynn.  Priced without the
+-- hearthstone the guide's order looked 400 s dearer than it is, and the re-planner took "east first, then walk back to
+-- Goldshire" for a saving, an order 185 s slower on the route the arrow walks, and saved it.
+do
+    local NS = harness("era")
+    local S, P, G, RP, R = NS.Skip, NS.Progress, NS.Guide, NS.Replan, NS.Router
+    local Z = "|Z|1429; Elwynn Forest|"
+    G.Register({ id = "t:skip:hearth", name = "Hearth", type = "Quests", zone = 1429, faction = "Alliance", minlevel = 1, maxlevel = 10, text = table.concat({
+        "A Drop me|QID|401|M|42,66" .. Z, "A At home|QID|402|M|42,65" .. Z, "A Far out|QID|403|M|85,70" .. Z }, "\n") })
+    NS.QuestDeps = { flavor = "era", pre = "", free = "", crumb = "", never = "", name = "" }
+    S.Prompt = function(_, fn) fn() return true end
+    W.level = 5
+    place(1433, 0.6, 0.5)
+    R.Invalidate() NS.TravelGraph.Build()
+    P.Load("t:skip:hearth")
+    local home, far = P.steps[2], P.steps[3]
+    local hx, hy, hi = R.StepWorld(home)
+    local arrowHome, arrowFar = R.TravelSecondsFromPlayer(home), R.TravelSecondsFromPlayer(far)
+    local footHome = R.TravelRow(R.PlayerPoint(), { { wx = hx, wy = hy, inst = hi } })[1]
+    local between = R.TravelSeconds(home, far)
+    if arrowHome and footHome and arrowFar and between and footHome - arrowHome > 200 and arrowFar + between > arrowHome + between + 100
+        and footHome + between - (arrowFar + between) > math.max(15, 0.05 * (footHome + between)) then
+        S.SkipQuest(401)
+        local guard = 0
+        while RP.Step(1e9) and guard < 1e6 do guard = guard + 1 end
+        local last = RP.last or {}
+        t("hearth first leg: the guide's order is priced with the hearthstone, as the arrow walks it",
+            math.abs((last.baseCost or -1) - (arrowHome + between)) < 1e-6, ("planner %s, arrow %.1f (on foot %.1f)"):format(tostring(last.baseCost), arrowHome + between, footHome + between))
+        t("hearth first leg: the other order is priced the same way", math.abs((last.newCost or -1) - (arrowFar + between)) < 1e-6,
+            ("planner %s, arrow %.1f"):format(tostring(last.newCost), arrowFar + between))
+        t(("hearth first leg: an order slower on the arrow's route is not accepted (%.0f s against %.0f s)"):format(arrowFar + between, arrowHome + between),
+            last.accepted == false and idx(P.steps) == "2,3", idx(P.steps))
+    else
+        t("hearth first leg: the scenario holds on this graph (hearth to Goldshire far cheaper than the walk)", false,
+            ("arrow %s, on foot %s, far %s, between %s"):format(tostring(arrowHome), tostring(footHome), tostring(arrowFar), tostring(between)))
+    end
+end
+
+-- ---------------------------------------------------------------------------
 -- 2) Real generated guides, every flavor
 -- ---------------------------------------------------------------------------
 local ACCEPT = { A = true, a = true, ["!"] = true }

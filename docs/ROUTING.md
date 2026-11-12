@@ -260,7 +260,10 @@ instead of cutting matters for prerequisite cycles with an any-one list: on reta
 quests that hang on it, where cutting outward from the dropped quest locked 1 (12 sit behind a cycle). A quest the
 character has done or has on the log is past its prerequisites and never locked; a dropped quest that was already turned
 in blocks nothing; a quest the data never made obtainable (`never`) is not this drop's doing. Locks are recomputed from
-the remaining roots on every drop and unskip, so unskipping one quest frees exactly what only it blocked. Checked against
+the remaining roots on every drop and unskip, so unskipping one quest frees exactly what only it blocked, and once per
+session when the prerequisite data is not the data they were worked out from (`questSkip.deps`, length and hash of the
+four `QuestDeps` strings; checked at the first guide load, `Skip.CheckData`), so a data update that chains quests
+differently is followed. Checked against
 a whole-index reachability reference (reachable before minus reachable after) on about 60 roots per client: exact on all
 five. Stored per character in `A.me.questSkip` (`roots`, `locks`, `plans`), never shared: like a step skip it is one
 character's choice, whatever the progress scope. Quests for another class, race or faction are locked like any other but
@@ -309,6 +312,12 @@ cost model's point (an NPC's point from elsewhere in the guide, the step it ride
 * **Search** per segment from two starts, the baseline and a greedy nearest-feasible order, keeping the cheaper:
   first-improvement Or-opt (1-3 blocks moved next to one of their nearest blocks by travel time, so other continents
   count; every block when the segment has at most 60) and 2-opt (up to 40 blocks), with don't-look bits.
+* **The leg from the player** is priced as the arrow prices it (`Router.TravelSecondsFromPlayer`: hearthstone and the
+  other one-shot legs included), for the starting and the new order alike, and again for both in each pass; every other
+  leg is the hearth-free row. Before 2026-11-12 the first leg was hearth-free too, so a baked order whose first step is
+  one hearth away looked 800 s dearer than it is and a re-plan 577 s slower was accepted and saved (forever 1423
+  Alliance, drop 5246). The search itself still starts from hearth-free costs, so an order that is only better because
+  it opens with the hearthstone is not looked for.
 * **Acceptance.** The new order must save max(`StepOrder.MIN_GAIN`, `StepOrder.GAIN_FRAC` of it), the live window's
   margin, on the route the arrow walks, AND the route through the steps with a firm point (their own `|M|` or an NPC's)
   may not get longer: a zone centre only stands in for an objective, and a saving must not come from the stand-in alone. When the

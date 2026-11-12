@@ -527,7 +527,7 @@ local function plan(list, ctx)
     -- The leg that starts at the player is priced as the arrow prices it (Router.TravelSecondsFromPlayer): the
     -- hearthstone and the other one-shot legs count there and nowhere else.  Every other leg is the hearth-free row.
     -- (Without this a baked order whose first step is one hearth away looked 800 s dearer than it is, and a slower
-    -- re-plan was accepted against it.)  Never dearer than the hearth-free row; at the job's speed.
+    -- re-plan was accepted against it.)  Never dearer than the hearth-free row; at the job's speed and walking factor.
     local fromPlayer = {}
     local function playerCost(p)
         local v = fromPlayer[p]
@@ -541,7 +541,7 @@ local function plan(list, ctx)
                 short = math.sqrt(dx * dx + dy * dy) < CM.WALK_ONLY_BELOW
             end
             if not short or src ~= PLAYER then
-                local path = NS.TravelGraph.FindPath(src.wx, src.wy, src.inst, p.wx, p.wy, p.inst, { speed = ctx.speed, tick = tick })
+                local path = NS.TravelGraph.FindPath(src.wx, src.wy, src.inst, p.wx, p.wy, p.inst, { speed = ctx.speed, walkFactor = ctx.walkFactor, tick = tick })
                 local c = path and path.cost
                 if c and c + extra < v then v = c + extra end
             end

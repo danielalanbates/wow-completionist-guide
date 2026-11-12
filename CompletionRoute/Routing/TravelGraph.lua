@@ -692,7 +692,9 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     local tick, cache0 = opts.tick, TG.pathCache
     local c = cfg()
     local speed = opts.speed or U.TravelSpeed()
-    local tf = TG.WalkFactor()
+    -- opts.walkFactor: the re-planner's own (fixed when its job started, Routing/Replan.lua); such an answer is neither
+    -- read from nor written to the path cache, whose key does not hold the factor
+    local tf = opts.walkFactor or TG.WalkFactor()
     local useHearth = (opts.hearth == nil) and (c.hearth ~= false) or opts.hearth
     local useTaxi = (opts.taxi == nil) and (c.taxi ~= false) or opts.taxi
     local useTransit = (opts.transit == nil) and (c.transit ~= false) or opts.transit
@@ -700,7 +702,7 @@ function TG.FindPath(sx, sy, sinst, gx, gy, ginst, opts)
     local useTele = ((opts.teleports == nil) and (opts.hearth ~= false) and (c.teleports ~= false) and NS.Teleports ~= nil)
                     or (opts.teleports == true and NS.Teleports ~= nil)
     local ckey
-    if not useHearth and not useTele then
+    if not useHearth and not useTele and not opts.walkFactor then
         ckey = ("%s|%s|%s|%s|%s|%s|%s|%s|%s|%s"):format(sinst, sx, sy, ginst, gx, gy, speed,
                                                      useTaxi and 1 or 0, useTransit and 1 or 0, TG.TaxiPolicy())
         local hit = TG.pathCache[ckey]
