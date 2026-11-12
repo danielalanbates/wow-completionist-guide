@@ -1,5 +1,68 @@
 # Status / handoff (2026-11-12: one build, the public one; a full rebake is needed)
 
+## 2026-11-12 early morning: saved-state review, fixes on `state-review-fixes`
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `state-review-fixes` (worktree `wt-state`), `master`
+at `026136a` merged in. Not pushed, not merged, **not installed**. A reviewer loaded the owner's real saved variables
+(the copy of 2026-11-10) through the build and reported nine findings; a second pass tried to refute each and fixed
+what held. All nine held. None was refuted.
+
+**Before the next login on Classic Era, TBC Anniversary or MoP Classic.** The three live account files still hold
+`autoVerifyAll`, `autoSweep` and `autoQuitAfter`, left by `tools/queue_verify.py` in August (checked 2026-11-12 05:20;
+files last written Nov 7; no client was running). The build installed on the clients acts on them: 35 s after login
+it loads every guide, twice, and a logout or `/reload` in the middle saves the sweep's scratch tables over the
+character's marks. Either install this branch first, or delete those three lines (lines 3-5) from
+`WTF/Account/<account>/SavedVariables/CompletionRoute.lua` in `_classic_era_`, `_anniversary_` and `_classic_`. This
+pass may not write into the game folder, so neither was done. Retail and Forever carry no such keys.
+
+| # | Finding | Fix | Check |
+|---|---|---|---|
+| 1 | Developer sweep keys in three live files start two overlapping sweeps at login; a logout during one saves its scratch tables; guides nobody opened end up parked | `Core/Init.lua` drops the six `auto*` keys at load unless `devRun` came with them (`queue_verify.py` writes it). `Core/Account.lua`: the scratch store is counted, also keeps the character file's saved guide, parked guides, detour return and laps, and is put back on `PLAYER_LOGOUT`. A second bulk run while one runs is refused (`NS.bulkRun`). | `test_progress_keys` 4d, 4e; `test_offline`. Real TBC file, fixed tree: no sweep starts; as a developer run with a logout 100 frames in, the saved record equals the one before. |
+| 2 | The one-time import put old index marks on whatever step has that position now (real Retail character: 56 of 81 on quests it never did) | `Core/Account.lua`: a guide's marks are dropped when any index is past the guide's length (`stepMeta.stale`); a done mark lands on a quest step only when the record's completed quests (or the client) agree. `/cr marks` says so. | `test_progress_keys` 3, 3a; `test_offline` |
+| 3 | Progress scope "This server" / "This game type" became "All characters" 30 s after every login | The login self-test asks `Account.OtherDid` with an explicit scope instead of flipping the saved flag, and prints nothing when quiet | `test_progress_keys` 4e, all four scopes |
+| 4 | The launchd sync agent runs its own copy of `sync_progress.lua` from August, which deletes keyed marks, migration records and dropped quests | `tools/install.sh` replaces an out-of-date agent copy (`tools/refresh_sync_agent.sh`). The script carries tables it does not know through from the newest record and refuses a file of a later layout (`CompletionRouteDB.dataFormat`). | `test_progress_keys` 5 |
+| 5 | A re-plan slower than the baked order was accepted: the planner priced the leg from the player without the hearthstone, the arrow with | `Routing/Replan.lua` prices the first leg of both orders as the arrow does, at the job's speed and walking factor (`TravelGraph.FindPath` takes `walkFactor`). The test was right. | `test_skip` 1b (synthetic: master accepts 485 s against 299 s; this branch does not), also under PUC Lua 5.1 |
+| 6 | The sync multiplied recorded road traces on every run and rewrote every file | A segment is kept once; a file whose content would not change is not written | `test_progress_keys` 5 |
+| 7 | One session on the previous beta and back gave a Classic character every flight path of the account | The character's set starts empty again when the build that ran last was 0.x or 1.x (it leaves its version in `luaErrorsVersion`) | `test_offline` |
+| 8 | Real profiles keep a live window of 10; only 12 was converted | 10 -> 24 once, with its own marker (`routing.window10`): a build that converts only 12 (the previous beta, the build now installed) sets `window24` and keeps 10 | `test_offline`; the four real profiles read 24 after login |
+| 9 | Saved quest locks were never recomputed when the prerequisite data changed | `Core/Skip.lua` stores a signature of the `QuestDeps` strings and recomputes at the first guide load of a session when it differs | `test_skip` |
+
+**What differs from the report.** Finding 2's eight Retail zone guides are not in the build any more (the public
+build dropped the gap guides), so on the real files no old mark is carried at all now: 9 logins on the fixed, merged
+tree, 0 errors, 0 marks imported, a second login changes nothing. The checks of finding 2 are synthetic.
+
+**Left by the interrupted first fixer and corrected here.** Its tests had not been run to green: `test_offline`
+stopped at its account section (the alt fixture had no completed quests), `test_progress_keys` had three failing
+checks (two tied to a generated guide that has since changed, one expecting no old result table where the fixture
+holds one), and `test_skip` failed three "mounting mid-job" checks because the new first-leg price read the live
+walking factor.
+
+**Stays open.**
+* The three armed live files (above). The fix only helps once this branch is installed.
+* The agent's copy in `~/Library/Application Support/CompletionRoute/` is still the August one until `tools/install.sh`
+  of this tree runs. The agent was not loaded when checked; its plist is still in `~/Library/LaunchAgents`.
+* The import of old marks is still lazy (per guide, when first loaded or listed). A guide re-ordered without getting
+  shorter can still put a mark on a step without a quest in the wrong place. A fix needs the import to run for every
+  guide with old marks at the first login, through the same path as `Progress.Load` (circuit fold, access prefix).
+* The re-plan search still starts from hearth-free costs: an order that is better only because it opens with the
+  hearthstone is not looked for. Acceptance is now right.
+* The login self-tests (`RunVerify`, `RunFeatureVerify`, the map probe) still run at every login, silently. They write
+  only their own result tables. Moving them behind `devRun` needs `tools/collect_verify.py` to stop reading them from
+  normal sessions.
+* A bulk run that raises in its frame handler leaves `NS.bulkRun` set until `/reload` (further sweeps are refused; the
+  saved state is still restored at logout).
+* Seen on the way, developer tooling only: the verification quit button is never created, because the login handler
+  in `Core/Progress.lua` clears `autoQuitAfter` before the one in `Core/Sweep.lua` reads it.
+* `test_progress_keys` skips its downgrade section (commit `b322bb6` is not in this clone) and the baked-order check
+  (the bake is running).
+
+**Tests on the merged tree** (`luajit -joff`, each once): `validate_toc` valid; `test_progress_keys` 201 passed, 2
+skipped; `test_skip` 342; `test_quest_auto` 1,272; `test_bug_report` 94; `test_offline` passed; `test_load_all` clean;
+`test_live_route` 52; `test_parked` 26; `test_flow` 173; `test_step_window` 252; `test_contribute` 31. Under PUC Lua
+5.1.5: `test_offline`, `test_skip era` (146) and `test_progress_keys era` (137) pass. `test_route_order` was not run
+(the bake is running).
+
+
 ## 2026-11-12: one build (`public-build-only`)
 
 Owner's decision ("i'm building an addon for the general public", "i should only be using the public version"): the
