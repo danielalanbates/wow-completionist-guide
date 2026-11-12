@@ -366,6 +366,46 @@ def main():
         code, res, _, _ = env.run(d)
         check(code == 0 and not has(res, "no-provenance", "Guides/Imported_Wiki_retail.lua"),
               "quest-pin steps pass when the header names the tables and the build")
+        # player contributions (2026-11-12): a step that credits them ships only in a file whose header names the open
+        # data repository, its licence and the commit the areas came from
+        sha = "0123456789abcdef0123456789abcdef01234567"
+        contrib_step = "A Foo|QID|5|M|50.0,50.0|Z|1429; Elwynn Forest|N|From Bar. (location: player contributions, 3 players)|\n"
+        contrib_hdr = ('-- Steps whose note says "(location: player contributions, ...)" take their map point from where '
+                       "players stood, not from the wiki: merged player contributions, wow-completionist-data "
+                       "contributions/areas/tbc.json (https://github.com/danielalanbates/wow-completionist-data, "
+                       "CC BY-SA 4.0), commit {commit} (see Guides/WIKI_DATA_LICENSE.md).\n")
+
+        def plant_contrib(rel, commit, step=contrib_step):
+            def plant(d, a):
+                head = contrib_hdr.format(commit=commit) if commit else ""
+                (a / rel).write_text(head + STAND_IN["wiki-cc-by-sa"] + step, encoding="utf-8")
+            return plant
+        wiki_tbc = "Guides/Imported_Wiki_tbc.lua"
+        expect_fail(env, "contributed step in a wiki file without the contributions header", "no-provenance", wiki_tbc,
+                    plant_contrib(wiki_tbc, None))
+        expect_fail(env, "contributions header with an unknown commit", "no-provenance", wiki_tbc,
+                    plant_contrib(wiki_tbc, "unknown"))
+        expect_fail(env, "contributions header whose areas differ from the commit", "no-provenance", wiki_tbc,
+                    plant_contrib(wiki_tbc, sha + "-dirty"))
+        expect_fail(env, "contributions header with a shortened commit", "no-provenance", wiki_tbc,
+                    plant_contrib(wiki_tbc, sha[:12]))
+        ach_step = ("C Foo|ACH|7;8|M|50.0,50.0|Z|84; Stormwind City|N|Bar (location: player contributions, 2 players; "
+                    "quest 5)|\n")
+        expect_fail(env, "achievement criterion on a contributed quest point, no header", "no-provenance",
+                    "Guides/Imported_Achievements_retail.lua",
+                    plant_contrib("Guides/Imported_Achievements_retail.lua", None, ach_step))
+        d = env.scenario()
+        for rel, step in ((wiki_tbc, contrib_step), ("Guides/Imported_Achievements_retail.lua", ach_step),
+                          ("Guides/Imported_QuestLines_retail.lua", contrib_step)):
+            plant_contrib(rel, sha, step)(d, d / pr.ADDON)
+        code, res, _, _ = env.run(d)
+        check(code == 0 and not has(res, "no-provenance"),
+              "contributed steps pass when the header names the data repository and a full commit"
+              + ("" if code == 0 else " (got: " + "; ".join(f.text() for f in res.failures)[:300] + ")"))
+        d = env.scenario()
+        (d / pr.ADDON / wiki_tbc).write_text(contrib_hdr.format(commit=sha) + STAND_IN["wiki-cc-by-sa"], encoding="utf-8")
+        code, res, _, _ = env.run(d)
+        check(code == 0, "a file with the header and no contributed step passes")
         expect_fail(env, "WoW-Pro guide text in gold data", "interop-derived", "Guides/Imported_Gold_tbc.lua",
                     lambda d, a: append(a / "Guides" / "Imported_Gold_tbc.lua", 'R({ id="x", author="WoWPro Team", text=[[ ]] })\n'))
         def plant_xml(d, a):

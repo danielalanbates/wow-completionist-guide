@@ -139,8 +139,10 @@ RULES = (
     R("Guides/Imported_Wiki_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Warcraft Wiki quest pages; which quests a client has: "
       "Blizzard QuestV2 table (facts); on retail, the map point of a step the wiki gives none for and whose note says "
       "'(location: Blizzard quest POI, ...)': Blizzard QuestPOIBlob and QuestPOIPoint tables (facts; the file header "
-      "names the client build). A file that credits a point to another add-on's data ('(location: Questie "
-      "data)': the retired dev build, or the offline measurement file) fails the gate",
+      "names the client build); the map point of a step neither gives one for and whose note says '(location: player "
+      "contributions, N players)': merged player contributions from the open data repository wow-completionist-data "
+      "(CC BY-SA 4.0; the file header names the repository and the commit). A file that credits a point to another "
+      "add-on's data ('(location: Questie data)': the retired dev build, or the offline measurement file) fails the gate",
       "tools/wiki/gen_wiki_guides.py (zone split and step order: tools/wiki/gen_spine.py)", "generated"),
     R("Guides/Imported_Spine_*.lua", "wiki-cc-by-sa", CC_BY_SA, "the wiki zone guides chained by level band and the "
       "wiki's quest chains (retail: also Blizzard QuestLine/Campaign order, facts); each entry points at a wiki guide "
@@ -153,11 +155,13 @@ RULES = (
       "tools/wiki/gen_professions.py", "generated"),
     R("Guides/Imported_Achievements_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Blizzard Achievement, Criteria, Map, QuestPOI, "
       "WorldMapOverlay, AreaTable and DungeonEncounter tables (facts); criterion points from Imported_Wiki_<flavor>.lua "
-      "and wiki NPC, object, item, glyph, race and achievement pages; each located step names its source",
+      "(player contributions where that file credits them) and wiki NPC, object, item, glyph, race and achievement "
+      "pages; each located step names its source",
       "tools/gen_completion_guides.py (achievements)",
       "generated"),
     R("Guides/Imported_QuestLines_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Blizzard QuestLine/QuestLineXQuest order and "
-      "QuestPOIBlob/QuestPOIPoint pins (facts); step text, gates and points from Imported_Wiki_retail.lua; "
+      "QuestPOIBlob/QuestPOIPoint pins (facts); step text, gates and points from Imported_Wiki_retail.lua "
+      "(player contributions where that file credits them); "
       "quests without a wiki page are 'Quest <id>' steps named live by the client",
       "tools/gen_completion_guides.py (quest lines)", "generated"),
     R("Data/QuestDeps_*.lua", "wiki-cc-by-sa", CC_BY_SA, "quest chains (previous/next links) and names from "
@@ -275,6 +279,13 @@ INTEROP_MARK = re.compile(r"(?i)questie|wow-?pro")
 # header line its file must carry: the client tables and the build they were read from
 POI_NOTE = "(location: Blizzard quest POI"
 POI_HEADER = re.compile(r"QuestPOIBlob \+ QuestPOIPoint tables via wago\.tools, build (?!unknown\b)\S")
+# a step whose map point players contributed (tools/wiki/gen_wiki_guides.py class Contributions; an achievement
+# criterion that takes such a quest point says "location: player contributions, ...; quest N"), and the header line its
+# file must carry: the open data repository, its licence and the commit the areas came from.  "unknown" (the areas were
+# not read from a checkout of that repository) and "<commit>-dirty" (they differ from the commit) do not ship.
+CONTRIB_NOTE = "location: player contributions"
+CONTRIB_HEADER = re.compile(r"merged player contributions, wow-completionist-data [^\n]*CC BY-SA 4\.0\), "
+                            r"commit [0-9a-f]{40}(?![0-9A-Za-z-])")
 NO_REDISTRIBUTE = re.compile(r"(?i)do not (?:redistribute|commit)|not for redistribution|local use only")
 TOC_FILE_LINE = re.compile(r"^\s*([^#\s][^\r\n]*?)\s*$")
 XML_REF = re.compile(r"<(?:Script|Include)\s+[^>]*?file\s*=\s*\"([^\"]+)\"", re.I)
@@ -483,6 +494,13 @@ class Scanner:
             res.fail("no-provenance", rel, f"{text.count(POI_NOTE)} step(s) take their map point from Blizzard quest pins "
                      f"('{POI_NOTE}, ...)') but the file header does not name QuestPOIBlob + QuestPOIPoint and the client "
                      "build (tools/wiki/gen_wiki_guides.py writes that line)")
+        if category in DATA_CATEGORIES and CONTRIB_NOTE in text and not CONTRIB_HEADER.search(text[:4000]):
+            steps = sum(1 for ln in text.splitlines() if CONTRIB_NOTE in ln and not ln.startswith("--"))
+            res.fail("no-provenance", rel, f"{steps} step(s) credit their map point to player contributions "
+                     f"('({CONTRIB_NOTE}, ...)') but the file header does not name the data repository "
+                     "(wow-completionist-data, CC BY-SA 4.0) with the commit the areas came from, or the commit is "
+                     "unknown or has local changes (tools/wiki/gen_wiki_guides.py writes that line from a clean "
+                     "checkout of the data repository)")
         if category != "own-doc":
             m = NO_REDISTRIBUTE.search(text)
             if m:
