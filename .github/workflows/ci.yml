@@ -32,3 +32,6 @@ jobs:
       - name: Release packager gate tests
         # Builds a throwaway fixture checkout from the tracked code; plants one bad file per gate rule.
         run: python3 tools/test_package.py
+      - name: Player contributions into the guides
+        # The generator runs are skipped here (their inputs are gitignored); the rules, keys and provenance are tested.
+        run: python3 tools/test_contrib_gen.py
