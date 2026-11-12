@@ -8,7 +8,7 @@ NS.GuideFrame = GF
 
 local f = CreateFrame("Frame", "CompletionRouteFrame", UIParent, "BackdropTemplate")
 GF.frame = f
-f:SetSize(400, 170)
+f:SetSize(430, 196)
 f:SetPoint("CENTER")
 f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
 f:SetBackdropColor(0.03, 0.03, 0.05, 0.93)
@@ -25,7 +25,7 @@ end)
 f:SetFrameStrata("MEDIUM")
 
 -- title bar
-local titleText = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+local titleText = f:CreateFontString(nil, "OVERLAY", U.Font("Title"))
 titleText:SetPoint("TOPLEFT", 10, -8); titleText:SetPoint("RIGHT", -70, 0); titleText:SetJustifyH("LEFT")
 titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r")
 
@@ -53,7 +53,7 @@ local bBug = smallButton("Report", 52, "Save a bug report: guide, step, position
     function() NS.BugReport.FromButton() end)
 bBug:SetPoint("LEFT", bOpt, "RIGHT", 2, 0)
 
-local pathText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+local pathText = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 pathText:SetPoint("BOTTOMLEFT", 10, 8); pathText:SetPoint("RIGHT", -24, 0)
 pathText:SetJustifyH("LEFT"); pathText:SetTextColor(0.6, 0.85, 1)
 pathText:SetWordWrap(false)
@@ -77,7 +77,7 @@ grip:SetScript("OnUpdate", function()
 end)
 
 -- shown instead of an empty list, so finishing the last step never looks like the addon died
-local empty = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+local empty = f:CreateFontString(nil, "OVERLAY", U.Font("Body"))
 empty:SetPoint("TOPLEFT", 36, -56); empty:SetPoint("RIGHT", -36, 0)
 empty:SetJustifyH("LEFT"); empty:SetWordWrap(true); empty:Hide()
 
@@ -89,13 +89,13 @@ local card = CreateFrame("Button", nil, f)
 card:SetPoint("TOPLEFT", 34, -50); card:SetPoint("BOTTOMRIGHT", -34, 26)
 card.bg = card:CreateTexture(nil, "BACKGROUND"); card.bg:SetAllPoints(); card.bg:SetColorTexture(0.3, 0.6, 0.9, 0.10)
 card.icon = card:CreateTexture(nil, "ARTWORK"); card.icon:SetSize(30, 30); card.icon:SetPoint("TOPLEFT", 6, -6)
-card.title = card:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+card.title = card:CreateFontString(nil, "OVERLAY", U.Font("Large"))
 card.title:SetPoint("TOPLEFT", card.icon, "TOPRIGHT", 8, -2); card.title:SetPoint("RIGHT", -6, 0)
 card.title:SetJustifyH("LEFT"); card.title:SetWordWrap(true); card.title:SetMaxLines(2)
-card.note = card:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+card.note = card:CreateFontString(nil, "OVERLAY", U.Font("Body"))
 card.note:SetPoint("TOPLEFT", card.icon, "BOTTOMLEFT", 0, -8); card.note:SetPoint("RIGHT", -6, 0)
 card.note:SetJustifyH("LEFT"); card.note:SetWordWrap(true); card.note:SetMaxLines(4); card.note:SetTextColor(0.85, 0.85, 0.85)
-card.where = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+card.where = card:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 card.where:SetPoint("BOTTOMLEFT", 6, 6); card.where:SetPoint("RIGHT", -6, 0)
 card.where:SetJustifyH("LEFT"); card.where:SetWordWrap(false); card.where:SetTextColor(0.6, 0.85, 1)
 card:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -261,12 +261,12 @@ detail:SetScript("OnDragStart", detail.StartMoving); detail:SetScript("OnDragSto
 detail:Hide()
 tinsert(UISpecialFrames, "CompletionRouteStepDetail")
 
-local dTitle = detail:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+local dTitle = detail:CreateFontString(nil, "OVERLAY", U.Font("Large"))
 dTitle:SetPoint("TOPLEFT", 12, -10); dTitle:SetPoint("RIGHT", -30, 0)
 dTitle:SetJustifyH("LEFT"); dTitle:SetWordWrap(true)
 local dClose = CreateFrame("Button", nil, detail, "UIPanelCloseButton")
 dClose:SetPoint("TOPRIGHT", -2, -2)
-local dBody = detail:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+local dBody = detail:CreateFontString(nil, "OVERLAY", U.Font("Body"))
 dBody:SetPoint("TOPLEFT", dTitle, "BOTTOMLEFT", 0, -8); dBody:SetPoint("RIGHT", -12, 0)
 dBody:SetJustifyH("LEFT"); dBody:SetWordWrap(true)
 
@@ -375,7 +375,7 @@ function GF.ApplySettings()
     local p = NS.db.profile.frame
     f:ClearAllPoints(); f:SetPoint(p.point or "CENTER", UIParent, p.point or "CENTER", p.x or 0, p.y or 0)
     f:SetScale(p.scale or 1); f:SetAlpha(p.alpha or 1)
-    f:SetSize(400, 170)   -- one-step window: fixed height (old profiles carry the multi-row height)
+    f:SetSize(430, 196)   -- one-step window: fixed height (old profiles carry the multi-row height)
 end
 function GF.Toggle() if f:IsShown() then f:Hide() else f:Show() GF.Update() end end
 NS:On("PLAYER_READY", GF.ApplySettings)

@@ -10,7 +10,7 @@ local M = {}
 NS.GuideMenu = M
 
 local f = CreateFrame("Frame", "CompletionRouteGuideMenu", UIParent, "BackdropTemplate")
-f:SetSize(460, 524)
+f:SetSize(480, 560)
 f:SetPoint("CENTER")
 f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
 f:SetBackdropColor(0.05, 0.05, 0.08, 0.95)
@@ -21,62 +21,41 @@ f:SetFrameStrata("DIALOG")
 f:Hide()
 tinsert(UISpecialFrames, "CompletionRouteGuideMenu")
 
-local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+local title = f:CreateFontString(nil, "OVERLAY", U.Font("Large"))
 title:SetPoint("TOP", 0, -10); title:SetText("CompletionRoute Guides")
 local close = CreateFrame("Button", nil, f, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -2, -2)
 
--- Scope selector: whose progress the numbers below are about.  Four settings, narrow to wide
--- (this character -> this server -> this game type -> all characters), stepped with an up/down
--- pair rather than a tick box, because it is no longer a yes/no.
+-- Scope selector: whose progress the numbers below are about.  Four settings, narrow to wide (this character, this
+-- server, this game type, all characters), as a row of four buttons with the chosen one lit and one line under it
+-- that says in words whose progress counts.  (Until 2026-11-11 this was a coloured label with two small arrows and a
+-- grey 10 pt hint; in play it read as a title, not as a setting.)
 local scope = CreateFrame("Frame", "CompletionRouteGuideMenuScope", f)
-scope:SetSize(300, 34); scope:SetPoint("TOPLEFT", 14, -30)
+scope:SetSize(452, 42); scope:SetPoint("TOPLEFT", 14, -34)
 scope:EnableMouse(true)
-local scopeLabel = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-scopeLabel:SetPoint("LEFT", scope, "LEFT", 34, 5)
-local scopeHint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-scopeHint:SetPoint("TOPLEFT", scopeLabel, "BOTTOMLEFT", 0, -1); scopeHint:SetTextColor(0.6, 0.6, 0.6)
+local SCOPE_SHORT = { char = "Character", realm = "Server", flavor = "Game type", account = "Account" }
+local SCOPE_RGB = { char = { 1, 0.82, 0 }, realm = { 0.49, 0.87, 0.56 }, flavor = { 1, 0.62, 0.24 }, account = { 0.24, 0.78, 1 } }
+local scopeHint = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
+scopeHint:SetPoint("TOPLEFT", scope, "TOPLEFT", 2, -27); scopeHint:SetPoint("RIGHT", scope, "RIGHT", -2, 0)
+scopeHint:SetJustifyH("LEFT"); scopeHint:SetWordWrap(false); scopeHint:SetTextColor(0.8, 0.8, 0.8)
 
 local function scopeIndex()
     local cur = NS.Account and NS.Account.Scope() or "char"
     for i, sc in ipairs(NS.Account.SCOPES) do if sc == cur then return i end end
     return 1
 end
-local function stepScope(delta)
-    local list = NS.Account.SCOPES
-    local i = math.min(#list, math.max(1, scopeIndex() + delta))
-    NS.Account.SetScope(list[i])
+local function setScope(sc)
+    if NS.Account.Scope() == sc then return end
+    NS.Account.SetScope(sc)
     M.UpdateScopeLabel()
     M.RescanCompletion()
     if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end
     M.Refresh()
 end
-
-local function spinner(dir, y)
-    local b = CreateFrame("Button", nil, scope)
-    b:SetSize(18, 16); b:SetPoint("TOPLEFT", scope, "TOPLEFT", 2, y)
-    local up = dir > 0
-    b:SetNormalTexture(up and "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Up" or "Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Up")
-    b:SetPushedTexture(up and "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Down" or "Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Down")
-    b:SetDisabledTexture(up and "Interface\\Buttons\\UI-ScrollBar-ScrollUpButton-Disabled" or "Interface\\Buttons\\UI-ScrollBar-ScrollDownButton-Disabled")
-    b:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
-    b:SetScript("OnClick", function() stepScope(dir) end)
-    return b
+local function stepScope(delta)
+    local list = NS.Account.SCOPES
+    setScope(list[math.min(#list, math.max(1, scopeIndex() + delta))])
 end
--- up = wider (more characters count), down = narrower
-local scopeUp = spinner(1, -1)
-local scopeDown = spinner(-1, -17)
-
-function M.UpdateScopeLabel()
-    if not (NS.Account and NS.Account.SCOPES) then return end
-    local sc = NS.Account.Scope()
-    local colors = { char = "ffd200", realm = "7ddf8f", flavor = "ff9e3d", account = "3ec6ff" }
-    scopeLabel:SetText(("|cff%s%s|r"):format(colors[sc] or "ffffff", NS.Account.ScopeLabel(sc)))
-    scopeHint:SetText(NS.Account.ScopeDetail(sc))
-    local i = scopeIndex()
-    scopeUp:SetEnabled(i < #NS.Account.SCOPES)
-    scopeDown:SetEnabled(i > 1)
-end
-scope:SetScript("OnEnter", function(self)
+local function scopeTip(self)
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:SetText("Whose progress counts?")
     for _, sc in ipairs(NS.Account.SCOPES) do
@@ -85,15 +64,49 @@ scope:SetScript("OnEnter", function(self)
     end
     GameTooltip:AddLine("Widens or narrows both the counts on the right and which steps are skipped as already done.", 0.6, 0.6, 0.6, true)
     GameTooltip:Show()
-end)
+end
+
+local scopeButtons = {}
+local SCOPE_ORDER = { "char", "realm", "flavor", "account" }
+for i, sc in ipairs(SCOPE_ORDER) do
+    local b = CreateFrame("Button", nil, scope)
+    b:SetSize(110, 22); b:SetPoint("TOPLEFT", scope, "TOPLEFT", (i - 1) * 114, 0)
+    b.bg = b:CreateTexture(nil, "BACKGROUND"); b.bg:SetAllPoints()
+    b.line = b:CreateTexture(nil, "BORDER"); b.line:SetPoint("BOTTOMLEFT"); b.line:SetPoint("BOTTOMRIGHT"); b.line:SetHeight(2)
+    b.label = b:CreateFontString(nil, "OVERLAY", U.Font("Title"))
+    b.label:SetPoint("CENTER", 0, 1); b.label:SetText(SCOPE_SHORT[sc])
+    local hl = b:CreateTexture(nil, "HIGHLIGHT"); hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 0.08)
+    b.scope = sc
+    b:SetScript("OnClick", function(self) setScope(self.scope) end)
+    b:SetScript("OnEnter", scopeTip)
+    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    scopeButtons[sc] = b
+end
+
+function M.UpdateScopeLabel()
+    if not (NS.Account and NS.Account.SCOPES) then return end
+    local cur = NS.Account.Scope()
+    for sc, b in pairs(scopeButtons) do
+        local c = SCOPE_RGB[sc]
+        if sc == cur then
+            b.bg:SetColorTexture(c[1], c[2], c[3], 0.28); b.line:SetColorTexture(c[1], c[2], c[3], 1)
+            b.label:SetTextColor(1, 1, 1)
+        else
+            b.bg:SetColorTexture(1, 1, 1, 0.05); b.line:SetColorTexture(1, 1, 1, 0.12)
+            b.label:SetTextColor(0.62, 0.62, 0.62)
+        end
+    end
+    scopeHint:SetText("Progress counts for " .. NS.Account.ScopeDetail(cur) .. ".")
+end
+scope:SetScript("OnEnter", scopeTip)
 scope:SetScript("OnLeave", function() GameTooltip:Hide() end)
 scope:SetScript("OnMouseWheel", function(_, delta) stepScope(delta) end)
 scope:EnableMouseWheel(true)
 
 local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-search:SetSize(220, 20); search:SetPoint("TOPLEFT", 16, -72); search:SetAutoFocus(false)
+search:SetSize(220, 20); search:SetPoint("TOPLEFT", 18, -84); search:SetAutoFocus(false)
 search:SetScript("OnTextChanged", function() M.Refresh() end)
-local searchLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+local searchLabel = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 searchLabel:SetPoint("LEFT", search, "RIGHT", 6, 0); searchLabel:SetText("search")
 
 -- ---------------------------------------------------------------------------
@@ -120,12 +133,12 @@ function M.SetViewLevel(v)
     M.Refresh()
 end
 
-local levelLabel = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-levelLabel:SetPoint("TOPLEFT", 18, -100); levelLabel:SetText("Level")
+local levelLabel = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
+levelLabel:SetPoint("TOPLEFT", 18, -113); levelLabel:SetText("Level")
 local function levelStep(delta) M.SetViewLevel(M.ViewLevel() + delta) end
 local function smallButton(text, width, x, onClick, tip)
     local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    b:SetSize(width, 20); b:SetPoint("TOPLEFT", x, -95); b:SetText(text)
+    b:SetSize(width, 22); b:SetPoint("TOPLEFT", x, -108); b:SetText(text)
     b:SetScript("OnClick", onClick)
     if tip then
         b:SetScript("OnEnter", function(self)
@@ -135,9 +148,9 @@ local function smallButton(text, width, x, onClick, tip)
     end
     return b
 end
-smallButton("-", 22, 54, function() levelStep(-1) end, "One level lower")
+smallButton("-", 24, 62, function() levelStep(-1) end, "One level lower")
 local levelBox = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-levelBox:SetSize(32, 20); levelBox:SetPoint("TOPLEFT", 84, -95); levelBox:SetAutoFocus(false)
+levelBox:SetSize(36, 22); levelBox:SetPoint("TOPLEFT", 92, -108); levelBox:SetAutoFocus(false)
 levelBox:SetMaxLetters(3)
 if levelBox.SetNumeric then levelBox:SetNumeric(true) end
 levelBox:SetScript("OnTextChanged", function(self, userInput)
@@ -148,15 +161,15 @@ end)
 levelBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 levelBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 levelBox:SetScript("OnEditFocusLost", function() M.UpdateLevelControls() end)
-smallButton("+", 22, 122, function() levelStep(1) end, "One level higher")
-smallButton("Mine", 46, 148, function() M.SetViewLevel(nil) end, "Back to your character's own level")
-local levelHint = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-levelHint:SetPoint("LEFT", levelBox, "RIGHT", 112, 0); levelHint:SetTextColor(0.6, 0.6, 0.6)
+smallButton("+", 24, 134, function() levelStep(1) end, "One level higher")
+smallButton("Current", 70, 162, function() M.SetViewLevel(nil) end, "Back to your character's current level")
+local levelHint = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
+levelHint:SetPoint("LEFT", levelBox, "RIGHT", 112, 0); levelHint:SetTextColor(0.75, 0.75, 0.75)
 
 local function viewCheck(name, x, label, tip, getKey)
     local cb = CreateFrame("CheckButton", name, f, "UICheckButtonTemplate")
-    cb:SetSize(22, 22); cb:SetPoint("TOPLEFT", x, -116)
-    local fs = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    cb:SetSize(24, 24); cb:SetPoint("TOPLEFT", x, -133)
+    local fs = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
     fs:SetPoint("LEFT", cb, "RIGHT", 2, 0); fs:SetText(label)
     cb:SetScript("OnClick", function(self)
         listPrefs()[getKey] = self:GetChecked() and true or false
@@ -170,26 +183,27 @@ local function viewCheck(name, x, label, tip, getKey)
 end
 local onlyLevel = viewCheck("CompletionRouteGuideMenuOnlyLevel", 14, "Only guides for this level",
     "Hide every guide that does not fit the level in the box: its bracket contains that level, or (professions) its skill band contains your skill. Guides with no level data are hidden too.", "onlyLevel")
-local groupLevel = viewCheck("CompletionRouteGuideMenuGroupLevel", 230, "Group by level",
+local groupLevel = viewCheck("CompletionRouteGuideMenuGroupLevel", 262, "Group by level",
     "Show the list as level bands, then category, then guide. Guides with no level data go under Any level.", "groupByLevel")
 
 function M.UpdateLevelControls()
     if not NS.db then return end
     local v = M.ViewLevel()
     if not (levelBox.HasFocus and levelBox:HasFocus()) then levelBox:SetText(tostring(v)) end
-    levelHint:SetText(v == myLevel() and "yours" or ("yours: " .. myLevel()))
+    levelHint:SetText(v == myLevel() and "your level" or ("your level: " .. myLevel()))
     local prefs = listPrefs()
     onlyLevel:SetChecked(prefs.onlyLevel and true or false)
     groupLevel:SetChecked(prefs.groupByLevel and true or false)
 end
 
 local scroll = CreateFrame("ScrollFrame", "CompletionRouteGuideMenuScroll", f, "UIPanelScrollFrameTemplate")
-scroll:SetPoint("TOPLEFT", 12, -142); scroll:SetPoint("BOTTOMRIGHT", -30, 12)
+scroll:SetPoint("TOPLEFT", 12, -162); scroll:SetPoint("BOTTOMRIGHT", -30, 12)
 local content = CreateFrame("Frame", nil, scroll)
-content:SetSize(400, 10)
+content:SetSize(420, 10)
 scroll:SetScrollChild(content)
 
 local buttons = {}
+local ROW_H = 22      -- 20 px until the list text grew from 10 pt to 12 pt
 local expanded = {}   -- [nodePath] = true
 -- the "For level N" section starts open with its Leveling picks showing
 local FOR_LEVEL_PATH = "\\For level"
@@ -529,12 +543,12 @@ function M.Refresh()
         local b = buttons[n]
         if not b then
             b = CreateFrame("Button", nil, content)
-            b:SetHeight(20); b:SetPoint("LEFT", 0, 0); b:SetPoint("RIGHT", 0, 0)
-            b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            b:SetHeight(ROW_H); b:SetPoint("LEFT", 0, 0); b:SetPoint("RIGHT", 0, 0)
+            b.text = b:CreateFontString(nil, "OVERLAY", U.Font("Small"))
             b.text:SetPoint("LEFT", 4, 0); b.text:SetJustifyH("LEFT")
             b.text:SetWordWrap(false)   -- a long name plus its band and "needs" tags must not wrap onto the next 20 px row
             -- right-hand completion column: "12 completed" on a category, a tick or % on a guide
-            b.right = b:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            b.right = b:CreateFontString(nil, "OVERLAY", U.Font("Small"))
             b.right:SetPoint("RIGHT", -6, 0); b.right:SetJustifyH("RIGHT")
             b.hl = b:CreateTexture(nil, "HIGHLIGHT"); b.hl:SetAllPoints(); b.hl:SetColorTexture(1, 1, 1, 0.1)
             b:SetScript("OnClick", function(self)
@@ -616,7 +630,7 @@ function M.Refresh()
         end
         b:ClearAllPoints(); b:SetPoint("TOPLEFT", 0, -y); b:SetPoint("RIGHT", 0, 0)
         b:Show()
-        y = y + 20
+        y = y + ROW_H
     end
     for i = n + 1, #buttons do buttons[i]:Hide() end
     content:SetHeight(math.max(y, 10))

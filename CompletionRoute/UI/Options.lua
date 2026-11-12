@@ -85,6 +85,7 @@ end)
 slider("Hearth base cost (seconds)", 10, 300, 10, function() return P().routing.hearthCost or NS.CostModel.HEARTH end, function(v)
     if (P().routing.hearthCost or NS.CostModel.HEARTH) ~= v then P().routing.hearthCost = v NS.TravelGraph.OneShotChanged() end
 end)
+slider("Text size: extra points", 0, 6, 1, function() return P().textSize or 2 end, function(v) P().textSize = v NS.Util.ApplyTextSize(v) end)
 slider("Beacon scale x100", 50, 200, 5, function() return math.floor((P().beacon.scale or 1) * 100 + 0.5) end, function(v) P().beacon.scale = v / 100 NS.Beacon.RescanPlates() end)
 slider("Arrow scale x100", 50, 200, 5, function() return math.floor((P().arrow.scale or 1) * 100 + 0.5) end, function(v) P().arrow.scale = v / 100 NS.Arrow.ApplySettings() end)
 slider("Guide window scale x100", 50, 200, 5, function() return math.floor((P().frame.scale or 1) * 100 + 0.5) end, function(v) P().frame.scale = v / 100 NS.GuideFrame.ApplySettings() end)

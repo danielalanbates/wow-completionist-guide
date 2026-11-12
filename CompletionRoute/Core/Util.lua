@@ -169,6 +169,44 @@ function U.FmtTime(s)
     local h = math.floor(m / 60); m = m - h * 60
     return h .. "h " .. m .. "m"
 end
+-- ---------------------------------------------------------------------------
+-- Text sizes.  The client's "Small" font is 10 pt, which read as too small in the guide list, the step card and under
+-- the arrow (beta feedback, 2026-11-11).  The addon's windows use four font objects of their own, copies of the
+-- client's with a few points added: profile.textSize (default 2) on the small text, half of it on the rest.  A font
+-- object's size can be changed while its text is on screen, so the Options slider applies at once.
+-- ---------------------------------------------------------------------------
+local FONT_BASE = { Small = "GameFontHighlightSmall", Body = "GameFontHighlight", Title = "GameFontNormal", Large = "GameFontNormalLarge" }
+U.fonts = {}
+function U.ApplyTextSize(extra)
+    extra = tonumber(extra) or (NS.db and NS.db.profile and tonumber(NS.db.profile.textSize)) or 2
+    for kind, fo in pairs(U.fonts) do
+        local base = fo and _G[FONT_BASE[kind]]
+        if base and base.GetFont then
+            local okf, file, size, flags = pcall(base.GetFont, base)
+            if okf and file and size then
+                local add = (kind == "Small") and extra or math.floor(extra / 2)
+                pcall(fo.SetFont, fo, file, size + add, flags)
+            end
+        end
+    end
+end
+-- the name of the addon's font object for "Small" | "Body" | "Title" | "Large" (the client's own font where a font
+-- object cannot be made, as in the offline harnesses)
+function U.Font(kind)
+    local name = "CompletionRouteFont" .. kind
+    if U.fonts[kind] == nil then
+        local ok, fo = pcall(function()
+            local fnt = CreateFont(name)
+            fnt:CopyFontObject(_G[FONT_BASE[kind]])
+            return fnt
+        end)
+        U.fonts[kind] = (ok and fo) or false
+        if U.fonts[kind] then U.ApplyTextSize() end
+    end
+    return U.fonts[kind] and name or FONT_BASE[kind]
+end
+if NS.On then NS:On("PLAYER_READY", function() U.ApplyTextSize() end) end
+
 function U.FmtDist(d)
     if not d then return "?" end
     if d < 1000 then return math.floor(d + 0.5) .. " yd" end

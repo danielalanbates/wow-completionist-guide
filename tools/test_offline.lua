@@ -158,7 +158,8 @@ print(("menu tree OK: %d categories, %d guides reachable, %d search hits for 'el
 do
     local src = (function() local h = assert(io.open("CompletionRoute/UI/GuideMenu.lua")) local t = h:read("*a") h:close() return t end)()
     assert(src:find('"CompletionRouteGuideMenuScope"'), "no scope selector at the top of the guide menu")
-    assert(src:find("stepScope") and src:find("ScrollUpButton") and src:find("ScrollDownButton"), "scope must step with up/down arrows")
+    assert(src:find("scopeButtons") and src:find("setScope") and src:find("stepScope"), "scope must be a row of buttons (and step with the wheel)")
+    assert(src:find('"Current"') and not src:find('"Mine"'), "the level button reads Current")
     assert(src:find("b.right"), "no right-hand completion column")
     assert(src:find("completed"), "completion count text missing")
 
