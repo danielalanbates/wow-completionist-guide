@@ -11,14 +11,14 @@ Rewritten 2026-11-07 from Daniel's decisions. Status of each milestone is in [ST
 | Licence | Wiki = CC BY-SA 4.0 | Wiki-derived data files ship under CC BY-SA 4.0 with attribution; code stays PolyForm NC + rider. |
 | Verification | Daniel beta-tests himself | No AI in-game passes, no Battle.net login, no GUI takeover. Verification = offline tests, vplayer, route_sweep, plus Daniel's beta reports. |
 | Repo | Public, history rewritten | `danielalanbates/wow-completionist-guide`. v1.0.0 withdrawn; next public release = v2.0 (wiki-based). |
-| Classic fallback | .app may generate Questie-based guides at install time | Used only where the wiki has gaps; never committed or shipped. |
+| Classic fallback | **None (owner, 2026-11-11).** There is one build, the public one | Nothing Questie-derived is generated, installed or shipped; a step the wiki cannot place names its zone or has no location. The earlier plan (the .app generating Questie-based guides at install time) is dropped. |
 | WoW-Pro | Runtime adapter only, no outreach | Nothing WoW-Pro-derived ships. |
 
 ## Workstreams
 
 | # | Workstream | Deliverable | Data / licence | Verification (SQL) |
 |---|---|---|---|---|
-| W1 | Wiki pipeline | `tools/wiki/` fetch → parse → `Imported_Wiki_<flavor>.lua`; `_gaps` files keep only quests the wiki lacks | Wiki CC BY-SA; DB2 facts | `coverage`, `wiki_gaps`, `wiki_vs_db2`, `wiki_db2_conflict` |
+| W1 | Wiki pipeline | `tools/wiki/` fetch → parse → `Imported_Wiki_<flavor>.lua` (the `_gaps` files for quests the wiki lacks were retired on 2026-11-11) | Wiki CC BY-SA; DB2 facts | `coverage`, `wiki_db2_conflict`, `wiki_point_sources` |
 | W2 | Generated spine | Retail Campaign → QuestLine order + wiki previous/next chains; Classic chains + level bands; category guides (dungeons, reputation, events, professions) | Wiki, DB2 | `coverage` per category; chain-order violations = 0 |
 | W3 | Routing tier A: offline optimizer | `tools/cost_matrix.lua` (real TravelGraph) + `tools/optimize_routes.py` (OR-Tools PDP: precedence, quest-log capacity, level gates, alternative coordinates); output `Data/RouteOrder_<flavor>.lua` | Own | `route_compare` (author / window / baked / baked+live); `opt_gap` < 5% on instances under 40 nodes |
 | W4 | Routing tier B: live replanner | StepOrder rewrite: spine + 16–24-step horizon repair, O(1) feasibility checks, segment Or-opt, precedence-safe 2-opt, 3 ms/frame coroutine, hysteresis max(15 s, 5%), live level/log/faction gates | Own | 0 violations; CPU p95 ≤ 3 ms; 0 guides >1% slower than author order |
@@ -26,7 +26,7 @@ Rewritten 2026-11-07 from Daniel's decisions. Status of each milestone is in [ST
 | W6 | Coverage gaps | Achievement criteria located (wiki + DB2 Criteria joins); dungeon/scenario entrances; item-started quests; retail hidden-tracker filter; missions marked non-geographic | Wiki, DB2 | `coverage` located/covered; routable `no_route` → 0 |
 | W7 | Forever flavor | `CompletionRoute_Forever.toc`, flavor detection, Era wiki data | Wiki, DB2 | stub load test passes |
 | W8 | SQL charting | `docs/verification.sqlite` schema doc + `status_report.py` headline table per flavor | Own | the report itself |
-| W9 | Release v2.0 | Release bakes only shippable data (own guides, wiki/DB2-generated guides, RouteOrder); .app generates Classic fallback at install; load-on-demand per flavor; prior builds archived | as above | release file list audited against `data_provenance` |
+| W9 | Release v2.0 | One build holds only shippable data (own guides, wiki/DB2-generated guides, RouteOrder); no install-time fallback (2026-11-11); load-on-demand per flavor; prior builds archived | as above | release file list audited against `data_provenance` |
 | W10 | Docs for future AIs | Newest-first STATUS.md, LICENSING.md, ROUTING.md for tier A/B, reproduce-everything runbook | n/a | n/a |
 | W11 | Gold guides | `tools/wiki/gen_gold.py` → `Imported_Gold_<fl>.lua`: gathering, mob farming, fishing, daily gold, instances, methods, every level band, both factions | Wiki, DB2 | `gold_guides`, `tools/test_gold.lua` |
 | W12 | Secondary professions | `tools/wiki/gen_professions.py` → `Imported_Professions_<fl>.lua`, `Core/Archaeology.lua` | Wiki, DB2 | `prof_guides`, `tools/test_professions.lua` |
@@ -50,8 +50,8 @@ Rewritten 2026-11-07 from Daniel's decisions. Status of each milestone is in [ST
 
 | Risk | Fallback |
 |---|---|
-| Wiki lacks coordinates for many Classic steps | DB2 / install-time Questie fallback, tagged in the step note and counted in SQL |
-| Wiki is retail-first; Classic locations differ | per-version twin pages; >300 yd disagreement → client fallback wins and the row is logged |
+| Wiki lacks coordinates for many Classic steps | Wiki place pages, then a zone-only step; counted in SQL (`wiki_point_sources`). No Questie fallback (2026-11-11). Next: learn points from play (IDEAS) |
+| Wiki is retail-first; Classic locations differ | per-version twin pages, pre-4.0.3 page history; the offline comparison (`tools/measure/`) lists wiki points far from a reference, for fixing on the wiki |
 | OR-Tools too slow on 8 GB Mac | cluster split, 30 s limit, `nice`, one process, run manually |
 | Blizzard objects to DB2-derived data | same practice as ATT/Questie/DBM; raw CSVs stay out of the repo |
 | Drive corrupts git | git work only in the ~/Downloads clone; copy results back to Drive without `--delete` |

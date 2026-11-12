@@ -22,7 +22,7 @@
 -- Router.TravelSeconds for every pair.
 --
 -- Usage: luajit tools/cost_matrix.lua <era|tbc|mop|retail|forever> [--out PATH] [--guide ID] [--guides-file F]
---                                     [--prefix wiki:,qdb:,qpoi:] [--sample K] [--limit N] [--exact] [--verify 200]
+--                                     [--prefix wiki:] [--sample K] [--limit N] [--exact] [--verify 200]
 --                                     [--taxi faction|band] [--list [--steps]]
 --   --list           one {"id","n","sum","cmv","nl","np","who"} row per quest guide, no matrices (finds unbaked or stale
 --                    guides; nl = located steps, np = located steps the planning character walks to: < 2 = nothing to bake)
@@ -47,7 +47,7 @@ for i = 2, #arg do
     elseif a == "--taxi" then taxiPolicy = arg[i + 1]
     elseif a == "--verify" then nverify = tonumber(arg[i + 1]) end
 end
-prefixes = prefixes or { "wiki:", "qdb:", "qpoi:" }   -- the quest guides: wiki zone guides + the _gaps guides
+prefixes = prefixes or { "wiki:" }   -- the quest guides that ship and get a baked order: the wiki zone guides
 outPath = outPath or ((os.getenv("CR_TMP") or ((os.getenv("HOME") or ".") .. "/.claude/jobs/ff3c728a/tmp")) .. "/costmx/" .. flavor .. ".jsonl")
 
 local TOC = { era = 11507, tbc = 20506, mop = 50504, retail = 120100, forever = 16001 }
@@ -76,11 +76,11 @@ local function load(path)
     assert(loadfile("CompletionRoute/" .. path))(ADDON, NS)
 end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], EXTRA[flavor] or TAXI[flavor],
-    "Data/Transit.lua", "Data/Imported_Entrances.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
+    "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
     "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
     "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua",
     "Core/Account.lua", "Core/Progress.lua", "Core/Instances.lua",
-    ("Guides/Imported_Wiki_" .. flavor .. ".lua"), ("Guides/Imported_Quests_" .. flavor .. "_gaps.lua") }) do load(f) end
+    ("Guides/Imported_Wiki_" .. flavor .. ".lua") }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 if flavor == "forever" and not NS.isForever then error("cost_matrix forever: Core/Init.lua did not detect Forever") end
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end

@@ -11,7 +11,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     local cmd, rest = msg:match("^(%S*)%s*(.-)$")
     cmd = (cmd or ""):lower()
     if cmd == "" or cmd == "show" or cmd == "toggle" then NS.GuideFrame.Toggle()
-    elseif cmd == "guides" or cmd == "menu" then NS.GuideMenu.Toggle()
+    elseif cmd == "routes" or cmd == "guides" or cmd == "menu" then NS.GuideMenu.Toggle()
     elseif cmd == "list" then NS.Recommend.PrintList(rest)
     elseif cmd == "gold" then NS.Recommend.PrintGold(rest)
     elseif cmd == "prof" or cmd == "profs" or cmd == "professions" then NS.Recommend.PrintProf()
@@ -20,7 +20,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             local g = G.registry[id]
             if id:lower() == rest:lower() or (g.name or ""):lower() == rest:lower() or id:lower():find(rest:lower(), 1, true) or (g.name or ""):lower():find(rest:lower(), 1, true) then P.Load(id) return end
         end
-        NS:Print("No guide matches '" .. rest .. "'. /cr guides")
+        NS:Print("No route matches '" .. rest .. "'. /cr routes")
     elseif cmd == "next" or cmd == "done" then P.Forward()
     elseif cmd == "skip" then
         -- /cr skip [questID] [confirm]: drop a whole quest (default: the current step's); quests that need it are
@@ -48,6 +48,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "reset" then P.Reset() NS:Print("Guide progress reset.")
     elseif cmd == "marks" then for _, line in ipairs(P.MarksReport()) do NS:Print(line) end   -- progress storage (docs/STEP_KEYS.md)
     elseif cmd == "arrow" then NS.db.profile.arrow.enabled = not NS.db.profile.arrow.enabled NS.Arrow.ApplySettings() NS:Print("Arrow " .. (NS.db.profile.arrow.enabled and "on" or "off"))
+    elseif cmd == "contribute" or cmd == "contrib" then NS.Contribute.Slash(rest)
     elseif cmd == "options" or cmd == "opt" or cmd == "config" then NS.Options.Open()
     elseif cmd == "route" then
         local path = NS.Router.CurrentPath(true)
@@ -80,9 +81,6 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "hearth" then
         local wx, wy, inst, name = NS.TravelGraph.HearthWorld()
         NS:Print(("Hearth: %s  (%s)"):format(tostring(GetBindLocation and GetBindLocation()), wx and ("known: " .. tostring(name)) or "location unknown - hearth once or bind at an inn to teach me"))
-    elseif cmd == "import" then
-        if NS.Adapters then for _, ad in pairs(NS.Adapters) do if ad.Import then ad.Import(true) end end end
-        NS.GuideMenu.Refresh()
     elseif cmd == "next" then
         local nxt, eta = G.SuggestNext(NS.Progress.guide and NS.Progress.guide.id)
         if nxt then
@@ -144,7 +142,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         -- Explains, in plain words, what the addon is doing right now and why the arrow may be blank.
         local g, st = P.guide, P.current
         NS:Print("--- why ---")
-        if not g then NS:Print("No guide loaded. /cr guides") return end
+        if not g then NS:Print("No route loaded. /cr routes") return end
         local done = P.VisibleDone()
         NS:Print(("Guide: %s (%s) - %d/%d steps done, %d still applicable"):format(
             g.name or g.id, g.source or "?", done, P.steps and #P.steps or 0, #P.Pending(999)))
@@ -245,7 +243,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
                 NS:Print(("Circuit %s: lap %d%s"):format(P.guide.name, P.Lap(P.guide.id) + 1,
                     st and (", avg %s per lap, %s/hr"):format(U.FmtTime(st.avgSeconds), U.FmtMoney(st.perHour)) or ""))
             end
-            NS:Print("  /cr farm build [kind] | record | import | export | stats | radius <yd> | selftest")
+            NS:Print("  /cr farm build [kind] | record | export | stats | radius <yd> | selftest")
         elseif sub == "build" then
             local map = U.PlayerPos()
             local g, n, len = Farm.BuildRoute(map, arg ~= "" and arg or nil)
@@ -257,9 +255,6 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         elseif sub == "record" then
             NS.db.profile.farm.record = not NS.db.profile.farm.record
             NS:Print("Node recording " .. (NS.db.profile.farm.record and "on" or "off"))
-        elseif sub == "import" then
-            local n, notes = Farm.ImportAll()
-            NS:Print(("Imported %d nodes. %s"):format(n, notes or ""))
         elseif sub == "export" then
             local map = U.PlayerPos()
             local text = Farm.Export(arg == "all" and nil or map)
@@ -280,7 +275,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             local r = tonumber(arg)
             if r then NS.db.profile.farm.radius = r NS:Print("Farm waypoint radius: " .. r .. " yd")
             else NS:Print("Farm waypoint radius: " .. tostring(NS.db.profile.farm.radius) .. " yd") end
-        else NS:Print("/cr farm [status|build|record|import|export|stats|radius|selftest]") end
+        else NS:Print("/cr farm [status|build|record|export|stats|radius|selftest]") end
     elseif cmd == "debug" then NS.db.profile.debug = not NS.db.profile.debug NS:Print("Debug " .. tostring(NS.db.profile.debug))
     elseif cmd == "test" then
         -- self-test: route from player to a few known destinations
@@ -296,7 +291,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | import | farm | log | bug [note] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | routes | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | farm | log | bug [note] | contribute [on|off|export|clear] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 
@@ -540,10 +535,6 @@ function NS.RunFeatureVerify(quiet)
         local handlers = NS.wowHandlers and NS.wowHandlers.LOOT_OPENED
         return handlers ~= nil and #handlers > 0,
             ("recording=%s, %d nodes on this account"):format(tostring(NS.db.profile.farm.record), F.NodeCount())
-    end)
-    chk("farm", "gather-node import path", function()
-        local n, notes = F.ImportAll()
-        return true, ("%d imported now (%s)"):format(n, notes ~= "" and notes or "no GatherMate2/Routes installed")
     end)
     chk("farm", "lap pricing source", function()
         local ah = _G.Auctionator and Auctionator.API and Auctionator.API.v1 ~= nil

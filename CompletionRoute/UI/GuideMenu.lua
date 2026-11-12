@@ -2,6 +2,8 @@
 -- Guide browser: collapsible tree of Category (type) -> area/sub-folder -> guide.
 -- Guides whose title carries a folder path use it; the rest group by zone.
 -- Typing in the filter box switches to a flat search across all guides.
+-- On top of the tree sits "Recent": the routes this character has finished steps in, most recently used first
+-- (Core/Progress.lua P.RecentList, a small saved table: no guide is parsed for it).
 -- The level box under the search field drives Core/Recommend.lua: the "For level N" section, the "Only guides for this
 -- level" filter and the "Group by level" tree all read the same cached per-level ranking, which never parses guide steps.
 local ADDON, NS = ...
@@ -22,7 +24,7 @@ f:Hide()
 tinsert(UISpecialFrames, "CompletionRouteGuideMenu")
 
 local title = f:CreateFontString(nil, "OVERLAY", U.Font("Large"))
-title:SetPoint("TOP", 0, -10); title:SetText("CompletionRoute Guides")
+title:SetPoint("TOP", 0, -10); title:SetText("Routes")
 local close = CreateFrame("Button", nil, f, "UIPanelCloseButton"); close:SetPoint("TOPRIGHT", -2, -2)
 
 -- Scope selector: whose progress the numbers below are about.  Four settings, narrow to wide (this character, this
@@ -209,6 +211,9 @@ local expanded = {}   -- [nodePath] = true
 local FOR_LEVEL_PATH = "\\For level"
 expanded[FOR_LEVEL_PATH] = true
 expanded[FOR_LEVEL_PATH .. "\\Leveling"] = true
+-- "Recent" starts open too: it is what the player came back for
+local RECENT_PATH = "\\Recent"
+expanded[RECENT_PATH] = true
 
 local function srcColor(src)
     if src == "CompletionRoute" then return "|cff3ec6ff" end
@@ -226,11 +231,13 @@ end
 
 -- Category display order; anything else lands after, alphabetical
 local NEXT_CAT = "For level"      -- style key; the row itself reads "For level N"
-local CAT_ORDER = { [NEXT_CAT] = 0, Leveling = 1, Quests = 2, Dungeons = 3, Dailies = 4, Daily = 4, Gold = 5, Professions = 6, Profession = 6,
+local RECENT_CAT = "Recent"
+local CAT_ORDER = { [RECENT_CAT] = -2, [NEXT_CAT] = 0, Leveling = 1, Quests = 2, Dungeons = 3, Dailies = 4, Daily = 4, Gold = 5, Professions = 6, Profession = 6,
     Reputation = 7, Reputations = 7, Achievements = 8, Achievement = 8, Titles = 9, ["Pets & Mounts"] = 10, Events = 11 }
 
 -- Per-category icon + tint (TBC-era icons only). Rendered inline via |T escapes.
 local CAT_STYLE = {
+    [RECENT_CAT] = { icon = "Interface\\Icons\\INV_Misc_PocketWatch_01", color = "9fd0ff" },
     [NEXT_CAT] = { icon = "Interface\\Icons\\Ability_Tracking",           color = "7ddf8f" },
     Leveling   = { icon = "Interface\\Icons\\INV_Misc_Map_01",           color = "ffd200" },
     Quests     = { icon = "Interface\\GossipFrame\\AvailableQuestIcon",   color = "ffee66" },
@@ -317,7 +324,20 @@ local function buildTree()
     local root = { kids = {}, kidByName = {}, guides = {}, count = 0 }
     local level, prefs = M.ViewLevel(), listPrefs()
     local fit = prefs.onlyLevel and Rec.FitSet(level) or nil
-    -- synthetic first category: the picks for the level in the box
+    -- synthetic top section: the routes this character has finished steps in, most recently used first.  Hidden when
+    -- there are none; never filtered by level (it is a way back, not a recommendation).
+    do
+        local recent = P.RecentList and P.RecentList() or {}
+        if #recent > 0 then
+            local node = { name = RECENT_CAT, path = RECENT_PATH, kids = {}, kidByName = {}, guides = {}, count = #recent,
+                           synthetic = true, recent = true, styleKey = RECENT_CAT, order = -2 }
+            for i, r in ipairs(recent) do node.guides[i] = r.g end
+            root.kidByName[RECENT_CAT] = node
+            root.kids[#root.kids + 1] = node
+            root.count = root.count + node.count
+        end
+    end
+    -- synthetic second category: the picks for the level in the box
     do
         local sections = M.ForLevelSections(level)
         if #sections > 0 then
@@ -492,6 +512,15 @@ local function pctBadge(g)
     return ("  |cff%s%d%%|r"):format(color, pct)
 end
 
+-- Percent done of a route that is not parsed, from what was saved when it was last loaded (P.RecentRecord: its step
+-- total) and this character's marks.  nil when the route was never loaded on this character.
+local function savedPct(g)
+    local rec = P.RecentRecord and P.RecentRecord(g.id)
+    if not (rec and rec.n and rec.n > 0) then return nil end
+    local done = math.min(P.MarkCount(g.id), rec.n)
+    return math.floor(done / rec.n * 100 + 0.5)
+end
+
 local function guideLabel(g, inNext)
     local eta = inNext and g.__nextETA and ("  |cff6ac9ff~%dm|r"):format(math.max(1, math.floor(g.__nextETA / 60 + 0.5))) or ""
     local band = Rec.GuideLabel(g)
@@ -510,7 +539,7 @@ local function visibleRows()
             if expanded[k.path] then walk(k, depth + 1) end
         end
         for _, g in ipairs(n.guides) do
-            rows[#rows + 1] = { kind = "guide", depth = depth, guide = g, inNext = n.synthetic }
+            rows[#rows + 1] = { kind = "guide", depth = depth, guide = g, inNext = n.synthetic and not n.recent }
         end
     end
     walk(buildTree(), 0)
@@ -623,6 +652,10 @@ function M.Refresh()
                 local pct = 0
                 if total and total > 0 and NS.Account and NS.Account.me then
                     _, pct = NS.Account.GuideProgress(g.id, total, scopeKey(), keep)
+                elseif not total then
+                    -- not parsed (the scan lets go of the steps it read): a route this character has played still
+                    -- shows how far it got, from its saved step total
+                    pct = savedPct(g) or 0
                 end
                 b.right:SetText(pct > 0 and ("|cffffd200%d%%|r"):format(pct) or "")
             end
@@ -634,7 +667,7 @@ function M.Refresh()
     for i = n + 1, #buttons do buttons[i]:Hide() end
     content:SetHeight(math.max(y, 10))
     local total = #G.Available()
-    title:SetText(total == 0 and "CompletionRoute Guides (none registered)" or ("CompletionRoute Guides (%d)"):format(total))
+    title:SetText(total == 0 and "Routes (none registered)" or ("Routes (%d)"):format(total))
 end
 local function openMenu()
     M.UpdateScopeLabel()
@@ -648,4 +681,5 @@ function M.Show() openMenu() end
 -- exposed for tools/test_offline.lua (headless tree checks); not used in-game
 M._test = { buildTree = buildTree, guidePath = guidePath, visibleRows = visibleRows, searchRows = searchRows, expanded = expanded,
             nodeCompletion = nodeCompletion, scanSlice = scanSlice, scanned = function() return scanned end,
-            prefs = listPrefs, levelBox = levelBox, onlyLevel = onlyLevel, groupLevel = groupLevel, FOR_LEVEL_PATH = FOR_LEVEL_PATH }
+            prefs = listPrefs, levelBox = levelBox, onlyLevel = onlyLevel, groupLevel = groupLevel, FOR_LEVEL_PATH = FOR_LEVEL_PATH,
+            RECENT_PATH = RECENT_PATH, savedPct = savedPct, title = title, buttons = buttons }

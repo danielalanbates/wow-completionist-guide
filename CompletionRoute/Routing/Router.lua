@@ -76,6 +76,11 @@ function R.StepWorld(step)
     -- no coordinates in the guide: fall back to the live quest objective
     local qx, qy, qi = R.QuestWorld(step)
     if qx then step._locSource = "quest" return qx, qy, qi end
+    -- then where players were standing when they did this step (Core/Contribute.lua), when anything was learned
+    if NS.Contribute then
+        local lx, ly, li = NS.Contribute.StepWorld(step)
+        if lx then step._locSource = "learned" return lx, ly, li end
+    end
     -- then the cost model's point (Routing/CostModel.lua): the NPC's point from elsewhere in the guide, the step it rides
     -- with (it is done where the player already is), or the centre of a zone the route is not in yet
     local wx, wy, inst, src = CM.World(step, R.OwnWorld)
@@ -125,7 +130,7 @@ function R.TravelSecondsFromPlayer(b, tick)
     if not wx or not bx then return nil end
     local speed = U.TravelSpeed()
     -- Standing inside a dungeon and the next step is outside it: the graph has no edges out of an
-    -- instance, so start from its door (learned / journal / seeded entrance) plus the walk out.
+    -- instance, so start from its door (learned or journal entrance) plus the walk out.
     local I = NS.Instances
     if inst ~= bi and I and I.IsInstanceMap(map) then
         local ex, ey, ei = I.Entrance(map)

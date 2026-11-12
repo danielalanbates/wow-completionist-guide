@@ -250,26 +250,11 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
             end
             check(fromWiki >= 50, ("forever: only %d of %d Zephras Isle steps have a wiki coordinate"):format(fromWiki, onIsle))
             print(("forever Zephras Isle: %d steps, %d with a wiki coordinate"):format(onIsle, fromWiki))
-            -- quest 697 Malin's Request turn-in: Era map 39.8,81.5 on Stormwind City (1453) = the same spot on Forever's
-            -- larger Stormwind map (Data/MapFix_forever.lua); the generator converts it (fallback point).  A release build
-            -- (--no-fallback: the file header has no fallback line) has no point for it: the step names Stormwind City,
+            -- quest 697 Malin's Request turn-in: the wiki has no point for it, so the step names Stormwind City (1453),
             -- where Archmage Malin's own page puts him, not the quest's Arathi Highlands category.
             local t
             for _, st in ipairs(byQ[697] or {}) do if st.action == "T" then t = st end end
-            local fh = io.open("CompletionRoute/Guides/Imported_Wiki_forever.lua", "r")
-            local head = fh and fh:read(4096) or ""
-            if fh then fh:close() end
-            local release = not head:find("Regenerate with --no-fallback", 1, true)
-            if release then
-                check(t and t.zone == 1453 and not t.coords, "forever (release build) quest 697 turn-in should be a Stormwind City zone-level step")
-            else
-                check(t and t.zone == 1453 and t.coords, "forever quest 697 turn-in has no Stormwind point")
-            end
-            if t and t.coords then
-                local c = t.coords[1]
-                check(math.abs(c.x * 100 - 50.5) < 1 and math.abs(c.y * 100 - 87.5) < 1,
-                    ("forever quest 697 turn-in at %.1f,%.1f, want ~50.5,87.5 (converted from Era 39.8,81.5)"):format(c.x * 100, c.y * 100))
-            end
+            check(t and t.zone == 1453 and not t.coords, "forever quest 697 turn-in should be a Stormwind City zone-level step")
             -- the runtime converter (Core/Util.lua) does the same for Era-sourced guides on Forever
             load("Data/MapFix_forever.lua")
             local x, y = NS.Util.EraToForever(1453, 0.398, 0.815)

@@ -1,13 +1,16 @@
 # Release packaging and the data-provenance gate
 
-`tools/package_release.py` builds the add-on that players download. It proves the build holds only data the project
-may ship: its own code and data, Warcraft Wiki data (CC BY-SA 4.0), Blizzard client data via wago.tools, and the
-bundled libraries under their own licences. Questie is install-time interop on the developer's machine only and never
-ship. (FINISH_PLAN W9, IDEAS "Release packager with a data-provenance gate".)
+**There is one build (owner's decision, 2026-11-11).** What the six TOC files list, what `tools/install.sh` installs
+on the owner's clients, what the generators write by default and what the route bake covers is the set a player gets
+from a public release: the project's own code and data, Warcraft Wiki data (CC BY-SA 4.0), Blizzard client data via
+wago.tools, and the bundled libraries under their own licences. Nothing derived from Questie or from any other addon
+is generated, loaded, installed, baked or packaged. Packaging adds nothing and removes nothing: a packaged TOC is the
+source TOC with the version stamped in.
 
-**Status (2026-11-10).** Built and tested offline on branch `release-packager`. Nothing here has run in a real client,
-and no build has passed the gate on real data yet (see *Today's local data*). The tool never tags, pushes or creates a
-GitHub release: v2.0 waits for Daniel's beta.
+`tools/package_release.py` builds the add-on that players download and proves the above with a gate.
+
+**Status (2026-11-12).** Offline only: nothing here has run in a real client. The tool never tags, pushes or creates a
+GitHub release: v2.0 waits for Daniel's beta. Gate result on the regenerated data: see *Dry run* below.
 
 ## Commands
 
@@ -18,7 +21,7 @@ python3 tools/package_release.py --stage-dir /tmp/rel     # keep the assembled a
 python3 tools/test_package.py                             # offline tests: every gate rule fires on a planted file
 ```
 
-On the 8 GB Mac prefix each with `heavy.sh`. A dry run on today's data takes about 19 s and 225 MB of memory.
+On the 8 GB Mac prefix each with `heavy.sh`. A dry run takes about 20 s and 225 MB of memory.
 
 | Option | Effect |
 |---|---|
@@ -46,7 +49,7 @@ not finish). `dist/` is gitignored.
    package; a per-client zip gets its own copy that lists only that zip's files, and its package record in
    `provenance.json` gives that copy's sha256 under `differs`) and `README.md` for players (from
    `tools/release/README.md`).
-4. The packaged TOCs get `## Version: <version>` and lose the lines of files that never ship. The checkout's TOCs are
+4. The packaged TOCs get `## Version: <version>`. That is the only difference from the checkout's TOCs, which are
    not changed.
 
 `--write` and the output folder:
@@ -64,59 +67,64 @@ Zips are reproducible: fixed order, commit timestamp, mode 644.
 
 ## Universal zip, not per-client zips
 
-Measured 2026-11-10 on the local data (deflate level 9; this data fails the gate, a release build will be smaller):
+Measured 2026-11-12 on the build (dry run, deflate level 9):
 
 | Package | Files | Unpacked MB | Zip MB |
 |---|---:|---:|---:|
-| **universal** (all six TOCs) | 93 | 43.36 | **6.06** |
-| era | 61 | 3.01 | 0.56 |
-| tbc | 61 | 3.81 | 0.69 |
-| mop | 63 | 8.34 | 1.36 |
-| retail | 65 | 30.28 | 4.07 |
-| forever | 64 | 3.11 | 0.58 |
-| per-client zips together | | 48.55 | 7.27 |
+| **universal** (all six TOCs) | 106 | 46.83 | **7.13** |
+| era | 69 | 3.47 | 0.68 |
+| tbc | 69 | 4.38 | 0.82 |
+| mop | 71 | 9.07 | 1.54 |
+| retail | 74 | 32.89 | 5.03 |
+| forever | 72 | 3.59 | 0.71 |
+| per-client zips together | | 53.40 | 8.78 |
 
 Default: **one universal zip**. The project is one add-on for five clients, and a client loads only the files its
 own TOC lists, so the other clients' data costs disk space (about 40 MB for a Classic-only player), not memory or
 load time. One download covers a player with several clients. Daniel tests one artifact in beta. Nobody can install
-the wrong client's zip. This differs on purpose from `tools/install.sh` (and the companion app, which runs it): that
-script copies each client only its own data files, because it installs into known client folders. `--layout per-client`
-or `both` still builds per-client zips (era 0.56 MB, retail 4.07 MB) for a host that wants one file per game version.
+the wrong client's zip. `tools/install.sh` (and the companion app, which runs it) installs that same universal set
+into every client folder: the whole `CompletionRoute` folder, about 45 MB per client. Checked on 2026-11-12 with a
+scratch `WOW_DIR`: each of the five installed folders differs from the staged universal package by nine things
+only, the three files the packager writes (`LICENSE.txt`, `ATTRIBUTION.md`, `README.md`) and the `## Version` line
+of the six TOCs. (Until that day the installer copied each client only its own flavor's data, so a client folder
+held 72 to 78 files: neither the universal zip nor a per-client zip.) `--layout per-client` or `both` builds
+per-client zips for a host that wants one file per game version.
 
 ## Where each file comes from (provenance)
 
 `provenance.json` has one record per packaged file: path, bytes, sha256, category, licence, source, generator,
 origin (tracked / generated / packager), `via` (a checkout link or `--data-root`) and the clients that load it. It
-also lists the files never shipped and why, and the TOC lines stripped. The records come from `RULES` in
+also lists any never-shipped file found in `CompletionRoute/` (each one fails the gate). The records come from `RULES` in
 `tools/package_release.py`; the source of each generated file was taken from its generator:
 
 | Files | Category | Real source (from the generator) | Generator |
 |---|---|---|---|
-| `Guides/Imported_Wiki_*` | wiki CC BY-SA | Warcraft Wiki quest pages; QuestV2 decides which quests a client has. Only the `--no-fallback` build ships. | `tools/wiki/gen_wiki_guides.py --no-fallback` (split, order: `gen_spine.py`) |
+| `Guides/Imported_Wiki_*` | wiki CC BY-SA | Warcraft Wiki quest pages; QuestV2 decides which quests a client has; on Retail, Blizzard quest pins for steps the wiki gives no point for (the note and the file header say so) | `tools/wiki/gen_wiki_guides.py` (split, order: `gen_spine.py`) |
 | `Guides/Imported_Spine_*` | wiki CC BY-SA | the wiki zone guides chained by level band and wiki chains (retail: also QuestLine/Campaign order); no step text copied | `tools/wiki/gen_spine.py` |
-| `Guides/Imported_Gold_*` | wiki CC BY-SA | wiki herb, ore, fishing, NPC, quest and instance pages; wiki steps credited to Questie are dropped | `tools/wiki/gen_gold.py` |
+| `Guides/Imported_Gold_*` | wiki CC BY-SA | wiki herb, ore, fishing, NPC, quest and instance pages | `tools/wiki/gen_gold.py` |
 | `Guides/Imported_Professions_*` | wiki CC BY-SA | wiki trainer, recipe, reagent and fishing pages; recipes, skill levels and dig sites from Blizzard tables | `tools/wiki/gen_professions.py` |
-| `Guides/Imported_Achievements_*` | wiki CC BY-SA | Blizzard Achievement/Criteria/Map, QuestPOI, WorldMapOverlay, AreaTable and DungeonEncounter tables; points from wiki quest steps (fallback rows skipped) and wiki NPC, object, item, glyph, race and achievement pages; each located step names its source. Only the file made from the `--no-fallback` wiki build ships (its header says which build). | `tools/gen_completion_guides.py` |
-| `Guides/Imported_QuestLines_retail` | wiki CC BY-SA | Blizzard QuestLine/QuestLineXQuest order and QuestPOI pins; step text, gates and points from `Imported_Wiki_retail.lua` (fallback points dropped); quests without a wiki page are "Quest <id>" steps (2026-11-11). Only the file made from the `--no-fallback` wiki build ships (its header says which build). | `tools/gen_completion_guides.py` |
-| `Data/QuestDeps_*` | wiki CC BY-SA | quest chains and names from the wiki guides, breadcrumb wording from the wiki pages. Only the `--wiki-only` build ships. | `tools/gen_quest_deps.py --wiki-only` |
+| `Guides/Imported_Achievements_*` | wiki CC BY-SA | Blizzard Achievement/Criteria/Map, QuestPOI, WorldMapOverlay, AreaTable and DungeonEncounter tables; points from wiki quest steps and wiki NPC, object, item, glyph, race and achievement pages; each located step names its source | `tools/gen_completion_guides.py` |
+| `Guides/Imported_QuestLines_retail` | wiki CC BY-SA | Blizzard QuestLine/QuestLineXQuest order and QuestPOI pins; step text, gates and points from `Imported_Wiki_retail.lua`; quests without a wiki page are "Quest <id>" steps | `tools/gen_completion_guides.py` |
+| `Data/QuestDeps_*` | wiki CC BY-SA | quest chains and names from the wiki guides, breadcrumb wording from the wiki pages | `tools/gen_quest_deps.py` |
 | `Data/Teleports.lua` | wiki CC BY-SA | hand-authored teleport list; ids checked against Blizzard tables, landing points from wiki coordinates or TaxiNodes, cited per entry | hand-authored, checked by `tools/check_teleports.py` |
 | `Guides/Imported_Missions_retail` | Blizzard data | GarrMission table; the travel step to each table is written in the generator | `tools/gen_completion_guides.py` |
 | `Data/Taxi_*`, `Data/MapFix_forever`, `Data/ZoneAliases` | Blizzard data | TaxiNodes/TaxiPath/TaxiPathNode, UiMapAssignment, UiMap (names edited by hand) | `gen_taxi.py`, `gen_mapfix_forever.py`, `gen_maps.py` |
-| `Data/RouteOrder_*` | own data | step orders from the add-on's own travel graph over the shipped guides | `optimize_routes.py` (costs `cost_matrix.lua --prefix wiki:`) |
+| `Data/RouteOrder_*` | own data | step orders from the add-on's own travel graph over the shipped wiki quest guides | `tools/bake_resume.py` (`cost_matrix.lua`, `optimize_routes.py`) |
 | `Data/Access`, `Transit`, `Inns`, `Farm_routes`, `Roads_*`, `Textures/*.tga` | own data | hand-authored (roads also from in-game traces); textures drawn by `gen_textures.py` | hand / tools |
 | `Guides/Leveling/*` | own data, CC BY-SA 4.0 by file header | hand-written community guides | hand |
 | `Core`, `Routing`, `UI`, `Adapters`, TOCs, `Guides.xml` | own code | own | hand |
 | `Libs/LibStub`, `Libs/CallbackHandler-1.0`, `Libs/HereBeDragons` | library | public domain; Ace3 BSD-style (text shipped); BSD as declared upstream (no upstream licence text) | upstream |
 
-Never shipped (their TOC lines are stripped from the packaged copy, so the client reports no missing file):
+Never shipped. None of these may be in `CompletionRoute/` or in a TOC: the gate fails on one, `tools/install.sh`
+stops on one, and `tools/validate_toc.lua` fails a TOC that lists one.
 
 | Files | Why |
 |---|---|
-| `Guides/Imported_WoWPro_*` | a leftover export of another addon's guides from before 2026-11-11. Nothing reads it any more; it never ships. |
-| `Guides/Imported_Quests_*_gaps` | Questie-derived (retail: Blizzard POI plus Questie giver points, names, gates). Built at install time on Daniel's machine. |
-| `Guides/Imported_Quests_*` | generator input from a local Questie checkout (retail: POI plus `questie_index.tsv`). No TOC loads them. |
-| `Guides/Imported_Storylines_retail` | step lines copied from `Imported_Quests_retail.lua`. Replaced on 2026-11-11 by `Imported_QuestLines_retail.lua` (wiki and Blizzard data only), which the retail TOC loads instead; the old file keeps its interop rule, so a checkout that still has it never ships it. |
-| `Data/Imported_Entrances` | Questie's `dungeons.lua`. `Core/Instances.lua` falls back to doors it learns and the retail encounter journal. |
+| `Guides/Imported_WoWPro_*` | a leftover export of another addon's guides from before 2026-11-11. |
+| `Guides/Imported_Quests_*_gaps` | Questie-derived guides for quests the wiki has no page for (retail: Blizzard POI plus Questie giver points, names, gates). The dev build loaded them until 2026-11-11. |
+| `Guides/Imported_Quests_*` | older guides made from a local Questie checkout. Only the offline measurement reads them, from `tools/measure/questie/` (see `tools/measure/README.md`). |
+| `Guides/Imported_Storylines_retail` | step lines copied from `Imported_Quests_retail.lua`. Replaced on 2026-11-11 by `Imported_QuestLines_retail.lua` (wiki and Blizzard data only). |
+| `Data/Imported_*` (`Imported_Entrances`) | Questie's `dungeons.lua`. `Core/Instances.lua` uses doors it learns and the Retail encounter journal. |
 
 ## Gate rules
 
@@ -125,7 +133,7 @@ The gate fails the build on any of these. `tools/test_package.py` plants one bad
 | Rule | Fails when |
 |---|---|
 | `no-provenance` | a packaged file matches no rule; a file whose rule says "tracked" is not tracked by git; a `--data-root` holds anything but generated data; not a git checkout |
-| `interop-derived` | a file whose rule is WoW-Pro or Questie interop would be packaged (for example through an XML include); a data file mentions Questie or WoW-Pro (for example `(location: Questie data)` fallback steps); a `RouteOrder` row orders a guide registered only in a never-shipped interop file |
+| `interop-derived` | a never-shipped file (table above) is anywhere in `CompletionRoute/`, a TOC lists one, or an XML include would package one; a data file mentions Questie or WoW-Pro (for example a `(location: Questie data)` step of the retired dev build or of the offline measurement file); a `RouteOrder` row orders a guide registered only in a never-shipped file |
 | `not-redistributable` | a non-doc file says "do not redistribute", "do not commit", "local use only" or "not for redistribution" |
 | `commercial-reference` | a file name or content names the commercial guide product this project replaced (case-insensitive; the name is stored encoded in the tool and never printed) |
 | `personal-data` | an e-mail address other than help@batesai.org; a `/Users/<name>`, `/home/<name>`, `C:\Users\<name>` or `/Volumes/<name>` path; a WoW account or character name from `WTF/Account`; a `--personal-term`, in a file's content or its name (reports name the kind, never the term: a term in a file name is printed as `[personal term]` in `gate.txt`, `provenance.json` and the `--db` rows) |
@@ -138,72 +146,47 @@ Notes, not failures: `RouteOrder` rows that name a guide found in no file (stale
 character names were checked, links read with `--allow-checkout-links`, uncommitted changes (the version then ends in
 `-dirty` unless `--version` is given).
 
-## Today's local data (2026-11-10 dry run)
+## Dry run on 2026-11-12 (branch `public-build-only`)
 
-The gate fails with 13 problems, all real:
+`heavy.sh python3 tools/package_release.py` on the worktree's regenerated data, with no step that differs from the
+everyday workflow: **gate PASS**, exit 0, no problem and no stale-row note. 106 files (own code 40, own data 19, own
+docs 4, wiki CC BY-SA 29, Blizzard client data 8, libraries 6), universal zip 7.13 MB. The packaged TOCs differ from
+the source TOCs by the `## Version` line only (re-run on commit `c381177` after the independent check: same result,
+same sizes). One WoW account name and 43 character names were checked as personal
+data. The route orders in that data hold 7 rows (the rest waits for the rebake), so the package would ship almost
+unbaked guides: bake before a release.
 
-* `Imported_Wiki_<flavor>.lua` (5 files) were built with fallback points: 5,490 era, 8,330 tbc, 17,617 mop, 2,754
-  retail and 5,493 forever lines credit Questie.
-* `Imported_Achievements_mop/retail.lua` and `Imported_Missions_retail.lua` still carry the old "do not redistribute"
-  header. `gen_completion_guides.py` on this branch writes the new header; the files were not regenerated.
-* `RouteOrder_<flavor>.lua` hold rows for the Questie-derived `_gaps` guides: 56 era, 101 tbc, 44 mop, 29 retail, 55
-  forever. Notes: 2 tbc rows and 1 forever row name a wiki guide that no longer exists (stale bake).
+One thing failed on the first try and was fixed in the generator, not worked around: the quest-line file copies
+steps whose point is a Blizzard quest pin from the wiki file, and its header did not name the quest-pin tables and
+their client build. `tools/gen_completion_guides.py` now repeats the wiki file's header line.
 
-With `--stage-dir`, the packaged TOCs (interop lines stripped) load clean in `tools/test_load_all.lua` on all six
-TOCs, run from the stage folder. That is a stub load, not a client.
+## Making a build
 
-## Dry run on 2026-11-11 (branch `coverage-prof`)
+The everyday workflow is the release workflow. In the checkout that holds the generated data, one heavy job at a time:
 
-Built in that worktree as steps 1 and 2 below (`--no-fallback` wiki guides with the new quest-pin, place-page and
-zone-level points; `gen_completion_guides.py retail mop`; `gen_quest_deps.py --wiki-only`): **gate FAIL, 5 problems,
-all `RouteOrder_<fl>.lua` rows that order the Questie-derived `_gaps` guides** (era 56, tbc 101, mop 217, retail 159,
-forever 55), plus stale-row notes. The wiki fallback lines, the old achievements/missions header and the local QuestDeps
-no longer fail. Step 3 (the rebake over the shipped guides) is what is left. 104 files, universal zip 6.72 MB.
+1. Regenerate what changed (all of it after a wiki or generator change):
+   `python3 tools/wiki/gen_wiki_guides.py` (also rebuilds the spine), `python3 tools/wiki/gen_gold.py`,
+   `python3 tools/wiki/gen_professions.py`, `python3 tools/gen_completion_guides.py retail mop`,
+   `python3 tools/gen_quest_deps.py`.
+2. Bake the route orders: `python3 tools/bake_resume.py` (resumable; it bakes the shipped wiki quest guides and
+   rewrites `Data/RouteOrder_<flavor>.lua` with rows for current guides only; `docs/ROUTING.md` "Bake gate").
+3. Test: `luajit tools/validate_toc.lua`, the `tools/test_*.lua` harnesses, `python3 tools/test_package.py`.
+4. `python3 tools/package_release.py` (dry run: the gate). `tools/install.sh <client folders>` installs the same set
+   on the owner's clients for the beta.
+5. To publish, the only extra step is the version:
+   `python3 tools/package_release.py --write --version 2.0.0-beta1 --db docs/verification.sqlite`, then load-test the
+   result (`cd dist/2.0.0-beta1 && luajit <repo>/tools/test_load_all.lua`). Tag and publish by hand, and only after
+   Daniel's beta passes (`.github/workflows/release.yml` only runs `tools/test_package.py` on demand).
 
-## Making a build that passes
-
-Run in the main checkout (the generators write fixed paths there), one heavy job at a time:
-
-1. `python3 tools/wiki/gen_wiki_guides.py --no-fallback` (also rebuilds the spine). This replaces the local fallback
-   variant Daniel plays with; rerun without `--no-fallback` after packaging to get it back.
-2. `python3 tools/wiki/gen_gold.py`, `python3 tools/wiki/gen_professions.py`, `python3 tools/gen_completion_guides.py
-   retail mop` (new headers; achievement points come from the wiki files of step 1; it also writes the shippable
-   `Imported_QuestLines_retail.lua`; files made from the default wiki build name the Questie-derived source in their
-   header and fail the gate), and
-   `python3 tools/gen_quest_deps.py --wiki-only` (the skip index from the wiki chains only; the local build also reads
-   the Questie-derived gaps guides and the storylines and fails the gate). Rerun it without `--wiki-only` afterwards.
-3. Rebake the route orders over the shipped guides only, without touching the dev bake:
-   ```
-   python3 tools/package_release.py --stage-dir /tmp/rel          # new folder; fails only on RouteOrder now
-   mkdir -p /tmp/rel/tools /tmp/rel-cost && cp tools/stubs.lua tools/maps_*.lua tools/cm_offline.lua tools/vplayer.lua \
-       tools/optimize_routes.py /tmp/rel/tools/
-   cd /tmp/rel                                                     # per flavor <fl>:
-   luajit <repo>/tools/cost_matrix.lua <fl> --prefix wiki: --out /tmp/rel-cost/<fl>.jsonl
-   <venv>/bin/python tools/optimize_routes.py <fl> --in /tmp/rel-cost/<fl>.jsonl --out /tmp/rel-opt/<fl>.jsonl --gate
-   mkdir -p /tmp/rel-data/Data && cp /tmp/rel/CompletionRoute/Data/RouteOrder_*.lua /tmp/rel-data/Data/
-   ```
-   The copied optimizer writes `RouteOrder_<fl>.lua` into the stage, not the checkout, and its gate plays the stage's
-   own guides in the copied vplayer. In the stage the cost matrix loads exactly the shipped files: no `_gaps` guides, no
-   `Imported_Entrances.lua`, the `--no-fallback` wiki points. Since the cost model (2026-11-10) `cost_matrix.lua` needs
-   `tools/cm_offline.lua` next to it in the folder it runs from.
-   Smoke-tested 2026-11-10 on one era guide (cost matrix 0.3 s, optimizer 4 s, the gate then passed `RouteOrder_era`).
-   A full rebake is the multi-hour job of `docs/ROUTING.md` tier A.
-4. `python3 tools/package_release.py --data-root /tmp/rel-data --write --version 2.0.0-beta1 --db docs/verification.sqlite`
-5. Load-test the result: `cd dist/2.0.0-beta1 && luajit <repo>/tools/test_load_all.lua`. Then Daniel's beta in the
-   real clients. Only after it passes: tag and publish by hand (`.github/workflows/release.yml` no longer publishes on
-   a tag; it only runs `tools/test_package.py` on demand).
+There is no release-only data variant, no release rebake and no `--data-root` step any more. `--data-root` still
+exists for packaging generated data from another folder.
 
 ## Limits
 
-* The gate reads text. Questie or WoW-Pro data that carries no name (a bare coordinate copied without its note) is
-  caught only by the file rules, not by content. The generators are what keep fallback points tagged.
-* A `RouteOrder` row for a wiki guide does not record which points its bake used. Since checksum version 2
-  (2026-11-10) the checksum covers each step's zone and first point, so a row baked over other points no longer matches
-  the shipped guide and the client plays that guide in author order; this gate still does not compare checksums, so
-  follow step 3 so the bake sees only shipped data.
-* `tools/test_route_order.lua` fails on a stale `RouteOrder` row (step count or checksum no longer matching); run it on
-  the release data with `CR_ROUTE_ORDER_DIR=/tmp/rel-data/Data`.
-* (Fixed 2026-11-11.) Retail quest-POI points are now read straight from the client tables and tagged
-  `(location: Blizzard quest POI, ...)`, so the `--no-fallback` build keeps them; place-page and zone-level steps fill
-  in after them (docs/WIKI_DATA_SPEC.md 3).
+* The gate reads text. Questie or WoW-Pro data that carries no name (a bare coordinate copied by hand without its
+  note) is not caught. No generator's default run reads such data, and `tools/measure/` (the one explicit offline
+  comparison) never writes under `CompletionRoute/`.
+* A `RouteOrder` row does not record which points its bake used. The checksum (version 2) covers each step's zone and
+  first point, so a row baked over other points does not match the shipped guide and the client plays that guide in
+  author order. `tools/test_route_order.lua` fails on such a stale row; the gate only notes rows that name no guide.
 * `.pkgmeta` (BigWigs packager) is unused since the release workflow stopped publishing on tags.

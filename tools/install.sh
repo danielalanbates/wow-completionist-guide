@@ -1,63 +1,82 @@
 #!/bin/bash
 # Sync the addon into one or more WoW AddOns folders (copy, not symlink — WoW + iCloud eviction don't mix).
-# Usage: tools/install.sh [flavor_dir ...]   default: _anniversary_
+# Usage: tools/install.sh [flavor_dir ...]   default: _anniversary_      (WOW_DIR=<folder> installs somewhere else)
 set -e
 SRC="$(cd "$(dirname "$0")/.." && pwd)/CompletionRoute"
 WOW="${WOW_DIR:-/Volumes/x10/Video Games/Mac/World of Warcraft}"
 # The background sync agent keeps its own copy of sync_progress.lua: never leave one older than the addon installed here.
 "$(dirname "$0")/refresh_sync_agent.sh" || echo "install.sh: warning: could not refresh the sync agent's copy of sync_progress.lua" >&2
-# Guides/ now holds a baked set per flavor (the retail install alone is ~30 MB); ship each client
-# only its own, or every game folder carries ~90 MB of other eras' guides it will never load.
-# Guard: the quest guides every client loads are Imported_Wiki_<flavor>.lua (Warcraft Wiki, CC BY-SA 4.0) plus
-# Imported_Quests_<flavor>_gaps.lua (the older Questie/Blizzard-POI guides minus every quest the wiki covers), both
-# written by tools/wiki/gen_wiki_guides.py - generated, gitignored. A fresh clone lacks them, and rsync --delete
-# below would then strip the quest guides from every client (happened 2026-09-18/19 with the old files). Refuse.
-for tier in era tbc mop retail forever; do
-  for f in "Imported_Wiki_$tier" "Imported_Quests_${tier}_gaps"; do
-    [ -s "$SRC/Guides/$f.lua" ] || { echo "install.sh: missing Guides/$f.lua - run tools/wiki/parse_wiki.py + tools/wiki/gen_wiki_guides.py (needs Guides/Imported_Quests_$tier.lua for the gaps file; forever uses Imported_Quests_era.lua); refusing to wipe the quest guides from the clients" >&2; exit 1; }
-  done
+# There is one build: what this script installs is what a player gets from a public release. Every client folder
+# gets the whole add-on folder, file for file what the release zip holds (tools/package_release.py, universal
+# layout); the zip only adds LICENSE.txt, ATTRIBUTION.md, README.md and the stamped version line of the TOCs. A client
+# loads just the files its own TOC lists, so the other clients' data costs disk space (about 40 MB), nothing else.
+# Everything generated is built from the Warcraft Wiki (CC BY-SA 4.0), Blizzard client data and the project's own
+# data. Nothing derived from another addon is installed: such a file in the source folder stops the install.
+FLAVORS="era tbc mop retail forever"
+stop() { echo "install.sh: $*" >&2; exit 1; }
+# Guard: the quest guides every client loads are Imported_Wiki_<flavor>.lua, written by tools/wiki/gen_wiki_guides.py -
+# generated, gitignored. A fresh clone lacks them, and rsync --delete below would then strip the quest guides from
+# every client (happened 2026-09-18/19 with the old files). Refuse.
+for tier in $FLAVORS; do
+  [ -s "$SRC/Guides/Imported_Wiki_$tier.lua" ] || stop "missing Guides/Imported_Wiki_$tier.lua - run tools/wiki/parse_wiki.py + tools/wiki/gen_wiki_guides.py; refusing to wipe the quest guides from the clients"
 done
 # Completionist sets (tools/gen_completion_guides.py): achievements (mop, retail), quest lines (storylines) + mission
-# tables (retail).  Same rule as above - generated, gitignored - but only a warning: a client without
-# them still has every quest guide.  The older Imported_Storylines_retail.lua (Questie-derived) is never installed.
+# tables (retail). Generated, gitignored - only a warning: a client without them still has every quest guide.
 for f in Imported_Achievements_mop Imported_Achievements_retail Imported_QuestLines_retail Imported_Missions_retail; do
   [ -s "$SRC/Guides/$f.lua" ] || echo "install.sh: note: Guides/$f.lua missing - run tools/gen_completion_guides.py to add it" >&2
 done
-# Baked route orders (tools/optimize_routes.py, Data/RouteOrder_<flavor>.lua): generated, gitignored, optional -
-# without one a guide keeps its author order. Each client gets only its own (per-flavor excludes below).
-for tier in era tbc mop retail forever; do
-  [ -s "$SRC/Data/RouteOrder_$tier.lua" ] || echo "install.sh: note: Data/RouteOrder_$tier.lua missing - run tools/cost_matrix.lua + tools/optimize_routes.py $tier (guides keep author order)" >&2
-done
-for f in "$SRC"/Data/RouteOrder_*; do
-  [ -e "$f" ] || continue
-  case "$(basename "$f")" in RouteOrder_era.lua|RouteOrder_tbc.lua|RouteOrder_mop.lua|RouteOrder_retail.lua|RouteOrder_forever.lua) ;;
-    *) echo "install.sh: unknown route order file $f - delete it first" >&2; exit 1;;
-  esac
+# Baked route orders (tools/bake_resume.py, Data/RouteOrder_<flavor>.lua): generated, gitignored, optional -
+# without one a guide keeps its author order.
+for tier in $FLAVORS; do
+  [ -s "$SRC/Data/RouteOrder_$tier.lua" ] || echo "install.sh: note: Data/RouteOrder_$tier.lua missing - run tools/bake_resume.py --flavors $tier (guides keep author order)" >&2
 done
 # Quest prerequisite index for quest-level skipping (tools/gen_quest_deps.py, Data/QuestDeps_<flavor>.lua): generated,
 # gitignored, optional - without one, skipping a quest warns from the loaded guide's own PRE tags only.
-for tier in era tbc mop retail forever; do
+for tier in $FLAVORS; do
   [ -s "$SRC/Data/QuestDeps_$tier.lua" ] || echo "install.sh: note: Data/QuestDeps_$tier.lua missing - run tools/gen_quest_deps.py $tier (skip warnings fall back to the loaded guide)" >&2
 done
-for f in "$SRC"/Data/QuestDeps_*; do
-  [ -e "$f" ] || continue
-  case "$(basename "$f")" in QuestDeps_era.lua|QuestDeps_tbc.lua|QuestDeps_mop.lua|QuestDeps_retail.lua|QuestDeps_forever.lua) ;;
-    *) echo "install.sh: unknown quest prerequisite file $f - delete it first" >&2; exit 1;;
+# Allowlist: only the generated files that ship may be in the source folder (the same families tools/validate_toc.lua
+# lets a TOC list). Anything else generated - a file derived from another addon's data, a generator input, a retired
+# file - stops the install: it is not part of the build and must not reach a client.
+is_flavor() { case " $FLAVORS " in *" $1 "*) return 0;; esac; return 1; }
+for f in "$SRC"/Guides/Imported_* "$SRC"/Data/Imported_* "$SRC"/Data/RouteOrder_* "$SRC"/Data/QuestDeps_*; do
+  [ -e "$f" ] || [ -L "$f" ] || continue
+  rel="${f#"$SRC"/}"; base="$(basename "$f" .lua)"
+  [ -L "$f" ] && stop "$rel is a symlink - generated data must be real files here (copy it, do not link it)"
+  case "$rel" in
+    Guides/Imported_Quests_*_gaps.lua)
+      stop "$rel is not part of the build (the _gaps guides were made from another addon's database and were retired on 2026-11-11) - delete it";;
+    Guides/Imported_Quests_*)
+      stop "$rel is not part of the build (older guides made from another addon's database) - move it to tools/measure/questie/ (offline measurement only) or delete it";;
+    Guides/Imported_Storylines_*)
+      stop "$rel is not part of the build (replaced by Guides/Imported_QuestLines_retail.lua) - delete it";;
+    Data/Imported_*)
+      stop "$rel is not part of the build (no generated file belongs in Data/Imported_*; the dungeon-door table was retired on 2026-11-11) - delete it";;
+    Guides/Imported_Wiki_*.lua|Guides/Imported_Spine_*.lua|Guides/Imported_Professions_*.lua|Guides/Imported_Gold_*.lua|Guides/Imported_Achievements_*.lua|Guides/Imported_QuestLines_*.lua|Guides/Imported_Missions_*.lua|Data/RouteOrder_*.lua|Data/QuestDeps_*.lua)
+      is_flavor "${base##*_}" || stop "unknown generated file $rel (no client has the flavor '${base##*_}') - delete it first";;
+    *) stop "unknown generated file $rel is not on the allowlist - delete it first";;
   esac
 done
+# Content guard: a generated file with an allowed name must not hold another addon's data either (a leftover of the
+# dev build retired on 2026-11-11 says so in its header or step notes; the offline measurement file says MEASUREMENT
+# ONLY). The release packager's gate applies the same rule.
+BAD="$(LC_ALL=C /usr/bin/grep -l -i -E 'questie|wow-?pro|MEASUREMENT ONLY' "$SRC"/Guides/Imported_*.lua "$SRC"/Data/QuestDeps_*.lua 2>/dev/null || true)"
+if [ -n "$BAD" ]; then
+  echo "$BAD" | while read -r f; do echo "install.sh: ${f#"$SRC"/} holds or credits another addon's data (or is the offline measurement file)" >&2; done
+  stop "regenerate the files above (tools/wiki/gen_wiki_guides.py, then gen_gold, gen_professions, tools/gen_completion_guides.py, tools/gen_quest_deps.py); nothing was installed"
+fi
+# A baked order for a guide of the retired dev build (ids qdb:... / qpoi:...) was computed from another addon's points:
+# such a row must not reach a client either (tools/optimize_routes.py --merge --current drops it).
+BAD="$(LC_ALL=C /usr/bin/grep -l -E '^O\["q(db|poi):' "$SRC"/Data/RouteOrder_*.lua 2>/dev/null || true)"
+if [ -n "$BAD" ]; then
+  echo "$BAD" | while read -r f; do echo "install.sh: ${f#"$SRC"/} holds baked orders for guides that are not part of the build (qdb: / qpoi: rows)" >&2; done
+  stop "rewrite the route orders (tools/bake_resume.py, or tools/optimize_routes.py <flavor> --merge --current <list>); nothing was installed"
+fi
 flavor_of() { case "$1" in _retail_) echo retail;; _classic_) echo mop;; _classic_era_) echo era;; _anniversary_) echo tbc;; _forever_) echo forever;; *) echo retail;; esac; }
-# WoW Forever runs the era code path (Core/Init.lua) with its own wiki/gaps guides, taxi and map fix.
-# Allowlist: only community-sourced generated guides and known adapters may be installed or shipped
-# (Daniel, 2026-11-07). Anything else in Guides/ or Adapters/ stops the install.
-for f in "$SRC"/Guides/Imported_*; do
-  case "$(basename "$f")" in
-    Imported_Wiki_*|Imported_Spine_*|Imported_Professions_*|Imported_Gold_*|Imported_Quests_*|Imported_Achievements_*|Imported_QuestLines_*|Imported_Storylines_*|Imported_Missions_*|Imported_Entrances_*) ;;
-    *) echo "install.sh: unknown generated guide $f is not on the allowlist - delete it first" >&2; exit 1;;
-  esac
-done
+# WoW Forever runs the era code path (Core/Init.lua) with its own wiki guides, taxi and map fix.
 for f in "$SRC"/Adapters/*; do
   case "$(basename "$f")" in DynamicQuests.lua) ;;
-    *) echo "install.sh: unknown adapter $f is not on the allowlist - delete it first" >&2; exit 1;;
+    *) stop "unknown adapter $f is not on the allowlist - delete it first";;
   esac
 done
 for fl in "${@:-_anniversary_}"; do
@@ -68,18 +87,8 @@ for fl in "${@:-_anniversary_}"; do
   fi
   DST="$WOW/$fl/Interface/AddOns/CompletionRoute"
   MINE="$(flavor_of "$fl")"
-  EXCL=()
-  # the full Imported_Quests_<tier>.lua files are generator INPUT now (no TOC loads them); never ship them
-  for tier in era tbc wotlk cata mop retail; do EXCL+=(--exclude "Guides/Imported_Quests_$tier.lua"); done
-  # the storylines built before 2026-11-11 copied Questie-derived lines; Imported_QuestLines_<tier>.lua replaced them
-  for tier in era tbc mop retail forever; do EXCL+=(--exclude "Guides/Imported_Storylines_$tier.lua"); done
-  for other in era tbc mop retail forever; do
-    [ "$other" = "$MINE" ] && continue
-    EXCL+=(--exclude "Guides/Imported_Wiki_$other.lua" --exclude "Guides/Imported_Spine_$other.lua" --exclude "Guides/Imported_Professions_$other.lua" --exclude "Guides/Imported_Gold_$other.lua" --exclude "Guides/Imported_Quests_${other}_gaps.lua"
-           --exclude "Guides/Imported_Achievements_$other.lua" --exclude "Guides/Imported_QuestLines_$other.lua"
-           --exclude "Guides/Imported_Missions_$other.lua" --exclude "Data/RouteOrder_$other.lua" --exclude "Data/QuestDeps_$other.lua")
-  done
   mkdir -p "$DST"
-  rsync -a --delete --delete-excluded --exclude ".DS_Store" "${EXCL[@]}" "$SRC/" "$DST/"
+  # the whole folder, as the release zip has it (no per-client subset: the owner's client holds what a player's does)
+  rsync -a --delete --delete-excluded --exclude ".DS_Store" "$SRC/" "$DST/"
   echo "installed -> $DST ($MINE: $(du -sh "$DST" | cut -f1))"
 done

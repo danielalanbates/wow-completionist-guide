@@ -426,12 +426,42 @@ else
     end
     -- a step gated on a quest the guide never names (PRE): the report must carry that quest, the replay must show the
     -- step open, and a report without that quest must be a DIFF of the open steps (not an ordering note and MATCH)
-    local GATED, GATE = "wiki:era:1417:Horde", 6623
+    -- The sample is read from the generated guides, not pinned to ids (which quests share a guide changes when the
+    -- guides are regenerated): the first guide with an accept among its first 10 steps that waits on one quest the
+    -- guide has no step for, and that nothing else hides at capture (no class or race tag, no level above the guide's).
+    local GATED, GATE
+    do
+        local fw = io.open("CompletionRoute/Guides/Imported_Wiki_era.lua", "r")
+        local wtext = fw and fw:read("*a") or ""
+        if fw then fw:close() end
+        for id, meta, body in wtext:gmatch('R%({ id="(wiki:era:[^"]+)"([^\n]-)text=%[==%[(.-)%]==%]') do
+            local minlevel = tonumber(meta:match("minlevel=(%d+)")) or 1
+            local inGuide = {}
+            for q in body:gmatch("|QID|(%d+)|") do inGuide[tonumber(q)] = true end
+            local k = 0
+            for line in body:gmatch("[^\n]+") do
+                k = k + 1
+                if k > 10 then break end
+                local p = line:match("^A .-|PRE|(%d+)|")
+                local lvl = tonumber(line:match("|LVL|(%d+)|"))
+                if p and not inGuide[tonumber(p)] and not line:find("|C|", 1, true) and not line:find("|R|", 1, true)
+                    and (not lvl or lvl <= minlevel) then
+                    GATED, GATE = id, tonumber(p)
+                    break
+                end
+            end
+            if GATE then break end
+        end
+    end
     local gcap = TMP .. "/gated.json"
-    local pg = io.popen(("luajit tools/vplayer.lua era --capture %s --capture-steps 0 --capture-done %d --capture-out '%s' 2>&1"):format(GATED, GATE, gcap))
-    local gtext = pg:read("*a") pg:close()
-    if gtext:find("capture: no guide", 1, true) then
-        realPrint("skip gated round trip: " .. GATED .. " is not in this Imported_Wiki_era.lua")
+    local gtext = ""
+    if GATE then
+        local pg = io.popen(("luajit tools/vplayer.lua era --capture %s --capture-steps 0 --capture-done %d --capture-out '%s' 2>&1"):format(GATED, GATE, gcap))
+        gtext = pg:read("*a") pg:close()
+    end
+    if not GATE or gtext:find("capture: no guide", 1, true) then
+        realPrint("skip gated round trip: " .. (GATE and (GATED .. " is not in this Imported_Wiki_era.lua")
+            or "no guide in this Imported_Wiki_era.lua has an early accept gated on a quest outside the guide"))
     else
         local fg = io.open(gcap)
         local rgc = fg and J.decode(fg:read("*a"))

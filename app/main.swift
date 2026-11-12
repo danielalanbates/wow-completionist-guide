@@ -507,7 +507,7 @@ final class MainViewController: NSViewController, NSTabViewDelegate {
 
         6. FARMING CIRCUITS & GOLD ROUTES
            • Commercial Guides: Step-by-step click-through farming guides.
-           • Completionist's Guide: Core/Farm.lua & Routing/Loop.lua — True closed-loop circuits with proximity auto-advance, endless laps, 2-opt tour solver, GatherMate2 import, and live gold/hr yield tracker.
+           • Completionist's Guide: Core/Farm.lua & Routing/Loop.lua — True closed-loop circuits with proximity auto-advance, endless laps, 2-opt tour solver, a recorder for the nodes you loot, and live gold/hr yield tracker.
 
         7. MULTI-VERSION SUPPORT
            • Commercial Guides: Separate proprietary add-on downloads per expansion.

@@ -208,24 +208,28 @@ for _, ed in ipairs(extended_destinations) do
     check(ep ~= nil, ed.name .. " routable from capital (cost " .. tostring(ep and math.floor(ep.cost)) .. "s)")
 end
 
--- Seeded dungeon doors (tools/gen_entrances.py -> Data/Imported_Entrances.lua, gitignored): a step inside
--- The Deadmines routes to its door from Stormwind, and a player standing inside routes back out.
-local fe = io.open("CompletionRoute/Data/Imported_Entrances.lua", "r")
-if fe then
-    fe:close()
-    load("Core/Instances.lua") load("Data/Imported_Entrances.lua")
+-- Dungeon doors (Core/Instances.lua).  No door table ships: a door is known once the player has walked in (learned)
+-- or the Retail journal gives it.  Without one a step inside The Deadmines is not sent to a door; with a
+-- learned door it routes there from Stormwind, and a player standing inside routes back out through it.
+do
+    load("Core/Instances.lua")
+    check(NS.EntranceSeed == nil, "no seeded door table is loaded")
     FACTION = "Alliance" NS.player = { faction = "Alliance" } place(84, 0.5, 0.5) TG.built = false TG.Build()
-    local dm = U.MapIDByName("The Deadmines")
-    check(dm and NS.EntranceSeed["The Deadmines"] ~= nil, "Deadmines interior map " .. tostring(dm) .. " has a seeded entrance")
+    local dm, westfall = U.MapIDByName("The Deadmines"), U.MapIDByName("Westfall")
+    check(dm ~= nil and westfall ~= nil, "The Deadmines and Westfall resolve (" .. tostring(dm) .. ", " .. tostring(westfall) .. ")")
     local st = { action = "C", zone = dm, coords = { { x = 0.5, y = 0.5 } } }
+    NS.Router.TravelSecondsFromPlayer(st)
+    check(st._locSource ~= "entrance" and NS.Instances.Entrance(dm) == nil, "no door known yet: the Deadmines step is not sent to a door")
+    -- the player walks in once: Core/Instances.lua stores the last outdoor position under "map:<interior map>"
+    NS.db.global.instanceEntrances = { ["map:" .. dm] = { map = westfall, x = 0.43, y = 0.72, name = "The Deadmines", learned = 1 } }
+    st = { action = "C", zone = dm, coords = { { x = 0.5, y = 0.5 } } }
     local secs = NS.Router.TravelSecondsFromPlayer(st)
-    check(secs ~= nil and st._locSource == "entrance", "Deadmines step routes to the door from Stormwind (" .. tostring(secs and math.floor(secs)) .. "s)")
+    check(secs ~= nil and st._locSource == "entrance", "with a learned door the Deadmines step routes to it from Stormwind (" .. tostring(secs and math.floor(secs)) .. "s)")
     place(dm, 0.5, 0.5)
     local out = NS.Router.TravelSecondsFromPlayer({ action = "T", zone = 84, coords = { { x = 0.5, y = 0.5 } } })
-    check(out ~= nil, "from inside the Deadmines a Stormwind step routes via the door (" .. tostring(out and math.floor(out)) .. "s)")
+    check(out ~= nil, "from inside the Deadmines a Stormwind step routes via the learned door (" .. tostring(out and math.floor(out)) .. "s)")
     place(84, 0.5, 0.5)
-else
-    print("  skip Data/Imported_Entrances.lua not generated (tools/gen_entrances.py)")
+    NS.db.global.instanceEntrances = nil
 end
 
 -- Achievement steps (tools/gen_completion_guides.py): |ACH|id;crit| parses and ticks from the client API

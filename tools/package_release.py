@@ -23,15 +23,18 @@ WTF/Account account and character names count as personal data), --personal-term
 links into the main checkout: read through them), --db PATH (also write the data_provenance and release_gate tables
 into that SQLite file), --repo DIR, --out DIR, --tmp DIR.
 
-What ships: the git-tracked code under CompletionRoute/ plus the locally generated data (gitignored Imported_*.lua and
-RouteOrder_*.lua), limited to what the six TOCs load (plus their XML includes, Textures/ and licence files), plus
-LICENSE.txt, ATTRIBUTION.md and README.md written here. RULES below gives every shippable path its category, licence,
-source and generator; the generators were read to fill it in. WoW-Pro- and Questie-derived files are runtime or
-install-time interop only: they are never packaged and their lines are removed from the packaged TOCs. The version is
-stamped into the packaged TOCs only.
+There is one build (2026-11-11): what the six TOCs list, what tools/install.sh installs, what the generators write and
+what this packager packages are the same set. What ships: the git-tracked code under CompletionRoute/ plus the locally
+generated data (gitignored Imported_*.lua, QuestDeps_*.lua and RouteOrder_*.lua), limited to what the six TOCs load
+(plus their XML includes, Textures/ and licence files), plus LICENSE.txt, ATTRIBUTION.md and README.md written here.
+RULES below gives every shippable path its category, licence, source and generator; the generators were read to fill
+it in. A packaged TOC is the source TOC with the version stamped in, nothing else. Files derived from another add-on's
+data (WoW-Pro, Questie) belong to builds that were retired: none may be in CompletionRoute/ at all, and no TOC may list
+one.
 
-The gate fails the build when a packaged file has no provenance (no rule, or a "tracked" file git does not track), is
-WoW-Pro- or Questie-derived (by rule, by content, or a baked route order for a guide that is), says it must not be
+The gate fails the build when a packaged file has no provenance (no rule, or a "tracked" file git does not track), when
+a WoW-Pro- or Questie-derived file is in CompletionRoute/ or listed by a TOC, when a packaged data file credits such
+data or a baked route order orders a guide that only such a file registers, when a file says it must not be
 redistributed, mentions the commercial guide product this project replaced (file names and contents, case-insensitive),
 holds personal data (e-mail addresses other than help@batesai.org, home or volume paths, WoW account and character
 names), holds a secret or key pattern, would be packaged through a symlink (the one opt-in exception is
@@ -90,8 +93,9 @@ CC_BY_SA = "CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/ (attri
 BLIZZARD = "game facts from Blizzard Entertainment client data tables, exported by wago.tools; World of Warcraft (c) Blizzard Entertainment"
 
 SHIPPABLE = ("own-code", "own-data", "own-doc", "wiki-cc-by-sa", "blizzard-client-data", "third-party-library")
+# never shipped, never installed, never loaded: files derived from another add-on's data, left over from a retired build
 INTEROP = ("interop-wowpro", "interop-questie")
-# categories whose content is scanned for WoW-Pro / Questie material (code and docs may name them: interop, notices)
+# categories whose content is scanned for WoW-Pro / Questie material (code and docs may name them: notices, comments)
 DATA_CATEGORIES = ("own-data", "wiki-cc-by-sa", "blizzard-client-data")
 
 
@@ -103,65 +107,62 @@ class Rule:
     source: str
     generator: str
     origin: str         # tracked (in git) | generated (gitignored, built locally) | packager (written here)
-    why: str = ""       # interop rules: why the file never ships
+    why: str = ""       # never-shipped rules: why the file never ships
 
 
 R = Rule
-# First match wins. Interop rules come first. Each "generator" and "source" was read from the generator in tools/.
+# First match wins. The never-shipped rules come first. Each "generator" and "source" was read from the generator in
+# tools/ (the generators of the never-shipped files are in archive/questie-tooling/ or were removed).
 RULES = (
-    # ---- runtime / install-time interop: never shipped, TOC lines stripped from the packaged copy -----------------
+    # ---- derived from another add-on's data: never shipped; one of these in CompletionRoute/ or in a TOC fails the gate
     R("Guides/Imported_WoWPro_*.lua", "interop-wowpro", "WoW-Pro guides: CC BY-NC-ND", "guide text exported from the "
       "WoW-Pro add-on installed on this machine (file header: do not redistribute)", "local export (script retired)",
-      "generated", "WoW-Pro-derived. The add-on no longer reads or loads these (removed 2026-11-11); a leftover file never ships"),
-    R("Guides/Imported_Quests_*_gaps.lua", "interop-questie", "Questie: GPL-3.0", "Imported_Quests_<flavor>.lua minus "
+      "generated", "WoW-Pro-derived; the add-on has not read these since 2026-11-11. Delete the file"),
+    R("Guides/Imported_Quests_*_gaps.lua", "interop-questie", "Questie: GPL-3.0", "the older generated guides minus "
       "the quests the wiki covers: Questie on Classic clients, Blizzard quest POI plus Questie giver points, names and "
-      "level gates on retail", "tools/wiki/gen_wiki_guides.py", "generated",
-      "Questie-derived; built at install time on Daniel's machine only"),
-    R("Guides/Imported_Quests_*.lua", "interop-questie", "Questie: GPL-3.0", "generator input: Classic from a local "
-      "Questie checkout (tools/gen_quest_guides.lua), retail from Blizzard quest POI plus tools/db2/questie_index.tsv "
-      "(tools/gen_quest_guides_retail.py)", "tools/gen_quest_guides.lua, tools/gen_quest_guides_retail.py", "generated",
-      "Questie-derived generator input; no TOC loads it"),
+      "level gates on retail", "tools/wiki/gen_wiki_guides.py before 2026-11-11", "generated",
+      "Questie-derived; a leftover of the dev build retired on 2026-11-11. Delete the file"),
+    R("Guides/Imported_Quests_*.lua", "interop-questie", "Questie: GPL-3.0", "older guides made from a local Questie "
+      "checkout (retail: Blizzard quest POI plus Questie names, givers and gates)",
+      "archive/questie-tooling/gen_quest_guides.lua, gen_quest_guides_retail.py", "generated",
+      "Questie-derived; only the offline measurement reads it. Move it to tools/measure/questie/ or delete it"),
     R("Guides/Imported_Storylines_*.lua", "interop-questie", "Questie: GPL-3.0 (mixed with Blizzard data)",
-      "QuestLine order from Blizzard tables, but the step lines are copied from Imported_Quests_retail.lua (Questie giver "
-      "points, names, faction and level gates) and bare quests take their names from tools/db2/questie_index.tsv",
+      "QuestLine order from Blizzard tables, but the step lines were copied from Imported_Quests_retail.lua (Questie "
+      "giver points, names, faction and level gates)",
       "tools/gen_completion_guides.py before 2026-11-11 (storylines)", "generated",
-      "Questie-derived; replaced by Guides/Imported_QuestLines_retail.lua (wiki + Blizzard data), no TOC loads it"),
-    R("Data/Imported_Entrances.lua", "interop-questie", "Questie: GPL-3.0", "dungeon entrances from Questie's "
-      "Database/Zones/data/dungeons.lua", "tools/gen_entrances.py", "generated",
-      "Questie-derived; Core/Instances.lua falls back to doors it learns and the retail encounter journal"),
+      "Questie-derived; replaced by Guides/Imported_QuestLines_retail.lua (wiki + Blizzard data). Delete the file"),
+    R("Data/Imported_*.lua", "interop-questie", "Questie: GPL-3.0", "dungeon entrances from Questie's "
+      "Database/Zones/data/dungeons.lua (Imported_Entrances.lua); no generated file belongs in Data/Imported_*",
+      "archive/questie-tooling/gen_entrances.py", "generated",
+      "Questie-derived; Core/Instances.lua learns doors and asks the Retail journal. Delete the file"),
     # ---- Warcraft Wiki data (CC BY-SA 4.0) --------------------------------------------------------------------------
     R("Guides/Imported_Wiki_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Warcraft Wiki quest pages; which quests a client has: "
       "Blizzard QuestV2 table (facts); on retail, the map point of a step the wiki gives none for and whose note says "
       "'(location: Blizzard quest POI, ...)': Blizzard QuestPOIBlob and QuestPOIPoint tables (facts; the file header "
-      "names the client build). Only the --no-fallback build ships: the default build fills steps the wiki has "
-      "no point for from Imported_Quests_<flavor>.lua and says so ('(location: Questie data)', and on retail "
-      "'(location: Blizzard data)'), which fails the gate", "tools/wiki/gen_wiki_guides.py --no-fallback (zone split "
-      "and step order: tools/wiki/gen_spine.py)", "generated"),
+      "names the client build). A file that credits a point to another add-on's data ('(location: Questie "
+      "data)': the retired dev build, or the offline measurement file) fails the gate",
+      "tools/wiki/gen_wiki_guides.py (zone split and step order: tools/wiki/gen_spine.py)", "generated"),
     R("Guides/Imported_Spine_*.lua", "wiki-cc-by-sa", CC_BY_SA, "the wiki zone guides chained by level band and the "
       "wiki's quest chains (retail: also Blizzard QuestLine/Campaign order, facts); each entry points at a wiki guide "
-      "and copies no step text", "tools/wiki/gen_spine.py (run by gen_wiki_guides.py; build it from the --no-fallback "
-      "wiki file)", "generated"),
+      "and copies no step text", "tools/wiki/gen_spine.py (run by gen_wiki_guides.py)", "generated"),
     R("Guides/Imported_Gold_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Warcraft Wiki herb, ore, fishing, NPC, quest and "
-      "instance pages (points the wiki file credits to Questie are dropped); Blizzard tables for facts",
+      "instance pages; Blizzard tables for facts",
       "tools/wiki/gen_gold.py", "generated"),
     R("Guides/Imported_Professions_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Warcraft Wiki trainer, recipe, reagent and "
       "fishing pages; recipe membership, skill levels, reagents and dig sites from Blizzard tables (facts)",
       "tools/wiki/gen_professions.py", "generated"),
     R("Guides/Imported_Achievements_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Blizzard Achievement, Criteria, Map, QuestPOI, "
       "WorldMapOverlay, AreaTable and DungeonEncounter tables (facts); criterion points from Imported_Wiki_<flavor>.lua "
-      "(rows credited to fallback data skipped) and wiki NPC, object, item, glyph, race and achievement pages; each "
-      "located step names its source. Only a file made from the --no-fallback wiki build ships: one made from the "
-      "default build says so in its header, which fails the gate", "tools/gen_completion_guides.py (achievements)",
+      "and wiki NPC, object, item, glyph, race and achievement pages; each located step names its source",
+      "tools/gen_completion_guides.py (achievements)",
       "generated"),
     R("Guides/Imported_QuestLines_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Blizzard QuestLine/QuestLineXQuest order and "
-      "QuestPOIBlob/QuestPOIPoint pins (facts); step text, gates and points from Imported_Wiki_retail.lua (fallback "
-      "points dropped); quests without a wiki page are 'Quest <id>' steps named live by the client. Only a file made "
-      "from the --no-fallback wiki build ships: one made from the default build says so in its header, which fails "
-      "the gate", "tools/gen_completion_guides.py (quest lines)", "generated"),
+      "QuestPOIBlob/QuestPOIPoint pins (facts); step text, gates and points from Imported_Wiki_retail.lua; "
+      "quests without a wiki page are 'Quest <id>' steps named live by the client",
+      "tools/gen_completion_guides.py (quest lines)", "generated"),
     R("Data/QuestDeps_*.lua", "wiki-cc-by-sa", CC_BY_SA, "quest chains (previous/next links) and names from "
-      "Imported_Wiki_<flavor>.lua, breadcrumb flags from the wording of the wiki quest pages. Only the --wiki-only build "
-      "ships: the default build also reads the Questie-derived gaps guides and the retail storylines, and its header says "
-      "so, which fails the gate", "tools/gen_quest_deps.py --wiki-only", "generated"),
+      "Imported_Wiki_<flavor>.lua, breadcrumb flags from the wording of the wiki quest pages",
+      "tools/gen_quest_deps.py", "generated"),
     R("Data/Teleports.lua", "wiki-cc-by-sa", CC_BY_SA, "hand-authored teleport list: spell, item and toy ids checked "
       "against Blizzard tables (facts); each landing point from a Warcraft Wiki coordinate or a Blizzard TaxiNodes "
       "position, cited per entry", "hand-authored; checked by tools/check_teleports.py", "tracked"),
@@ -177,8 +178,8 @@ RULES = (
       "tools/gen_maps.py + hand edits", "tracked"),
     # ---- own data -------------------------------------------------------------------------------------------------
     R("Data/RouteOrder_*.lua", "own-data", OWN, "baked step orders computed from the addon's own travel graph over "
-      "the shipped quest guides; a row for a guide that is Questie- or WoW-Pro-derived fails the gate",
-      "tools/optimize_routes.py (costs: tools/cost_matrix.lua --prefix wiki:)", "generated"),
+      "the shipped wiki quest guides; a row for a guide that only a Questie- or WoW-Pro-derived file registers fails the gate",
+      "tools/optimize_routes.py (costs: tools/cost_matrix.lua; driver: tools/bake_resume.py)", "generated"),
     R("Data/Access.lua", "own-data", OWN, "hand-authored access chains (quest ids, NPCs, coordinates)", "hand-authored", "tracked"),
     R("Data/Transit.lua", "own-data", OWN, "hand-authored boats, zeppelins, trams and portals", "hand-authored", "tracked"),
     R("Data/Inns.lua", "own-data", OWN, "hand-authored innkeeper seed list", "hand-authored", "tracked"),
@@ -187,7 +188,7 @@ RULES = (
       "hand-authored; tools/roads_from_trace.py, tools/trace_roads.py", "tracked"),
     R("Guides/Leveling/*.lua", "own-data", "CC BY-SA 4.0 (file header); CompletionRoute contributors",
       "hand-written community guides", "hand-authored", "tracked"),
-    R("Textures/*.tga", "own-data", OWN, "drawn by script", "tools/gen_textures.py", "tracked"),
+    R("Textures/*.tga", "own-data", OWN, "drawn by script", "tools/gen_textures.py, tools/gen_pointer.py", "tracked"),
     R("Guides/WIKI_DATA_LICENSE.md", "own-doc", OWN, "licence notice for the wiki data files", "hand-written", "tracked"),
     # ---- third-party libraries ------------------------------------------------------------------------------------
     R("Libs/LibStub/*", "third-party-library", "public domain (stated in LibStub.lua)", "LibStub, unmodified",
@@ -203,7 +204,7 @@ RULES = (
     R("Core/*.lua", "own-code", OWN, "own", "hand-written", "tracked"),
     R("Routing/*.lua", "own-code", OWN, "own", "hand-written", "tracked"),
     R("UI/*.lua", "own-code", OWN, "own", "hand-written", "tracked"),
-    R("Adapters/*.lua", "own-code", OWN, "own (runtime interop code; reads add-ons the player installed)", "hand-written", "tracked"),
+    R("Adapters/*.lua", "own-code", OWN, "own (live quest lists read from the game client's own API)", "hand-written", "tracked"),
 )
 PACKAGER = {
     "LICENSE.txt": R("LICENSE.txt", "own-doc", OWN, "the repository LICENSE", "tools/package_release.py", "packager"),
@@ -314,8 +315,7 @@ class Result:
     warnings: list = field(default_factory=list)
     files: dict = field(default_factory=dict)          # rel -> manifest record
     clients: dict = field(default_factory=dict)        # client -> sorted rels
-    excluded: list = field(default_factory=list)
-    stripped: list = field(default_factory=list)
+    excluded: list = field(default_factory=list)       # never-shipped files found in CompletionRoute/ (each one fails the gate)
     not_packaged: list = field(default_factory=list)
     packages: list = field(default_factory=list)
     layout: str = DEFAULT_LAYOUT
@@ -403,16 +403,13 @@ def read_toc_refs(text):
     return out
 
 
-def stamp_toc(text, version, strip_rels):
-    """the packaged TOC: interop lines removed, ## Version set (added after ## Title if missing)"""
+def stamp_toc(text, version):
+    """the packaged TOC: the source TOC with ## Version set (added after ## Title if missing); no other change"""
     out, have = [], False
     for line in text.splitlines():
         if line.startswith("## Version:"):
             out.append(f"## Version: {version}")
             have = True
-            continue
-        refs = read_toc_refs(line)
-        if refs and refs[0][1] in strip_rels:
             continue
         out.append(line)
     if not have:
@@ -584,7 +581,7 @@ def assemble(opts):
         for name in filenames + [n for n in dirnames if (d / n).is_symlink()]:
             if name != ".DS_Store":
                 all_files.append((d / name).relative_to(addon).as_posix())
-    strip, toc_text = set(), {}
+    never_listed, toc_text = set(), {}      # never-shipped files a TOC lists
     per_client = {c: set() for c in CLIENTS}
     xml_seen = {}
 
@@ -623,8 +620,10 @@ def assemble(opts):
             for line, rel in read_toc_refs(toc_text[toc]):
                 r = rule_for(rel)
                 if r and r.category in INTEROP:
-                    strip.add(rel)
-                    res.stripped.append({"toc": toc, "line": line.strip(), "why": r.why})
+                    # a TOC lists only what ships: nothing is stripped from the packaged copy any more
+                    never_listed.add(rel)
+                    res.fail("interop-derived", toc, f"lists {rel}, which never ships ({r.category}: {r.why}); remove the "
+                             "line (tools/validate_toc.lua checks this too)")
                     continue
                 per_client[client].add(rel)
                 if rel.lower().endswith(".xml"):
@@ -636,7 +635,9 @@ def assemble(opts):
     for f in sorted(set(all_files) - universal):
         r = rule_for(f)
         if r and r.category in INTEROP:
+            # one build: the source folder holds only what ships, so tools/install.sh stops on this file too
             res.excluded.append({"path": f, "category": r.category, "source": r.source, "why": r.why})
+            res.fail("interop-derived", f, f"a file that never ships is in {ADDON}/ ({r.category}: {r.why})")
         else:
             res.not_packaged.append(f)
 
@@ -682,7 +683,7 @@ def assemble(opts):
                      "does not track it")
         data = src.read_bytes()
         if rel in toc_text:
-            data = stamp_toc(toc_text[rel], res.version, strip).encode("utf-8")
+            data = stamp_toc(toc_text[rel], res.version).encode("utf-8")
         out = stage / rel
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_bytes(data)
@@ -698,13 +699,13 @@ def assemble(opts):
 
     # ---- gate: baked route orders only for guides that ship -------------------------------------------------------
     # Data/RouteOrder_<flavor>.lua is computed over every quest guide the bake loaded. A row for a guide that never
-    # ships (the Questie-derived _gaps guides, qdb:/qpoi:) is an order computed from that guide's Questie points.
+    # ships (the retired Questie-derived _gaps guides, qdb:/qpoi:) is an order computed from that guide's Questie points.
     shipped_ids = set()
     for rel in res.files:
         if rel.startswith("Guides/") and rel.endswith(".lua"):
             shipped_ids.update(GUIDE_ID.findall((stage / rel).read_bytes()))
     interop_ids = {}            # guide id -> the never-shipped files that register it, TOC-listed files first
-    for e in sorted(res.excluded, key=lambda e: (e["path"] not in strip, e["path"])):
+    for e in sorted(res.excluded, key=lambda e: (e["path"] not in never_listed, e["path"])):
         src = source_of(e["path"])
         if src.is_file() and e["path"].endswith(".lua"):
             for gid in GUIDE_ID.findall(src.read_bytes()):
@@ -729,7 +730,8 @@ def assemble(opts):
                      "(docs/RELEASE.md)")
         if orphan:
             res.warnings.append(f"{rel}: {len(orphan)} baked order row(s) name a guide that is in no file here "
-                                f"(stale bake?), first {orphan[0].decode('utf-8', 'replace')}")
+                                f"(stale bake: the client ignores them; rebake with tools/bake_resume.py), first "
+                                f"{orphan[0].decode('utf-8', 'replace')}")
 
     # ---- files written by the packager ----------------------------------------------------------------------------
     lic = repo / "LICENSE"
@@ -794,6 +796,8 @@ def assemble(opts):
             if f"## Version: {res.version}" not in staged:
                 res.fail("toc-missing-file", toc, "packaged TOC is not stamped with the release version")
             for _, rel in read_toc_refs(staged):
+                if rel in never_listed:
+                    continue        # already reported: the TOC lists a file that never ships
                 if rel not in have:
                     res.fail("toc-missing-file", toc, f"lists {rel}, which is not in the {client} package")
         for xml, refs in xml_seen.items():
@@ -871,7 +875,6 @@ def manifest(res):
         "packages": res.packages,
         "files": [res.files[k] for k in sorted(res.files)],
         "excluded": res.excluded,
-        "toc_lines_stripped": res.stripped,
         "not_packaged": res.not_packaged,
     }), product=PRODUCT, version=res.version)
 
@@ -885,11 +888,7 @@ def report(res, measured, dry, out=sys.stdout):
         cats[rec["category"]] = cats.get(rec["category"], 0) + 1
     p(f"packaged {len(res.files)} files: " + ", ".join(f"{k} {v}" for k, v in sorted(cats.items())))
     if res.excluded:
-        p(f"never shipped ({len(res.excluded)}): " + ", ".join(e["path"] for e in res.excluded))
-    if res.stripped:
-        files = sorted({s["line"].replace(chr(92), '/') for s in res.stripped})
-        p(f"TOC lines stripped from the packaged copy ({len(res.stripped)} lines in {len({s['toc'] for s in res.stripped})} "
-          f"TOCs, {len(files)} files): " + ", ".join(files))
+        p(f"files that never ship, found in {ADDON}/ ({len(res.excluded)}): " + ", ".join(e["path"] for e in res.excluded))
     if res.not_packaged:
         p(f"not loaded by any TOC, not packaged ({len(res.not_packaged)}): " + ", ".join(res.not_packaged))
     if measured:

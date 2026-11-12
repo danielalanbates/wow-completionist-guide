@@ -73,9 +73,9 @@ function S.LockedBy(q) return q and store().locks[q] end
 -- ---------------------------------------------------------------------------
 -- Dependency index: who needs whom
 -- ---------------------------------------------------------------------------
--- Guide families tools/gen_quest_deps.py reads (wiki zone guides, the gaps guides, the spine that reuses them, retail
--- storylines).  For any other guide (hand-written, live) the loaded guide's own PRE tags fill in quests the file lacks.
-local INDEXED = { wiki = true, qdb = true, qpoi = true, spine = true, story = true }
+-- Guide families tools/gen_quest_deps.py reads: the wiki zone guides, and the spine that reuses their text.  For any
+-- other guide (quest lines, hand-written, live) the loaded guide's own PRE tags fill in quests the file lacks.
+local INDEXED = { wiki = true, spine = true }
 local function idSet(str)
     local set = {}
     if type(str) == "string" then for n in str:gmatch("%d+") do set[tonumber(n)] = true end end

@@ -14,7 +14,8 @@
 --     achievement step on the old Eversong Woods / Silvermoon City maps (94 / 110); Dragon Glyphs: Windsong Rise at the
 --     wiki's 61.5, 64.4; Dragon Glyphs: Brackenhide Hollow outdoors, not in the dungeon; Local Pet Mauler's Hellfire
 --     Peninsula criterion is that zone, not the Exodar; the Salt of Shards accept is not in Un'Goro Crater; the header
---     says which build of Imported_Wiki_<flavor>.lua the file was made from.
+--     says the wiki steps come from Imported_Wiki_<flavor>.lua and nothing in the file credits another addon's data
+--     (there is one build: tools/gen_completion_guides.py refuses a wiki file that holds such points).
 -- Run: luajit tools/test_completion.lua   (from repo root)
 local fail, ran = 0, 0
 local function check(ok, msg) if not ok then print("FAIL " .. msg) fail = fail + 1 end end
@@ -47,8 +48,14 @@ end
 
 local function header_says_build(ls, name)
     local head = table.concat(ls, "\n", 1, math.min(#ls, 14))
-    check(head:find("Wiki steps: the %-%-no%-fallback") or head:find("LOCAL BUILD: made from the default build"),
-          name .. ": header does not say which build of Imported_Wiki it was made from")
+    check(head:find("Wiki steps: from Imported_Wiki_", 1, true),
+          name .. ": header does not say its wiki steps come from Imported_Wiki_<flavor>.lua")
+    check(not head:find("LOCAL BUILD", 1, true), name .. ": a file of the dev build retired on 2026-11-11 (LOCAL BUILD header)")
+    local bad = 0
+    for _, ln in ipairs(ls) do
+        if ln:find("Questie", 1, true) or ln:find("(location: Blizzard data", 1, true) then bad = bad + 1 end
+    end
+    check(bad == 0, name .. ": " .. bad .. " line(s) credit another addon's data or a fallback point")
 end
 
 for _, fl in ipairs({ "retail", "mop" }) do

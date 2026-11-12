@@ -48,8 +48,7 @@ Which recipes exist on a client, their skill thresholds and reagents, and the Ar
 `Data/QuestDeps_era.lua`, `Data/QuestDeps_tbc.lua`, `Data/QuestDeps_mop.lua`, `Data/QuestDeps_retail.lua` and `Data/QuestDeps_forever.lua`
 (written by `tools/gen_quest_deps.py`) hold the quest chains (`previous`/`next` links) and quest names of the files above, under the same
 licence, plus breadcrumb flags read from the wording of the quest pages ("is a breadcrumb", "(optional breadcrumb)", "previous = ... (optional)").
-The released files are built with `--wiki-only`: wiki chains and names only. The local development build also takes chain order
-for quests the wiki lacks from the gaps guides and from Blizzard's quest-line tables, and is never released.
+They hold wiki chains and names only.
 
 ## Teleports
 
@@ -69,8 +68,7 @@ so these files are shared under the same CC BY-SA 4.0 licence. They are written 
 `Imported_QuestLines_retail.lua` follows Blizzard's quest lines (QuestLine and QuestLineXQuest tables, facts only). Each quest's steps
 are its steps in `Imported_Wiki_retail.lua` (wiki text and points); a step the wiki leaves without a point takes Blizzard's quest map
 pin, and a quest with no wiki page is listed as "Quest <id>" with Blizzard's pins only. The file is shared under the same CC BY-SA 4.0
-licence and written by `tools/gen_completion_guides.py`. (The older `Imported_Storylines_retail.lua` copied lines from a non-wiki
-source; it is not loaded and never ships.)
+licence and written by `tools/gen_completion_guides.py`.
 
 ## What this licence does not cover
 
@@ -88,10 +86,5 @@ point from Blizzard's own quest map pins, the client tables `QuestPOIBlob` and `
 file header names the client build). The tools use a pin only when the wiki has no coordinate for that step. A pin is
 client data (a fact: where the game draws the quest's area), not wiki text, and it is not covered by the wiki's licence.
 
-**Local fallback points (never shipped).** Some steps come from a locally generated file that is *not* wiki data. A note in the step says
-`(location: Blizzard data)` or `(location: Questie data)`. The tools only do this when the wiki has no usable
-coordinate for a step. Those coordinates come from `Imported_Quests_<flavor>.lua`: Blizzard quest-POI client data
-on retail, and the Questie database on Classic. Like every `Imported_*` file, they are generated locally and never
-committed. To get a file without them (the shippable variant: wiki data plus the
-client quest pins above), run `python3 tools/wiki/gen_wiki_guides.py --no-fallback`. A release package holds only that variant:
-`tools/package_release.py` fails any build whose wiki files still carry such steps (`docs/RELEASE.md`).
+**Nothing else.** No step takes its text or its map point from another add-on's data. A step for which neither the
+wiki nor (on Retail) a quest pin gives a point names its zone only, or has no location and says so.

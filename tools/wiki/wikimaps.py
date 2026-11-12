@@ -5,7 +5,7 @@
 """Offline zone-name -> uiMapID resolution and cross-version coordinate conversion for the wiki pipeline.
 
 Mirrors Core/Util.lua U.MapIDByName (normalised name, "The " retry, NS.ZoneNameAliases, prefer mapType 3 then the
-lowest id) and the world-coordinate math of tools/gen_quest_guides_retail.py to_zone():
+lowest id) and converts between map sets through world coordinates:
     y01 = (topX - worldX) / height        x01 = (leftY - worldY) / width
 Warcraft Wiki coordinates are retail-map percentages unless the zone carries a version suffix:
 "(Classic)" / "(Forever)" / "(Season of Discovery)" = the Classic Era map, "(Burning Crusade)" = the TBC map,

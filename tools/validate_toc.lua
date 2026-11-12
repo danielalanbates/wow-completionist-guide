@@ -1,5 +1,6 @@
 -- Validates every CompletionRoute *.toc: listed files exist, Interface directive present,
--- no duplicate entries, SavedVariables consistent across flavors.
+-- no duplicate entries, SavedVariables consistent across flavors, and only files that ship are listed
+-- (there is one build: what a TOC lists is what tools/install.sh installs and tools/package_release.py packages).
 -- Run: luajit tools/validate_toc.lua   (from repo root)
 local tocs = { "CompletionRoute.toc", "CompletionRoute_Mists.toc", "CompletionRoute_TBC.toc", "CompletionRoute_Vanilla.toc",
                "CompletionRoute_Forever.toc", "CompletionRoute_Camelot.toc" }
@@ -7,13 +8,29 @@ local tocs = { "CompletionRoute.toc", "CompletionRoute_Mists.toc", "CompletionRo
 local REQUIRE = {
     ["CompletionRoute_Vanilla.toc"] = { iface = "11508", files = { "Guides/Imported_Wiki_era.lua" } },
     ["CompletionRoute_Forever.toc"] = { iface = "16001", files = { "Data/Taxi_forever.lua", "Data/MapFix_forever.lua",
-        "Guides/Imported_Wiki_forever.lua", "Guides/Imported_Quests_forever_gaps.lua" },
-        forbid = { "Guides/Imported_Wiki_era.lua", "Guides/Imported_Quests_era_gaps.lua" } },
+        "Guides/Imported_Wiki_forever.lua" },
+        forbid = { "Guides/Imported_Wiki_era.lua" } },
 }
 REQUIRE["CompletionRoute_Camelot.toc"] = REQUIRE["CompletionRoute_Forever.toc"]
 -- every flavor loads its own baked route order (tools/optimize_routes.py; generated, gitignored) and no other
 local ROUTE_ORDER = { ["CompletionRoute.toc"] = "retail", ["CompletionRoute_Mists.toc"] = "mop", ["CompletionRoute_TBC.toc"] = "tbc",
     ["CompletionRoute_Vanilla.toc"] = "era", ["CompletionRoute_Forever.toc"] = "forever", ["CompletionRoute_Camelot.toc"] = "forever" }
+-- The generated guide files that ship (Warcraft Wiki and Blizzard client data; tools/package_release.py RULES), each
+-- for the TOC's own flavor only.  Any other Guides/Imported_* line, and every Data/Imported_* line, names a file that
+-- never ships (data derived from another addon, generator input, a retired file): a TOC must not list it.
+local SHIPPED_GUIDES = { Wiki = true, Spine = true, Gold = true, Professions = true, Achievements = true, QuestLines = true,
+    Missions = true }
+local function neverShips(rel, flavor)
+    if rel:match("^Data/Imported_") then return "no Data/Imported_* file ships" end
+    local kind, rest = rel:match("^Guides/Imported_(%a+)_(.+)%.lua$")
+    if not kind then
+        if rel:match("^Guides/Imported_") then return "not a generated guide file that ships" end
+        return nil
+    end
+    if not SHIPPED_GUIDES[kind] then return "Imported_" .. kind .. "_* never ships" end
+    if rest ~= flavor then return "a " .. flavor .. " TOC loads only Imported_" .. kind .. "_" .. flavor .. ".lua" end
+    return nil
+end
 local bodies = {}
 local fail = 0
 local savedvars = {}
@@ -34,9 +51,11 @@ for _, toc in ipairs(tocs) do
                 n = n + 1
                 if seen[rel] then print("FAIL " .. toc .. ": duplicate " .. rel); fail = fail + 1 end
                 seen[rel] = true
+                local why = neverShips(rel, ROUTE_ORDER[toc])
+                if why then print("FAIL " .. toc .. ": lists " .. rel .. " (" .. why .. ")"); fail = fail + 1 end
                 local f = io.open("CompletionRoute/" .. rel, "r")
                 if f then f:close()
-                elseif rel:match("^Guides/Imported_") or rel:match("^Data/Imported_") or rel:match("^Data/RouteOrder_") or rel:match("^Data/QuestDeps_") then
+                elseif rel:match("^Guides/Imported_") or rel:match("^Data/RouteOrder_") or rel:match("^Data/QuestDeps_") then
                     print("skip " .. toc .. ": " .. rel .. " (baked locally, gitignored)")
                 else print("FAIL " .. toc .. ": missing file " .. rel); fail = fail + 1 end
             end

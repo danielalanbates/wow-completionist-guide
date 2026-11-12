@@ -73,10 +73,9 @@ local function harness(flavor, opts)
         files[#files + 1] = f
     end
     for _, f in ipairs(files) do load(f) end
-    load("Data/Imported_Entrances.lua", true)
     local have = {}
     if opts.real then
-        for _, f in ipairs({ "Guides/Imported_Wiki_" .. flavor .. ".lua", "Guides/Imported_Quests_" .. flavor .. "_gaps.lua",
+        for _, f in ipairs({ "Guides/Imported_Wiki_" .. flavor .. ".lua",
                              "Guides/Imported_Spine_" .. flavor .. ".lua", "Data/RouteOrder_" .. flavor .. ".lua",
                              "Data/QuestDeps_" .. flavor .. ".lua" }) do
             have[f] = load(f, true)
@@ -795,10 +794,8 @@ local function realFlavor(fl)
     --      time, as Skip.Recompute would from that guide, and check the rebuilt list
     do
         local isSoft = softSet(NS.QuestDeps)
-        -- storylines: the quest-line build the TOC loads (Imported_QuestLines_<fl>), or the older file in a checkout not
-        -- regenerated since 2026-11-11 (both register the same story: ids, so only one is loaded)
+        -- storylines: the quest-line guides the TOC loads (Imported_QuestLines_<fl>, retail)
         local story = "Guides/Imported_QuestLines_" .. fl .. ".lua"
-        if not exists("CompletionRoute/" .. story) then story = "Guides/Imported_Storylines_" .. fl .. ".lua" end
         if exists("CompletionRoute/" .. story) then assert(loadfile("CompletionRoute/" .. story))("CompletionRoute", NS) end
         local fams = { wiki = {}, story = {} }
         for _, id in ipairs(G.list) do

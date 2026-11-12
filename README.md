@@ -15,7 +15,9 @@ smart arrow — while the guide content is community-driven and open.
 
 | Feature | CompletionRoute |
 |---|---|
-| Guide viewer with steps that auto-complete | ✅ `UI/GuideFrame.lua` + `Core/Progress.lua` (quest accept / objectives / turn-in / run-to / hearth / fly / level / item events) |
+| Guide viewer with steps that auto-complete | ✅ `UI/GuideFrame.lua` + `Core/Progress.lua` (quest accept / objectives / turn-in / run-to / hearth / fly / level / item events). *Offline-tested only (2026-11-12):* talking to the NPC a step names (one step per conversation), a merchant on a repair/sell step, `L` items on every kind of step, a bought item, any of a step's `ALT` places, a chest looted at a treasure's spot, a mission's success. What completes what: [docs/GUIDE_FORMAT.md](docs/GUIDE_FORMAT.md); what stays manual: `tools/census_step_kinds.lua` |
+| Recent routes | *Offline-tested only:* the routes list opens with **Recent**: the routes this character has finished steps in, most recently used first (12 at most), each with its progress; click to load. Kept per character, survives `/reload`, parses no guide |
+| Start over | *Offline-tested only:* a finished route shows a **Start over** button next to its end text; the step's right-click menu and the window's `...` menu offer it at any time (they ask first while steps are left). It clears the route's marks for this character and goes back to step one (`/cr reset` does the same). Circuits still lap by themselves |
 | Waypoint arrow | ✅ `UI/Arrow.lua` — world-coordinate bearing via HereBeDragons, distance + ETA, colour by distance |
 | Arrow turns into the quest item when you should click it | ✅ secure item button replaces the arrow (`|U|itemID` / `|ITEM|` tag; combat-safe: queued until you leave combat) |
 | Arrow turns into Hearthstone when hearthing is faster | ✅ router puts a `hearth` leg first when `(cast + cooldown + walk from inn) < walking/flying`; button shows Hearthstone (or Astral Recall, or a hearth toy when no Hearthstone is in the bags) |
@@ -26,15 +28,16 @@ smart arrow — while the guide content is community-driven and open.
 | Skip quests | ✅ `Core/Skip.lua` — drop a quest from every guide; if other quests need it you are warned first, with their names, and confirming drops the whole chain. Breadcrumbs never block. The guide is rebuilt without those quests and without any quest it could then no longer offer (steps, counts and progress follow), then re-planned for travel time in the background (`Routing/Replan.lua`). `/cr unskip` brings everything back — [docs/ROUTING.md](docs/ROUTING.md#skipping-quests) |
 | Auto accept and turn-in (guide's quests only) | Built, offline-tested only: `Core/QuestAuto.lua`, off by default. Accepts and hands in only the quests of the guide's next steps, never skipped or dropped quests, never quests that cost gold, dailies the guide does not ask for, or a reward choice (unless the gear score sees a clear upgrade and you allow it). Hold Shift (or your chosen key) to do a quest giver yourself. Options > Auto quests, `/cr auto` — [docs/QUEST_AUTO.md](docs/QUEST_AUTO.md) |
 | Guide library | ✅ every guide is built by this project: generated from the Warcraft Wiki and Blizzard client data, plus hand-written starter guides in `Guides/Leveling/`. No other addon's guides are read or needed |
-| Every quest in the game, covered | ✅ generated zone guides: Classic flavors from a local **Questie** checkout, **retail from Blizzard's own quest POI client data** (`tools/gen_quest_guides_retail.py` — 379 zone guides, 17,161 quests, 56,843 steps). No subscription required.
+| Quest coverage | ✅ generated zone guides from the **Warcraft Wiki**, with **Blizzard's own quest pins** on Retail where the wiki gives no point (`tools/wiki/gen_wiki_guides.py`). A quest the wiki has no page for is not in a zone guide; Retail's live per-zone list (`Adapters/DynamicQuests.lua`) and the quest-line guides cover some of those. Numbers per client: [docs/STATUS.md](docs/STATUS.md) |
 | Gold guides | ✅ realm-independent money guides by level, on every client: gathering, mob farming and fishing **circuits** you walk with nothing to click, plus daily gold, instance runs and step-by-step methods. No prices are shipped; laps are priced in game from Auctionator if present, else vendor value — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
 | Secondary professions | ✅ Cooking, Fishing, First Aid and Archaeology by client, with nearest trainer, a computed recipe path, skill targets that tick themselves, and live Archaeology dig-site circuits — [docs/PROFESSIONS.md](docs/PROFESSIONS.md) |
 | Guides listed by level | ✅ `Core/Recommend.lua`: a *For level N* section, *Only guides for this level* filter, *Group by level* tree, and profession guides matched to your real skill |
-| Dungeon guides | ✅ steps inside an instance route to the **entrance** (learned door + retail encounter journal), `Core/Instances.lua` |
+| Dungeon guides | ✅ steps inside an instance route to the **entrance** once it is known: a door you have walked through, or the Retail encounter journal (`Core/Instances.lua`). No door table ships, so a door you have not seen yet is "no route" on the Classic clients |
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
 | Progress survives guide updates | Built, offline-tested only: ticks, skips and stepped-back steps are stored by a stable step key (quest + objective, or a hash of the step's words; never its line number or coordinates), so in a regenerated guide marks stay on their steps when lines are added, removed or moved. Two exceptions: a step whose quest-less text is reworded loses its mark (it is not given to another step), and among identical repeated steps (same quest and objective, or same words: 2.4-4.0% of steps) adding or removing one ahead of the others shifts their marks to a neighbouring identical step. Old progress is carried over once per character and guide; the previous release still reads its own tables after a downgrade. `/cr marks` shows how the loaded guide's progress is stored — [docs/STEP_KEYS.md](docs/STEP_KEYS.md) |
-| Beta bug reports | Built, offline-tested only: `/cr bug [note]` or the guide window's **Report** button saves a snapshot (guide, step, open steps, position, route, quest log including quests that only gate a step, profession skill, last 30 log lines, last addon Lua error; no character or realm name). `tools/ingest_beta_reports.py` loads reports into SQL and `vplayer --repro <id>` replays one offline — [docs/BETA_REPORTS.md](docs/BETA_REPORTS.md) |
-| Release packager with a data-provenance gate | 🚧 `tools/package_release.py` ([docs/RELEASE.md](docs/RELEASE.md)): one universal zip, `provenance.json` for every file, `LICENSE.txt` + `ATTRIBUTION.md`; fails on third-party guide data, personal data, secrets, symlinks and broken TOC lines. Dry run by default, never tags or publishes. Today's local data fails it (fallback wiki points, old headers, baked orders of gaps guides). |
+| Contribute | Built, offline-tested only: a **Contribute** box on the guide window. While ticked, the addon notes where you stand when you accept or turn in a quest, when an objective ticks and when you click the forward arrow; works out the most likely place for every step; routes steps that have no location to it; and draws the areas on the world map. Positions and quest ids only, kept locally; clicking the word **Contribute** (or `/cr contribute export`) gives a text to share — [docs/CONTRIBUTE.md](docs/CONTRIBUTE.md) |
+| Beta bug reports | Built, offline-tested only: `/cr bug [note]` or **Report a bug** in the guide window's `...` menu saves a snapshot (guide, step, open steps, position, route, quest log including quests that only gate a step, profession skill, last 30 log lines, last addon Lua error; no character or realm name). `tools/ingest_beta_reports.py` loads reports into SQL and `vplayer --repro <id>` replays one offline — [docs/BETA_REPORTS.md](docs/BETA_REPORTS.md) |
+| Release packager with a data-provenance gate | 🚧 `tools/package_release.py` ([docs/RELEASE.md](docs/RELEASE.md)): one universal zip, `provenance.json` for every file, `LICENSE.txt` + `ATTRIBUTION.md`; fails on data derived from another addon, personal data, secrets, symlinks and broken TOC lines. Dry run by default, never tags or publishes. There is one build: the TOCs, the installer and the packager handle the same files. |
 
 Not yet: primary profession guides, talent advisor, gear finder, model viewer, guide editor UI, Zen Pilgrimage / Dreamwalk / class-hall teleports, indoor/dungeon-aware walking, per-zone "wall" data.
 
@@ -46,18 +49,17 @@ regenerable**, so nothing here depends on a subscription staying alive:
 | Source | Flavors | How |
 |---|---|---|
 | **Warcraft Wiki** (warcraft.wiki.gg, CC BY-SA 4.0) — **the source of truth** | era, tbc, mop, retail, forever | `tools/wiki/` (fetch → parse → `gen_wiki_guides.py`) writes `Guides/Imported_Wiki_<flavor>.lua`: per-zone guides with the wiki's givers, enders, chains (`PRE`), objectives and coordinates. Flavor membership is checked against each client's QuestV2. See [tools/wiki/README.md](tools/wiki/README.md) |
-| Blizzard quest POI client data (wago.tools `QuestPOIBlob`/`QuestPOIPoint`) | retail | `tools/gen_quest_guides_retail.py`. Now fills wiki gaps only: coordinates for steps the wiki has none for, plus `Imported_Quests_retail_gaps.lua` for quests the wiki lacks |
-| **Questie** database (local checkout) | era, tbc, mop | `tools/gen_quest_guides.lua`. Local-only fallback where the wiki has no coordinate, plus `Imported_Quests_<flavor>_gaps.lua` for quests the wiki lacks |
+| Blizzard client data (wago.tools DB2 exports) | all | which quests a client has (`QuestV2`); on Retail the quest map pins (`QuestPOIBlob`/`QuestPOIPoint`) for steps the wiki gives no point for, quest-line order, achievements and missions (`tools/gen_completion_guides.py`); flight paths (`tools/gen_taxi.py`) |
 | Hand-authored native guides | all | `Guides/` |
 
-Generated guide files are gitignored: the *generators* ship, the third-party-derived data does not.
+Generated guide files are gitignored (they are large and rebuilt by the generators); a release zip holds them.
 
 **Open quest database.** The same wiki and Blizzard data, as plain JSON and SQLite for any addon or tool, is published
 separately at [wow-completionist-data](https://github.com/danielalanbates/wow-completionist-data) (CC BY-SA 4.0). It covers
 quests, givers and enders, prerequisites, NPCs, objects, achievements and missions for all five clients, and every record
 names its source and a confidence for its map point. Corrections are welcome there as pull requests.
 
-**Community data only.** Completionist's Guide is built from the Warcraft Wiki and Blizzard client data. On the developer's machine a local build also fills gaps from a Questie checkout; that data never ships. No guide from any other addon, free or commercial, is read, imported or shipped.
+**Community data only, one build.** Completionist's Guide is built from the Warcraft Wiki and Blizzard client data, plus the project's own code and data. Nothing derived from Questie or from any other addon, free or commercial, is read, generated, installed or shipped: the build the developer runs is the build a release ships (since 2026-11-11). The tools that once read a local Questie checkout are in `archive/questie-tooling/`; one explicit offline comparison remains in `tools/measure/` and never touches the add-on. At run time the add-on reads no other addon's saved data either: the GatherMate2 and Routes node import was removed on 2026-11-12 (farm circuits use the nodes you loot yourself). Two optional hooks remain and neither reads stored data: a lap is priced through Auctionator's public price function when that addon is loaded, and the TOCs name TomTom as an optional dependency (load order only; no code uses it).
 
 ## Verification — no characters required
 
@@ -94,15 +96,16 @@ To rebuild and deploy:
 * `/or` — toggle guide window · `/or guides` — pick a guide · `/or route` — explain the current route
 * `/or order` — show the optimizer's order for the upcoming steps · `/or taxi` — flight paths discovered (this character, account) and the flight rule · `/or hearth`
 * `/cr teleports` — every teleport, transporter and hearth toy the router knows for your class, and whether it is offered
-* `/cr farm` — farm circuits: status, `build`, `record`, `import`, `export`, `stats`, `radius`
+* `/cr farm` — farm circuits: status, `build`, `record`, `export`, `stats`, `radius`
 * `/cr list [level] [category]` — best guides for a level · `/cr gold [level]` — gold guides · `/cr prof` — profession guides for your current skill
 * `/or test` — routing self-test from your position to major cities
 * `/cr skip [questID]` — skip a quest (default: the current step's); warns first when other quests need it · `/cr skipstep` — skip the current step (on an accept of a quest you do not have, that skips the quest, so its turn-in is not left behind)
 * `/cr unskip <questID|all>` — bring skipped quests back · `/cr skipped` — list them and what they lock
-* `/cr bug [what went wrong]` — save a bug report (also the **Report** button) · `/cr bug list` — stored reports · `/cr log` — the addon log
+* `/cr bug [what went wrong]` — save a bug report (also **Report a bug** in the window's `...` menu) · `/cr bug list` — stored reports · `/cr log` — the addon log
+* `/cr reset` — start the loaded route over: clear its marks for this character and go back to its first step (also the **Start over** buttons)
 * `/cr marks` — the loaded guide's progress: done, skipped and stepped-back steps, marks whose step a guide update removed, what was carried over from the previous release, and the guide's version checksum
 * `/cr auto` — auto accept / turn-in settings and the last decision · `/cr auto accept|turnin|reward` — toggle one · `/cr auto on|off` · `/cr auto key shift|ctrl|alt|none` — the key that pauses it (Options > CompletionRoute > **Auto quests** has the same switches)
-* Guide window: one step at a time, steps complete themselves · right arrow = mark done · left arrow = back one step · click the step = details with Complete / Skip / Skip quest / Show on map · right-click the step = skip menu · `Route` toggles reordering
+* Guide window: one title line (route name, step N of M, **Contribute** and its box, **Routes**, `...`, close), the step card (action and title, note, one distance line) and the travel line · steps complete themselves · right arrow = mark done · left arrow = back one step · click the step = details with Complete / Skip / Skip quest / Show on map · right-click the step = skip, details, Start over · `...` = reorder steps on/off, Options, Report a bug, Start over · the word **Contribute** opens the text to share · a finished route shows **Start over** · closed with x: Esc > Options > AddOns > CompletionRoute has **Show step window** and **Routes**
 
 Open a flight master's map once on each continent so the router knows which flight paths you have.
 Hearth once (or bind at an inn) so the router learns exactly where your inn is (a seed list covers common inns).
@@ -126,7 +129,7 @@ CompletionRoute/            the addon (copy this folder into Interface/AddOns)
   Libs/               LibStub, CallbackHandler, HereBeDragons-2.0
 tools/                gen_taxi.py (wago.tools → Data), gen_textures.py, install.sh, test_offline.lua (luajit smoke test)
 docs/                 design, format, verification log, roadmap / pathways for the next contributor
-archive/              dead ends kept for reference
+archive/              retired tooling kept for reference (questie-tooling/: tools that read a local Questie checkout)
 ```
 
 ## Development
@@ -142,13 +145,18 @@ luajit tools/vplayer.lua retail --shard 1/4    # play every guide; python3 tools
 luajit tools/vplayer.lua era --guides-file F --taxi learn       # fly only into discovered flight paths (default --taxi all)
 luajit -joff tools/vplayer.lua era --guides-file F --turnins    # time the QUEST_TURNED_IN handlers
 luajit tools/route_sweep.lua era     # route every guide from its own zone
+luajit -joff tools/test_step_window.lua   # step window layout rules on a widget mock (widths before heights, note under the title, one title line), card notes, menus, Start over
+luajit -joff tools/test_flow.lua          # Recent list, Start over, the completion rules of 2026-11-12 (talk, merchant, items, ALT places, treasure, mission)
+luajit -joff tools/audit_step_text.lua    # every step of every flavor: lines needed by title, note and travel line at the default window size (estimate from character counts)
+luajit -joff tools/census_step_kinds.lua  # per guide family: which steps complete by themselves and from what, which stay manual
 luajit tools/test_bug_report.lua     # /cr bug snapshot, error hook, caps, SavedVariables reader, capture/replay round trip
 luajit -joff tools/test_progress_keys.lua   # stable step keys: regenerated guides keep marks, migration, downgrade, collisions + cost on all five flavors
 luajit -joff tools/test_quest_auto.lua  # auto accept / turn-in on fake gossip, old-gossip and greeting clients, all five flavors
 python3 tools/test_ingest_beta_reports.py      # beta_reports ingest on a fixture (temp database)
 python3 tools/ingest_beta_reports.py           # Daniel's /cr bug reports -> beta_reports; then:
 luajit tools/vplayer.lua --repro <report id> --check   # replay one offline; exit 1 on a DIFF (docs/BETA_REPORTS.md)
-python3 tools/gen_quest_guides_retail.py       # regenerate the retail quest guides from client data
+python3 tools/wiki/gen_wiki_guides.py          # regenerate the wiki quest guides and the spine (then gen_gold, gen_professions,
+                                               # tools/gen_completion_guides.py, tools/gen_quest_deps.py; docs/RELEASE.md)
 python3 tools/gen_taxi.py tbc 2.5.6.69110 era 1.15.9.69109 mop 5.5.4.69155 retail 12.1.0.69382
 python3 tools/package_release.py               # release dry run: assemble, provenance gate, zip sizes (writes nothing)
 python3 tools/package_release.py --write --version 2.0.0-beta1   # dist/<version>/ (gitignored; a failing build: dist/failed/); never tags or publishes

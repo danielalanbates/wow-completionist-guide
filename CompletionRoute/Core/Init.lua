@@ -21,8 +21,8 @@ NS.isClassic = toc < 100000
 -- code path (NS.flavor == "era": era guides, no flying, Classic speeds) with its own data where Forever differs:
 -- QuestV2 (+1,811 quest ids), taxi nodes (Mount Hyjal, Riverglades, Zephras Isle) and four reshaped zone maps
 -- (Data/MapFix_forever.lua).  NS.dataFlavor names the data set ("forever"); NS.flavor stays "era".
--- WOW_PROJECT_ID alone cannot tell (Forever reports its own WOW_PROJECT_CAMELOT on newer builds, and Questie notes
--- builds that share Retail's id), so the interface range decides, with the constant as a second signal.
+-- WOW_PROJECT_ID alone cannot tell (Forever reports its own WOW_PROJECT_CAMELOT on newer builds, and some
+-- builds share Retail's id), so the interface range decides, with the constant as a second signal.
 NS.isForever = (toc >= 16000 and toc < 17000) or (WOW_PROJECT_CAMELOT ~= nil and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT)
 if NS.isForever then NS.flavor = "era" end
 NS.dataFlavor = NS.isForever and "forever" or NS.flavor
@@ -50,12 +50,12 @@ NS.defaults = {
         accountQuests = true,    -- when accountWide is on, also union by quest ID across guides
         farm = { record = true,          -- remember every world-object node you loot (account-wide)
                  recordUnknown = false,  -- also remember loots whose source the client will not name
-                 autoImport = true,      -- pull GatherMate2 / Routes data at login if those addons are present
                  radius = 40,            -- yards: how close counts as "reached this waypoint"
                  seeds = true,           -- register the shipped coarse circuits (Data/Farm_routes.lua)
                  circuitizeGold = true }, -- fold imported gold guides into a loop instead of a click-through list
         -- guide list (UI/GuideMenu.lua): level is nil while the list follows your own level
         guideList = { onlyLevel = false, groupByLevel = false },
+        contribute = false,     -- Core/Contribute.lua: note where steps are done (the box on the guide window)
         textSize = 2,           -- points added to the addon's small text (Core/Util.lua U.Font); half of it to the rest
         -- Core/QuestAuto.lua: accept / turn in only the quests of the guide's live window; autoChooseReward takes a turn-in
         -- reward only when UI/ItemScore.lua sees a clear upgrade; holding autoModifier (SHIFT | CTRL | ALT | NONE) pauses it
