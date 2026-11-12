@@ -32,8 +32,7 @@ NS.dataFlavor = NS.isForever and "forever" or NS.flavor
 -- ---------------------------------------------------------------------------
 NS.defaults = {
     profile = {
-        arrow = { enabled = true, scale = 1.0, alpha = 1.0, lock = false, x = 0, y = -180, point = "TOP",
-                  style = "hand" },   -- "hand": pointing hand in your class colour; "arrow": the old chevron
+        arrow = { enabled = true, scale = 1.0, alpha = 1.0, lock = false, x = 0, y = -180, point = "TOP" },
         frame = { scale = 1.0, alpha = 0.95, width = 320, height = 300, showSteps = 6, lock = false, x = 0, y = 0, point = "CENTER" },
         routing = { enabled = true, reorder = true, baked = true, hearth = true, taxi = true, transit = true, window = 24,
                     teleports = true,         -- class teleports, hearth toys, engineering transporters (Data/Teleports.lua)
