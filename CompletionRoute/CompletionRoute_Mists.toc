@@ -37,7 +37,6 @@ Data\RouteOrder_mop.lua
 Data\QuestDeps_mop.lua
 Data\Transit.lua
 Data\Teleports.lua
-Data\Imported_Entrances.lua
 Data\Inns.lua
 Data\Farm_routes.lua
 Data\ZoneAliases.lua
@@ -63,7 +62,6 @@ Guides\Imported_Wiki_mop.lua
 Guides\Imported_Spine_mop.lua
 Guides\Imported_Professions_mop.lua
 Guides\Imported_Gold_mop.lua
-Guides\Imported_Quests_mop_gaps.lua
 Guides\Imported_Achievements_mop.lua
 Guides\Guides.xml
 Core\Sweep.lua

@@ -124,7 +124,7 @@ function R.TravelSecondsFromPlayer(b, tick)
     if not wx or not bx then return nil end
     local speed = U.TravelSpeed()
     -- Standing inside a dungeon and the next step is outside it: the graph has no edges out of an
-    -- instance, so start from its door (learned / journal / seeded entrance) plus the walk out.
+    -- instance, so start from its door (learned or journal entrance) plus the walk out.
     local I = NS.Instances
     if inst ~= bi and I and I.IsInstanceMap(map) then
         local ex, ey, ei = I.Entrance(map)

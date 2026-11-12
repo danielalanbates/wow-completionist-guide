@@ -76,9 +76,8 @@ function C.StepApplies(step, atLevel)
     if step.prof and not C.ProfMatch(step.prof) then return false end
     if step.minlevel and (atLevel or U.PlayerLevel()) < step.minlevel and step.action ~= "L" then return false end
     -- PRE: prerequisite quest(s) must be complete (or on quest) — the step is hidden until the prerequisite is done
-    -- PRE: prerequisite quest(s).  A list built from Questie's preQuestSingle is an OR set (any one of them
-    -- opens the quest); a "&" list (preQuestGroup) needs all of them.  Requiring all of an OR set hid steps
-    -- the player could actually take.
+    -- PRE: prerequisite quest(s).  A ";" list is an OR set (any one of them opens the quest, the wiki's `previous`
+    -- links); a "&" list needs all of them.  Requiring all of an OR set hid steps the player could actually take.
     -- A prerequisite the player skipped (/cr skip, Core/Skip.lua) is never done: the step then opens only if that
     -- one was a soft lead-in (breadcrumb, optional), which no longer counts.
     local skipped

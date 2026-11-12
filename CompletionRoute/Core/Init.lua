@@ -21,8 +21,8 @@ NS.isClassic = toc < 100000
 -- code path (NS.flavor == "era": era guides, no flying, Classic speeds) with its own data where Forever differs:
 -- QuestV2 (+1,811 quest ids), taxi nodes (Mount Hyjal, Riverglades, Zephras Isle) and four reshaped zone maps
 -- (Data/MapFix_forever.lua).  NS.dataFlavor names the data set ("forever"); NS.flavor stays "era".
--- WOW_PROJECT_ID alone cannot tell (Forever reports its own WOW_PROJECT_CAMELOT on newer builds, and Questie notes
--- builds that share Retail's id), so the interface range decides, with the constant as a second signal.
+-- WOW_PROJECT_ID alone cannot tell (Forever reports its own WOW_PROJECT_CAMELOT on newer builds, and some
+-- builds share Retail's id), so the interface range decides, with the constant as a second signal.
 NS.isForever = (toc >= 16000 and toc < 17000) or (WOW_PROJECT_CAMELOT ~= nil and WOW_PROJECT_ID == WOW_PROJECT_CAMELOT)
 if NS.isForever then NS.flavor = "era" end
 NS.dataFlavor = NS.isForever and "forever" or NS.flavor
