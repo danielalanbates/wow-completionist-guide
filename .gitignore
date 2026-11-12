@@ -42,7 +42,7 @@ tools/db2/questie_spawns.tsv
 tools/db2/retail/quest_steps_dump.tsv
 
 # Warcraft Wiki raw cache (CC BY-SA 4.0 source, regenerate: tools/wiki/fetch_wiki.py)
-tools/wiki/cache/
+tools/wiki/cache
 
 # parsed Warcraft Wiki tables (CC BY-SA 4.0 derived, regenerate: tools/wiki/parse_wiki.py)
 tools/wiki/wiki.sqlite
@@ -65,6 +65,6 @@ tools/db2/*/*.missing
 # quest prerequisite index for quest-level skipping (tools/gen_quest_deps.py, built on the generated guides + wiki)
 CompletionRoute/Data/QuestDeps_*.lua
 # tools/check_teleports.py: Blizzard client tables and Warcraft Wiki pages it downloads (regenerate with --fetch / --wiki)
-tools/teleports_db2/
+tools/teleports_db2
 # release builds (tools/package_release.py --write); never committed
-dist/
+dist
