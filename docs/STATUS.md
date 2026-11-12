@@ -24,6 +24,14 @@ No contribution is merged, so no route changed. **Blocker found:** the data repo
 add-on exports (its pattern allows no `~` or `=`); fixed on its branch `g-step-keys` (not pushed). Its issue form
 now takes an attached `.txt` file (`render: text` removed; branch `issue-form-attachments`, not pushed).
 
+**Review fixes (same day).** A wiki price whose currency template is lost no longer ends a profession note
+("... and Shim'dak in Zul'Aman for 120": 2 retail lines, the new Mana Lily Tea step; `display_source` drops a trailing
+"for <number>" and the plain "Get the recipe" step now goes through it; `test_professions.lua` fails on such a note).
+Professions regenerated: those 2 lines are the only change in the five files. `tools/contrib_areas.py`'s continent-map
+and `-dirty` commit rules now have their own checks (a heavier Kalimdor-map area on a fixture `G:` key; the dirty
+check repeated on the routes' reader): breaking either rule fails `test_contrib_gen.py --unit`. docs/IDEAS.md detail
+rows no longer say "in progress" for shipped work.
+
 Regenerated and compared with `repo/`: professions (only retail Midnight Cooking changed), gold (only `forever=true`
 on Forever), `gen_completion_guides.py retail mop` (the rows above; mop only its header). Tests run:
 `tools/test_contrib_gen.py` (all parts), `test_completion.lua`, `test_professions.lua`, `test_gold.lua`,
