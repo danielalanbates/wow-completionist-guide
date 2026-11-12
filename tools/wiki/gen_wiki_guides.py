@@ -747,19 +747,40 @@ class Gen:
             self.place_zone_cache[k] = z
         return self.place_zone_cache[k]
 
+    # Classic clients: a lead sentence that says the subject is at a place ("located in [[Southshore]]"); one that names
+    # a place for another reason does not ("agents of his that he sent to the [[Arathi Highlands]]")
+    PRESENT = re.compile(r"\b(?:present|found|located|seen|appears?|stands?|standing|stationed|resides?|lives?|encountered|"
+                         r"waits?|waiting|stays?|(?:is|are|was|were)\s+(?:in|at|on|inside|within|outside|near)|"
+                         r"(?:can|may|could)\s+be)\b", re.I)
+
     def lead_maps(self, title, fl, added, draenor=False):
-        """the zone maps an NPC/object page's lead text links outside its infobox ("He is also present in ... [[Nazmir]]")"""
-        page, _ = self.resolve_title(title)
+        """the zone maps an NPC/object page's lead text links outside its infobox ("He is also present in ... [[Nazmir]]").
+        On the Classic clients (era, tbc, forever), where an NPC stands in one place, only a sentence of an NPC page
+        that says the subject is there counts (PRESENT): Archmage Malin "sent [agents] to the [[Arathi Highlands]]" and stands in
+        Stormwind.  And a page that says its NPC stood elsewhere before the Cataclysm gives none there: its lead
+        describes the later place (Shadowmage Vivian Lagrave is "located in ... [[Blackrock Depths]]" now and was in
+        Kargath then; place_links).  MoP and Retail keep every lead link: their NPCs reappear across expansions and the
+        location field lists only some of the places (measured 2026-11-12: the sentence rule moved 25 Retail steps to
+        a wrong zone, Garrosh Hellscream's Borean Tundra quests among them)."""
+        page, kind = self.resolve_title(title)
         if not page:
+            return []
+        # an NPC stands somewhere; an item or object page's lead names where the thing is found in other words, so every
+        # link of it counts (The Third Fleet's mead is bought in the Wetlands)
+        classic = fl in CLASSICISH and kind == "npc"
+        if classic and self.places.classic_links(page) is not None:
             return []
         S = self.atlas.sets[fl]
         lead = re.sub(r"\{\{\s*(?:npcbox|objectbox).*?\n\s*\}\}", "", WT.sections(self.places.text(page)).get("", ""),
                       flags=re.S | re.I)
         out = []
-        for ln, _ in WT.links(lead):
-            m = S.resolve(ln, added, draenor)
-            if m is not None and S.maps[m]["type"] >= 3 and m not in out:
-                out.append(m)
+        for sentence in (re.split(r"(?<=[.!?])\s+|\n+", lead) if classic else [lead]):
+            if classic and not self.PRESENT.search(sentence):
+                continue
+            for ln, _ in WT.links(sentence):
+                m = S.resolve(ln, added, draenor)
+                if m is not None and S.maps[m]["type"] >= 3 and m not in out:
+                    out.append(m)
         return out
 
     def zone_choice(self, fl, emaps, zmid, refs, lead=()):
