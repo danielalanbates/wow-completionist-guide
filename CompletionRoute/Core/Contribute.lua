@@ -4,18 +4,29 @@
 --
 -- "Contribute": the player's own play builds the location database (docs/CONTRIBUTE.md).
 --
--- With the Contribute box on the guide window ticked, the addon notes WHERE the player stands when a step is done:
+-- With the Contribute box on the guide window ticked, and only then, the addon notes WHERE the player stands when:
 --   * the forward arrow is clicked on the current step          (kind m, weight 1: the player may be anywhere near)
 --   * a quest is accepted or turned in (the client's own events) (kind a, weight 3: the player stands at the NPC)
 --   * a quest objective of a step in the guide's next steps ticks up (kind o, weight 2: where the mob, item or
 --     object was)
--- Nothing else is stored: a map id, a position on it, the quest id or step key, a weight.  No character, realm or
--- account name, no time stamps.  Nothing is sent anywhere; the data sits in the account's saved variables until the
--- player exports it (/cr contribute export) to share with the open quest database.
+--   * a creature the player (or the pet) hurt dies               (kind k, weight 1, key N:<npc id>; combat log, Classic
+--     clients only; the player may be at range)
+--   * a creature's corpse is looted                              (kind l, weight 2, key N:<npc id>)
+--   * a game object is looted: chest, treasure, herb, ore        (kind g, weight 3, key O:<object id>)
+--   * the loot holds an item one of the guide's next steps names (its L or U tag): key I:<item id>, weight of the
+--     loot it came from
+-- A rare creature (UnitClassification "rare" or "rareelite") gets a flag beside its record (contrib.rare), not a key
+-- of its own.  Creatures, objects and items are never noted inside an instance, and each such key takes at most one
+-- sample every C.THROTTLE seconds.
+-- Nothing else is stored: a map id, a position on it, the quest, creature, object or item id or the step key, a
+-- weight.  No character, realm, account or creature name, no time stamps.  Nothing is sent anywhere; the data sits in
+-- the account's saved variables until the player exports it (/cr contribute export) to share with the open quest
+-- database.
 --
 -- From those samples the most likely places are worked out (C.Areas): the densest cluster first, each with a centre
 -- and a radius.  They are used at once on this machine: a step the guide has no point for is routed to its learned
--- spot (Router.StepWorld, source "learned"), and the current step's areas are drawn on the world map as circles.
+-- spot (Router.StepWorld, source "learned"), and the current step's areas are drawn on the world map as circles,
+-- together with the learned areas of the creature, object and items the step names (C.MapKeys).
 local ADDON, NS = ...
 local U = NS.Util
 local C = {}
@@ -25,18 +36,27 @@ local HBD = LibStub and LibStub("HereBeDragons-2.0", true)
 local HBDPins = LibStub and LibStub("HereBeDragons-Pins-2.0", true)
 
 C.CELL = 0.2            -- map-% grid the samples are merged on (positions are stored as 0..100)
-C.MAX_CELLS = 80        -- per step key: the lightest cell goes when a new one would exceed this
+C.MAX_CELLS = 80        -- per key: the lightest cell goes when a new one would exceed this
 C.RADIUS = 1.5          -- map-% : cells closer than this to a cluster's centre belong to it
 C.MIN_R = 0.3           -- smallest circle drawn / reported
-C.WEIGHT = { m = 1, o = 2, a = 3 }
+C.WEIGHT = { m = 1, o = 2, a = 3, k = 1, l = 2, g = 3 }
+C.THROTTLE = 5          -- seconds: one sample per creature, object or item key at most this often
+C.MAX_LINKS = 6         -- per step key: creatures and objects learned to belong to that step
 local ACCEPT = { A = true, a = true }
 local TURNIN = { T = true, t = true }
+local QUEST_KIND = { A = true, T = true, C = true, G = true }   -- the step keys; N, O and I are what steps name
+local RARE = { rare = true, rareelite = true }
+local lower = string.lower
 
 local function flavor() return NS.dataFlavor or NS.flavor or "?" end
 local function enabled() return NS.db and NS.db.profile and NS.db.profile.contribute and true or false end
 C.Enabled = enabled
+local function inInstance() return (IsInInstance and IsInInstance()) and true or false end
+local function wipe(t) for k in pairs(t) do t[k] = nil end return t end
 
--- account-wide store: contrib.spots[flavor][key][cell] = weight ; cell = "<map>,<x*5>,<y*5>" on the CELL grid
+-- account-wide store: contrib.spots[flavor][key][cell] = weight ; cell = "<map>,<x*5>,<y*5>" on the CELL grid.
+-- A record holds cells and nothing else: a build without the creature keys reads the same table and adds every
+-- value up.  (Readers here still skip a value that is not a number.)
 local function store(create)
     if not NS.db then return nil end
     local g = NS.db.global
@@ -46,6 +66,43 @@ local function store(create)
     end
     local t = g.contrib.spots[flavor()]
     if not t and create then t = {} g.contrib.spots[flavor()] = t end
+    return t
+end
+-- contrib.rare[flavor][N:<id>] = true: the creature is a rare.  Kept beside the cells, never inside a record.
+local function rareStore(create)
+    if not NS.db then return nil end
+    local g = NS.db.global
+    if not g.contrib then
+        if not create then return nil end
+        g.contrib = { v = 1, spots = {} }
+    end
+    if not g.contrib.rare then
+        if not create then return nil end
+        g.contrib.rare = {}
+    end
+    local t = g.contrib.rare[flavor()]
+    if not t and create then t = {} g.contrib.rare[flavor()] = t end
+    return t
+end
+local function flagRare(key)
+    local t = rareStore(true)
+    if t then t[key] = true end
+end
+-- contrib.links[flavor][step key][N:<id> or O:<id>] = true: the creature or object a step was seen to be about
+-- (killed or looted while it was one of the next steps and its name or item matched).  Ids only; never exported.
+local function linkStore(create)
+    if not NS.db then return nil end
+    local g = NS.db.global
+    if not g.contrib then
+        if not create then return nil end
+        g.contrib = { v = 1, spots = {} }
+    end
+    if not g.contrib.links then
+        if not create then return nil end
+        g.contrib.links = {}
+    end
+    local t = g.contrib.links[flavor()]
+    if not t and create then t = {} g.contrib.links[flavor()] = t end
     return t
 end
 
@@ -66,8 +123,8 @@ end
 local areasCache, worldCache = {}, {}
 local function forget(key) areasCache[key] = nil worldCache[key] = nil end
 
--- one sample at the player's position
-function C.Record(key, kind)
+-- one sample at the player's position; rare = true flags the key (a rare creature)
+function C.Record(key, kind, rare)
     if not key or not enabled() then return false end
     if (UnitOnTaxi and UnitOnTaxi("player")) or (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player")) then return false end
     local map, x, y = U.PlayerPos()
@@ -81,23 +138,52 @@ function C.Record(key, kind)
     if not cells[cell] then
         local n, lightest, lw = 0, nil, nil
         for c, w in pairs(cells) do
-            n = n + 1
-            if not lw or w < lw then lightest, lw = c, w end
+            if type(w) == "number" then
+                n = n + 1
+                if not lw or w < lw then lightest, lw = c, w end
+            end
         end
         if n >= C.MAX_CELLS and lightest then cells[lightest] = nil end
     end
     cells[cell] = (cells[cell] or 0) + (C.WEIGHT[kind] or 1)
+    if rare then flagRare(key) end
     forget(key)
     C.lastKey, C.lastKind = key, kind
     NS:Fire("CONTRIBUTE_SAMPLE", key, kind)
     return true
 end
 
+-- a creature, object or item sample: never in an instance, one per key every C.THROTTLE seconds.  The time stamps are
+-- this session's only (memory), never saved.
+local lastAt = {}
+function C.RecordSeen(key, kind, rare)
+    if not key or not enabled() or inInstance() then return false end
+    local now = (GetTime and GetTime()) or 0
+    local last = lastAt[key]
+    if last and now - last < C.THROTTLE then
+        if rare then
+            local t = store(false)
+            if t and t[key] then flagRare(key) end
+        end
+        return false
+    end
+    if not C.Record(key, kind, rare) then return false end
+    lastAt[key] = now
+    return true
+end
+
+function C.IsRare(key)
+    local t = rareStore(false)
+    return key and t and t[key] == true or false
+end
+
 local function parse(cells)
     local out = {}
     for c, w in pairs(cells) do
-        local m, x, y = c:match("^(%d+),(%-?%d+),(%-?%d+)$")
-        if m then out[#out + 1] = { m = tonumber(m), x = tonumber(x) * C.CELL, y = tonumber(y) * C.CELL, w = w } end
+        if type(w) == "number" then
+            local m, x, y = c:match("^(%d+),(%-?%d+),(%-?%d+)$")
+            if m then out[#out + 1] = { m = tonumber(m), x = tonumber(x) * C.CELL, y = tonumber(y) * C.CELL, w = w } end
+        end
     end
     -- a fixed order, so the same samples always give the same areas
     table.sort(out, function(a, b)
@@ -193,14 +279,38 @@ function C.Stats()
     local t = store(false)
     for _, cs in pairs(t or {}) do
         keys = keys + 1
-        for _, w in pairs(cs) do cells, weight = cells + 1, weight + w end
+        for _, w in pairs(cs) do
+            if type(w) == "number" then cells, weight = cells + 1, weight + w end
+        end
     end
     return keys, cells, weight
 end
 
+-- keys by what they are: quest = A/T/C/G step keys, N creatures (rare: of them flagged rare), O objects, I items
+function C.StatsByKind()
+    local out = { quest = 0, N = 0, O = 0, I = 0, rare = 0 }
+    for k in pairs(store(false) or {}) do
+        local p = k:sub(1, 1)
+        if out[p] then out[p] = out[p] + 1 else out.quest = out.quest + 1 end
+        if C.IsRare(k) then out.rare = out.rare + 1 end
+    end
+    return out
+end
+
+-- this session only (memory, never saved): creature names seen with the box ticked -> npc id, rares seen as the
+-- target, the steps the guide is about to do (rebuilt when the step changes)
+local seenNPC, rares = {}, {}
+local want = { dirty = true, names = {}, items = {} }
+local mapKeySet, mapNameSet = {}, {}
+
 function C.Clear()
-    if NS.db and NS.db.global.contrib then NS.db.global.contrib.spots[flavor()] = nil end
+    if NS.db and NS.db.global.contrib then
+        NS.db.global.contrib.spots[flavor()] = nil
+        if NS.db.global.contrib.links then NS.db.global.contrib.links[flavor()] = nil end
+        if NS.db.global.contrib.rare then NS.db.global.contrib.rare[flavor()] = nil end
+    end
     areasCache, worldCache = {}, {}
+    wipe(lastAt)
     NS:Fire("CONTRIBUTE_SAMPLE")
 end
 
@@ -209,13 +319,15 @@ function C.SetEnabled(on)
     if on and not NS.db.global.contribSeen then
         NS.db.global.contribSeen = true
         NS:Print("Contribute is on: the addon notes where you stand when you accept or turn in a quest, when an objective "
-            .. "ticks, and when you click the forward arrow. Only map positions and quest ids are kept, in your saved "
-            .. "variables. /cr contribute shows what was collected; /cr contribute export gives a text to share.")
+            .. "ticks, when you click the forward arrow, and when you kill or loot a creature, open a treasure or gather "
+            .. "a node (not in dungeons). Only map positions and game ids are kept, in your saved variables. "
+            .. "/cr contribute shows what was collected; /cr contribute export gives a text to share.")
     end
     NS:Fire("CONTRIBUTE_CHANGED", NS.db.profile.contribute)
 end
 
--- Text for sharing: one line per key, "flavor|client build|key|map,x,y,weight;...".  No names of any kind.
+-- Text for sharing: one line per key, "flavor|client build|key|map,x,y,weight;...".  No names of any kind; the rare
+-- flag is not in it (the format stays four fields: the data repository can tell rares from Blizzard's creature data).
 function C.Export()
     local lines = {}
     local build = (GetBuildInfo and select(1, GetBuildInfo())) or "?"
@@ -226,13 +338,13 @@ function C.Export()
     for _, k in ipairs(keys) do
         local parts = {}
         for _, p in ipairs(parse(t[k])) do parts[#parts + 1] = ("%d,%.1f,%.1f,%d"):format(p.m, p.x, p.y, p.w) end
-        lines[#lines + 1] = ("%s|%s|%s|%s"):format(flavor(), build, k, table.concat(parts, ";"))
+        if #parts > 0 then lines[#lines + 1] = ("%s|%s|%s|%s"):format(flavor(), build, k, table.concat(parts, ";")) end
     end
-    return table.concat(lines, "\n"), #keys
+    return table.concat(lines, "\n"), #lines
 end
 
 -- ---------------------------------------------------------------------------
--- What is recorded
+-- What is recorded: quest steps
 -- ---------------------------------------------------------------------------
 -- 1. the forward arrow on the current step (Core/Progress.lua MarkDone fires STEP_DONE with manual and wasCurrent)
 NS:On("STEP_DONE", function(step, manual, wasCurrent)
@@ -272,53 +384,373 @@ C.PollObjectives = pollObjectives
 NS:RegisterEvent("QUEST_LOG_UPDATE", function() NS:Throttle("contribute-objectives", 0.3, pollObjectives) end)
 
 -- ---------------------------------------------------------------------------
--- Circles on the world map for the current step's learned areas
+-- What is recorded: creatures, objects and the items the next steps name
 -- ---------------------------------------------------------------------------
+-- A GUID is "<type>-0-<server>-<instance>-<zone>-<id>-<spawn>" on every client: the id is the creature's (Creature,
+-- Vehicle) or the object's (GameObject).  Anything else (a player, a pet, an item opened in the bags) is no place.
+local SOURCE = { Creature = "N", Vehicle = "N", GameObject = "O" }
+local function sourceOf(guid)
+    if type(guid) ~= "string" then return nil end
+    local kind, id = guid:match("^(%a+)%-[^%-]*%-[^%-]*%-[^%-]*%-[^%-]*%-(%d+)")
+    kind, id = SOURCE[kind], tonumber(id)
+    if kind and id and id > 0 then return kind, id end
+    return nil
+end
+C.SourceOf = sourceOf
+
+-- the steps the guide is about to do: the current one, the routed next ones and the next 20 not done
+-- names[lower-case creature name] = { step, ... } (Beacon.StepNames: the T tag, "Kill X", "from X"),
+-- items[item id] = { step, ... } (the L items and the U item)
+local function push(t, k, s)
+    local l = t[k]
+    if not l then l = {} t[k] = l end
+    for i = 1, #l do if l[i] == s then return end end
+    l[#l + 1] = s
+end
+local function wantSets()
+    if not want.dirty then return want end
+    want.dirty = false
+    want.names, want.items = {}, {}
+    local P = NS.Progress
+    if not P then return want end
+    local B = NS.Beacon
+    local done = {}
+    local function add(s)
+        if not s or done[s] then return end
+        done[s] = true
+        if s.loot then for _, l in ipairs(s.loot) do if l.id then push(want.items, l.id, s) end end end
+        if s.item then push(want.items, s.item, s) end
+        if B and B.StepNames then for _, n in ipairs(B.StepNames(s)) do push(want.names, n, s) end end
+    end
+    add(P.current)
+    if P.Upcoming then
+        local ok, up = pcall(P.Upcoming, 6)
+        if ok and up then for _, s in ipairs(up) do add(s) end end
+    end
+    if P.Pending then
+        local ok, pend = pcall(P.Pending, 20)
+        if ok and pend then for _, s in ipairs(pend) do add(s) end end
+    end
+    return want
+end
+local function wantDirty() want.dirty = true end
+for _, e in ipairs({ "STEP_CHANGED", "PROGRESS_REFRESHED", "GUIDE_LOADED", "GUIDE_REBUILT" }) do NS:On(e, wantDirty) end
+C._want = wantSets
+
+local function mapSoon() NS:Throttle("contribute-map", 0.5, function() pcall(C.UpdateMap) end) end
+
+-- a step is about this creature or object: remembered by step key (ids only), at most C.MAX_LINKS per step
+local function link(stepKey, key)
+    if not stepKey or not key then return end
+    local t = linkStore(true)
+    if not t then return end
+    local l = t[stepKey]
+    if l and l[key] then return end
+    local n = 0
+    for _ in pairs(l or {}) do n = n + 1 end
+    if n >= C.MAX_LINKS then return end
+    if not l then l = {} t[stepKey] = l end
+    l[key] = true
+    local cur = NS.Progress and NS.Progress.current
+    if cur and C.KeyFor(cur) == stepKey then mapSoon() end
+end
+function C.LinksFor(stepKey)
+    local t = linkStore(false)
+    return stepKey and t and t[stepKey] or nil
+end
+
+-- a creature's name, seen with the box ticked: the steps that name it now know its id
+local function learnName(name, id)
+    if U.IsSecret(name) or type(name) ~= "string" or name == "" then return nil end
+    local low = lower(name)
+    if seenNPC[low] ~= id then
+        seenNPC[low] = id
+        if mapNameSet[low] then mapSoon() end
+    end
+    return low
+end
+
+local function targetGUID()
+    local g = UnitGUID and UnitGUID("target")
+    if U.IsSecret(g) or type(g) ~= "string" then return nil end
+    return g
+end
+local function targetRare(guid)
+    if not UnitClassification or targetGUID() ~= guid then return false end
+    local c = UnitClassification("target")
+    return not U.IsSecret(c) and RARE[c] == true
+end
+local function isRare(guid, id) return rares[id] == true or targetRare(guid) end
+
+-- the target tells a rare and a name before the kill (the corpse may not be the target any more by then)
+NS:RegisterEvent("PLAYER_TARGET_CHANGED", function()
+    if not enabled() then return end
+    local guid = targetGUID()
+    local kind, id = sourceOf(guid)
+    if kind ~= "N" then return end
+    if targetRare(guid) then rares[id] = true end
+    learnName(UnitName and UnitName("target"), id)
+end)
+
+-- a creature died: a sample, and the next steps that name it are linked to it
+local function killed(guid, name)
+    if not enabled() or inInstance() then return end
+    local kind, id = sourceOf(guid)
+    if kind ~= "N" then return end
+    local key = "N:" .. id
+    local low = learnName(name, id)
+    local steps = low and wantSets().names[low]
+    if steps then for i = 1, #steps do link(C.KeyFor(steps[i]), key) end end
+    C.RecordSeen(key, "k", isRare(guid, id))
+end
+C.Killed = killed
+
+-- Combat log (Classic Era, TBC Anniversary, MoP Classic, WoW Forever): the creatures the player or the pet hurt are
+-- kept in a ring of eight GUIDs (no table is made per event); UNIT_DIED of one of them, or PARTY_KILL by the player,
+-- is a kill.  The log is listened to only while the box is ticked and outside instances.  Retail 12.x hides combat
+-- information from addons (secret values) and its combat log rules could not be checked offline, so it is not
+-- registered there: on Retail the loot window is the creature's only signal.
+local DAMAGE = { SWING_DAMAGE = true, RANGE_DAMAGE = true, SPELL_DAMAGE = true, SPELL_PERIODIC_DAMAGE = true,
+                 DAMAGE_SHIELD = true, DAMAGE_SPLIT = true }
+local TAGS = 8
+local tags, tagAt = {}, 1
+for i = 1, TAGS do tags[i] = false end
+local me, pet, clInfo
+local function untag(guid) for i = 1, TAGS do if tags[i] == guid then tags[i] = false end end end
+local function onCombatLog()
+    local _, sub, _, src, _, _, _, dst, dname = clInfo()
+    if DAMAGE[sub] then
+        if (src == me or (pet and src == pet)) and type(dst) == "string" and dst ~= tags[tagAt]
+            and (dst:find("^Creature%-") or dst:find("^Vehicle%-")) then
+            tagAt = tagAt % TAGS + 1
+            tags[tagAt] = dst
+        end
+    elseif sub == "UNIT_DIED" then
+        for i = 1, TAGS do
+            if tags[i] == dst then untag(dst) killed(dst, dname) return end
+        end
+    elseif sub == "PARTY_KILL" then
+        if src == me or (pet and src == pet) then untag(dst) killed(dst, dname) end
+    end
+end
+C._onCombatLog = onCombatLog
+local clFrame = CreateFrame("Frame")
+clFrame:SetScript("OnEvent", function() onCombatLog() end)
+C.combatLogOn = false
+function C.SyncCombatLog()
+    local on = enabled() and not inInstance() and (NS.tocversion or 0) < 120000
+        and type(CombatLogGetCurrentEventInfo) == "function"
+    if on then
+        me = UnitGUID and UnitGUID("player") or nil
+        pet = UnitGUID and UnitGUID("pet") or nil
+        clInfo = CombatLogGetCurrentEventInfo
+    end
+    if on == C.combatLogOn then return end
+    if on then
+        C.combatLogOn = pcall(clFrame.RegisterEvent, clFrame, "COMBAT_LOG_EVENT_UNFILTERED") and true or false
+    else
+        pcall(clFrame.UnregisterEvent, clFrame, "COMBAT_LOG_EVENT_UNFILTERED")
+        C.combatLogOn = false
+        for i = 1, TAGS do tags[i] = false end
+    end
+end
+NS:On("CONTRIBUTE_CHANGED", function() C.SyncCombatLog() end)
+NS:On("PLAYER_READY", function() C.SyncCombatLog() end)
+NS:RegisterEvent("PLAYER_ENTERING_WORLD", function() C.SyncCombatLog() end)
+NS:RegisterEvent("ZONE_CHANGED_NEW_AREA", function() C.SyncCombatLog() end)
+NS:RegisterEvent("UNIT_PET", function(_, unit)
+    if unit == "player" and C.combatLogOn then pet = UnitGUID and UnitGUID("pet") or nil end
+end)
+
+-- The loot window: the corpse or object it came from (GetLootSourceInfo, as Core/Progress.lua and Core/Farm.lua read
+-- it), and the items in it.  A fishing catch is no object's place; an item opened in the bags is no place at all.
+local function nearStep(s)
+    if not (s.coords and s.zone) then return false end
+    local map, x, y = U.PlayerPos()
+    if not map then return false end
+    for _, c in ipairs(s.coords) do
+        local d = U.ZoneDistance(map, x, y, s.zone, c.x, c.y)
+        if d and d < (s.radius or 25) then return true end
+    end
+    return false
+end
+-- Core/Progress.lua hears LOOT_READY and LOOT_OPENED first (it is loaded first) and ticks a treasure step at once,
+-- so by the time the loot is read here the step on screen is already the next one.  The treasure step it just
+-- ticked is kept for C.LOOT_WINDOW seconds: the chest in this loot window is that step's.  The first one stays for
+-- the whole window (a second treasure step right beside it, ticked by the same loot, does not take the chest).
+C.LOOT_WINDOW = 1
+local doneTreasure, doneAt
+NS:On("STEP_DONE", function(step, manual, wasCurrent)
+    if manual or not wasCurrent or not enabled() then return end
+    local Sig = NS.StepSignal
+    if not (Sig and Sig.LootAtSpot and Sig.LootAtSpot(step)) then return end
+    local now = (GetTime and GetTime()) or 0
+    if doneTreasure and doneAt and now - doneAt >= 0 and now - doneAt <= C.LOOT_WINDOW then return end
+    doneTreasure, doneAt = step, now
+end)
+-- the treasure step this loot window belongs to: the one just ticked, else the one on screen; the player stands at it
+local function treasureStep()
+    local now = (GetTime and GetTime()) or 0
+    if doneTreasure and (now - doneAt < 0 or now - doneAt > C.LOOT_WINDOW) then doneTreasure, doneAt = nil, nil end
+    local s = doneTreasure
+    if not s then
+        local cur = NS.Progress and NS.Progress.current
+        local Sig = NS.StepSignal
+        if cur and Sig and Sig.LootAtSpot and Sig.LootAtSpot(cur) then s = cur end
+    end
+    if s and nearStep(s) then return s end
+    return false
+end
+local looted = {}       -- reused: source GUIDs already noted in this loot window
+local function onLoot()
+    if not enabled() or inInstance() then return end
+    if not (GetNumLootItems and GetLootSourceInfo) then return end
+    local fishing = IsFishingLoot and IsFishingLoot() and true or false
+    local treasure            -- the treasure step whose spot the player stands at, false when none (lazy)
+    wipe(looted)
+    for slot = 1, GetNumLootItems() or 0 do
+        local guid = GetLootSourceInfo(slot)
+        if U.IsSecret(guid) then return end
+        local kind, id = sourceOf(guid)
+        if kind == "O" and fishing then kind = nil end
+        local skey = kind and (kind .. ":" .. id)
+        if skey and not looted[guid] then
+            looted[guid] = true
+            if kind == "N" then
+                local tg = targetGUID()
+                local low = tg == guid and learnName(UnitName and UnitName("target"), id) or nil
+                local steps = low and wantSets().names[low]
+                if steps then for i = 1, #steps do link(C.KeyFor(steps[i]), skey) end end
+                C.RecordSeen(skey, "l", isRare(guid, id))
+            else
+                if treasure == nil then treasure = treasureStep() end
+                if treasure then link(C.KeyFor(treasure), skey) end
+                C.RecordSeen(skey, "g")
+            end
+        end
+        local itemLink = GetLootSlotLink and GetLootSlotLink(slot)
+        local item = type(itemLink) == "string" and not U.IsSecret(itemLink) and tonumber(itemLink:match("item:(%d+)")) or nil
+        local steps = item and wantSets().items[item]
+        if steps and (skey or fishing) then
+            if skey then for i = 1, #steps do link(C.KeyFor(steps[i]), skey) end end
+            C.RecordSeen("I:" .. item, kind == "O" and "g" or "l")
+        end
+    end
+end
+C.OnLoot = onLoot
+-- both events, as Core/Progress.lua: LOOT_READY comes first, and with fast auto-loot the window may be gone by
+-- LOOT_OPENED.  The second read of the same loot adds nothing (the throttle per key; a link is made once).
+NS:RegisterEvent("LOOT_READY", onLoot)
+NS:RegisterEvent("LOOT_OPENED", onLoot)
+
+-- ---------------------------------------------------------------------------
+-- Circles on the world map: the current step's learned areas, and those of what it names
+-- ---------------------------------------------------------------------------
+-- The step's own key keeps its colour (yellow accept, green turn-in, orange objective, blue other); a creature it
+-- names is red, an object (treasure, node) gold, an item purple.  A rare creature's circles get a silver outline.
+-- The frames are made once and reused; HereBeDragons places and shows them.
 local TEX = "Interface\\AddOns\\" .. ADDON .. "\\Textures\\circle"
-local RGB = { A = { 1, 0.82, 0 }, T = { 0.4, 1, 0.4 }, C = { 1, 0.45, 0.25 }, G = { 0.24, 0.78, 1 } }
+local RING = "Interface\\AddOns\\" .. ADDON .. "\\Textures\\ring"
+C.RGB = { A = { 1, 0.82, 0 }, T = { 0.4, 1, 0.4 }, C = { 1, 0.45, 0.25 }, G = { 0.24, 0.78, 1 },
+          N = { 0.95, 0.18, 0.18 }, O = { 0.85, 0.65, 0.13 }, I = { 0.64, 0.21, 0.93 } }
+C.RARE_RGB = { 0.85, 0.9, 1 }
+C.MAX_CIRCLES = 16      -- circles on the map at once
+C.OWN_AREAS = 4         -- areas drawn for the step's own key
+C.EXTRA_AREAS = 2       -- areas drawn for each creature, object or item the step names
 local circles = {}
 local function circle(i)
-    if not circles[i] then
-        local f = CreateFrame("Frame", nil, UIParent)
+    local f = circles[i]
+    if not f then
+        f = CreateFrame("Frame", nil, UIParent)
         f:SetSize(24, 24)
+        f:Hide()
         f.tex = f:CreateTexture(nil, "OVERLAY")
         f.tex:SetAllPoints()
         f.tex:SetTexture(TEX)
+        f.ring = f:CreateTexture(nil, "OVERLAY", nil, 1)
+        f.ring:SetPoint("TOPLEFT", f, "TOPLEFT", -3, 3)
+        f.ring:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 3, -3)
+        f.ring:SetTexture(RING)
+        f.ring:SetVertexColor(C.RARE_RGB[1], C.RARE_RGB[2], C.RARE_RGB[3], 1)
+        f.ring:Hide()
         circles[i] = f
     end
-    return circles[i]
+    return f
+end
+C._circles = circles
+
+-- The keys whose areas belong on the map for a step: its own key, then I:<item> for its L and U items, then the
+-- creature its name points at (this session's names), then the creatures and objects linked to it.
+function C.MapKeys(step)
+    local out, has = {}, {}
+    local function add(k) if k and not has[k] then has[k] = true out[#out + 1] = k end end
+    local own = C.KeyFor(step)
+    add(own)
+    if not step then return out end
+    if step.loot then for _, l in ipairs(step.loot) do if l.id then add("I:" .. l.id) end end end
+    if step.item then add("I:" .. step.item) end
+    local B = NS.Beacon
+    if B and B.StepNames then
+        for _, n in ipairs(B.StepNames(step)) do
+            local id = seenNPC[n]
+            if id then add("N:" .. id) end
+        end
+    end
+    local l = own and C.LinksFor(own)
+    if l then
+        local ks = {}
+        for k in pairs(l) do ks[#ks + 1] = k end
+        table.sort(ks)
+        for _, k in ipairs(ks) do add(k) end
+    end
+    return out
 end
 
 function C.UpdateMap()
-    C.mapState = "no lib"
+    C.mapState, C.drawn = "no lib", 0
     if not HBDPins then return end
     pcall(HBDPins.RemoveAllWorldMapIcons, HBDPins, C)
-    for _, f in pairs(circles) do f:Hide() end
+    for _, f in pairs(circles) do f:Hide() f.key, f.rgb, f.rare = nil, nil, nil end
+    wipe(mapKeySet) wipe(mapNameSet)
     if not NS.db or not NS.db.profile.beacon or not NS.db.profile.beacon.pins then C.mapState = "pins off" return end
     local s = NS.Progress and NS.Progress.current
-    local key = C.KeyFor(s)
-    local areas = key and C.Areas(key) or {}
-    if #areas == 0 then C.mapState = "nothing learned for this step" return end
+    if s and NS.Beacon and NS.Beacon.StepNames then
+        for _, n in ipairs(NS.Beacon.StepNames(s)) do mapNameSet[n] = true end
+    end
+    local own = C.KeyFor(s)
+    local keys = C.MapKeys(s)
+    for _, k in ipairs(keys) do mapKeySet[k] = true end
     -- a circle's size on the map: its radius is in map %, the canvas is the whole map
     local canvas = WorldMapFrame and WorldMapFrame.GetCanvas and WorldMapFrame:GetCanvas()
     local width = (canvas and canvas.GetWidth and canvas:GetWidth()) or 1000
     if not width or width <= 0 then width = 1000 end
-    local c = RGB[key:sub(1, 1)] or RGB.G
-    local n = 0
-    for i, a in ipairs(areas) do
-        local f = circle(i)
-        local d = math.max(18, math.min(260, 2 * a.r / 100 * width))
-        f:SetSize(d, d)
-        f.tex:SetVertexColor(c[1], c[2], c[3], i == 1 and 0.9 or 0.55)
-        local ok = pcall(HBDPins.AddWorldMapIconMap, HBDPins, C, f, a.m, a.x / 100, a.y / 100, 1)
-        if ok then n = n + 1 end
+    local n, drawn = 0, 0
+    for _, key in ipairs(keys) do
+        if n >= C.MAX_CIRCLES then break end
+        local mine = key == own
+        local c = C.RGB[key:sub(1, 1)] or C.RGB.G
+        local rare = C.IsRare(key)
+        for i, a in ipairs(C.Areas(key)) do
+            if i > (mine and C.OWN_AREAS or C.EXTRA_AREAS) or n >= C.MAX_CIRCLES then break end
+            n = n + 1
+            local f = circle(n)
+            local d = math.max(18, math.min(260, 2 * a.r / 100 * width))
+            f:SetSize(d, d)
+            f.tex:SetVertexColor(c[1], c[2], c[3], (i == 1 and 0.9 or 0.55) * (mine and 1 or 0.85))
+            if rare then f.ring:Show() else f.ring:Hide() end
+            f.key, f.rgb, f.rare = key, c, rare
+            local ok = pcall(HBDPins.AddWorldMapIconMap, HBDPins, C, f, a.m, a.x / 100, a.y / 100, 1)
+            if ok then drawn = drawn + 1 end
+        end
     end
-    C.mapState = ("%d learned area(s) drawn"):format(n)
+    C.drawn = drawn
+    C.mapState = drawn == 0 and "nothing learned for this step" or ("%d learned area(s) drawn"):format(drawn)
 end
-NS:On("STEP_CHANGED", function() NS:Throttle("contribute-map", 0.5, function() pcall(C.UpdateMap) end) end)
-NS:On("CONTRIBUTE_SAMPLE", function()
-    if NS.Router and NS.Router.Invalidate then pcall(NS.Router.Invalidate) end
-    NS:Throttle("contribute-map", 0.5, function() pcall(C.UpdateMap) end)
+NS:On("STEP_CHANGED", function() mapSoon() end)
+NS:On("CONTRIBUTE_SAMPLE", function(key)
+    -- routing reads the step keys only; the map only what the step on screen names
+    if (not key or QUEST_KIND[key:sub(1, 1)]) and NS.Router and NS.Router.Invalidate then pcall(NS.Router.Invalidate) end
+    if not key or mapKeySet[key] then mapSoon() end
 end)
 NS:On("PLAYER_READY", function() NS:After(4, function() pcall(C.UpdateMap) end) end)
 
@@ -364,9 +796,11 @@ function C.Slash(arg)
     if arg == "on" or arg == "off" then C.SetEnabled(arg == "on")
     elseif arg == "clear" then C.Clear() NS:Print("Contribute: this client's collected places were cleared.") return
     elseif arg == "export" then showExport() return end
-    local keys, cells, weight = C.Stats()
-    NS:Print(("Contribute is %s. Collected on this client: %d steps, %d spots (weight %d). "
-        .. "/cr contribute on|off|export|clear"):format(enabled() and "ON" or "off", keys, cells, weight))
+    local _, cells, weight = C.Stats()
+    local k = C.StatsByKind()
+    NS:Print(("Contribute is %s. Collected on this client: %d quest steps, %d creatures (%d rare), %d objects, %d items; "
+        .. "%d spots (weight %d). /cr contribute on|off|export|clear"):format(enabled() and "ON" or "off", k.quest, k.N,
+        k.rare, k.O, k.I, cells, weight))
     local s = NS.Progress and NS.Progress.current
     local key = C.KeyFor(s)
     if key then
@@ -377,4 +811,5 @@ function C.Slash(arg)
                 #areas, a.x, a.y, a.m, a.r, a.w))
         end
     end
+    if s then NS:Print("  map: " .. tostring(C.mapState)) end
 end

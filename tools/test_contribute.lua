@@ -35,14 +35,41 @@ C_QuestLog = {
     GetTitleForQuestID = function() return nil end,
 }
 
+-- the client's loot window, combat log, target and instance state (creatures, objects and items, 2026-11-12)
+W.now, W.inst, W.guids, W.class, W.loot, W.fishing, W.cl, W.targetName = 1000, false, {}, {}, {}, false, {}, nil
+function GetTime() return W.now end
+function IsInInstance() return W.inst, W.inst and "party" or "none" end
+function UnitGUID(u) return W.guids[u] end
+function UnitClassification(u) return W.class[u] or "normal" end
+function UnitName(u) if u == "target" then return W.targetName end return "Tester" end
+function GetNumLootItems() return #W.loot end
+function GetLootSourceInfo(slot) local l = W.loot[slot] return l and l.guid, 1 end
+function GetLootSlotLink(slot) local l = W.loot[slot] return l and l.link end
+function IsFishingLoot() return W.fishing end
+function CombatLogGetCurrentEventInfo() return unpack(W.cl) end
+-- Retail 12 secret values: the test marks a value secret by putting it in W.secret
+W.secret = {}
+function issecretvalue(v) return v ~= nil and W.secret[v] == true end
+-- the world map pins Contribute places (HereBeDragons-Pins): kept so the test can see the circles
+local PINS = { world = {} }
+function PINS:AddWorldMapIconMap(ref, frame, map, x, y) if ref == NS.Contribute then self.world[#self.world + 1] = { frame = frame, map = map, x = x, y = y } end end
+function PINS:RemoveAllWorldMapIcons(ref) if ref == NS.Contribute then self.world = {} end end
+function PINS:AddMinimapIconMap() end
+function PINS:RemoveAllMinimapIcons() end
+local stubLib = LibStub
+LibStub = function(name, silent) if name == "HereBeDragons-Pins-2.0" then return PINS end return stubLib(name, silent) end
+
 local function load(path) assert(loadfile("CompletionRoute/" .. path))(ADDON, NS) end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua", "Data/Access.lua",
     "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua",
-    "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Contribute.lua" }) do load(f) end
+    "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Contribute.lua",
+    "UI/Beacon.lua" }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
 NS.Print, NS.Debug, NS.Error = function() end, function() end, function() end
 local C, P = NS.Contribute, NS.Progress
+local realPending = P.Pending
+local function fire(evt, ...) for _, h in ipairs(NS.wowHandlers[evt] or {}) do h(evt, ...) end end
 
 -- keys
 t("accept key is the quest's", C.KeyFor({ action = "A", qid = { 179 } }) == "A:179")
@@ -140,6 +167,452 @@ t("export holds no character or realm name", not text:find(tostring(NS.player an
 
 C.Clear()
 t("clear empties this client's data", C.Stats() == 0 and #C.Areas("A:179") == 0)
+
+-- ===========================================================================
+-- Creatures (N:), objects (O:) and the items steps name (I:)
+-- ===========================================================================
+local FL = NS.dataFlavor or NS.flavor
+local function rec(key) local s = NS.db.global.contrib.spots[FL] return s and s[key] end
+local function weight(key)
+    local r, w = rec(key), 0
+    for _, v in pairs(r or {}) do if type(v) == "number" then w = w + v end end
+    return w
+end
+local function npc(id, spawn) return ("Creature-0-3110-0-47-%d-%08X"):format(id, spawn or 1) end
+local function obj(id, spawn) return ("GameObject-0-3110-0-47-%d-%08X"):format(id, spawn or 1) end
+local function itemLink(id) return ("|cffffffff|Hitem:%d::::::::20:::::::::|h[x]|h|r"):format(id) end
+local function loot(slots, fishing) W.loot, W.fishing = slots, fishing or false C.OnLoot() end
+local ME, PET = "Player-3110-0000ABCD", "Pet-0-3110-0-47-416-0100000001"
+W.guids.player = ME
+-- the client hands combat log events only to a frame that registered for them
+local function cl(sub, src, dst, dname)
+    W.cl = { 1.0, sub, false, src, "x", 0, 0, dst, dname, 0, 0 }
+    if C.combatLogOn then C._onCombatLog() end
+end
+local function later(s) W.now = W.now + (s or C.THROTTLE + 1) end
+
+-- GUIDs: the id is the creature's or the object's; a player, a pet or an item in the bags is no place
+local k1, i1 = C.SourceOf(npc(2345))
+local k2, i2 = C.SourceOf(obj(178000))
+local k3, i3 = C.SourceOf("Vehicle-0-3110-0-47-31337-00000ABCDE")
+t("a creature GUID gives N and its npc id", k1 == "N" and i1 == 2345, tostring(k1) .. tostring(i1))
+t("an object GUID gives O and its object id", k2 == "O" and i2 == 178000, tostring(k2) .. tostring(i2))
+t("a vehicle counts as a creature", k3 == "N" and i3 == 31337)
+t("a player, a pet or an item in the bags is no place",
+    C.SourceOf(ME) == nil and C.SourceOf(PET) == nil and C.SourceOf("Item-3110-0-4000000012345678") == nil and C.SourceOf(nil) == nil)
+
+-- off: nothing, and the combat log is not listened to
+C.SetEnabled(false)
+stand(30, 30)
+C.SyncCombatLog()
+t("off: the combat log is not listened to", C.combatLogOn == false)
+loot({ { guid = npc(2345), link = itemLink(2589) } })
+loot({ { guid = obj(178000), link = itemLink(2770) } })
+t("off: a looted corpse or chest records nothing", rec("N:2345") == nil and rec("O:178000") == nil and C.Stats() == 0)
+
+C.SetEnabled(true)
+t("on: the combat log is listened to", C.combatLogOn == true)
+
+-- a creature the player hurt dies (combat log)
+stand(30.0, 30.0)
+cl("SWING_DAMAGE", ME, npc(2345, 7), "Crushridge Warmonger")
+cl("UNIT_DIED", nil, npc(2345, 7), "Crushridge Warmonger")
+t("a creature the player hurt dies: N:<npc id>", weight("N:2345") == C.WEIGHT.k, weight("N:2345"))
+later()
+cl("UNIT_DIED", nil, npc(2345, 8), "Crushridge Warmonger")
+t("a creature someone else killed records nothing", weight("N:2345") == C.WEIGHT.k)
+cl("SWING_DAMAGE", "Player-3110-0000FFFF", npc(2345, 8), "Crushridge Warmonger")
+cl("UNIT_DIED", nil, npc(2345, 8), "Crushridge Warmonger")
+t("a creature only another player hurt records nothing", weight("N:2345") == C.WEIGHT.k)
+cl("PARTY_KILL", "Player-3110-0000FFFF", npc(2345, 9), "Crushridge Warmonger")
+t("a party member's killing blow on a creature the player never hurt records nothing", weight("N:2345") == C.WEIGHT.k)
+stand(30.4, 30.2)
+cl("PARTY_KILL", ME, npc(2345, 10), "Crushridge Warmonger")
+cl("UNIT_DIED", nil, npc(2345, 10), "Crushridge Warmonger")
+t("the player's killing blow records one sample, not two", weight("N:2345") == 2 * C.WEIGHT.k, weight("N:2345"))
+
+-- the throttle: one sample per key every C.THROTTLE seconds
+later(1)
+cl("SPELL_DAMAGE", ME, npc(2345, 11), "Crushridge Warmonger")
+cl("UNIT_DIED", nil, npc(2345, 11), "Crushridge Warmonger")
+t("a second kill within the throttle adds nothing", weight("N:2345") == 2 * C.WEIGHT.k)
+later()
+cl("SPELL_PERIODIC_DAMAGE", ME, npc(2345, 12), "Crushridge Warmonger")
+cl("UNIT_DIED", nil, npc(2345, 12), "Crushridge Warmonger")
+t("after the throttle the next kill counts", weight("N:2345") == 3 * C.WEIGHT.k, weight("N:2345"))
+
+-- the pet's damage tags the creature too
+later()
+W.guids.pet = PET
+for _, h in ipairs(NS.wowHandlers.UNIT_PET or {}) do h("UNIT_PET", "player") end
+cl("SWING_DAMAGE", PET, npc(3000, 1), "Young Wolf")
+cl("UNIT_DIED", nil, npc(3000, 1), "Young Wolf")
+t("a creature the pet hurt counts", weight("N:3000") == C.WEIGHT.k)
+
+-- no table is made per combat log event: a long fight leaves memory where it was
+do
+    -- damage to two creatures in turn (ring writes), auras, and deaths of a creature the player never hurt
+    local a, b, c = npc(4000, 1), npc(4001, 2), npc(4002, 3)
+    W.cl = { 1.0, "SWING_DAMAGE", false, ME, "x", 0, 0, a, "A", 0, 0 }
+    collectgarbage("collect") collectgarbage("stop")
+    local before = collectgarbage("count")
+    for i = 1, 2000 do
+        local r = i % 3
+        if r == 0 then W.cl[2], W.cl[8] = "SPELL_DAMAGE", ((i % 2 == 0) and a or b)
+        elseif r == 1 then W.cl[2], W.cl[8] = "SPELL_AURA_APPLIED", a
+        else W.cl[2], W.cl[8] = "UNIT_DIED", c end
+        C._onCombatLog()
+    end
+    local grew = collectgarbage("count") - before
+    collectgarbage("restart")
+    t("2000 combat log events make no garbage", grew < 4, ("%.2f KB"):format(grew))
+end
+
+-- rares: the target says so before the kill; the flag sits in the key's record
+later()
+W.guids.target, W.class.target, W.targetName = npc(777, 1), "rare", "Old Greypaw"
+for _, h in ipairs(NS.wowHandlers.PLAYER_TARGET_CHANGED or {}) do h("PLAYER_TARGET_CHANGED") end
+W.guids.target, W.class.target = nil, nil
+stand(60, 61)
+cl("SWING_DAMAGE", ME, npc(777, 1), "Old Greypaw")
+cl("UNIT_DIED", nil, npc(777, 1), "Old Greypaw")
+t("a rare creature: one N: key, flagged rare", C.IsRare("N:777") == true and weight("N:777") == C.WEIGHT.k
+    and rec("R:777") == nil and rec("N:777:rare") == nil)
+-- the flag sits beside the cells (contrib.rare), never inside a record: a build without the creature keys adds up
+-- every value of every record (/cr contribute there), so a record must hold numbers only
+local function onlyNumbers()
+    for _, cs in pairs(NS.db.global.contrib.spots[FL] or {}) do
+        for _, v in pairs(cs) do if type(v) ~= "number" then return false end end
+    end
+    return true
+end
+t("the rare flag is kept beside the cells", NS.db.global.contrib.rare and NS.db.global.contrib.rare[FL]
+    and NS.db.global.contrib.rare[FL]["N:777"] == true and rec("N:777").rare == nil)
+t("every record holds numbers only (an older build can add them up)", onlyNumbers())
+t("an ordinary creature carries no flag", C.IsRare("N:2345") == false)
+
+-- a looted corpse: the player stands at it (weight 2); a rare elite the target is
+later()
+stand(31, 30)
+loot({ { guid = npc(2345, 20), link = itemLink(2589) } })
+t("a looted corpse records N:<npc id> (weight 2)", weight("N:2345") == 3 * C.WEIGHT.k + C.WEIGHT.l, weight("N:2345"))
+W.guids.target, W.class.target, W.targetName = npc(888, 1), "rareelite", "Rak'shiri"
+stand(70, 20)
+loot({ { guid = npc(888, 1), link = itemLink(12345) } })
+t("a looted rare elite (the target) is flagged", C.IsRare("N:888") == true and weight("N:888") == C.WEIGHT.l)
+W.guids.target, W.class.target, W.targetName = nil, nil, nil
+later()
+loot({ { guid = npc(5000, 1) }, { guid = npc(5000, 2) }, { guid = npc(5000, 3) } })
+t("area loot of three corpses of one creature: one sample", weight("N:5000") == C.WEIGHT.l, weight("N:5000"))
+
+-- objects: chest, treasure, herb, ore
+stand(44, 55)
+loot({ { guid = obj(1731, 1), link = itemLink(2770) } })        -- Copper Vein
+t("a looted node records O:<object id> (weight 3)", weight("O:1731") == C.WEIGHT.g)
+later()
+loot({ { guid = obj(180582, 1), link = itemLink(6303) } }, true)
+t("a fishing catch is no object's place", rec("O:180582") == nil)
+loot({ { guid = "Item-3110-0-4000000012345678", link = itemLink(2589) } })
+t("a container opened in the bags records nothing", C.StatsByKind().N + C.StatsByKind().O == 6, C.StatsByKind().N .. "+" .. C.StatsByKind().O)
+
+-- items the next steps name (L and U)
+local signet = { action = "C", qid = { 512 }, qo = "1", loot = { { id = 3505, qty = 7 } }, title = "Noble Deaths" }
+local contract = { action = "A", qid = { 522 }, item = 3668, title = "Assassin's Contract" }
+P.Pending = function() return { signet, contract } end
+NS:Fire("PROGRESS_REFRESHED")
+later()
+stand(40.2, 18.0)
+loot({ { guid = npc(2242, 1), link = itemLink(3505) }, { guid = npc(2242, 1), link = itemLink(2589) } })
+t("an item a next step names (L) records I:<item id>", weight("I:3505") == C.WEIGHT.l, weight("I:3505"))
+t("an item no step names records nothing", rec("I:2589") == nil)
+later()
+loot({ { guid = obj(2843, 1), link = itemLink(3668) } })
+t("an item a next step uses (U) records I:<item id>, at the object's weight", weight("I:3668") == C.WEIGHT.g)
+later()
+loot({ { guid = "Item-3110-0-4000000012345679", link = itemLink(3505) } })
+t("the same item from a container in the bags records nothing", weight("I:3505") == C.WEIGHT.l)
+later()
+loot({ { guid = nil, link = itemLink(3505) } }, true)
+t("the same item fished up records where the player fishes", weight("I:3505") == 2 * C.WEIGHT.l)
+
+-- never inside an instance
+later()
+W.inst = true
+for _, h in ipairs(NS.wowHandlers.PLAYER_ENTERING_WORLD or {}) do h("PLAYER_ENTERING_WORLD") end
+t("in an instance the combat log is let go", C.combatLogOn == false)
+local before = C.Stats()
+loot({ { guid = npc(9100, 1), link = itemLink(3505) }, { guid = obj(9200, 1) } })
+C.Killed(npc(9101, 1), "Instance Mob")
+t("in an instance a direct sample is refused too", C.RecordSeen("N:9102", "l") == false)
+t("in an instance nothing is recorded", C.Stats() == before and rec("N:9100") == nil and rec("O:9200") == nil and rec("N:9101") == nil)
+W.inst = false
+for _, h in ipairs(NS.wowHandlers.ZONE_CHANGED_NEW_AREA or {}) do h("ZONE_CHANGED_NEW_AREA") end
+t("back outside it is listened to again", C.combatLogOn == true)
+
+-- Retail 12.x: the combat log is left alone; the loot window still works
+do
+    local toc = NS.tocversion
+    NS.tocversion = 120105
+    C.SyncCombatLog()
+    t("Retail 12: the combat log is not registered", C.combatLogOn == false)
+    later()
+    stand(12, 12)
+    loot({ { guid = npc(6000, 1) } })
+    t("Retail 12: a looted corpse still records", weight("N:6000") == C.WEIGHT.l)
+    NS.tocversion = toc
+    C.SyncCombatLog()
+end
+
+-- the cell cap holds for creature keys, and the rare flag is neither a cell nor lost
+for i = 1, C.MAX_CELLS + 25 do
+    later()
+    stand(5 + (i % 60) * 1.0, 5 + math.floor(i / 60) * 1.0)
+    C.RecordSeen("N:777", "l", true)
+end
+local cells = 0
+for _, v in pairs(rec("N:777")) do if type(v) == "number" then cells = cells + 1 end end
+t("a creature key never holds more than MAX_CELLS cells", cells <= C.MAX_CELLS, cells)
+t("the rare flag survives the cap", C.IsRare("N:777") == true)
+t("records still hold numbers only after the rare samples", onlyNumbers())
+t("the counts by kind tell the rares", C.StatsByKind().rare == 2, C.StatsByKind().rare)
+local keys, cellsAll = C.Stats()
+t("Stats counts cells, not the flag", type(keys) == "number" and type(cellsAll) == "number")
+
+-- export: the new keys, one line each, same four fields; no flag, no names
+local text, n2 = C.Export()
+local lines2, bad = 0, 0
+for line in text:gmatch("[^\n]+") do
+    lines2 = lines2 + 1
+    if not line:match("^%a+|[^|]*|[ATCGNOI]:[^|]+|%d+,[%d%.]+,[%d%.]+,%d+[;%d%.,]*$") then bad = bad + 1 end
+end
+t("export: one line per key, all in the four-field format", lines2 == n2 and bad == 0, lines2 .. "/" .. n2 .. " bad " .. bad)
+t("export has the creature, object and item lines", text:find("|N:2345|", 1, true) and text:find("|O:1731|", 1, true)
+    and text:find("|I:3505|", 1, true) and text:find("|N:777|", 1, true) and true or false)
+t("export holds no flag and no creature name", not text:find("rare", 1, true) and not text:find("Warmonger", 1, true)
+    and not text:find("Greypaw", 1, true))
+
+-- ---------------------------------------------------------------------------
+-- The world map: the current step's own areas and those of what it names
+-- ---------------------------------------------------------------------------
+local function drawn()
+    local by = {}
+    for _, p in ipairs(PINS.world) do
+        local f = p.frame
+        by[#by + 1] = { key = f.key, rgb = f.rgb, rare = f.rare, ring = f.ring.__shown == true, map = p.map }
+    end
+    return by
+end
+local function has(list, key) for _, d in ipairs(list) do if d.key == key then return d end end end
+
+-- a step naming a creature killed while it was one of the next steps: linked by its key, drawn red
+local warm = { action = "C", qid = { 504 }, qo = "1", target = "Crushridge Warmonger", title = "Crushridge Warmongers" }
+P.Pending = function() return { warm } end
+NS:Fire("PROGRESS_REFRESHED")
+later()
+stand(32, 29)
+cl("SWING_DAMAGE", ME, npc(2345, 30), "Crushridge Warmonger")
+cl("UNIT_DIED", nil, npc(2345, 30), "Crushridge Warmonger")
+t("the kill links the step to the creature (ids only)", C.LinksFor("C:504:1") and C.LinksFor("C:504:1")["N:2345"] == true)
+P.current = warm
+NS:Fire("STEP_CHANGED", warm)
+local d = drawn()
+t("the map gets a red circle for the creature the step names", has(d, "N:2345") and has(d, "N:2345").rgb == C.RGB.N, #d)
+t("its circle is on the creature's map", has(d, "N:2345") and has(d, "N:2345").map == 1429)
+
+-- another step naming the same creature, never one of the next steps: this session's name finds it
+local warm2 = { action = "K", target = "Crushridge Warmonger", title = "Kill Crushridge Warmonger", guide = "g:x", key = "h:w" }
+P.current = warm2
+C.UpdateMap()
+t("a step that only names the creature gets its circle too", has(drawn(), "N:2345") ~= nil)
+
+-- a rare: outlined
+local grey = { action = "K", target = "Old Greypaw", title = "Kill Old Greypaw", guide = "g:x", key = "h:g" }
+P.current = grey
+C.UpdateMap()
+local gd = has(drawn(), "N:777")
+t("a rare creature's circle is outlined", gd and gd.rare == true and gd.ring == true)
+P.current = warm
+C.UpdateMap()
+t("an ordinary creature's circle is not", has(drawn(), "N:2345") and has(drawn(), "N:2345").ring == false)
+
+-- an item the step names: purple
+P.current = signet
+C.UpdateMap()
+local id = has(drawn(), "I:3505")
+t("the map gets a purple circle for the item the step names", id and id.rgb == C.RGB.I)
+t("the item step's creature (its item dropped from it) is linked and drawn red",
+    C.LinksFor("C:512:1") and C.LinksFor("C:512:1")["N:2242"] and has(drawn(), "N:2242") and has(drawn(), "N:2242").rgb == C.RGB.N)
+
+-- a treasure step, in the client's real order: LOOT_READY then LOOT_OPENED, every handler in the order the files
+-- registered them.  Core/Progress.lua comes first and ticks the treasure step, so the step on screen has already
+-- moved on when Contribute reads the loot.  Two chests side by side: the chest belongs to the first.
+P.Pending = realPending
+NS.Guide.Register({ id = "t:chests", name = "Chests", type = "Professions",
+    text = "$ Hidden chest|M|50.0,50.0|Z|1429; Elwynn Forest|\n$ Second chest|M|50.2,50.1|Z|1429; Elwynn Forest|\nN Last|" })
+P.Load("t:chests")
+local chest = P.current
+local chestKey = C.KeyFor(chest)
+local second
+for _, s in ipairs(P.steps or {}) do if s.title == "Second chest" then second = s end end
+t("the treasure step is on screen", chest and chest.title == "Hidden chest" and chestKey ~= nil and second ~= nil, chest and chest.title)
+later()
+stand(50.1, 50.0)
+W.loot, W.fishing = { { guid = obj(178000, 3), link = itemLink(2770) } }, false
+fire("LOOT_READY")
+t("Progress ticked the treasure step before the loot was read", P.IsDone(chest) and P.current ~= chest)
+t("the chest is linked to its treasure step at LOOT_READY already", C.LinksFor(chestKey) and C.LinksFor(chestKey)["O:178000"] == true)
+fire("LOOT_OPENED")
+t("a chest looted at the treasure step's spot is linked to it", C.LinksFor(chestKey) and C.LinksFor(chestKey)["O:178000"] == true)
+t("the chest is recorded once for the two events", weight("O:178000") == C.WEIGHT.g, weight("O:178000"))
+local l2 = C.LinksFor(C.KeyFor(second))
+t("the chest is not linked to the treasure step beside it", not (l2 and l2["O:178000"]))
+P.current = chest
+C.UpdateMap()
+local od = has(drawn(), "O:178000")
+t("the map gets a gold circle for the step's object", od and od.rgb == C.RGB.O)
+-- after the loot window the ticked step no longer takes what is looted there
+later()
+P.current = { action = "N", title = "Last", guide = "t:chests", key = "h:last" }
+loot({ { guid = obj(1733, 1), link = itemLink(2771) } })
+t("a node looted there later is not linked to the finished treasure step", not C.LinksFor(chestKey)["O:1733"] and weight("O:1733") == C.WEIGHT.g)
+later()
+P.current = chest
+stand(80, 80)
+loot({ { guid = obj(1732, 1), link = itemLink(2771) } })
+t("an object looted away from the spot is not linked", not C.LinksFor(chestKey)["O:1732"])
+
+-- the step's own key keeps its colour, beside what it names
+later()
+stand(32.2, 29.7)
+C.Record("C:504:1", "o")
+P.current = warm
+C.UpdateMap()
+d = drawn()
+t("the step's own areas keep their colour beside the creature's", has(d, "C:504:1") and has(d, "C:504:1").rgb == C.RGB.C and has(d, "N:2345"))
+
+-- no frame churn: the circles are made once and reused
+local made = 0 for _ in pairs(C._circles) do made = made + 1 end
+for _ = 1, 5 do C.UpdateMap() end
+local made2 = 0 for _ in pairs(C._circles) do made2 = made2 + 1 end
+t("redrawing the map makes no new frames", made2 == made and made > 0, made .. " -> " .. made2)
+t("never more than MAX_CIRCLES circles", #PINS.world <= C.MAX_CIRCLES)
+
+-- a sample of something the step on screen does not name does not redraw the map
+local redraws = 0
+local real = C.UpdateMap
+C.UpdateMap = function() redraws = redraws + 1 return real() end
+later()
+stand(20, 20)
+loot({ { guid = npc(6100, 1) } })
+local quiet = redraws
+later()
+stand(33, 30)
+cl("SWING_DAMAGE", ME, npc(2345, 40), "Crushridge Warmonger")
+cl("UNIT_DIED", nil, npc(2345, 40), "Crushridge Warmonger")
+t("only a sample of what the step names redraws the map", quiet == 0 and redraws == 1, quiet .. "/" .. redraws)
+C.UpdateMap = real
+
+-- ---------------------------------------------------------------------------
+-- Retail 12 secret values: a value the client keeps secret is never read
+-- ---------------------------------------------------------------------------
+later()
+stand(15, 15)
+local sg = npc(6200, 1)
+W.secret[sg] = true
+loot({ { guid = sg }, { guid = npc(6201, 1) } })
+t("a secret loot source ends the read: nothing is recorded", rec("N:6200") == nil and rec("N:6201") == nil)
+W.secret[sg] = nil
+P.Pending = function() return { signet } end
+NS:Fire("PROGRESS_REFRESHED")
+later()
+local sl, wBefore = itemLink(3505), weight("I:3505")
+W.secret[sl] = true
+loot({ { guid = npc(2242, 5), link = sl } })
+t("a secret loot link records no item", weight("I:3505") == wBefore, weight("I:3505"))
+W.secret[sl] = nil
+local function mapHas(step, key) for _, k in ipairs(C.MapKeys(step)) do if k == key then return true end end return false end
+W.guids.target, W.class.target, W.targetName = npc(6300, 1), "normal", "Hidden Beast"
+W.secret["Hidden Beast"] = true
+fire("PLAYER_TARGET_CHANGED")
+t("a secret target name is not learned",
+    not mapHas({ action = "K", target = "Hidden Beast", title = "Kill Hidden Beast", guide = "g:x", key = "h:hb" }, "N:6300"))
+W.secret["Hidden Beast"] = nil
+W.guids.target, W.class.target, W.targetName = npc(6301, 1), "rare", "Seen Beast"
+W.secret[npc(6301, 1)] = true
+fire("PLAYER_TARGET_CHANGED")
+W.secret[npc(6301, 1)] = nil
+W.guids.target, W.class.target, W.targetName = nil, nil, nil
+later()
+C.Killed(npc(6301, 1), nil)
+t("a secret target GUID tells nothing (no rare, no name)", weight("N:6301") == C.WEIGHT.k and C.IsRare("N:6301") == false
+    and not mapHas({ action = "K", target = "Seen Beast", title = "Kill Seen Beast", guide = "g:x", key = "h:sb" }, "N:6301"))
+
+-- a rare seen only at a kill inside the throttle window: no sample, but the flag is kept
+later()
+stand(25, 75)
+C.Killed(npc(6400, 1), "Late Rare")
+t("not known to be rare at the first kill", C.IsRare("N:6400") == false and weight("N:6400") == C.WEIGHT.k)
+W.guids.target, W.class.target = npc(6400, 2), "rare"
+C.Killed(npc(6400, 2), "Late Rare")
+W.guids.target, W.class.target = nil, nil
+t("a rare kill inside the throttle adds no sample but keeps the flag", C.IsRare("N:6400") == true and weight("N:6400") == C.WEIGHT.k)
+t("the flag of a throttled sample is beside the cells too", onlyNumbers())
+
+-- at most C.MAX_LINKS creatures per step
+local many = { action = "C", qid = { 505 }, qo = "1", target = "Shared Name", title = "Shared Names" }
+P.Pending = function() return { many } end
+NS:Fire("PROGRESS_REFRESHED")
+stand(26, 76)
+for i = 1, C.MAX_LINKS + 3 do C.Killed(npc(6500 + i, 1), "Shared Name") end
+local nl = 0
+for _ in pairs(C.LinksFor("C:505:1") or {}) do nl = nl + 1 end
+t("a step keeps at most MAX_LINKS links", nl == C.MAX_LINKS, nl)
+
+-- the player's killing blow takes the creature out of the ring: its UNIT_DIED, however late, is not a second kill
+later()
+stand(27, 77)
+cl("SWING_DAMAGE", ME, npc(6600, 1), "Slow Death")
+cl("PARTY_KILL", ME, npc(6600, 1), "Slow Death")
+later()
+cl("UNIT_DIED", nil, npc(6600, 1), "Slow Death")
+t("a killing blow and a late death of the same creature are one kill", weight("N:6600") == C.WEIGHT.k, weight("N:6600"))
+
+-- many hits on one creature take one place in the ring: a creature hurt before it is still known
+later()
+cl("SWING_DAMAGE", ME, npc(6700, 1), "First Hurt")
+for _ = 1, 20 do cl("SWING_DAMAGE", ME, npc(6701, 1), "Punching Bag") end
+cl("UNIT_DIED", nil, npc(6700, 1), "First Hurt")
+t("twenty hits on another creature do not push the first out of the ring", weight("N:6700") == C.WEIGHT.k, weight("N:6700"))
+
+-- a step change alone refreshes what the next steps name
+C._want()
+local ore = { action = "C", qid = { 506 }, qo = "1", loot = { { id = 9999, qty = 1 } }, title = "Strange Ore" }
+P.Pending = function() return {} end
+P.current = ore
+NS:Fire("STEP_CHANGED", ore)
+later()
+loot({ { guid = npc(6800, 1), link = itemLink(9999) } })
+t("after a step change the new step's item is recorded", weight("I:9999") == C.WEIGHT.l, weight("I:9999"))
+
+-- the map: two areas at most for each thing a step names, sixteen circles in all
+local big = { action = "C", qid = { 507 }, qo = "1", loot = {}, title = "Ten things" }
+for i = 1, 10 do
+    big.loot[i] = { id = 9100 + i, qty = 1 }
+    for _, p in ipairs({ { 10, 10 }, { 50, 50 }, { 85, 20 } }) do stand(p[1], p[2]) C.Record("I:" .. (9100 + i), "l") end
+end
+P.current = big
+C.UpdateMap()
+local of1 = 0
+for _, x in ipairs(drawn()) do if x.key == "I:9101" then of1 = of1 + 1 end end
+t("a named item with three areas gets two circles", #C.Areas("I:9101") == 3 and of1 == C.EXTRA_AREAS, #C.Areas("I:9101") .. "/" .. of1)
+t("twenty candidate circles: sixteen drawn", #PINS.world == C.MAX_CIRCLES and C.drawn == C.MAX_CIRCLES, #PINS.world)
+
+-- clear takes the links and the rare flags too
+C.Clear()
+t("clear empties the creature, object and item keys and the links", C.Stats() == 0 and C.LinksFor("C:504:1") == nil)
+t("clear empties the rare flags", C.IsRare("N:777") == false and C.IsRare("N:6400") == false and C.StatsByKind().rare == 0)
+C.SetEnabled(false)
+t("off again: the combat log is let go", C.combatLogOn == false)
 
 print(("\n%d passed, %d failed"):format(passed, failed))
 if failed > 0 then os.exit(1) end
