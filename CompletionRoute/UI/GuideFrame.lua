@@ -16,8 +16,10 @@ GF.frame = f
 -- GF.L holds the layout numbers; tools/audit_step_text.lua reads this table from the source to size the texts and
 -- tools/test_step_window.lua checks the rules FitHeight follows, so keep it one literal table of numbers.
 GF.BASE_W, GF.BASE_H = 460, 120      -- width; the least height (FitHeight grows it to fit the text)
-GF.L = { side = 34, top = 30, pad = 6, icon = 30, gap = 8, titleLines = 3, noteLines = 8, pathLines = 3, pathInset = 34 }
+GF.L = { side = 34, top = 30, pad = 6, icon = 30, gap = 8, titleLines = 3, noteLines = 8, pathLines = 3, pathInset = 34, nameMin = 48 }
 local L = GF.L
+-- the title line's gaps, right to left (fitHeader adds the same numbers up to know how much room the texts have)
+local HG = { edge = 6, gap = 2, box = 4, word = 1, text = 8, left = 10 }
 f:SetSize(GF.BASE_W, GF.BASE_H)
 f:SetPoint("CENTER")
 f:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
@@ -48,18 +50,26 @@ local function smallButton(text, w, tip, onClick, parent)
 end
 
 -- title line, right to left: close, "..." (the rarely used things), Routes, the Contribute box and its word
-local bClose = smallButton("x", 20, "Hide this window", function() f:Hide() end)
-bClose:SetPoint("TOPRIGHT", -6, -6)
+-- closing prints where the way back is, once a session: the window has no other button once it is hidden, and the
+-- owner does not type commands (UI/Options.lua puts "Show step window" and "Routes" on the addon's options page)
+local bClose = smallButton("x", 20, "Hide this window (Options > AddOns > CompletionRoute has a button that shows it again)", function()
+    f:Hide()
+    if not GF.closeHintShown then
+        GF.closeHintShown = true
+        NS:Print("Step window hidden. To show it again: Esc > Options > AddOns > CompletionRoute > Show step window (or type /cr). Picking a route shows it too.")
+    end
+end)
+bClose:SetPoint("TOPRIGHT", -HG.edge, -6)
 local bMore = smallButton("...", 24, "More: step order, options, report a bug, start this route over", function(self) GF.ToggleMore(self) end)
-bMore:SetPoint("RIGHT", bClose, "LEFT", -2, 0)
+bMore:SetPoint("RIGHT", bClose, "LEFT", -HG.gap, 0)
 local bMenu = smallButton("Routes", 52, "Choose a route", function() NS.GuideMenu.Toggle() end)
-bMenu:SetPoint("RIGHT", bMore, "LEFT", -2, 0)
+bMenu:SetPoint("RIGHT", bMore, "LEFT", -HG.gap, 0)
 -- Contribute (Core/Contribute.lua): while ticked, the addon notes where steps are done to build the location database
 local cbContrib = CreateFrame("CheckButton", "CompletionRouteContributeCheck", f, "UICheckButtonTemplate")
-cbContrib:SetSize(20, 20); cbContrib:SetPoint("RIGHT", bMenu, "LEFT", -4, 0)
+cbContrib:SetSize(20, 20); cbContrib:SetPoint("RIGHT", bMenu, "LEFT", -HG.box, 0)
 -- the word is a button: a click opens the text to share (the owner does not type /cr contribute export)
 local cbLabel = CreateFrame("Button", "CompletionRouteContributeLabel", f)
-cbLabel:SetSize(62, 18); cbLabel:SetPoint("RIGHT", cbContrib, "LEFT", -1, 0)
+cbLabel:SetSize(62, 18); cbLabel:SetPoint("RIGHT", cbContrib, "LEFT", -HG.word, 0)
 cbLabel.text = cbLabel:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 cbLabel.text:SetPoint("RIGHT", 0, 0); cbLabel.text:SetText("Contribute")
 cbLabel.line = cbLabel:CreateTexture(nil, "HIGHLIGHT")
@@ -87,16 +97,16 @@ cbContrib:SetScript("OnLeave", function() GameTooltip:Hide() end)
 local function syncContrib() cbContrib:SetChecked(NS.Contribute and NS.Contribute.Enabled() or false) end
 NS:On("PLAYER_READY", syncContrib)
 NS:On("CONTRIBUTE_CHANGED", syncContrib)
-GF.contribute, GF.contributeLabel, GF.more = cbContrib, cbLabel, bMore
+GF.contribute, GF.contributeLabel, GF.more, GF.close, GF.routes = cbContrib, cbLabel, bMore, bClose, bMenu
 
 -- "step N of M": its own string so a long route name can never push it off the line
 local stepText = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
-stepText:SetPoint("RIGHT", cbLabel, "LEFT", -8, 0)
+stepText:SetPoint("RIGHT", cbLabel, "LEFT", -HG.text, 0)
 stepText:SetJustifyH("RIGHT"); stepText:SetWordWrap(false); stepText:SetTextColor(0.62, 0.62, 0.62)
 -- route name: one line between the window's left edge and the step count, cut with "..." (a wrapped title ran over
 -- whatever was under it); the whole name is in the tooltip of the title line
 local titleText = f:CreateFontString(nil, "OVERLAY", U.Font("Title"))
-titleText:SetPoint("LEFT", f, "TOPLEFT", 10, -15); titleText:SetPoint("RIGHT", stepText, "LEFT", -8, 0)
+titleText:SetPoint("LEFT", f, "TOPLEFT", HG.left, -15); titleText:SetPoint("RIGHT", stepText, "LEFT", -HG.text, 0)
 titleText:SetJustifyH("LEFT"); titleText:SetWordWrap(false)
 titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r")
 GF.titleText, GF.stepText = titleText, stepText
@@ -253,11 +263,14 @@ end
 -- title line: the route's name on the left, where you are in it on the right (GF.stepLine is the plain text, for the tooltip)
 local function setTitle(name, stepLine, extra)
     titleText:SetText(name)
-    GF.stepLine = stepLine or ""
-    stepText:SetText((stepLine or "") .. (extra or ""))
+    GF.stepLine, GF.stepExtra = stepLine or "", extra or ""
+    stepText:SetText(GF.stepLine .. GF.stepExtra)      -- fitHeader (every FitHeight) decides what of it has room
 end
 local function showEmpty(text, restart)
     card:Hide()
+    -- the arrows hang from the card, shown or not: give it back its plain place (a tall travel line had moved its foot)
+    card:ClearAllPoints()
+    card:SetPoint("TOPLEFT", L.side, -L.top); card:SetPoint("BOTTOMRIGHT", -L.side, 26)
     empty:SetText(text)
     empty:Show()
     GF.restartShown = restart and true or false
@@ -354,11 +367,28 @@ end
 --   4. the card ends above the travel line, and the window is the sum of the three.
 -- The whole window scales (the grip, Options), so one layout holds at every scale from 0.6 to 2.5.
 local function sh(fs) local h = fs.GetStringHeight and fs:GetStringHeight() return (type(h) == "number" and h > 0) and h or 0 end
+local function strW(fs) local w = fs.GetStringWidth and fs:GetStringWidth() return (type(w) == "number" and w > 0) and w or 0 end
 local function fitHeader()
     -- the word Contribute grows with the text-size setting: keep its button as wide as the word, so the step count
     -- (anchored to it) moves left instead of being covered
-    local w = cbLabel.text.GetStringWidth and cbLabel.text:GetStringWidth()
-    if type(w) == "number" and w > 0 then cbLabel:SetWidth(w + 2) end
+    local w = strW(cbLabel.text)
+    if w > 0 then cbLabel:SetWidth(w + 2) end
+    -- What is left of the line for "step N of M" and the route name.  The name is anchored between the window's left
+    -- edge and the step count; with the largest text size and "re-planning..." showing, that room came out NEGATIVE,
+    -- and a string with its right anchor left of its left one is drawn over the step count.  So: "re-planning..."
+    -- goes first, then the name (it is whole in the tooltip of the line), and the step count is cut last.
+    local W = f:GetWidth()
+    if type(W) ~= "number" or W <= 0 then W = GF.BASE_W end
+    local room = W - (HG.edge + bClose:GetWidth() + HG.gap + bMore:GetWidth() + HG.gap + bMenu:GetWidth() + HG.box + cbContrib:GetWidth()
+        + HG.word + cbLabel:GetWidth() + HG.text) - HG.left
+    local line, extra = GF.stepLine or "", GF.stepExtra or ""
+    stepText:SetText(line .. extra)
+    if extra ~= "" and room - strW(stepText) - HG.text < L.nameMin then stepText:SetText(line) end
+    local stepW = strW(stepText)
+    if stepW > room then stepText:SetWidth(room) GF.stepCut = true
+    elseif GF.stepCut then stepText:SetWidth(0) GF.stepCut = nil end     -- 0 = as wide as its text again
+    GF.nameRoom = room - math.min(stepW, room) - HG.text
+    if GF.nameRoom >= L.nameMin then titleText:Show() else titleText:Hide() end
 end
 function GF.FitHeight()
     fitHeader()
@@ -525,6 +555,7 @@ local function popup(name, rows)
     m:SetBackdropBorderColor(0.3, 0.6, 0.9, 0.9)
     m:SetFrameStrata("DIALOG")
     m:EnableMouse(true)
+    m:SetClampedToScreen(true)      -- a step window at the bottom of the screen opened its menu below the screen edge
     m:Hide()
     tinsert(UISpecialFrames, name)
     m.rows = 0
@@ -592,6 +623,7 @@ confirm:SetBackdropColor(0.03, 0.03, 0.05, 0.97)
 confirm:SetBackdropBorderColor(0.3, 0.6, 0.9, 0.9)
 confirm:SetFrameStrata("DIALOG")
 confirm:EnableMouse(true)
+confirm:SetClampedToScreen(true)
 confirm:Hide()
 tinsert(UISpecialFrames, "CompletionRouteStartOver")
 confirm.text = confirm:CreateFontString(nil, "OVERLAY", U.Font("Body"))

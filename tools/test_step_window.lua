@@ -155,6 +155,13 @@ do
     check(src:find("GF%.L = %b{}") and src:find("GF%.BASE_W, GF%.BASE_H = %d+, %d+"), "the layout numbers are one literal table (the audit reads it)")
     local _, boxes = src:gsub("UICheckButtonTemplate", "")
     check(boxes == 1, "one tick box on the window (Contribute)")
+    -- menus and the confirmation stay on screen when the window sits at the screen's edge
+    local _, clamps = src:gsub(":SetClampedToScreen%(true%)", "")
+    check(clamps >= 3, "the window, its menus and the Start over question are clamped to the screen")
+    -- the way back after the x: a printed hint, and two buttons on the options page
+    check(src:find("Step window hidden%. To show it again"), "closing the window says how to show it again")
+    local opt = assert(io.open("CompletionRoute/UI/Options.lua")):read("*a")
+    check(opt:find('O%.showWindow = topButton%("Show step window"') and opt:find('O%.showRoutes = topButton%("Routes"'), "the options page has Show step window and Routes buttons (the click path back)")
 end
 
 -- ---------------------------------------------------------------------------
@@ -217,6 +224,8 @@ local function bands(label)
     check(foot >= 8 + ph, ("%s: the travel line fits under the card (%d >= %d)"):format(label, foot, 8 + ph))
     check(H >= GF.BASE_H and cardH >= L.pad + head, label .. ": the window is at least its least height and holds the card")
     check(card.title.width == f.width - 2 * L.side - (2 * L.pad + L.icon + L.gap) and card.note.width == f.width - 2 * L.side - 2 * L.pad, label .. ": title and note widths come from the window's width")
+    -- title line: the route name shows only while it has room; it is never squeezed to nothing or to less than nothing
+    check(type(GF.nameRoom) == "number" and GF.titleText:IsShown() == (GF.nameRoom >= L.nameMin), label .. ": the route name shows only with room for it (" .. tostring(GF.nameRoom) .. ")")
     return H
 end
 P.Load("w:layout")
@@ -248,15 +257,43 @@ f:SetScale(1)
 check(h1 == h06 and h1 == h25, ("the layout is the same at scale 0.6, 1 and 2.5 (%d, %d, %d)"):format(h06, h1, h25))
 -- title line text
 check(GF.titleText.text:find("A route with a rather long name") and GF.stepText.text:find("^step 3 of 5"), "title line: route name, then \"step N of M\": " .. GF.stepText.text)
+-- title line under pressure: larger text (the Options slider) and "re-planning..." beside the step count.  The room
+-- for the name is what is left of the window's width; it must never go under the least, let alone negative.
+do
+    local function header(pt, replanning)
+        FONT_PT.GameFontHighlightSmall = pt
+        NS.Replan = replanning and { running = true } or nil
+        violations = {}
+        GF.Update()
+        local word = GF.contributeLabel.text:GetStringWidth() + 2
+        local room = f.width - (6 + 20 + 2 + 24 + 2 + 52 + 4 + 20 + 1 + word + 8) - 10
+        return room, GF.stepText:GetStringWidth()
+    end
+    local room, stepW = header(12, true)
+    check(GF.stepText.text:find("re%-planning") and GF.titleText:IsShown(), "default text size: step count, re-planning and the route name all fit")
+    check(math.abs(GF.nameRoom - (room - stepW - 8)) < 0.01, ("the name's room is the window's width less everything right of it (%.1f, %.1f)"):format(GF.nameRoom, room - stepW - 8))
+    room, stepW = header(18, true)
+    check(not GF.stepText.text:find("re%-planning") and GF.stepText.text:find("^step 3 of 5"), "larger text: \"re-planning...\" gives way before the route name does: " .. GF.stepText.text)
+    check(GF.titleText:IsShown() and GF.nameRoom >= L.nameMin, "and the name keeps its room")
+    room, stepW = header(30, true)
+    check(not GF.titleText:IsShown(), "no room at all: the route name is hidden (it is in the tooltip), not drawn over the step count")
+    check(GF.stepText.width ~= nil and GF.stepText.width <= room + 0.01 and GF.stepText.text:find("^step 3 of 5"), "and the step count is cut to the room it has")
+    room, stepW = header(12, false)
+    check(GF.titleText:IsShown() and (GF.stepText.width == 0 or GF.stepText.width == nil) and stepW <= room, "back at the default size the line is whole again")
+end
 
 -- ---------------------------------------------------------------------------
 -- D. End of a route: text, Start over button, window height; menus and the word Contribute
 -- ---------------------------------------------------------------------------
-PATH_TEXT = ""
-P.Forward() P.Forward() P.Forward()
+P.Forward() P.Forward() P.Forward()      -- the long travel line is still showing: the card's foot is tall
 check(P.current == nil, "the test route is finished")
+PATH_TEXT = ""
 violations = {}
 GF.Update()
+do
+    local bottom = anchoredTo(card, f, "BOTTOMRIGHT")
+    check(bottom and bottom.y == 26 and anchoredTo(card, f, "TOPLEFT").y == -L.top, "end of route: the hidden card (the arrows hang from it) is back at its plain place")
+end
 for _, v in ipairs(violations) do check(false, "end of route: " .. v) end
 check(not card:IsShown() and GF.empty:IsShown() and GF.restart:IsShown(), "end of route: the text and the Start over button show, the card does not")
 check(GF.empty.text:find("Route complete") and GF.empty.text:find("Start over"), "end of route text names Start over")
@@ -312,6 +349,8 @@ local cases = {
     { "Kill 10 boars (Optional)", "Kill 10 boars (Optional)" },
     { "From Deputy Willem.", "From Deputy Willem." },
     { "", "" },
+    -- a short note keeps a sentence in brackets: it may be the instruction, and it fits
+    { "Kill the wolves. (Leave the alpha alone.)", "Kill the wolves. (Leave the alpha alone.)" },
 }
 for _, c in ipairs(cases) do
     local got = cardOf(c[1])
