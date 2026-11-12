@@ -565,6 +565,15 @@ local function guideStart(g)
 end
 G.GuideStart = guideStart     -- the first located step (parses the guide); UI/GuideMenu.lua prices a few of them
 
+-- The name a route is shown under: without a "(Alliance)" / "(Horde)" tag (owner's request, 2026-11-12: a player only
+-- ever sees their own faction's routes, so the tag says nothing).  The registry keeps the full name.
+function G.DisplayName(g)
+    if not g then return "?" end
+    local n = g.name or g.id or "?"
+    n = (n:gsub("%s*%(%s*[Aa]lliance%s*%)", "")):gsub("%s*%(%s*[Hh]orde%s*%)", "")
+    return n
+end
+
 -- Next most optimal leveling guide after finishing one: level fit first,
 -- then actual travel time from the player's position to the guide's start.
 -- excludeId keeps us from re-suggesting the guide we just finished.

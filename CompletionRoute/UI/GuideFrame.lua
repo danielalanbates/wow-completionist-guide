@@ -118,7 +118,7 @@ titleHit:SetScript("OnDragStop", dragStop)
 titleHit:SetScript("OnEnter", function(self)
     if not P.guide then return end
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:SetText(P.guide.name or P.guide.id, 0.24, 0.78, 1, 1, true)
+    GameTooltip:SetText(G.DisplayName(P.guide), 0.24, 0.78, 1, 1, true)
     if GF.stepLine and GF.stepLine ~= "" then GameTooltip:AddLine(GF.stepLine, 1, 1, 1, true) end
     GameTooltip:AddLine("Drag to move the window.", 0.6, 0.6, 0.6, true)
     GameTooltip:Show()
@@ -293,7 +293,7 @@ function GF.Update()
     if s then   -- position in the loaded list (access-chain steps carry negative indices and sit in front)
         for i, st in ipairs(P.steps) do if st == s then pos = i break end end
     end
-    local name = ("|cff3ec6ff%s|r"):format(P.guide.name or P.guide.id)
+    local name = ("|cff3ec6ff%s|r"):format(G.DisplayName(P.guide))
     local worth = ""
     if P.guide.loop then
         -- a circuit has no end: show which lap you are on; what it has been worth goes on the card's distance line
@@ -643,7 +643,7 @@ function GF.StartOver()
     local done = P.VisibleDone()
     confirm.guide = P.guide.id
     confirm.text:SetText(("Start |cff3ec6ff%s|r over?\n%d finished step%s will be cleared for this character. Steps the game itself reports as done (quests, skills, items in your bags) tick again by themselves."):format(
-        P.guide.name or P.guide.id, done, done == 1 and "" or "s"))
+        G.DisplayName(P.guide), done, done == 1 and "" or "s"))
     local h = confirm.text.GetStringHeight and confirm.text:GetStringHeight()
     confirm:SetHeight(12 + ((type(h) == "number" and h > 0) and h or 60) + 12 + 22 + 12)
     confirm:Show()

@@ -314,7 +314,7 @@ end
 -- the name a Recommended row shows: no level range and no chain number ("002. Zephras Isle Quests 1-5" ->
 -- "Zephras Isle Quests"); the tooltip still has the full name
 local function recName(g)
-    local n = g.name or g.id
+    local n = G.DisplayName(g)
     n = (n:gsub("^%d+%.%s+", ""))
     n = (n:gsub("%s+%d+%s*%-%s*%d+", ""))
     n = (n:gsub("(Quests)%s+%d+", "%1"))
@@ -343,9 +343,13 @@ local function hereMaps(map)
     return out
 end
 
+-- where a route stands in the leveling chain (spine ids end in its number), else after every chain route
+local function chainIndex(g) return tonumber(tostring(g.id):match("^spine:.-:(%d+)$")) or math.huge end
 local function byCloseness(x, y)
     local ex, ey = x.eta or math.huge, y.eta or math.huge
     if ex ~= ey then return ex < ey end
+    local cx, cy = chainIndex(x.g), chainIndex(y.g)
+    if cx ~= cy then return cx < cy end
     if x.score ~= y.score then return x.score > y.score end
     return (x.g.name or x.g.id) < (y.g.name or y.g.id)
 end
@@ -414,10 +418,17 @@ function M.Recommended(level, force)
         end
     end
     table.sort(cands, byCloseness)
-    local list = {}
-    for i = 1, math.min(REC_SHOWN, #cands) do
-        list[i] = cands[i].g
-        cands[i].g.__nextETA = cands[i].eta
+    -- one row per shown name: without its range and faction tag, a zone's neutral part and its faction part read the
+    -- same ("Zephras Isle Quests"); the one the chain does first stays, the other follows when it is done
+    local list, shown = {}, {}
+    for _, c in ipairs(cands) do
+        if #list >= REC_SHOWN then break end
+        local nm = recName(c.g)
+        if not shown[nm] then
+            shown[nm] = true
+            list[#list + 1] = c.g
+            c.g.__nextETA = c.eta
+        end
     end
     recCache.key, recCache.at, recCache.list = key, now, list
     return list
@@ -629,7 +640,7 @@ local function guideLabel(g, inNext)
     local band = inNext and "" or Rec.GuideLabel(g)
     local entry = Rec.EntryFor(M.ViewLevel(), g.id)
     local needs = (entry and entry.missing) and ("  |cffff9900needs %s|r"):format(entry.missing) or ""
-    return ("%s%s|r%s%s%s%s"):format(srcColor(g.source), inNext and recName(g) or (g.name or g.id),
+    return ("%s%s|r%s%s%s%s"):format(srcColor(g.source), inNext and recName(g) or G.DisplayName(g),
         band ~= "" and ("  |cff888888%s|r"):format(band) or "", needs, pctBadge(g), eta)
 end
 
@@ -693,7 +704,7 @@ function M.Refresh()
                 local gg = G.registry[self.gid]
                 if not gg then return end
                 GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetText(gg.name or gg.id)
+                GameTooltip:SetText(G.DisplayName(gg))
                 GameTooltip:AddLine("Source: " .. (gg.source or "?") .. "   Author: " .. (gg.author or "?"), 1, 1, 1)
                 for _, line in ipairs(Rec.Describe(gg, M.ViewLevel())) do GameTooltip:AddLine(line, 1, 0.82, 0, true) end
                 if gg.zone then GameTooltip:AddLine("Zone: " .. tostring(gg.zone), 1, 1, 1) end
