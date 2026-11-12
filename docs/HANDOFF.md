@@ -289,6 +289,40 @@ and button; the travel line names only non-walking legs; **Contribute** (`Core/C
   * The re-plan search does not look for an order that is better only because it starts with the hearthstone.
   * No worktrees are left; `repo/` is the only checkout, on `master`.
 
+**Update 2026-11-12, 12:15.**
+* **The rebake is finished.** Every quest guide on all five clients has a current, gated row
+  (`python3 tools/bake_resume.py --dry-run`: "to do 0" everywhere). Kept baked orders: era 82, tbc 122, forever 82,
+  mop 240, retail 603; the rest play in author order with the live window. `test_route_order`, `test_cost_parity`,
+  all 27 harnesses and the release gate (`tools/package_release.py`: PASS) pass on this data. Installed in all five
+  clients at 12:12 (no client was running) and copied to the Drive folder; the tracked files there match GitHub.
+* **PR #20 merged:** `tools/bake_resume.py --jobs N` (use `--jobs 4` on this Mac: the last 500 guides took 40 min
+  instead of about 8 h), the optimizer's locked row merge, no leftover `.solving.<pid>` files, and a stable tie order in
+  `tools/wiki/gen_spine.py` (MoP and Retail regenerate byte-identically now; `tools/test_gen_determinism.py`).
+* **Gotcha that cost a re-write:** `bake_resume.py` writes `RouteOrder_<flavor>.lua` only for flavors it touched in
+  that run, at the very end. A run stopped before its end (this morning's, stopped at 11:26 to apply the stable order)
+  leaves its flavors' result rows complete but their RouteOrder files old. After any stopped bake, rewrite them:
+  `luajit tools/cost_matrix.lua <fl> --list --out L; venv/bin/python tools/optimize_routes.py <fl> --in <empty file>
+  --merge --current L --lua-out CompletionRoute/Data/RouteOrder_<fl>.lua`.
+* **In progress: Classic points from page history** (branch `classic-history-points` in worktree `wt-spine`,
+  uncommitted code there). The wiki writes retail-map numbers; in the 22 zones the Cataclysm redrew, Classic clients
+  need Classic-map numbers. Measured against the offline reference (`tools/measure/`, never shipped), Era steps in
+  those zones: median 0.92 map units off, 26% more than 5 off (Dun Morogh 75%, Orgrimmar 63%, Azshara 68%).
+  Findings so far:
+  * The existing rule (a coordinate already on its page before 4.0.3 is a Classic number) has false positives: on
+    1-2 November 2010 a burst of edits added coordinates to many pages, some in Classic numbers (Kum'isha the
+    Collector) and some already in the new maps' numbers (Baros Alexston, Duke Nicholas Zverenhoff). Extending that
+    rule to all 22 zones helped Azshara, Winterspring, Burning Steppes and Felwood but hurt Stormwind City,
+    Orgrimmar and Eastern Plaguelands.
+  * New on the branch: `fetch_coord_history.py` keeps the page's own pre-4.0.3 points (`coord_pre`, also where the
+    page was re-measured since), `--before DATE`; `gen_wiki_guides.py` offers them to era/tbc/forever only, ranked
+    after a current Classic point and before a retail-number one. On half the pages: median 0.92 -> 0.71, >5 off
+    26% -> 22%.
+  * Next: finish the 22-zone fetch (scratch database, not the checkout's), fetch a second pass with
+    `--before 2010-06-29` (before the Cataclysm beta), measure both with
+    `scratchpad/history/acc.py`-style per-zone tables, adopt the rule that wins overall without a zone getting
+    clearly worse, then regenerate era/tbc/forever, rebake those (`--jobs 4`), test, install. The measurement
+    decides the rule; the reference never decides a single point.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |
