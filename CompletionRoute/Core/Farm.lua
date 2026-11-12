@@ -8,10 +8,10 @@
 --
 -- The node data is community-driven and local-first:
 --   * every world-object loot you take is recorded (account-wide, shared by all your characters),
---   * GatherMate2 / GatherMate / Routes / HandyNotes databases are imported if you have them,
---   * `/cr farm build <kind>` re-solves the circuit (Routing/Loop.lua) from whatever data exists,
+--   * `/cr farm build <kind>` re-solves the circuit (Routing/Loop.lua) from the nodes recorded so far,
 --   * `/cr farm export` writes a plain-text node list you can hand to anyone else.
--- Nothing proprietary ships with the addon; the routes improve as the account plays.
+-- No other addon's database is read (the GatherMate2 / Routes import was removed on 2026-11-12: an addon for the
+-- public cannot depend on data another addon holds).  The routes improve as the account plays.
 --
 -- Copyright (c) 2026 Daniel Bates / Bates LLC.  All rights reserved.
 -- Licensed under PolyForm Noncommercial 1.0.0 (see LICENSE); 10% revenue share for commercial use.
@@ -124,75 +124,6 @@ function F.OnLoot()
 end
 
 -- ---------------------------------------------------------------------------
--- Importers: use the databases the player already has (their own, or a community pack they installed)
--- ---------------------------------------------------------------------------
--- GatherMate2 packs coords as a 0..1e6 int: floor(x*1e4)*1e4 + floor(y*1e4)  (its own encoding)
-local function gm2coord(v)
-    local x = math.floor(v / 10000) / 10000
-    local y = (v % 10000) / 10000
-    return x, y
-end
-
-local GM2_KIND = { Herb = "Herbalism", Mine = "Mining", Gas = "Gas Cloud", Fish = "Fishing", Treasure = "Treasure", Archaeology = "Archaeology" }
-
-function F.ImportGatherMate2()
-    local db = _G.GatherMate2DB or _G.GatherMate2ConfigDB
-    if type(db) ~= "table" then return 0, "GatherMate2 database not found" end
-    local added = 0
-    for dbname, maps in pairs(db) do
-        local kind = GM2_KIND[dbname]
-        if kind and type(maps) == "table" then
-            for mapID, nodes in pairs(maps) do
-                if type(nodes) == "table" and tonumber(mapID) then
-                    for coord in pairs(nodes) do
-                        local x, y = gm2coord(tonumber(coord) or 0)
-                        if x > 0 and x <= 1 and y > 0 and y <= 1 then
-                            if F.Record(tonumber(mapID), x, y, kind, "GatherMate2") then added = added + 1 end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return added
-end
-
-function F.ImportRoutes()
-    local db = _G.RoutesDB
-    if type(db) ~= "table" then return 0, "Routes database not found" end
-    local added = 0
-    local global = db.global or db
-    for _, zoneTbl in pairs(global.routes or {}) do
-        if type(zoneTbl) == "table" then
-            for _, route in pairs(zoneTbl) do
-                if type(route) == "table" and type(route.route) == "table" and route.zone then
-                    local mapID = tonumber(route.zone) or U.MapIDByName(tostring(route.zone))
-                    if mapID then
-                        for _, coord in ipairs(route.route) do
-                            local x, y = gm2coord(tonumber(coord) or 0)
-                            if x > 0 and y > 0 then
-                                if F.Record(mapID, x, y, route.db and GM2_KIND[route.db] or "Route", "Routes") then added = added + 1 end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return added
-end
-
-function F.ImportAll()
-    local total, notes = 0, {}
-    for name, fn in pairs({ GatherMate2 = F.ImportGatherMate2, Routes = F.ImportRoutes }) do
-        local ok, n, err = pcall(fn)
-        if ok and n and n > 0 then total = total + n notes[#notes + 1] = ("%s: %d"):format(name, n)
-        elseif ok and err then notes[#notes + 1] = ("%s: %s"):format(name, err) end
-    end
-    return total, table.concat(notes, ", ")
-end
-
--- ---------------------------------------------------------------------------
 -- Circuit building
 -- ---------------------------------------------------------------------------
 -- Build (or rebuild) a farm circuit for a zone and register it as a loop guide.
@@ -207,7 +138,7 @@ function F.BuildRoute(mapID, kind, opts)
             if wx then pts[#pts + 1] = { wx = wx, wy = wy, inst = inst, map = mapID, x = n.x, y = n.y, kind = n.kind, weight = n.count or 1 } end
         end
     end
-    if #pts < 3 then return nil, ("only %d nodes here - farm a while, or /cr farm import"):format(#pts) end
+    if #pts < 3 then return nil, ("only %d nodes here - farm here a while first"):format(#pts) end
     local tour, len = NS.Loop.Build(pts, { cell = opts.cell or 40, minWeight = opts.minWeight or 1, budget = opts.budget or 40000 })
     if not tour then return nil, len end
     local zoneName = U.MapName(mapID)
@@ -216,7 +147,7 @@ function F.BuildRoute(mapID, kind, opts)
     local speed = U.TravelSpeed and U.TravelSpeed() or 7
     local guide = {
         id = id, name = ("%s - %s circuit"):format(zoneName, kind or "Gathering"), type = "Gold", loop = true,
-        zone = zoneName, source = "CompletionRoute", author = "your account (recorded + imported nodes)",
+        zone = zoneName, source = "CompletionRoute", author = "your account (recorded nodes)",
         text = text, farm = { map = mapID, kind = kind, nodes = #tour, length = len, built = time and time() or nil,
                               lapSeconds = len and speed and (len / math.max(1, speed)) or nil },
     }
@@ -557,10 +488,6 @@ NS:RegisterEvent("LOOT_OPENED", function() pcall(F.OnLoot) end)
 NS:On("PLAYER_READY", function()
     NS:After(4, function()
         pcall(F.RegisterSaved)
-        if NS.db.profile.farm and NS.db.profile.farm.autoImport then
-            local n, notes = F.ImportAll()
-            if n > 0 then NS:Print(("Farm: imported %d gather nodes (%s). /cr farm build"):format(n, notes)) end
-        end
         pcall(F.RegisterSeeds)
     end)
 end)

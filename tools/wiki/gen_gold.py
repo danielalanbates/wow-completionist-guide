@@ -711,7 +711,9 @@ def gather_guides(world, fl, kind, node_zones, node_skill, node_exp, beast_zones
                 if unknown:
                     # the wiki gives no number for these on this client: an expansion floor is a lower bound, not a fact to state
                     high = None
-            what = ", ".join(sorted(set(nodes), key=lambda n: (node_skill.get(n) or 0))[:6])
+            # ties (nodes with the same or no skill number) go by name: a set's own order changes from run to run, and
+            # with it the step's words (a quest-less step's saved mark is keyed by them)
+            what = ", ".join(sorted(set(nodes), key=lambda n: (node_skill.get(n) or 0, n))[:6])
             if fl != "retail" and unknown:
                 skill_note = f"The wiki gives no skill for some of these, so check each node's tooltip for what your {kind} can gather."
             else:

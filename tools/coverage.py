@@ -5,10 +5,13 @@
 # https://batesai.org  help@batesai.org
 """Measure guide coverage per flavor against the client's own lists and chart it in SQL.
 
-    python3 tools/coverage.py [--label before|after] [--guides DIR] [--shippable] [--db PATH]
+    python3 tools/coverage.py [--label L] [--guides DIR] [--db PATH]
 
 Universe (the "total" column), per flavor, from wago.tools DB2 exports cached in tools/db2/<flavor>/:
   quest        QuestV2.csv                       every quest id the client knows (incl. hidden trackers)
+  quest-zone                                     of the covered quests without a point: those with a step that names
+                                                 the zone (|Z| without |M|; the router goes to the zone).  Covered
+                                                 quests = located (point) + quest-zone + no location at all
   achievement  Achievement.csv minus statistics  (Flags & 0x1 = counter/statistic, not an achievement) and minus
                internal rows (title marked DNT, <Hidden>, Hidden Tracking...: gen_completion_guides.internal_achievement)
   storyline    QuestLine x QuestLineXQuest       retail only; covered = every quest of the line is in a guide
@@ -30,14 +33,15 @@ Table `coverage_ach_types` breaks the achievement criteria down by Blizzard Crit
 Table `item_quests` lists every item-started quest of the latest run: item, covered, how its accept step is located,
 and the wiki's reason when a quest is in no guide (tools/wiki/wiki.sqlite flavor_skip).
 
---shippable measures what a release build loads (docs/RELEASE.md): Warcraft Wiki, Blizzard and own data only,
-no Questie-derived gaps or old storyline file, and a step whose note credits its point to fallback data
-("(location: Questie data)" / "(location: Blizzard data)", which the --no-fallback wiki build leaves without a point)
-counts as unlocated.  The default mirrors what the TOCs load on this machine.
+There is one build: the guides measured are the ones the six TOCs load (Warcraft Wiki, Blizzard and own data), read
+from CompletionRoute/Guides.  A file there that credits a point to another addon's data ("(location: Questie data)" /
+"(location: Blizzard data)", the dev build retired on 2026-11-11) is not part of the build and stops the run.
+--shippable (the old name of this mode) is accepted and ignored.  --guides DIR measures another folder as it is (for
+example tools/measure/out, the offline comparison: pass --db too, so the project's chart keeps only the build).
 
 Also folds docs/vplayer_<fl>_noroute.tsv into table `noroute_class`: a step the router could not reach is
 "battleground" (a queue, no travel edge exists by design), "instance" (an instance map: the guide walks you in, or the
-door is not in Data/Imported_Entrances), or "routable" (two open-world maps: a real gap in the travel graph).
+player has not learned its door yet), or "routable" (two open-world maps: a real gap in the travel graph).
 
 Writes tables `coverage` (flavor, category, label, total, covered, missing, located) and `coverage_missing`
 (flavor, category, id) into docs/verification.sqlite; `coverage_missing` holds the latest run only.
@@ -51,32 +55,16 @@ WIKI_DB = ROOT / "tools" / "wiki" / "wiki.sqlite"
 FLAVORS = ["era", "tbc", "mop", "retail", "forever"]
 sys.path.insert(0, str(ROOT / "tools"))
 csv.field_size_limit(1 << 28)
-from gen_completion_guides import internal_achievement, STORY_FILE, OLD_STORY_FILE  # noqa: E402
+from gen_completion_guides import internal_achievement, STORY_FILE  # noqa: E402
 
 
-def story_file(gdir, fl):
-    """the storyline guides the retail TOC loads: the wiki/Blizzard build, or the older file in a checkout without it"""
-    new, old = gdir / STORY_FILE.format(fl=fl), gdir / OLD_STORY_FILE.format(fl=fl)
-    return new if new.exists() or not old.exists() else old
-
-
-# what each client loads (TOC order).  Quests: Imported_Wiki_<fl> (Warcraft Wiki) + Imported_Quests_<fl>_gaps
-# (tools/wiki/gen_wiki_guides.py); a tree generated before the wiki pipeline only has Imported_Quests_<fl>.
-def guide_files(gdir, fl, shippable=False):
-    if shippable:
-        # tools/package_release.py RULES: wiki, Blizzard and own data only (no gaps, no old storylines)
-        names = [f"Imported_Wiki_{fl}.lua", f"Imported_Gold_{fl}.lua", f"Imported_Professions_{fl}.lua",
-                 f"Imported_Achievements_{fl}.lua", STORY_FILE.format(fl=fl), f"Imported_Missions_{fl}.lua"]
-        out = [gdir / n for n in names if (gdir / n).exists()]
-        return out + sorted((gdir / "Leveling").glob("*.lua"))
-    quests = [f"Imported_Wiki_{fl}.lua", f"Imported_Quests_{fl}_gaps.lua"]
-    if not any((gdir / n).exists() for n in quests):
-        quests = [f"Imported_Quests_{fl}.lua"]
-    names = quests + [
-             f"Imported_Achievements_{fl}.lua", story_file(gdir, fl).name, f"Imported_Missions_{fl}.lua"]
+# what each client loads (its TOC; tools/package_release.py RULES): the wiki quest guides, gold, professions,
+# achievements, quest lines, missions and the hand-written guides.  The spine reuses the wiki guides' text.
+def guide_files(gdir, fl):
+    names = [f"Imported_Wiki_{fl}.lua", f"Imported_Gold_{fl}.lua", f"Imported_Professions_{fl}.lua",
+             f"Imported_Achievements_{fl}.lua", STORY_FILE.format(fl=fl), f"Imported_Missions_{fl}.lua"]
     out = [gdir / n for n in names if (gdir / n).exists()]
-    out += sorted((gdir / "Leveling").glob("*.lua"))
-    return out
+    return out + sorted((gdir / "Leveling").glob("*.lua"))
 
 RE_QID = re.compile(r"\|QID\|([\d.^;&]+)")
 RE_ACH = re.compile(r"\|ACH\|(\d+)")
@@ -86,19 +74,26 @@ RE_ACH_CRIT = re.compile(r"\|ACH\|(\d+);(\d+)\|")
 RE_ACH_PART = re.compile(r"\|ACH\|\d+\|(?!FIXED\|)")
 RE_ACH_FIXED = re.compile(r"\|ACH\|(\d+)\|FIXED\|")
 RE_MIS = re.compile(r"\|MISSION\|(\d+)")
-# a point the --no-fallback wiki build does not have (tools/wiki/gen_wiki_guides.py Fallback)
+# a point taken from another addon's data: never in the build (the dev build retired on 2026-11-11, or the offline
+# comparison file of tools/wiki/gen_wiki_guides.py --measure-fallback)
 FALLBACK_NOTE = ("(location: Questie data", "(location: Blizzard data")
 # a storyline accept that only names the quest's map (tools/gen_completion_guides.py gen_questlines) says nothing about
 # where a starting item is obtained: it does not count as a located accept for item-quest
 QUEST_MAP_NOTE = "the quest's map"
-KINDS = ("quest", "achievement", "mission", "achievement-zone", "achievement-nongeo", "accept", "ach-crit")
+KINDS = ("quest", "quest-zone", "achievement", "mission", "achievement-zone", "achievement-nongeo", "accept", "ach-crit")
 RANK = {"none": 0, "zone": 1, "point": 2}
 
 
-def scan(path, shippable=False):
-    """-> dict kind -> {id: located_bool}; "accept" -> {qid: point|zone|none} of A steps, "ach-crit" -> {ct: (ach, how)}"""
+def scan(path, build=False):
+    """-> dict kind -> {id: located_bool}; "quest-zone" -> {qid: True} for a quest with a zone-only step; "accept" ->
+    {qid: point|zone|none} of A steps, "ach-crit" -> {ct: (ach, how)}.  build=True: the file is part of the build, so
+    a step that credits another addon's data stops the run"""
     found = {k: {} for k in KINDS}
     txt = path.read_text(encoding="utf-8", errors="replace")
+    if build and any(n in txt for n in FALLBACK_NOTE):
+        raise SystemExit(f"coverage: {path.name} credits points to another addon's data (the dev build retired on "
+                         "2026-11-11): it is not part of the build. Regenerate it (tools/wiki/gen_wiki_guides.py, then "
+                         "tools/gen_completion_guides.py), or pass --guides DIR to measure another folder as it is.")
     part_loc = part_zone = False   # meta part lines seen since the last FIXED line
     for line in txt.splitlines():
         if "|" not in line:
@@ -107,8 +102,6 @@ def scan(path, shippable=False):
             part_loc = part_zone = False
         loc = "|M|" in line
         zone = "|Z|" in line
-        if shippable and any(n in line for n in FALLBACK_NOTE):
-            loc = zone = False
         how = "point" if loc else ("zone" if zone else "none")
         for m in RE_QID.findall(line):
             for part in re.split(r"[\^;&]", m):
@@ -116,6 +109,8 @@ def scan(path, shippable=False):
                 if part.isdigit():
                     q = int(part)
                     found["quest"][q] = found["quest"].get(q, False) or loc
+                    if zone and not loc:
+                        found["quest-zone"][q] = True
                     if line.startswith(("A ", "a ")):
                         prev = found["accept"].get(q, "none")
                         h = "none" if QUEST_MAP_NOTE in line and not loc else how
@@ -254,8 +249,8 @@ def main():
         gdir = Path(args[args.index("--guides") + 1])
     if "--db" in args:
         db = Path(args[args.index("--db") + 1])
-    shippable = "--shippable" in args
-    print(f"guides {gdir} ({'shippable files only, fallback points unlocated' if shippable else 'what the TOCs load'})")
+    build = "--guides" not in args      # the build's own folder: a file that is not part of the build stops the run
+    print(f"guides {gdir} ({'the build: what the TOCs load' if build else 'another folder, measured as it is'})")
     con = sqlite3.connect(db)
     con.execute("""create table if not exists coverage (flavor text, category text, label text, total int,
                    covered int, missing int, located int, measured text, primary key (flavor, category, label))""")
@@ -267,8 +262,8 @@ def main():
     con.execute("delete from coverage_missing")
     for fl in FLAVORS:
         have = {k: {} for k in KINDS}
-        for f in guide_files(gdir, fl, shippable):
-            for k, d in scan(f, shippable).items():
+        for f in guide_files(gdir, fl):
+            for k, d in scan(f, build).items():
                 for i, loc in d.items():
                     if k == "accept":
                         prev = have[k].get(i, "none")
@@ -302,6 +297,12 @@ def main():
             geo = cat not in NON_GEOGRAPHIC
             put(con, fl, cat, label, total, len(cov), len(loc) if geo else None)
             con.executemany("insert into coverage_missing values (?,?,?)", [(fl, cat, i) for i in miss])
+            if cat == "quest":
+                qzone = sum(1 for i in cov if not have["quest"][i] and have["quest-zone"].get(i))
+                put(con, fl, "quest-zone", label, total, qzone, None)
+                print(f"{label:7} {fl:6} {'quest':11} covered {len(cov):6}: point {len(loc):6} ({100*len(loc)/max(len(cov),1):5.1f}%)"
+                      f"  zone-only {qzone:6} ({100*qzone/max(len(cov),1):5.1f}%)  no location {len(cov) - len(loc) - qzone:6}"
+                      f" ({100*(len(cov) - len(loc) - qzone)/max(len(cov),1):5.1f}%)")
             if cat == "achievement":
                 zone_n = sum(1 for i in have["achievement-zone"] if i in uni and not have["achievement"].get(i))
                 nongeo = sum(1 for i in have["achievement-nongeo"] if i in uni and not have["achievement"].get(i)

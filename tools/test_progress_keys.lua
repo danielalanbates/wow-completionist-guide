@@ -102,7 +102,6 @@ local function harness(flavor, opts)
     end
     -- the previous release (opts.code) predates Routing/CostModel.lua (branch cost-model): load it only when present there
     for _, f in ipairs(files) do load(f, opts.code ~= nil and f == "Routing/CostModel.lua") end
-    load("Data/Imported_Entrances.lua", true)
     if opts.real then
         for _, f in ipairs(tocData(flavor)) do load(f, true) end
         for _, f in ipairs({ "Guides/Leveling/Alliance_Human_01_06_Northshire.lua", "Guides/Leveling/Horde_Orc_Troll_01_06_ValleyOfTrials.lua" }) do load(f, true) end

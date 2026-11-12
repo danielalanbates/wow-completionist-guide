@@ -7,11 +7,13 @@
 
     python3 tools/test_package.py [--keep]
 
-Builds a fixture checkout in a temp folder (under /private/tmp/claude-501 when it exists): the real tracked add-on code
-and LICENSE, plus small clean stand-ins for every generated file the TOCs load, committed to a throwaway git repo, and a
-fake WoW folder with one account and one character. It proves a clean build passes (interop files left out, their TOC
-lines stripped, version stamped, notices present, provenance for every zip entry, reproducible zips, dist/ archiving),
-then plants one bad file per gate rule and proves the gate fails with that rule. It also covers a git worktree whose
+Builds a fixture checkout in a temp folder (CR_TEST_TMP, else /private/tmp/claude-501 when it exists): the real tracked
+add-on code and LICENSE, plus small clean stand-ins for every generated file the TOCs load, committed to a throwaway
+git repo, and a fake WoW folder with one account and one character. It proves a clean build passes (a packaged TOC is
+the source TOC plus the version stamp, notices present, provenance for every zip entry, reproducible zips, dist/
+archiving), then plants one bad file per gate rule and proves the gate fails with that rule: among them every kind of
+file derived from another add-on's data, lying in CompletionRoute/ or listed by a TOC (there is one build, and such a
+file is never part of it). It also covers a git worktree whose
 generated files link into its main checkout (fails by default, passes with --allow-checkout-links), --data-root, the
 --db tables, what --write may move (only its own builds; a failing build never displaces a passing one), the dirty
 flag for packager edits, per-client ATTRIBUTION.md and usage errors. Nothing outside the temp folder is read or
@@ -33,10 +35,12 @@ TOOLS = Path(__file__).resolve().parent
 ROOT = TOOLS.parent
 sys.path.insert(0, str(TOOLS))
 import package_release as pr  # noqa: E402
-from gen_completion_guides import FALLBACK_BUILD  # noqa: E402
 
 GIT = pr.GIT
-TMPROOT = "/private/tmp/claude-501" if os.path.isdir("/private/tmp/claude-501") else None
+TMPROOT = os.environ.get("CR_TEST_TMP") or ("/private/tmp/claude-501" if os.path.isdir("/private/tmp/claude-501") else None)
+# the header a file made from the dev build retired on 2026-11-11 carries (a leftover must still fail the gate)
+OLD_LOCAL_BUILD = ("-- LOCAL BUILD: made from the default build of Imported_Wiki_{fl}.lua, whose fallback rows come from "
+                   "Questie-derived data. It never ships: regenerate after tools/wiki/gen_wiki_guides.py --no-fallback.")
 fails = 0
 
 
@@ -87,18 +91,14 @@ def make_base(tmp):
                     r = pr.rule_for(rel)
                     assert r and r.origin == "generated", f"TOC lists {rel}, which is neither tracked nor generated"
                     (addon / rel).parent.mkdir(parents=True, exist_ok=True)
+                    assert r.category in pr.SHIPPABLE, f"TOC lists {rel}, which never ships ({r.category})"
                     text = STAND_IN[r.category]
-                    if pr.match("Data/QuestDeps_*.lua", rel):     # the release build's header (--wiki-only)
-                        text = "-- test stand-in: Sources: Warcraft Wiki only (release build, --wiki-only).\n" + text
+                    if pr.match("Data/QuestDeps_*.lua", rel):     # the header tools/gen_quest_deps.py writes
+                        text = "-- test stand-in: Sources: Warcraft Wiki only.\n" + text
                     (addon / rel).write_text(text, encoding="utf-8")
-    (addon / "Guides" / "Imported_Quests_era.lua").write_text(STAND_IN["interop-questie"], encoding="utf-8")
-    # the storylines file built before 2026-11-11 (Questie-derived) stays in a checkout that has not been regenerated;
-    # no TOC loads it any more (Imported_QuestLines_retail.lua replaced it)
-    (addon / "Guides" / "Imported_Storylines_retail.lua").write_text(STAND_IN["interop-questie"], encoding="utf-8")
-    # one shipped wiki guide with its baked order row, and one Questie-derived _gaps guide (no row yet)
+    # one shipped wiki guide with its baked order row
     append(addon / "Guides" / "Imported_Wiki_era.lua", 'R({ id="wiki:era:1429:Both", name="Test", type="Quests", text=[==[\n]==] })\n')
     append(addon / "Data" / "RouteOrder_era.lua", 'O["wiki:era:1429:Both"] = { n = 2, sum = 1, o = "2,1" }\n')
-    append(addon / "Guides" / "Imported_Quests_era_gaps.lua", 'R({ id="qdb:era:1:Alliance", name="Gap", type="Quests", text=[==[\n]==] })\n')
     git(base, "init", "-q")
     git(base, "add", "-A")
     git(base, "commit", "-qm", "fixture")
@@ -174,11 +174,9 @@ def main():
         check(all(r["category"] in pr.SHIPPABLE for r in man["files"]), "every packaged file has a shippable category")
         check(all(r["generator"] and r["source"] and r["licence"] for r in man["files"]), "every packaged file names licence, source and generator")
         names = {r["path"] for r in man["files"]}
-        check(not any("Imported_WoWPro_" in n or "_gaps" in n or "Imported_Storylines" in n or "Imported_Entrances" in n
-                      or n.endswith("Imported_Quests_era.lua") for n in names), "WoW-Pro and Questie-derived files are not packaged")
-        check({e["path"] for e in man["excluded"]} >= {"Guides/Imported_Quests_era_gaps.lua",
-                                                       "Guides/Imported_Storylines_retail.lua", "Data/Imported_Entrances.lua",
-                                                       "Guides/Imported_Quests_era.lua"}, "excluded files are listed with a reason")
+        check(not any("Imported_WoWPro_" in n or "Imported_Quests_" in n or "Imported_Storylines" in n or "/Data/Imported_" in n
+                      for n in names), "no WoW-Pro- or Questie-derived file is packaged")
+        check(man["excluded"] == [] and "toc_lines_stripped" not in man, "the clean checkout holds no never-shipped file and nothing is stripped")
         check({"LICENSE.txt", "ATTRIBUTION.md", "README.md"} <= set(res.files), "LICENSE.txt, ATTRIBUTION.md and README.md are added")
         ql = [r for r in man["files"] if r["path"].endswith("/Guides/Imported_QuestLines_retail.lua")]
         check(len(ql) == 1 and ql[0]["category"] == "wiki-cc-by-sa" and "QuestLine" in ql[0]["source"],
@@ -203,12 +201,17 @@ def main():
         check(all(n.startswith(pr.ADDON + "/") for n in znames), "every zip entry sits in the CompletionRoute/ folder")
         check("## Version: 9.9.9-test1" in vanilla and "## Version: 9.9.9-test1" not in src_vanilla,
               "version stamped into the packaged TOC only")
-        check("Imported_Quests_era_gaps" not in vanilla and "Imported_Quests_era_gaps" in src_vanilla,
-              "interop TOC lines stripped in the packaged copy only")
         with zipfile.ZipFile(uni) as z:
             forever = z.read(f"{pr.ADDON}/CompletionRoute_Forever.toc").decode()
-        check("Imported_Quests_forever_gaps" not in forever and "Imported_Entrances" not in forever
-              and "Imported_Wiki_forever" in forever, "Forever TOC loses its gaps and entrance lines, keeps its wiki guides")
+            same = []
+            for toc in sorted(t for tocs in pr.CLIENTS.values() for t in tocs):
+                src_lines = (d / pr.ADDON / toc).read_text(encoding="utf-8").splitlines()
+                pkg_lines = z.read(f"{pr.ADDON}/{toc}").decode().splitlines()
+                diff = [(a, b) for a, b in zip(src_lines, pkg_lines) if a != b]
+                same.append(len(src_lines) == len(pkg_lines) and len(diff) == 1 and diff[0][1] == "## Version: 9.9.9-test1")
+        check(len(same) == 6 and all(same), "each of the six packaged TOCs differs from its source TOC only by the stamped version")
+        check("_gaps" not in forever and "Imported_Entrances" not in forever and "Imported_Wiki_forever" in forever,
+              "Forever TOC lists its wiki guides and no gaps or entrance file")
         prov = json.loads((v1 / "provenance.json").read_text())
         recorded = {r["path"] for r in prov["files"]}
         check(prov["gate"]["result"] == "PASS" and znames <= recorded, "provenance.json covers every zip entry")
@@ -293,11 +296,33 @@ def main():
             git(d, "add", "-A"); git(d, "commit", "-qm", "plant")
         expect_fail(env, "texture type with no rule", "no-provenance", "Textures/odd.blp", plant_texture)
 
-        def plant_deps(d, addon):     # the local build of the quest prerequisite index (gaps guides + storylines)
+        # ---- one build: nothing derived from another add-on's data may be in CompletionRoute/ or in a TOC -------------
+        for rel, kind in (("Guides/Imported_Quests_era_gaps.lua", "a leftover _gaps guide file"),
+                          ("Guides/Imported_Quests_era.lua", "a leftover Questie-derived guide file (measurement input)"),
+                          ("Guides/Imported_Storylines_retail.lua", "the old Questie-derived storylines"),
+                          ("Data/Imported_Entrances.lua", "the Questie-derived dungeon doors"),
+                          ("Data/Imported_Anything.lua", "any generated file in Data/Imported_*"),
+                          ("Guides/Imported_WoWPro_era.lua", "a leftover WoW-Pro export")):
+            res, text = expect_fail(env, f"{kind} lying in the checkout (no TOC lists it)", "interop-derived", rel,
+                                    lambda d, a, rel=rel: (a / rel).write_text(STAND_IN["interop-questie"], encoding="utf-8"))
+            check(not any(r["path"].endswith("/" + rel) for r in pr.manifest(res)["files"]), "... and it is not packaged")
+        def plant_gaps_line(d, a):      # the dev build's TOC line, with its file
+            (a / "Guides" / "Imported_Quests_era_gaps.lua").write_text(STAND_IN["interop-questie"], encoding="utf-8")
+            append(a / "CompletionRoute_Vanilla.toc", "Guides\\Imported_Quests_era_gaps.lua\n")
+            git(d, "add", "-A"); git(d, "commit", "-qm", "plant")
+        res, _ = expect_fail(env, "a TOC that lists a _gaps guide file", "interop-derived", "CompletionRoute_Vanilla.toc", plant_gaps_line)
+        check(has(res, "interop-derived", "Guides/Imported_Quests_era_gaps.lua"), "... and the file itself fails too")
+        def plant_entrance_line(d, a):  # the line alone: the file is gone, the TOC still names it
+            append(a / "CompletionRoute_TBC.toc", "Data\\Imported_Entrances.lua\n")
+            git(d, "add", "-A"); git(d, "commit", "-qm", "plant")
+        expect_fail(env, "a TOC that lists Data/Imported_Entrances.lua (file absent)", "interop-derived", "CompletionRoute_TBC.toc",
+                    plant_entrance_line)
+
+        def plant_deps(d, addon):     # the quest prerequisite index of the retired dev build (gaps guides + storylines)
             (addon / "Data" / "QuestDeps_era.lua").write_text(
                 "-- then the gaps guides (Questie-derived) and the retail storylines for quests the wiki lacks.\n"
                 "local _, NS = ...\n", encoding="utf-8")
-        expect_fail(env, "quest prerequisite index not built --wiki-only", "interop-derived", "Data/QuestDeps_era.lua", plant_deps)
+        expect_fail(env, "quest prerequisite index left over from the dev build", "interop-derived", "Data/QuestDeps_era.lua", plant_deps)
         expect_fail(env, "Questie fallback line in wiki data", "interop-derived", "Guides/Imported_Wiki_era.lua",
                     lambda d, a: append(a / "Guides" / "Imported_Wiki_era.lua",
                                         "T Foo|QID|5|M|1,1|Z|1; X|N|To Foo. (location: Questie data)|\n"))
@@ -305,21 +330,25 @@ def main():
                     "Guides/Imported_QuestLines_retail.lua",
                     lambda d, a: append(a / "Guides" / "Imported_QuestLines_retail.lua",
                                         "T Foo|QID|5|M|1,1|Z|1; X|N|To Foo. (location: Questie data)|\n"))
-        # achievements and quest lines made from the default (fallback) wiki build say so in their header
-        # (tools/gen_completion_guides.py FALLBACK_BUILD): the release needs the files made from the --no-fallback build
+        # achievements and quest lines made from the retired dev build's wiki file said so in their header: a leftover
+        # still fails (tools/gen_completion_guides.py now refuses such a wiki file instead of writing from it)
         for rel, fl in (("Guides/Imported_QuestLines_retail.lua", "retail"), ("Guides/Imported_Achievements_mop.lua", "mop")):
-            expect_fail(env, f"{rel} made from the default (fallback) wiki build", "interop-derived", rel,
-                        lambda d, a, rel=rel, fl=fl: append(a / rel, FALLBACK_BUILD.format(fl=fl) + "\n"))
+            expect_fail(env, f"{rel} left over from the dev build", "interop-derived", rel,
+                        lambda d, a, rel=rel, fl=fl: append(a / rel, OLD_LOCAL_BUILD.format(fl=fl) + "\n"))
+        expect_fail(env, "the offline measurement file copied over the wiki guides", "interop-derived", "Guides/Imported_Wiki_tbc.lua",
+                    lambda d, a: (a / "Guides" / "Imported_Wiki_tbc.lua").write_text(
+                        "-- MEASUREMENT ONLY, never part of the add-on (tools/wiki/gen_wiki_guides.py --measure-fallback): steps whose\n"
+                        "-- note says \"(location: Blizzard data)\" / \"(location: Questie data)\" took their map point from the\n"
+                        'error("measurement file")\n', encoding="utf-8"))
         def plant_old_story(d, a):
             toc = a / "CompletionRoute.toc"
             toc.write_text(toc.read_text().replace("Guides\\Imported_QuestLines_retail.lua", "Guides\\Imported_Storylines_retail.lua"))
+            (a / "Guides" / "Imported_Storylines_retail.lua").write_text(STAND_IN["interop-questie"], encoding="utf-8")
             git(d, "add", "-A"); git(d, "commit", "-qm", "plant")
-        d = env.scenario()
-        plant_old_story(d, d / pr.ADDON)
-        code, res, man, _ = env.run(d)
-        check(code == 0 and not any(r["path"].endswith("/Guides/Imported_Storylines_retail.lua") for r in man["files"])
-              and any("Imported_Storylines_retail.lua" in x["line"] for x in man["toc_lines_stripped"]),
-              "a TOC that still lists the old Questie-derived storylines: its line is stripped and the file never ships")
+        res, _ = expect_fail(env, "a TOC that still lists the old Questie-derived storylines", "interop-derived",
+                             "CompletionRoute.toc", plant_old_story)
+        check(not any(r["path"].endswith("/Guides/Imported_Storylines_retail.lua") for r in pr.manifest(res)["files"]),
+              "... and the file is not packaged")
         # retail client quest pins (2026-11-11 review): a step whose point is a Blizzard quest pin ships only in a file
         # whose header names QuestPOIBlob + QuestPOIPoint and the client build
         poi_step = "T Foo|QID|5|M|50.0,50.0|Z|1; X|N|To Foo. (location: Blizzard quest POI, the turn-in area)|\n"
@@ -346,14 +375,19 @@ def main():
             (a / "Guides" / "Imported_WoWPro_era.lua").write_text(STAND_IN["interop-wowpro"], encoding="utf-8")
             git(d, "add", "-A"); git(d, "commit", "-qm", "plant")
         expect_fail(env, "WoW-Pro file pulled in through an XML include", "interop-derived", "Guides/Imported_WoWPro_era.lua", plant_xml)
+        def plant_gap_row(d, a):        # a leftover _gaps guide file and the row an old bake made for its guide
+            append(a / "Guides" / "Imported_Quests_era_gaps.lua", 'R({ id="qdb:era:1:Alliance", name="Gap", type="Quests", text=[==[\n]==] })\n')
+            append(a / "Data" / "RouteOrder_era.lua", 'O["qdb:era:1:Alliance"] = { n = 2, sum = 1, o = "1,2" }\n')
         res, _ = expect_fail(env, "baked order row for a Questie-derived _gaps guide", "interop-derived", "Data/RouteOrder_era.lua",
-                             lambda d, a: append(a / "Data" / "RouteOrder_era.lua", 'O["qdb:era:1:Alliance"] = { n = 2, sum = 1, o = "1,2" }\n'))
+                             plant_gap_row)
         check(any("qdb: 1" in f.detail for f in res.failures), "the finding counts the rows by guide-id prefix")
         d = env.scenario()
-        append(d / pr.ADDON / "Data" / "RouteOrder_tbc.lua", 'O["wiki:tbc:9999:Both"] = { n = 2, sum = 1, o = "1,2" }\n')
+        append(d / pr.ADDON / "Data" / "RouteOrder_tbc.lua", 'O["wiki:tbc:9999:Both"] = { n = 2, sum = 1, o = "1,2" }\n'
+               'O["qdb:tbc:1:Alliance"] = { n = 2, sum = 1, o = "1,2" }\n')
         code, res, _, _ = env.run(d)
-        check(code == 0 and any("RouteOrder_tbc.lua" in w and "stale" in w for w in res.warnings),
-              "a baked row for a guide that exists nowhere is a warning (stale bake), not a failure")
+        check(code == 0 and any("RouteOrder_tbc.lua" in w and "stale" in w and "2 baked order row" in w for w in res.warnings),
+              "baked rows for guides that exist nowhere (a deleted wiki guide, a deleted _gaps guide) are a warning (stale "
+              "bake), not a failure")
         expect_fail(env, "data that says do not redistribute", "not-redistributable", "Guides/Imported_Missions_retail.lua",
                     lambda d, a: (a / "Guides" / "Imported_Missions_retail.lua").write_text(
                         "-- (wago.tools DB2 exports).  Local use only - gitignored, do not redistribute.\n"))

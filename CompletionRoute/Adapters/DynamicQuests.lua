@@ -1,5 +1,5 @@
 -- CompletionRoute :: Adapters/DynamicQuests.lua
--- Retail has no Questie database, so "every quest" is covered live from the client instead:
+-- Retail quests the wiki has no page for are covered live from the client:
 -- each zone you visit gets a "<Zone> Quests (Live)" guide built from C_QuestLog.GetQuestsOnMap
 -- (every quest currently offered/active on that map, with POI coords). The guide's text is a
 -- function, so /or scan (or re-entering the zone) rebuilds it with fresh data.

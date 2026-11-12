@@ -4,7 +4,8 @@
 Copyright (c) 2026 Daniel Bates. All rights reserved. PolyForm Noncommercial 1.0.0 + commercial rider (see LICENSE).
 https://batesai.org - help@batesai.org
 
-Bakes every quest guide whose result row is missing or stale, one heavy process at a time, and is safe to kill and
+Bakes every shipped quest guide (the wiki zone guides: tools/cost_matrix.lua lists ids with the prefix "wiki:" and loads
+only files the TOCs load) whose result row is missing or stale, one heavy process at a time, and is safe to kill and
 re-run: the to-do set is recomputed from `luajit tools/cost_matrix.lua <flavor> --list` (id, step count, checksum, cost
 model version) against the optimizer's result rows on every start, so finished guides are never redone.
 
@@ -115,7 +116,7 @@ def mapfix_ids(fl, quest_ids):
     if fl not in ("era", "tbc", "forever"):
         return []
     hit = set()
-    for name in (f"Imported_Wiki_{fl}.lua", f"Imported_Quests_{fl}_gaps.lua"):
+    for name in (f"Imported_Wiki_{fl}.lua",):
         p = os.path.join(REPO, "CompletionRoute", "Guides", name)
         if not os.path.exists(p):
             continue

@@ -99,7 +99,7 @@ outPath = outPath or ("docs/vplayer_" .. flavor .. (shardN > 1 and ("_" .. shard
 local stallPath = outPath:gsub("%.tsv$", "") .. "_stalls.tsv"
 
 -- forever = WoW Forever (wowf 1.60.x, Interface 16001): the era code path (NS.flavor "era", NS.isForever) on
--- Forever's own maps (tools/maps_forever.lua), taxi network, map fix and wiki/gaps guides.
+-- Forever's own maps (tools/maps_forever.lua), taxi network, map fix and wiki guides.
 local TOC = { era = 11507, tbc = 20506, mop = 50504, retail = 120100, forever = 16001 }
 local TAXI = { era = "Data/Taxi_era.lua", tbc = "Data/Taxi_tbc.lua", mop = "Data/Taxi_mop.lua", retail = "Data/Taxi_retail.lua",
                forever = "Data/Taxi_forever.lua" }
@@ -192,12 +192,12 @@ local function load(path)
     f:close()
     assert(loadfile(full))(ADDON, NS)
 end
-for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], EXTRA[flavor] or TAXI[flavor], "Data/Transit.lua", "Data/Imported_Entrances.lua", "Data/Access.lua",
+for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], EXTRA[flavor] or TAXI[flavor], "Data/Transit.lua", "Data/Access.lua",
     "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
     "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
     "Core/Account.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
-    -- quest guides exactly as the flavor TOC loads them: wiki guides + the older generated guides' gaps
-    ("Guides/Imported_Wiki_" .. flavor .. ".lua"), ("Guides/Imported_Quests_" .. flavor .. "_gaps.lua"),
+    -- quest guides exactly as the flavor TOC loads them: the wiki guides
+    ("Guides/Imported_Wiki_" .. flavor .. ".lua"),
     ("Guides/Imported_Achievements_" .. flavor .. ".lua"), ("Guides/Imported_QuestLines_" .. flavor .. ".lua"),
     ("Guides/Imported_Missions_" .. flavor .. ".lua") }) do load(f) end
 -- the spine reuses the wiki guides' text under "spine:" ids; only with --spine, so a default run plays each guide once

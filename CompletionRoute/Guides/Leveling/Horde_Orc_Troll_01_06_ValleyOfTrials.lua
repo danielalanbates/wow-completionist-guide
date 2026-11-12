@@ -1,7 +1,7 @@
 -- CompletionRoute community guide.  License: CC BY-SA 4.0.  Format: see docs/GUIDE_FORMAT.md
 -- Author: CompletionRoute contributors (initial: BatesAI). Zone: Durotar (uiMap 1411). Flavor: Classic Era / Anniversary / TBC.
 local _, NS = ...
--- pre-Cataclysm quests (783, 4641, ...) do not exist on Cata/MoP clients (tools/audit_quest_locations.lua found no reference there)
+-- pre-Cataclysm quests (783, 4641, ...) do not exist on Cata/MoP clients (an offline audit in 2026 found no giver for them there)
 if NS.flavor == "cata" or NS.flavor == "mop" then return end
 NS.Guide.Register({
     id = "OR_OrcTroll_01_06_ValleyOfTrials", name = "Orc/Troll Starter: Valley of Trials (1-6)", type = "Leveling", zone = "Durotar",

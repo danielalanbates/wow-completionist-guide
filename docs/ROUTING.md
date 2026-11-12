@@ -163,7 +163,9 @@ FROM route_sweep GROUP BY flavor ORDER BY flavor;
 
 ## Tier A: offline route optimizer (FINISH_PLAN W3, 2026-11-07)
 
-Bakes, per quest guide (wiki zone guides `wiki:*` + gaps guides `qdb:*`/`qpoi:*`), the fastest legal step order.
+Bakes, per shipped quest guide (the wiki zone guides, ids `wiki:*`), the fastest legal step order. (Until 2026-11-11
+the bake also ordered the Questie-derived `qdb:*`/`qpoi:*` gaps guides of the dev build; those guides are gone, and the
+measurements below that name such ids are history.)
 
 1. `luajit tools/cost_matrix.lua <fl> [--sample K] [--guide ID] [--exact] [--taxi faction|band]` loads the real addon
    (parser, TravelGraph with the flavor's taxi/transit/roads/access, Router) and writes one JSON line per guide to
@@ -196,11 +198,10 @@ Bakes, per quest guide (wiki zone guides `wiki:*` + gaps guides `qdb:*`/`qpoi:*`
 4. Measure: `luajit tools/vplayer.lua <fl> --guides-file F --order author|baked --live on|off`, then
    `python3 tools/collect_routes.py collect` -> `route_compare`, `opt_violations` in `docs/verification.sqlite`.
    Check: `luajit tools/test_route_order.lua` (fails on a stale entry) and `luajit tools/test_cost_parity.lua`.
-5. Release bake (2026-11-10, `docs/RELEASE.md`). The dev bake also orders the Questie-derived `qdb:`/`qpoi:` gaps
-   guides, and its costs use the fallback points and `Data/Imported_Entrances.lua`. `tools/package_release.py` fails a
-   `RouteOrder` row for a guide that never ships. A release bake runs `cost_matrix.lua <fl> --prefix wiki:` inside the
-   packager's staged add-on (`--stage-dir`), so only shipped files are loaded, and the packager reads the result
-   through `--data-root`.
+5. One bake (2026-11-11, `docs/RELEASE.md`). There is no separate release bake: `tools/cost_matrix.lua` loads only
+   files the TOCs load (no `_gaps` guides, no `Data/Imported_Entrances.lua`) and lists only `wiki:` guides, so
+   `tools/bake_resume.py` bakes exactly what ships. `tools/package_release.py` fails a `RouteOrder` row for a guide
+   that only a never-shipped file registers and notes rows that name no guide.
 
 ## Skipping quests
 
@@ -220,8 +221,9 @@ objectives and turn-in with nothing to work on. On a turn-in that other quests n
 `/cr unskip <questID|all>`, `/cr skipped`.
 
 **Data.** Quest ids are global, so a drop applies to every guide. The reverse index is built offline per client by
-`tools/gen_quest_deps.py` from the generated guides that client loads, in priority order wiki -> gaps guides -> retail
-storylines (a quest's prerequisites come from the first source that has the quest at all). No other addon's guide text is read. Fields: `pre` (hard prerequisites), `free` (predecessors a quest's guides list but
+`tools/gen_quest_deps.py` from the wiki quest guides that client loads (`Imported_Wiki_<flavor>.lua`), and from nothing
+else. For a quest the index lacks, a guide outside the wiki and spine families (quest lines, hand-written, live) speaks
+through its own `|PRE|` tags. No other addon's guide text is read. Fields: `pre` (hard prerequisites), `free` (predecessors a quest's guides list but
 that were dropped as soft), `crumb` (breadcrumb quests), `never` (quests the hard prerequisites make unobtainable: a cycle
 with no way in, and what needs it), `name`. Output `Data/QuestDeps_<flavor>.lua` is gitignored, loaded by each TOC after
 its RouteOrder file, shipped per client by `tools/install.sh`, and parsed on first use (about 12 ms on retail, once).
@@ -250,7 +252,7 @@ step until its PRE is done. So a PRE predecessor the player skipped that is soft
 longer waited for (`Skip.PreOpen`), and the target stays fully doable: accept, objectives and turn-in. On era, skipping
 Eagan Peltskinner (5261) leaves Wolves Across the Border (33) with its accept as the next step, Deliveries to Sven (164)
 no longer blocks Sven's Revenge (95), and the three "A Call to Arms: The Plaguelands!" breadcrumbs no longer block Clear
-the Way (5092). Gaps-guide and storyline edges have no breadcrumb information.
+the Way (5092). A quest-line guide's own `|PRE|` edges have no breadcrumb information.
 
 **Lock rule.** First the dropped quest's dependents are found (index edges, transitively). Then the ones that can still
 be had are grown from what lies outside them (least fixpoint): `p1;p2` opens with any one, `p1&p2` needs all. Growing
@@ -266,7 +268,7 @@ not named or counted in the warning (tbc, Blood Elf mage, Reclaiming Sunstrider 
 
 **What one guide loses.** A guide only offers a quest once one of that quest's accept steps (that this character can see)
 opens. When every one of them waits, through the guide's own `|PRE|`, on a removed quest the index does not link
-(storylines order quests the wiki does not chain; the first-source rule), the quest is out of that guide,
+(quest lines order quests the wiki does not chain), the quest is out of that guide,
 with every step and with what needs it there. This is per guide, not a shared lock, because another guide may still
 offer the quest. The loaded guide's losses are part of the warning ("N of them only here"); other guides work theirs out
 when opened, and `/cr unskip` on such a quest says why it is out. Measured by dropping every PRE predecessor of an accept,

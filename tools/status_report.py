@@ -8,11 +8,15 @@
     python3 tools/status_report.py [--markdown] [--label L]
 
 Reads SQL only and writes nothing.  A number whose table or row does not exist yet prints as "-", never as 0.
---label L reads the coverage rows of one tools/coverage.py label (for example a --shippable run); default: the newest.
+--label L reads the coverage rows of one tools/coverage.py label; default: the newest.  There is one build, so every
+number describes what the TOCs load, tools/install.sh installs and a release ships.
 
   guides        zone guides the generator wrote (wiki.sqlite gen_stats) and, in brackets, spine guides (guide_parts/spine_order)
   quests        quest ids in a loaded guide / quest ids the client has (coverage, newest label)
-  located       share of those covered quests with a map location (coverage)
+  located       share of those covered quests with a map point (coverage)
+  zone only     share of the covered quests with no point but a step that names the zone (coverage quest-zone; "-" for a
+                label measured before 2026-11-11 night, which has no such row)
+  no location   the rest of the covered quests: no point and no zone
   ach located   achievements with a point or a zone-only step / achievements minus the non-geographic ones (the plan's
                 80% target; coverage rows achievement, achievement-zone, achievement-nongeo of one label)
   item quests   item-started quests whose accept step (where the item is obtained) has a point or a zone (coverage
@@ -82,6 +86,14 @@ def ach_share(con, fl):
     if not z or not n:
         return pct(a[2], a[1])
     return pct((a[2] or 0) + z[1], a[0] - n[1])
+
+
+def quest_zone(con, fl, q):
+    """(zone-only share, no-location share) of the covered quests, from the same label as the quest row"""
+    z = coverage(con, fl, "quest-zone", q[3]) if q else None
+    if not q or not q[1] or not z:
+        return "-", "-"
+    return pct(z[1], q[1]), pct(q[1] - (q[2] or 0) - z[1], q[1])
 
 
 def item_share(con, fl):
@@ -168,12 +180,15 @@ def rows():
         rc = route(verif, fl)
         vp = vplayer(verif, fl)
         zone, spine = wiki_guides(wiki, fl), spine_guides(verif, fl)
+        qz, qn = quest_zone(verif, fl, q)
         out.append({
             "flavor": fl,
             "guides": f"{show(zone)} ({show(spine)})",
             "quests": f"{q[1]} / {q[0]}" if q else "-",
             "covered": pct(q[1], q[0]) if q else "-",
             "located": pct(q[2], q[1]) if q else "-",
+            "zone only": qz,
+            "no location": qn,
             "ach located": ach_share(verif, fl) if ach and ach[1] else "-",
             "item quests": item_share(verif, fl),
             "vplayer": f"{vp[0]}/{vp[1]} ({vp[2]} stalls)" if vp else "-",

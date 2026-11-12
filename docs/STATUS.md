@@ -1,4 +1,271 @@
-# Status / handoff (newest section first; 2026-11-11 evening: everything merged into `integration`, data regenerated, rebake running)
+# Status / handoff (2026-11-12: one build, the public one; a full rebake is needed)
+
+## 2026-11-12: one build (`public-build-only`)
+
+Owner's decision ("i'm building an addon for the general public", "i should only be using the public version"): the
+build on his clients must be exactly what a player gets from a public release. Until now his machine ran a dev build
+with Questie-derived extras that never shipped. Those are gone. **Offline only: nothing here has run in a real WoW
+client.** Branch `public-build-only` (worktree `wt-public`, its own copy of the data; `master` of 2026-11-12 is
+merged in), not merged into `master`, not pushed, not installed. The main checkout, the Drive copy and the five
+clients still hold the dev build until the steps under *To apply* below are run.
+
+**What "one build" means now.** The six TOCs list only what ships. `tools/install.sh` installs only that and stops on
+anything else. The generators write it by default. The bake covers it. The packager's gate passes on it, and a
+packaged TOC is the source TOC plus the version stamp.
+
+**Removed from the build**
+
+* `Guides/Imported_Quests_<flavor>_gaps.lua`: guides made from a Questie checkout for quests the wiki has no page for
+  (97 Era, 169 TBC, 434 MoP, 207 Retail, 97 Forever guides in the guide list).
+* The Questie-derived map points inside the wiki guides (steps that said `(location: Questie data)` or
+  `(location: Blizzard data)`). A step the wiki cannot place now names its zone, or has no location and says so.
+* `Data/Imported_Entrances.lua` (dungeon doors from Questie). A door is known once the player has walked in, or the
+  Retail journal gives it. On the Classic clients a fresh character knows none, and a step inside a dungeon is
+  "no route" until then.
+* The local build of `Data/QuestDeps_<flavor>.lua` (it also read the gaps guides and the quest lines). The index is
+  built from the wiki guides only; a quest-line guide's own `PRE` tags fill in what it lacks (`Core/Skip.lua`).
+* Baked route orders for the gaps guides, and every baked order whose guide changed (see *Route orders*).
+* The gathering-node import (same reason, added 2026-11-12): `Core/Farm.lua` copied nodes from GatherMate2 and
+  Routes at login when they were installed (`profile.farm.autoImport`, `/cr farm import`). The import, its option,
+  its command, the in-client check and its test are gone; the nodes the player loots are still recorded and
+  `/cr farm export` still works. The dead `/cr import` (it called adapter importers; none is left) went with it.
+  Still there, and the owner's call: a lap is priced through Auctionator's public price function when that addon is
+  loaded, and the TOCs name TomTom as an optional dependency that no code uses.
+
+**What the owner loses on his own clients** (before = the dev build in `repo/` after the WoW-Pro removal, measured
+read-only with the same scanner, label `dev-before-2026-11-11`; after = label `public-2026-11-11`; both in the
+worktree's `docs/verification.sqlite`. The evening table below still counted WoW-Pro guides, so its numbers are a
+little higher than this "before").
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Wiki quest guides, before -> after | 139 -> 137 | 183 -> 189 | 335 -> 336 | 811 -> 836 | 146 -> 142 |
+| Gaps guides, before -> after | 97 -> 0 | 169 -> 0 | 434 -> 0 | 207 -> 0 | 97 -> 0 |
+| Spine (leveling) entries, before -> after | 184 -> 182 | 243 -> 254 | 476 -> 475 | 1,277 -> 1,317 | 193 -> 189 |
+| Quests in a guide, before | 3,554 | 5,845 | 16,562 | 33,266 | 3,741 |
+| Quests in a guide, after | 3,302 | 5,024 | 11,155 | 32,452 | 3,489 |
+| ... of the client's quests | 4,807 | 6,160 | 17,140 | 66,552 | 6,616 |
+| Quests lost from the guides | 252 | 821 | 5,407 | 814 | 252 |
+| With a map point, before | 3,471 (97.7%) | 5,584 (95.5%) | 15,068 (91.0%) | 26,577 (79.9%) | 3,637 (97.2%) |
+| With a map point, after | 2,431 (73.6%) | 3,852 (76.7%) | 8,627 (77.3%) | 24,780 (76.4%) | 2,596 (74.4%) |
+| Zone only (no point), before | 43 (1.2%) | 50 (0.9%) | 40 (0.2%) | 3,674 (11.0%) | 59 (1.6%) |
+| Zone only (no point), after | 771 (23.3%) | 1,115 (22.2%) | 2,085 (18.7%) | 4,371 (13.5%) | 788 (22.6%) |
+| No location at all, before | 40 (1.1%) | 211 (3.6%) | 1,454 (8.8%) | 3,015 (9.1%) | 45 (1.2%) |
+| No location at all, after | 100 (3.0%) | 57 (1.1%) | 443 (4.0%) | 3,301 (10.2%) | 105 (3.0%) |
+| Wiki-guide steps with a point, before | 88.7% | 91.0% | 94.9% | 74.7% | 87.5% |
+| Wiki-guide steps with a point, after | 48.5% | 52.1% | 57.0% | 71.1% | 49.3% |
+| Achievements located (point or zone) | - | - | 84.8% -> 84.9% | 82.7% -> 82.7% | - |
+| Item-started quests with a located accept, before | 113 / 269 | 194 / 213 | 330 / 418 | 1,051 / 1,458 | 123 / 456 |
+| Item-started quests with a located accept, after | 101 / 269 | 179 / 213 | 267 / 418 | 1,034 / 1,458 | 111 / 456 |
+| ... of those, the accept has a map point (not only a zone), before -> after | 71 -> 32 | 133 -> 68 | 251 -> 98 | 415 -> 304 | 71 -> 32 |
+| Generated data this client loads, MB | 2.18 -> 1.83 | 3.21 -> 2.74 | 9.18 -> 7.42 | 31.35 -> 31.21 | 2.28 -> 1.93 |
+
+In words: a quest counts as "with a map point" when at least one of its steps has one. On the three Classic-era
+clients about one covered quest in four now has no point on any step (the arrow goes to the zone, not to the NPC), and
+about half of all wiki-guide steps have no point. MoP Classic also loses a third of its covered quests (the wiki has
+no page for them). Retail changes least, because Blizzard's own quest pins ship. Percentages are of the covered
+quests; step shares are `wiki_point_sources` (the gaps guides' own steps are not in the "before" step share).
+
+**Route orders: almost nothing is baked until the rebake.** A baked order applies only while its guide's step count
+and checksum match, and the checksum covers each step's zone and first point. Removing the fallback points changed
+nearly every wiki guide. `Data/RouteOrder_<flavor>.lua` in the worktree was rewritten by the optimizer's write-only
+mode (`optimize_routes.py --merge --current`, on a scratch copy of the result rows) and now holds only rows that still
+match a shipped guide: era 1 (was 123, 36 of them gaps guides), tbc 0 (227, 93), mop 0 (501, 217), retail 4 (854,
+159), forever 2 (130, 47). No row for a guide that no longer exists, no stale row; `test_route_order` passes and
+reports tbc and mop as NOT BAKED. Until `tools/bake_resume.py` runs, every other guide plays in author order with
+the live window. Its dry run (list mode, against a scratch copy of the result rows) counts 1,611 of the 1,640 wiki
+guides to do: tbc 183, forever 131, era 132, mop 334, retail 831. The 7 kept rows (`wiki:era:1421:Both`,
+`wiki:retail:1408:Alliance`, `wiki:retail:1408:Horde`, `wiki:retail:588:Horde`, `wiki:retail:630:Alliance`,
+`wiki:forever:1421:Both`, `wiki:forever:2521:Both`) were solved while the entrance seeds were still loaded; pass
+them in `--force-file` to solve them again. No bake was run here.
+
+**Code and tools**
+
+* Addon: six TOCs (two lines out of each), `Core/Instances.lua` (no seeded doors), `Core/Skip.lua` (the index
+  families), `Core/Farm.lua`, `Core/Init.lua`, `Core/Slash.lua` (the import), comments.
+* `tools/wiki/gen_wiki_guides.py` writes the build by default (`--no-fallback` is accepted and ignored).
+  `tools/gen_quest_deps.py` reads the wiki guides only. `tools/gen_completion_guides.py` stops on a wiki file that
+  still holds another addon's points, and the quest-line file now repeats the wiki file's header line that names
+  the Blizzard quest-pin tables and their client build (the gate asked for it).
+* A generator fix the change exposed. Without the fallback points, two `test_wiki` checks failed: a step with no
+  wiki point took the quest-log category because the NPC page's lead linked that zone for another reason (Archmage
+  Malin "sent" agents to Arathi; Vivian Lagrave's lead names where she stands today). On Era, TBC and Forever a
+  lead link now counts only in a sentence that says the NPC is there, and not at all when the page says the NPC
+  stood elsewhere before the Cataclysm. MoP and Retail are unchanged (tried there, the same rule changed 60 Retail step
+  lines, many to a wrong zone). 18 Era, 41 TBC and 18 Forever step lines name another zone; most are now the NPC's city
+  (Undercity, Thunder Bluff, Shattrath, Kargath's Badlands). **Known wrong after it:** quests 6402 and 6403 (Reginald
+  Windsor: now Blackrock Depths, should be Stormwind), 1450 (Falstad Wildhammer: now Ironforge, should be the
+  Hinterlands) and 661 (Phin Odelic: Silverpine Forest, should be Hillsbrad; it was Arathi before, also wrong).
+* One explicit offline comparison is kept: `gen_wiki_guides.py --measure-fallback` reads the older Questie-derived
+  files from `tools/measure/questie/` and writes only `tools/measure/out/` (`tools/measure/README.md`). It can never
+  be installed or loaded.
+* The tools that read a Questie checkout are in `archive/questie-tooling/` (README there).
+* `tools/install.sh`, `tools/validate_toc.lua` and the packager each refuse a file outside the build.
+  `tools/cost_matrix.lua` and `tools/bake_resume.py` load and bake only shipped guides.
+* `tools/coverage.py` measures the build only (new row `quest-zone`: covered quests with a zone but no point);
+  `tools/status_report.py` shows `zone only` and `no location`.
+* Merged from `master`: the step window, Recent, Start over, auto-advance, Contribute and the new pointer. Their
+  tools read the TOCs, so only `tools/guide_walk.lua` (a gaps family) and sample notes in two tests changed.
+
+**Results on the regenerated data (2026-11-12, each run once through `heavy.sh`)**
+
+* Data regenerated with the default options in the documented order (`gen_wiki_guides.py`, `gen_gold.py`,
+  `gen_professions.py`, `gen_completion_guides.py retail mop`, `gen_quest_deps.py`); no fetch was needed. A second
+  run gave byte-identical files except the gold guides: `gen_gold.py` listed the nodes of a zone in a set's order,
+  which changes from run to run (20 to 42 step lines per client). **Fixed in the independent check below:** ties go
+  by name, and two runs in a row now give identical gold files.
+* Gate: `python3 tools/package_release.py` (dry run) **passes**, exit 0, no problem and no stale-row note. 106 files,
+  universal zip 7.13 MB. The packaged TOCs differ from the source TOCs by the `## Version` line only.
+* Tests, all pass: `validate_toc`, the 22 `tools/test_*.lua` harnesses (`test_flow` 167 checks, `test_step_window`
+  252, `test_quest_auto` 1,272, `test_skip` 332), `test_package.py`, and the 8 unit tests of
+  `test_ingest_beta_reports.py` and `test_bake_gate.py`. The known `test_skip` failure
+  (`forever wiki:forever:1423:Alliance`) is not in the run any more: the harness picks its cases from the
+  regenerated guides and that one is not among them. The pricing difference behind it was not looked at, so it is
+  hidden, not fixed.
+* `tools/install.sh` was run against a scratch folder only: five clients install, and a planted `_gaps` file,
+  `Imported_Quests_era.lua`, `Data/Imported_Entrances.lua`, an unknown `Imported_*` name and a `RouteOrder` of a
+  flavor no client has each stop it before anything is copied. (At that point it still copied each client only its
+  own flavor's data, 3.5 to 32 MB; see the independent check for what it installs now.)
+* `tools/census_step_kinds.lua` and `tools/audit_step_text.lua` run on the build (Era now 11,898 steps in 331 guides).
+* Not done: nothing was installed, merged, pushed or baked; the companion app was not rebuilt (one sentence of its
+  About text changed in `app/main.swift`). The saved-progress effect of the removed guides was tested afterwards
+  (independent check below).
+
+**Independent check (2026-11-12, second pass on the same branch; offline only, nothing ran in a real client)**
+
+A second agent re-checked the work above in `wt-public` and fixed what it confirmed (the commits from
+`f5a0b3f` on).
+
+* **Content.** Every file the six TOCs and `Guides.xml` load (88 files, plus the library file one XML includes) was searched, the regenerated data
+  included: no `(location: Questie data)` or `(location: Blizzard data)` note, no `qdb:` or `qpoi:` id, no `_gaps`,
+  `Imported_Quests` or `Imported_Entrances` reference, no reference in addon code to a file that is gone. The one hit
+  is the comment in `Core/Farm.lua` that says the import was removed. The five `QuestDeps` headers say "Sources:
+  Warcraft Wiki only". The location notes that remain are `Blizzard quest POI` (53,432 step lines in the Retail wiki and quest-line files; wago.tools
+  tables named in each file's header) and `the wiki's <place> page`.
+* **The data is what the generators write.** All five generators were run once more with the default options on
+  the final code: the 19 non-gold files and 5 `QuestDeps` files came out byte for byte as they were. The gold files
+  did not, because of the set order above; that is fixed (`gen_gold.py`, ties by name) and two further runs gave
+  identical gold files. The gold files in the worktree are from that fixed generator.
+* **Installed = packaged.** It was not: `install.sh` copied each client only its own flavor's data (72 to 78 files
+  per client), the release zip holds 106, and a per-client zip 69 to 74 (no other client's TOC, no file its own TOC
+  does not list). `install.sh` now copies the whole folder. Each of the five scratch client folders (103 files,
+  45 MB) differs from the staged universal package by nine things: `LICENSE.txt`, `ATTRIBUTION.md`, `README.md`
+  (written by the packager) and the `## Version` line of the six TOCs. `install.sh` also stops on a `RouteOrder`
+  file that still holds `qdb:` / `qpoi:` rows (the main checkout's files hold 36 to 217 of them until they are
+  rewritten). All its refusals were re-run on a scratch copy of the source: `_gaps`, `Imported_Quests_era`,
+  `Imported_Entrances`, `Imported_Storylines`, an unknown family, a flavor no client has, a symlink, a Questie note
+  inside a wiki file, an unknown adapter; each exits 1 with nothing copied.
+* **Gate.** `heavy.sh python3 -B tools/package_release.py --tmp <scratch> --stage-dir <scratch>` on commit
+  `c381177`: `packaged 106 files`, universal zip 7.13 MB, `GATE: PASS`, exit 0, no problem, no stale-row note.
+* **Tests** (once each, through `heavy.sh`): `validate_toc`, the 22 `tools/test_*.lua` harnesses, `test_package.py`
+  and the 8 unit tests all pass on `285a00c`; `validate_toc`, the gate, `test_flow` and the nine harnesses that read
+  the gold guides or the changed tools were run again on `c381177` and pass. `test_progress_keys`
+  passes with 2 checks skipped (no baked order applies to its sample guide; the previous release's commit is not in
+  this clone). New in `test_flow` (173 checks): a character whose saved route is gone (`qdb:era:1431:Both`, with
+  saved marks) logs in without an error; a fitting leveling route is loaded in its place, or, when none fits, the
+  chat says "No route matched your level/faction. /cr routes"; the gone route is not listed under Recent and its
+  marks stay in the saved file, unused. Nothing tells the player that the old route was retired.
+* **Play-through** (`tools/vplayer.lua`, author order, live window on; 62 guides): 8 wiki quest guides per client
+  spread over the level range, plus the largest guide with no located step and the largest with zone-only steps;
+  4 achievement guides on MoP; 4 achievement and 4 quest-line guides on Retail. No stall and no addon error in any.
+  Two exploration achievement guides (371 and 305 steps) ran into the harness's 90 s limit in the batch; replayed alone they finish every step (53 s and 29 s) with no stall
+  and no no-route leg.
+  No-route legs: Era 0, TBC 25, MoP 42 (12 in the wiki guides, 30 in the Cataclysm dungeon achievements), Retail 36
+  (26 wiki, 2 achievement, 8 quest-line), Forever 0. Every one of the 103 goes into or out of a dungeon, raid or
+  arena map: no door is known until the player has walked in (Classic clients) or the journal gives it (Retail).
+* **What a guide without points looks like in game** (from the code, not seen in a client). A step that names
+  only its zone: the arrow points at the centre of that zone with "(zone only)", or at the same NPC's point from
+  another step of the guide, or at the quest's own objective once the quest is in the log; the card says "No
+  coordinates on the wiki; the quest is in <zone>". A step with no location at all: no arrow, "no location - /cr
+  why", and the card names the NPC only ("From Journeyman Engineer. No coordinates on the wiki."). Worst per client:
+
+  | | era | tbc | mop | retail | forever |
+  |---|---|---|---|---|---|
+  | Guides with no point on any step (steps in them) | 9 (296) | 12 (182) | 20 (499) | 27 (2,024) | 8 (299) |
+  | Guides with a point on under a quarter of their steps | 24 of 137 | 30 of 189 | 41 of 336 | 65 of 836 | 22 of 142 |
+  | Guides with a point on under half of their steps | 64 | 83 | 123 | 148 | 62 |
+  | Largest guide with no location on any step | `wiki:era:0:Both`, 162 steps | `wiki:tbc:0:Both`, 82 | `wiki:mop:0:Both`, 202 | `wiki:retail:0:Both:2`, 217 | `wiki:forever:0:Both`, 167 |
+  | Largest guide with only zone-level steps | `wiki:era:1431:Both`, 12 (3 zone, 9 none) | `wiki:tbc:1431:Both`, 12 | `wiki:mop:245:Alliance`, 61 (all zone) | `wiki:retail:525:Horde:4`, 176 (142 zone, 34 none) | `wiki:forever:1442:Both`, 5 |
+
+  The "Other Quests" guides (zone 0; 3 per client, 6 on Retail; 150 to 968 steps per client) are a plain list:
+  every step has no location, and the Era one opens with a developer test quest ("The Pattymac Special"). They were
+  like this before the change. The Tol Barad Peninsula guide (MoP, Alliance) is 61 steps that all say "the quest is
+  in Tol Barad Peninsula": the arrow sits on the middle of the zone for the whole guide unless the client supplies
+  the quest's objective position.
+* **Zone-only steps and the wrong zone.** There is a reference to measure against after all: the offline files in
+  `tools/measure/questie/` (read by a scratch script, nothing written). Of the zone-only accept and turn-in steps
+  that the reference also places, the build names another map on Era 279 of 2,261 (12.3%), TBC 617 of 3,388
+  (18.2%), MoP 767 of 5,444 (14.1%), Retail 791 of 2,913 (27.2%; the reference covers only a quarter there). For
+  scale, steps that do have a wiki point sit on another map than the reference in 4.2%, 4.0%, 11.6% and 19.0% of
+  cases. Much of the difference is a convention, not an error: the build names the dungeon or battleground and
+  the reference names the zone of its door (TBC: Zul'Gurub 131, Karazhan 30, Hyjal Summit 16; Era: Alterac Valley
+  22, Warsong Gulch 24). Plain wrong zones are in it too: Silverpine Forest for Hillsbrad Foothills (12 steps on Era
+  and 12 on TBC; Magistrate Henry Maleb's quests 512 and 523 among them: he stands in Southshore, and the
+  generator's own comment uses him as its example), Badlands for Searing Gorge (12), Orgrimmar for Undercity (13 on
+  TBC). Not
+  fixed here.
+* **Also found.** `docs/status_table.txt` (the companion app's Coverage tab reads it) still showed the dev build
+  of 2026-11-10 (Era "97.8% located"); it now holds the build's coverage numbers and says that its vplayer and
+  route-gain columns are older runs. The apply steps said 26 guide files; there are 24. `tools/sync_progress.lua`
+  said `install.sh` runs it; it does not.
+* **Left for the owner or a later pass.** (1) `tools/sync_progress.lua` and its launchd agent merge saved progress
+  between the owner's clients; a player has no such thing. The agent's plist of 2026-08-20 is in
+  `~/Library/LaunchAgents` but is not loaded now. (2) `Core/Farm.lua` prices a lap with Auctionator's public
+  function when that addon is loaded, and the TOCs name TomTom as an optional dependency no code uses. (3)
+  `docs/vplayer_*.tsv` (tracked) are runs of 2026-11-08 and one still lists retired guide ids. (4) `docs/HANDOFF.md`
+  sections 3 to 5 keep their dev-build wording under the head note. (5) The companion app was not rebuilt; it
+  calls only `tools/install.sh`, `validate_toc.lua` and five harnesses, all of which exist. (6) CI
+  (`.github/workflows/ci.yml`, `release.yml`) runs `validate_toc`, `test_load_all`, `test_offline` and
+  `test_package.py`; none names a removed file.
+
+**To apply** (main session; `W=~/Downloads/CompletionistGuide-work`, no heavy job running in `repo/`, `repo/` on
+`master` with a clean tree; every generator, harness and packager run goes through `$W/heavy.sh`)
+
+1. `cd $W/repo && /usr/bin/git status --short && /usr/bin/git merge --no-ff public-build-only` (merge locally, as
+   always; `master` is an ancestor of the branch, so there is no conflict).
+2. Move what is no longer part of the build out of `repo/CompletionRoute` (gitignored, so the merge leaves it; until
+   it is gone `install.sh` and the gate refuse the folder):
+   `mkdir -p $W/archive/dev-build-2026-11-11/RouteOrder $W/repo/tools/measure/questie`; copy the five
+   `Data/RouteOrder_*.lua` into that `RouteOrder/` folder; move the five `Guides/Imported_Quests_<flavor>_gaps.lua`
+   and `Data/Imported_Entrances.lua` to `$W/archive/dev-build-2026-11-11/`; move the six
+   `Guides/Imported_Quests_<era, tbc, wotlk, cata, mop, retail>.lua` to `repo/tools/measure/questie/`.
+3. Generated data. Preferred: regenerate in `repo/` (about 2 minutes; it also refreshes `tools/wiki/wiki.sqlite`,
+   the spine sidecars in `tools/wiki/cache/` and the chart tables, which a copy does not):
+   `python3 tools/wiki/gen_wiki_guides.py`, `python3 tools/wiki/gen_gold.py`, `python3 tools/wiki/gen_professions.py`,
+   `python3 tools/gen_completion_guides.py retail mop`, `python3 tools/gen_quest_deps.py`. Then compare with the
+   worktree: `(cd $W/wt-public/CompletionRoute && shasum Guides/Imported_*.lua Data/QuestDeps_*.lua) > <scratch>/want.sha`,
+   then `(cd $W/repo/CompletionRoute && shasum -c <scratch>/want.sha)` must say OK for all 29 files (24 guide files,
+   5 `QuestDeps`). If a file differs, stop, copy the worktree's files instead (`rsync -a`, no `--delete`) and find out
+   why. (Verified in the worktree only: a regeneration there reproduces its files byte for byte. `repo/` has the same
+   inputs, but that run has not been made.)
+   Route orders: `rsync -a $W/wt-public/CompletionRoute/Data/RouteOrder_*.lua $W/repo/CompletionRoute/Data/` (7 rows
+   in all; the old files hold `qdb:` / `qpoi:` rows, which `install.sh` now refuses).
+   `cd $W/repo && /usr/bin/git status --short` must print nothing.
+4. Chart rows: copy the "before" label, then measure the build:
+   `sqlite3 $W/repo/docs/verification.sqlite "attach '$W/wt-public/docs/verification.sqlite' as w; insert or replace
+   into coverage select * from w.coverage where label='dev-before-2026-11-11'; insert or replace into
+   wiki_point_sources select * from w.wiki_point_sources where build='fallback';"`, then
+   `python3 tools/coverage.py --label public-2026-11-11`. `docs/status_table.txt` is already the build's table (tracked).
+5. Check in `repo/` (`export CR_TEST_TMP=<scratch folder>` first): `luajit tools/validate_toc.lua`; each
+   `tools/test_*.lua` with `luajit -joff`; `python3 tools/test_package.py`; `$W/venv/bin/python -m unittest
+   tools/test_ingest_beta_reports.py tools/test_bake_gate.py`; `python3 tools/package_release.py` (expect
+   `GATE: PASS`, 106 files).
+6. Rebake (about 1,611 of 1,640 guides, gate on): `caffeinate -is $W/heavy.sh python3 tools/bake_resume.py
+   --dry-run`, then without `--dry-run`. To re-solve the 7 kept rows as well (they were solved while the door seeds
+   were loaded) pass `--force-file <flavor>=<file>` with their ids, one per line. Afterwards `test_route_order`,
+   `test_cost_parity` and the gate again, a `vplayer` run per client, `tools/collect_vplayer.py`, and
+   `python3 tools/status_report.py > docs/status_table.txt` plus the two note lines if a column is still old.
+7. Clients, only those not running (`pgrep -lf 'World of Warcraft.app/Contents/MacOS'`):
+   `tools/install.sh _classic_era_ _anniversary_ _classic_ _retail_ _forever_`. Each client folder becomes the whole
+   add-on folder (about 45 MB, was 3.5 to 32); `rsync --delete` removes the gaps guides and the door table. Installing
+   before the bake ends is fine: guides then play in author order with the live window.
+8. Drive copy: copy the tree without `--delete`, then remove there, under `CompletionRoute/`, the 11
+   `Guides/Imported_Quests_*` files, `Data/Imported_Entrances.lua` and `Guides/Imported_Storylines_retail.lua` if it
+   is still there, and from `tools/` the ten tools that moved to `archive/questie-tooling/`; replace its five
+   `Data/RouteOrder_*.lua` with `repo/`'s. Until that is done the app's install from Drive stops with a message
+   that names the file. The Drive copy was not looked at from here.
+9. Push `master` by hand as usual. When `repo/` holds the data, `/usr/bin/git worktree remove $W/wt-public` frees
+   about 800 MB.
 
 ## 2026-11-12: readable step window, Recent, Start over, more steps that finish themselves (`recents-restart-autoadvance`)
 

@@ -68,7 +68,7 @@ Where a quest's giver or ender gets coordinates, in priority order:
    phase or expansion. The `extracol` expansion badge tells which era a row belongs to. Object pages (no infobox) put `{{co}}` in the lead sentence.
    Overall, 42% of start/end pages had at least one coords template.
 3. DB2 (retail only; MoP Classic's table holds only dig sites): `QuestPOIBlob` with `ObjectiveIndex=-1` gives the turn-in area, read
-   straight from the client table, not from the old fallback file. Used for T, for C (objective area, `ObjectiveIndex = QO - 1`), and
+   straight from the client table. Used for T, for C (objective area, `ObjectiveIndex = QO - 1`), and
    for A only when the wiki names the same NPC as giver and ender. Note `(location: Blizzard quest POI, ...)`; it ships, and the file
    header then names `QuestPOIBlob + QuestPOIPoint`, wago.tools and the client build (`tools/db2/<fl>/BUILD`);
    `tools/package_release.py` fails a wiki file whose steps use a pin without that line. In both builds a disagreement row
@@ -99,7 +99,8 @@ Where a quest's giver or ender gets coordinates, in priority order:
    Orgrimmar). Among several page maps the one that agrees with the category, then with the quest's located steps, wins. With no page
    map, the category, else the first located step's map. A quest added in 6.x or filed under "(alternate universe)" resolves to
    Draenor's map. With no zone at all the step goes out without a location. Era/TBC/MoP quests have no DB2 pin.
-The dev build puts the local fallback file between 3 and 4 (`(location: Questie data)`, never shipped).
+Nothing else is read (2026-11-11: one build). The retired dev build put a local Questie-derived fallback file between 3 and 4; today only
+the explicit offline comparison does (`gen_wiki_guides.py --measure-fallback`, `tools/measure/README.md`), and it writes outside `CompletionRoute/`.
 
 Classic-map numbers without a tag (2026-11-11). Patch 4.0.3 redrew the zone maps. A coordinate that already stood on its page, number for
 number, in the page's last revision before 2010-11-23 was measured on the Classic map, whatever the zone name says; read as a retail
@@ -109,7 +110,7 @@ date is a retail number. This complements `wikimaps.KEEP_NUMBERS` (whole zones w
 
 Multiple spawns: emit `M|x,y;x,y` only when all points share one zone. Otherwise take the first point in the quest's own zone.
 Classic vs retail: Classic pages and `(Classic)` zones refer to pre-Cata maps. Convert them through world coordinates with the
-`topX/leftY/width/height` in `tools/maps_<flavor>.lua` (the same math as `to_zone()` in `gen_quest_guides_retail.py`). Unchanged zones
+`topX/leftY/width/height` in `tools/maps_<flavor>.lua` (`tools/wiki/wikimaps.py`). Unchanged zones
 match exactly (Elwynn, Loch Modan, Silverpine). Changed ones differ: Barrens, STV, Hillsbrad, Thousand Needles, Azshara, Darkshore, Westfall-era phases.
 
 ## 4. Objectives → steps

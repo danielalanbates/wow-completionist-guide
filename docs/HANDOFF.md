@@ -1,6 +1,15 @@
 # Handoff for the next AI (written 2026-11-10, 16:30 Pacific)
 
 Read this first, then `docs/STATUS.md` (newest section on top), `docs/IDEAS.md` and `docs/FINISH_PLAN.md`.
+
+**2026-11-11 night: there is one build.** The owner runs exactly what a public release ships. Sections 3 to 5 below
+were written before that: where they say dev build, fallback points, `--no-fallback`, `--wiki-only`, `--shippable`,
+`_gaps` guides, `Imported_Entrances` or a release rebake, read `docs/RELEASE.md` instead. The generators' default
+output is the build, and none of those variants exists any more.
+**State on 2026-11-12:** that work is branch `public-build-only` (worktree `wt-public`, its own copy of the
+regenerated data; gate and tests pass there). It is not merged, installed or baked: `repo/`, the Drive copy and the
+five clients still hold the dev build. The steps are in `docs/STATUS.md`, top section, *To apply*; the rebake that
+follows covers 1,611 of 1,640 guides.
 These notes cover work that was **in flight** when they were written. Before trusting any line, check the real state
 with the commands in each table, because jobs may have finished, failed or been cut off since.
 
@@ -19,7 +28,8 @@ separate GitHub repo** (see section 5, phase 4).
 | Rule | Detail |
 |---|---|
 | No commercial guide content, ever | The project is fully independent. Never read, import, imitate or **name** the commercial guide addon it replaced. It was purged from all git history on 2026-11-07; `tools/install.sh` refuses to install if such files reappear. |
-| Data sources | Quest and NPC data come from the Warcraft Wiki (warcraft.wiki.gg, CC BY-SA 4.0) and Blizzard client data (wago.tools DB2), plus the project's own data. No other addon's guides are read or used (the WoW-Pro adapter was removed on 2026-11-11: an addon for the public cannot depend on one). Questie is used only on the developer's machine at install time and never ship. Wiki-derived data ships under CC BY-SA. Code is PolyForm Noncommercial with the 10% commercial rider, all rights reserved (batesai.org, help@batesai.org). |
+| Data sources | Quest and NPC data come from the Warcraft Wiki (warcraft.wiki.gg, CC BY-SA 4.0) and Blizzard client data (wago.tools DB2), plus the project's own data. Nothing derived from another addon is read, generated, loaded, installed, baked or shipped (the WoW-Pro adapter and the Questie-derived dev build were both removed on 2026-11-11: an addon for the public cannot depend on one, and the owner runs only the public build; the GatherMate2 and Routes node import in `Core/Farm.lua` went on 2026-11-12 for the same reason). The Questie tooling is in `archive/questie-tooling/`; `tools/measure/` holds one explicit offline comparison that never writes into `CompletionRoute/`. Wiki-derived data ships under CC BY-SA. Code is PolyForm Noncommercial with the 10% commercial rider, all rights reserved (batesai.org, help@batesai.org). |
+| One build | What the six TOCs list = what `tools/install.sh` installs = what the generators write by default = what `tools/bake_resume.py` bakes = what `tools/package_release.py` packages (plus the version stamp). `tools/validate_toc.lua`, the installer and the packager's gate each refuse a file outside that set. |
 | Testing | Daniel beta-tests in game himself. The AI never logs into Battle.net, launches WoW or drives the game. Verification is offline: `tools/vplayer.lua`, `tools/test_*.lua`, `tools/validate_toc.lua`, plus his reports. |
 | Releases | GitHub releases are public and must be bug free, so none is made until Daniel's beta passes. The beta is the local install plus the companion app in /Applications ("Completionist's Guide.app", 2.0.0-beta). The app runs `tools/install.sh` from the Google Drive project folder and does not bundle guide data, so it needs a rebuild only when `app/` changes. |
 | Publishing | Work goes to `github.com/danielalanbates/wow-completionist-guide` as a PR. **Merge locally and push**, not with the GitHub merge button or `gh pr merge`: those stamp the owner's primary email on the merge commit, which was purged from history on 2026-11-10. The repo-local `user.email` is the GitHub noreply address. |
@@ -32,12 +42,13 @@ separate GitHub repo** (see section 5, phase 4).
 
 | What | Where |
 |---|---|
-| Main work clone (branch `route-bake-finish`) | `~/Downloads/CompletionistGuide-work/repo`. It holds the gitignored generated data (`CompletionRoute/Guides/Imported_*`, `CompletionRoute/Data/RouteOrder_*`, `tools/db2`, `tools/wiki/cache`, `docs/verification.sqlite`). |
+| Main work clone (branch `master`) | `~/Downloads/CompletionistGuide-work/repo`. It holds the gitignored generated data (`CompletionRoute/Guides/Imported_{Wiki,Spine,Gold,Professions,Achievements,QuestLines,Missions}_*`, `CompletionRoute/Data/{RouteOrder,QuestDeps}_*`, `tools/db2`, `tools/wiki/cache`, `tools/wiki/wiki.sqlite`, `docs/verification.sqlite`). No other generated file belongs under `CompletionRoute/`. |
+| Offline measurement inputs | `tools/measure/questie/` (gitignored): the older Questie-derived `Imported_Quests_<flavor>.lua` files, read only by `gen_wiki_guides.py --measure-fallback` (`tools/measure/README.md`). |
 | Feature worktrees | `~/Downloads/CompletionistGuide-work/wt-skip` (`quest-skip`), `wt-graph` (`routing-graph`), `wt-bug` (`beta-bug-report`), `wt-pkg` (`release-packager`). Their generated-data paths are **symlinks into repo/**, so never write through them. `git worktree list` shows them. |
 | Python venv (OR-Tools) | `~/Downloads/CompletionistGuide-work/venv` |
 | Optimizer job directory | `~/.claude/jobs/ff3c728a/tmp` (hardcoded as `TMP` in `tools/optimize_routes.py` and `tools/cost_matrix.lua`; `CR_TMP` overrides it in `tools/bake_resume.py`). Result rows: `routeopt/<flavor>.jsonl`. |
 | Canonical copy | Google Drive → My Drive/Code/Completionist's Guide (has the generated data too). Sync with plain `cp` or `rsync` **without `--delete`**: on 2026-11-07 `rsync --delete` wiped the gitignored generated files and they had to be restored from the game folders. |
-| Game clients | `/Volumes/x10/Video Games/Mac/World of Warcraft/{_classic_era_,_anniversary_,_classic_,_retail_,_forever_}`. `tools/install.sh <dir>` ships each client only its own flavor's data. |
+| Game clients | `/Volumes/x10/Video Games/Mac/World of Warcraft/{_classic_era_,_anniversary_,_classic_,_retail_,_forever_}`. `tools/install.sh <dir>` installs the build: the whole `CompletionRoute` folder, file for file what the release zip holds (about 45 MB per client; a client loads only what its own TOC lists). A generated file that is not part of the build stops it. |
 
 ## 3. Done on 2026-11-10
 
@@ -404,5 +415,8 @@ numbers in docs/STATUS.md "2026-11-11: Coverage workstream B".
   same evening and the three directory patterns now have no trailing slash. After linking data into a worktree, run
   `git status --short` and make sure no link shows as untracked before any `git add`.
 * Generated data is gitignored. It lives in repo/, the Drive copy and the game folders. If it is lost, regenerate it with
-  `tools/wiki/gen_*.py`, or copy it back from a client's `Interface/AddOns/CompletionRoute`.
-* `tools/install.sh` ships only the installing client's flavor data and refuses files from the banned product.
+  `tools/wiki/gen_*.py`, `tools/gen_completion_guides.py` and `tools/gen_quest_deps.py` (order: `docs/RELEASE.md`
+  "Making a build"), or copy it back from a client's `Interface/AddOns/CompletionRoute`.
+* `tools/install.sh` installs the whole add-on folder into each client (the release zip's file set) and stops on any generated file that is not
+  part of the build (a `_gaps` or `Imported_Quests_*` file, `Data/Imported_*`, a file that credits another addon's data).
+  The Drive copy made before 2026-11-11 night still holds such files until it is cleaned.

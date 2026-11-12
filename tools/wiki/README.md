@@ -1,8 +1,9 @@
 # tools/wiki: Warcraft Wiki → quest guides
 
 Warcraft Wiki (<https://warcraft.wiki.gg>, CC BY-SA 4.0) is the **source of truth** for quest data (Daniel,
-2026-11-07). Blizzard client data (wago.tools DB2) does two jobs only: it decides which client has a quest, and it
-fills coordinates the wiki lacks. Nothing in this pipeline reads commercial guide data.
+2026-11-07). Blizzard client data (wago.tools DB2) does two jobs only: it decides which client has a quest, and on Retail its
+quest pins fill coordinates the wiki lacks. Nothing in this pipeline reads commercial guide data or another addon's
+data: there is one build, and what this pipeline writes by default is what ships (2026-11-11).
 
 ```
 nice -n 10 python3 tools/wiki/fetch_wiki.py        # 1. infobox pages -> cache/wiki_raw.sqlite (~51 min, resumable)
@@ -13,7 +14,7 @@ nice -n 10 python3 tools/wiki/parse_wiki.py        #    subzones, redirects); ru
                                                    #    criteria NPC names from Blizzard tables (about 300 requests)
 nice -n 10 python3 tools/wiki/fetch_coord_history.py  # 3b. pre-4.0.3 revisions: Classic-map numbers (Blasted Lands by default)
 nice -n 10 python3 tools/wiki/fetch_db2.py         # 4. pinned QuestV2 per flavor (+ retail QuestObjective) -> tools/db2/
-nice -n 10 python3 tools/wiki/gen_wiki_guides.py   # 5. -> Guides/Imported_Wiki_<fl>.lua + Imported_Quests_<fl>_gaps.lua
+nice -n 10 python3 tools/wiki/gen_wiki_guides.py   # 5. -> Guides/Imported_Wiki_<fl>.lua + Imported_Spine_<fl>.lua
 luajit tools/test_wiki.lua                         # 6. check
 ```
 
@@ -44,15 +45,15 @@ The rules live in [docs/WIKI_DATA_SPEC.md](../../docs/WIKI_DATA_SPEC.md); the co
   * `PRE` comes from the wiki `previous` links ("any one of"), plus the reverse of `next`. It only keeps quests that
     exist on the same client.
 * **Versions.** The wiki is retail-first. A wiki point that was not written for the client's version (an NPC page
-  with only a current-retail location, used on Classic) is kept unless the client's own fallback data puts the
-  step more than 300 yd away. In that case the fallback wins and the row goes to `docs/verification.sqlite`
-  `wiki_db2_conflict` (`A_xy_version` / `C_xy_version` / `T_xy_version`).
-* **Release-ready points (2026-11-11).** After the wiki's own point: on retail the client's quest pin
-  (`QuestPOIBlob`/`QuestPOIPoint`, `(location: Blizzard quest POI, ...)`), then (dev build only) the fallback below,
+  with only a current-retail location, used on Classic) is kept. The offline comparison (`--measure-fallback`,
+  `tools/measure/README.md`) lists such points that a reference puts more than 300 yd away, in
+  `docs/verification.sqlite` `wiki_fallback_conflict`; it never changes the build.
+* **Points (2026-11-11).** After the wiki's own point: on retail the client's quest pin
+  (`QuestPOIBlob`/`QuestPOIPoint`, `(location: Blizzard quest POI, ...)`),
   then the wiki page of the place the NPC page names when it has no point (`(location: the wiki's <place> page; ...)`),
   then a zone (`|Z|` only). `fetch_titles.py` also fetches those place pages. A coordinate that stood on its
-  page before patch 4.0.3 is read as a Classic-map number (`fetch_coord_history.py`). Counts per client and build:
-  `docs/verification.sqlite` `wiki_point_sources`. Review fixes (2026-11-11): a place page gives only its own point
+  page before patch 4.0.3 is read as a Classic-map number (`fetch_coord_history.py`). Counts per client:
+  `docs/verification.sqlite` `wiki_point_sources` (build `no-fallback` is the build; `fallback` is the offline comparison). Review fixes (2026-11-11): a place page gives only its own point
   (infobox, `{{Npclocations}}` or lead; never a portal, quest or NPC listed on it, never a `(Forever)` or Season of
   Discovery coordinate on another client), and must lie in a zone the NPC page names (its location field, else the
   zone the linked place's own page names); a place made or moved in a later patch than the client's is skipped. The
@@ -60,21 +61,18 @@ The rules live in [docs/WIKI_DATA_SPEC.md](../../docs/WIKI_DATA_SPEC.md); the co
   Draenor. On era, tbc and forever an NPC page that says where the NPC stood before the Cataclysm ("was located at
   [[Kargath]], [[Badlands]]") gives that place instead of its current location field. The file header names the
   QuestPOI tables and the client build whenever a step uses a quest pin; `package_release.py` fails a file without it.
-* **Fallback.** Only used when the wiki has no usable point. The same step is taken from `Imported_Quests_<fl>.lua`
-  and tagged in its note: `(location: Blizzard data)` for retail quest POI, `(location: Questie data)` for Classic.
-  `--no-fallback` writes a wiki-only file, which is the shippable variant.
-* **No duplicates.** `Imported_Quests_<fl>_gaps.lua` is the old generated file minus every quest the wiki guide
-  covers. The TOCs, `install.sh`, `coverage.py`, `vplayer.lua`, `route_sweep.lua` and `audit_guides.lua` load
-  `Imported_Wiki_<fl>` + `_gaps` and never the full `Imported_Quests_<fl>`, which is now only generator input.
-  `install.sh` excludes the full files from every client.
+* **No fallback, no gaps guides (2026-11-11).** A step with no wiki point, quest pin or place page names its zone,
+  or has no location and says so. A quest with no wiki page is in no zone guide. Until that day a local dev build
+  filled both from Questie-derived files (`Imported_Quests_<fl>.lua`, `_gaps` guides); those never shipped and are no
+  longer generated, loaded or installed. `install.sh`, the TOC validator and the packager refuse such a file.
 * **Excluded types.** World quests, callings and emissary quests are left out (time-limited). Bonus objectives get
   no `T` step.
 * **SQL tables.**
-  * `wiki.sqlite`: `flavor_quests` (assigned), `flavor_gap` (in QuestV2 but no wiki page; `in_old_guides` = still
-    covered by `_gaps`), `flavor_skip`, `gen_stats`.
+  * `wiki.sqlite`: `flavor_quests` (assigned), `flavor_gap` (in QuestV2 but no wiki page; `in_old_guides` is
+    always 0 now), `flavor_skip`, `gen_stats`.
   * `docs/verification.sqlite`: `wiki_db2_conflict`, with fields `membership` (wiki says vanilla, era client lacks
-    it), `objective_count` (retail wiki bullets vs QuestObjective rows, which also drops `QO`), `turnin_xy` (wiki
-    ender over 50 yd from the retail POI turn-in pin), and `*_xy_version`.
+    it), `objective_count` (retail wiki bullets vs QuestObjective rows, which also drops `QO`) and `turnin_xy` (wiki
+    ender over 50 yd from the retail POI turn-in pin).
 
 ## WoW Forever
 
@@ -83,8 +81,7 @@ Forever (product `wowf`, client 1.60.1, Interface 16001) is Era content on the m
 (Mulgore, Eastern Plaguelands, Redridge Mountains, Stormwind City) and it adds Zephras Isle, Darkspear Islands,
 Mount Hyjal, Riverglades and Shen'dralas, with 8 new taxi nodes. So it is its own generator flavor:
 `gen_wiki_guides.py forever` takes era membership rules plus the 1.60 line and `{{Forever only}}` / `(Forever)`
-pages, places points on `tools/maps_forever.lua`, and takes fallback points and the `_gaps` guides from
-`Imported_Quests_era.lua` (no Forever Questie export), converting Era-map points on the reshaped maps. The addon
+pages, and places points on `tools/maps_forever.lua`. The addon
 runs the era code path there (`NS.flavor == "era"`, `NS.isForever`, `NS.dataFlavor == "forever"`); every Era-map
 point in other guides and data is converted at runtime by `U.EraToForever` (`Data/MapFix_forever.lua`, from
 `tools/gen_mapfix_forever.py`). Taxi: `Data/Taxi_forever.lua` (`tools/gen_taxi.py`, wowf 1.60.1.70790).
@@ -110,8 +107,8 @@ point, else the source zone as a zone-only step) and carries `|U|<item>|`.
 A source page about a zone, city or continent never gives a point (its `{{co}}` rows are neighbours and landmarks:
 the Silithus page's road to Un'Goro Crater), and neither does a topic page whose every `{{co}}` stands in a body
 section (a profession, holiday or system article); a zone source makes the accept zone-only. The accept's note names
-the page its point came from. In the default (fallback) build, an item page's point gives way to the client's own
-fallback point when the two are more than 300 yd apart or on different continents.
+the page its point came from. An item page's point is always kept (only the offline comparison, `--measure-fallback`,
+sets it against a reference point).
 
 ## Glyphs (2026-11-11)
 
