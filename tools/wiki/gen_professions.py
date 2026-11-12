@@ -480,6 +480,8 @@ def display_source(raw):
     if re.search(r"/-\s*/|//", s):                 # table cells that survived as text
         return ""
     s = re.sub(r"\s*,?\s*(?:usually\s+)?for\s+around\s+\d+(?:\s+or)?\s*\.?\s*$", ".", s, flags=re.I)     # a price, the {{cost}} amount lost
+    # "... and Shim'dak in Zul'Aman for 120": a currency price whose template is gone leaves a bare number
+    s = re.sub(r"\s*,?\s+for\s+\d[\d,]*\s*\.?\s*$", "", s, flags=re.I)
     s = re.sub(r"\s+from expansion\.", ".", s, flags=re.I)                                      # a stripped {{exp}} template
     s = re.sub(r"\bthe following\s+", "", s, flags=re.I)                                       # "sold by the following vendors," with the list gone
     if re.search(r"(?:\bdrops?|\bfrom|\bby)\s*\.?$", s, re.I) and len(s) < 60:                  # "Buzzard Meat drops": nothing left to say
@@ -870,7 +872,7 @@ def recipe_steps(gen, prof, fl, faction, runs, tier, trainer_alt, taught, item_n
                 lines.append(("B %s|L|%d 1|RECIPE|%d|N|%s|" % (clean(rname), it, r.spell, clean(src))) if it else
                              ("N Get %s|RECIPE|%d|N|%s|" % (clean(rname), r.spell, clean(src))))
             else:
-                lines.append("N Get the %s recipe|RECIPE|%d|N|%s|" % (clean(r.name), r.spell, clean(r.source)))
+                lines.append("N Get the %s recipe|RECIPE|%d|N|%s|" % (clean(r.name), r.spell, clean(display_source(r.source) or r.source)))
         n = int(math.ceil(crafts))
         notes = []
         for item, qty in r.reagents:
