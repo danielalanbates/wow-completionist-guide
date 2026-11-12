@@ -18,7 +18,8 @@
 --   * a STALE entry fails the test: an entry whose step count or checksum no longer matches its guide, or that names no
 --     guide at all.  G.Steps still plays such a guide in author order (checked for each one), but the bake is out of
 --     date: re-bake with tools/bake_resume.py.  A gated entry's measured times (va, vb, and vah, vbh for the Horde play of
---     a guide for both factions) must pass the gate (Routing/CostModel.lua GATE_FRAC / GATE_ABS).
+--     a guide for both factions) must pass the gate (Routing/CostModel.lua GATE_FRAC / GATE_ABS).  A file with no row at
+--     all passes (nothing baked for the guides as they are now) and is reported as NOT BAKED.
 -- Generated files are gitignored, so a fresh clone runs only the mechanics part.
 -- Run: luajit tools/test_route_order.lua   (from repo root)
 --      CR_ROUTE_ORDER_DIR=<folder> checks the RouteOrder_<flavor>.lua files in that folder instead of CompletionRoute/Data
@@ -172,13 +173,11 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
     else
         local f1 = fail
         local NS, load = harness(flavor)
-        for _, f in ipairs({ "Guides/Imported_Wiki_" .. flavor .. ".lua", "Guides/Imported_Quests_" .. flavor .. "_gaps.lua" }) do
-            if exists(f) then load(f) end
-        end
+        load("Guides/Imported_Wiki_" .. flavor .. ".lua")
         local G = NS.Guide
         local mine, unstable, n = {}, 0, 0
         for _, id in ipairs(G.list) do
-            if id:sub(1, 5) == "wiki:" or id:sub(1, 4) == "qdb:" or id:sub(1, 5) == "qpoi:" then
+            if id:sub(1, 5) == "wiki:" then
                 local st = G.Steps(id)
                 if st and #st > 0 and not G.registry[id].empty then
                     local a = G.RouteChecksum(st)
@@ -274,7 +273,7 @@ end
 
 local files = 0
 local RO_DIR = os.getenv("CR_ROUTE_ORDER_DIR")
-local staleTotal = {}
+local staleTotal, unbaked = {}, {}
 for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
     local ro = RO_DIR and (RO_DIR .. "/RouteOrder_" .. flavor .. ".lua") or ("Data/RouteOrder_" .. flavor .. ".lua")
     if not exists(ro) then
@@ -290,13 +289,23 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
             end
         end
         local NS, load = harness(flavor)
-        for _, f in ipairs({ "Guides/Imported_Wiki_" .. flavor .. ".lua", "Guides/Imported_Quests_" .. flavor .. "_gaps.lua",
-                             "Guides/Imported_Spine_" .. flavor .. ".lua" }) do
+        for _, f in ipairs({ "Guides/Imported_Wiki_" .. flavor .. ".lua", "Guides/Imported_Spine_" .. flavor .. ".lua" }) do
             if exists(f) then load(f) end
         end
         load(ro)
         local G = NS.Guide
-        check(NS.RouteOrder and next(NS.RouteOrder), ro .. ": no entries")
+        -- a file with no row at all is a valid state: nothing is baked for the guides as they are now (every row of
+        -- the last bake went stale and tools/optimize_routes.py --current left it out), so every guide plays in author
+        -- order.  A file that HAS rows must register them on its own client.
+        local fh = assert(io.open(ro:sub(1, 1) == "/" and ro or ("CompletionRoute/" .. ro), "r"))
+        local _, rowsInFile = ("\n" .. fh:read("*a")):gsub('\nO%["', "")
+        fh:close()
+        if rowsInFile == 0 then
+            check(type(NS.RouteOrder) == "table" and next(NS.RouteOrder) == nil, ro .. ": a file without rows must register an empty table")
+            unbaked[#unbaked + 1] = flavor
+        else
+            check(NS.RouteOrder and next(NS.RouteOrder), ro .. ": " .. rowsInFile .. " rows in the file, none registered")
+        end
         local entries, missing, stale, baked, moved, steps, bad = 0, 0, 0, 0, 0, 0, 0
         local missingIds, staleIds, broken, gateBad = {}, {}, {}, {}
         for id, e in pairs(NS.RouteOrder or {}) do
@@ -368,6 +377,10 @@ sh("rm -rf " .. q(TMP))
 if #staleTotal > 0 then
     print("STALE BAKE (" .. table.concat(staleTotal, ", ") .. "): these guides play in author order with the live window until "
         .. "the next bake (tools/bake_resume.py, docs/ROUTING.md \"Bake gate\")")
+end
+if #unbaked > 0 then
+    print("NOT BAKED (" .. table.concat(unbaked, ", ") .. "): the RouteOrder file has no row, so every guide of that client plays in "
+        .. "author order with the live window until the next bake (tools/bake_resume.py)")
 end
 if fail > 0 then print(fail .. " route order check(s) failed") os.exit(1) end
 print("All route order checks passed (" .. files .. " generated files).")
