@@ -562,5 +562,53 @@ do
     check(Sig.TalkMatches(s, "Dr. Weavil"), "a name with a full stop in it still matches")
 end
 
+-- ---- a saved route that is gone from the data (2026-11-12: the guides made from another addon's database were
+-- retired, so a character whose saved route was one of them logs in with an id nothing registers) ----
+do
+    CompletionRouteDB, CompletionRouteCharDB = nil, nil
+    local NS = boot()
+    local P, G = NS.Progress, NS.Guide
+    local gone = "qdb:era:1431:Both"
+    CompletionRouteCharDB.guide, CompletionRouteCharDB.welcomed = gone, true
+    NS.Account.me.stepDone[gone] = { k1 = true, k2 = true }
+    local said = {}
+    local realPrint = NS.Print
+    NS.Print = function(_, msg) said[#said + 1] = tostring(msg) end
+    -- the login: PLAYER_READY, then the timers it starts.  The stub's timer runs its function at once, and a ticker
+    -- that re-arms itself (Routing/Roads.lua) would never return: queue them and run four rounds (the autoload's
+    -- three tries fit in them)
+    local realAfter = C_Timer.After
+    local function login()
+        local queue = {}
+        C_Timer.After = function(_, fn) queue[#queue + 1] = fn end
+        local ok, err = pcall(function()
+            NS:Fire("PLAYER_READY")
+            for _ = 1, 4 do
+                local run = queue
+                queue = {}
+                for _, fn in ipairs(run) do fn() end
+            end
+        end)
+        C_Timer.After = realAfter
+        return ok, err
+    end
+    -- no leveling route fits: the login says so and loads nothing
+    local ok, err = login()
+    check(ok, "login with a saved route that no longer exists raises nothing: " .. tostring(err))
+    check(NS.db.char.lastAutoloadError == nil, "and the autoload reports no error: " .. tostring(NS.db.char.lastAutoloadError))
+    check(P.guide == nil and table.concat(said, "\n"):find("No route matched", 1, true) ~= nil,
+          "with nothing to suggest the player is told to open the list")
+    check(#P.RecentList() == 0, "the gone route is not offered under Recent")
+    check(NS.Account.me.stepDone[gone] and NS.Account.me.stepDone[gone].k1, "its saved marks are left alone")
+    -- a leveling route fits: it is loaded in place of the gone one
+    G.Register({ id = "f:level", name = "Level 1-10", type = "Leveling", minlevel = 1, maxlevel = 10, source = "CompletionRoute",
+                 text = "N One|\nN Two|" })
+    NS.db.char.guide = gone
+    ok, err = login()
+    check(ok and P.guide and P.guide.id == "f:level" and NS.db.char.guide == "f:level",
+          "with a fitting route the login loads that one instead: " .. tostring(err or (P.guide and P.guide.id)))
+    NS.Print = realPrint
+end
+
 print(("%s: %d checks, %d failed"):format(fails == 0 and "FLOW TESTS PASSED" or "FLOW TESTS FAILED", checks, fails))
 os.exit(fails == 0 and 0 or 1)
