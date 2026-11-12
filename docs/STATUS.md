@@ -26,8 +26,8 @@ about a word per line.
 | Title on 2 lines / 3 lines | 905 / 0 | 1,467 / 0 | 5,029 / 11 | 15,965 / 103 | 913 / 0 |
 | Title cut at 3 lines | 0 | 0 | 1 | 10 (23 with 10% wider text) | 0 |
 | Note cut at 8 lines, before -> now | 0 -> 0 | 0 -> 0 | 2 -> 0 | 8 -> 0 | 0 -> 0 |
-| Notes of 3 lines or more, before -> now | 512 -> 476 | 679 -> 615 | 1,707 -> 1,240 | 2,721 -> 1,144 | 519 -> 479 |
-| Source notes and asides moved off the card | 5,566 | 8,444 | 25,173 | 95,153 | 5,581 |
+| Notes of 3 lines or more, before -> now | 512 -> 484 | 679 -> 625 | 1,707 -> 1,254 | 2,721 -> 1,154 | 519 -> 483 |
+| Source notes and asides moved off the card | 5,556 | 8,430 | 25,153 | 95,136 | 5,575 |
 | Notes with raw markup left | 0 | 0 | 3 | 5 | 0 |
 
 The 11 cut titles are achievement descriptions of 140 to 191 characters; they end in "..." and are whole in the
@@ -69,8 +69,8 @@ themselves, and from what.
 So the shipped guides were already automatic except advice notes and missions. The new rules (all in
 `docs/GUIDE_FORMAT.md`, "What completes a step by itself"; predicates in `NS.StepSignal`, `Core/Guide.lua`):
 talking to the NPC a step names (`N`/`R` steps without a quest; `T` tag, `ALT` names, "From X." / "To X.", "Talk to
-X" / "Speak with X"; whole name, any case; only the step on screen; never a secret name); a merchant window on a
-repair/sell step; `L` items on every action but accept and turn-in (with a quest id only while on the quest); a buy
+X" / "Speak with X"; whole name, any case; only the step on screen; never a secret name; one step per conversation); a
+merchant window on a repair/sell step; `L` items on every action but accept and turn-in (with a quest id only while on the quest); a buy
 step that names its item with `U`/`ITEM`; standing at any of an `R` step's `ALT` places; loot taken at a treasure's
 spot; a mission's success. Left manual on purpose: advice notes, a buy or train step that only names the vendor, a
 kill step's target, a treasure with no spot.
@@ -84,6 +84,39 @@ harnesses of the task list pass (`test_progress_keys` needed Recent to stop rewr
 wrapped title with a long note; the `...` menu; the word Contribute; Start over on a finished fishing or profession
 route; Recent after a `/reload`.
 
+
+**Independent check, same day (commits after `be4b634`).** Everything below is offline too.
+* *Auto-advance, rules tightened.* (1) **One conversation finishes one step**: a single click on an NPC fires
+  `GOSSIP_SHOW` and `PLAYER_INTERACTION_MANAGER_FRAME_SHOW` for the same window (both events are in all four Blizzard
+  UI sources), so two steps in a row naming the same NPC both went at once; the same happened to "talk to" a merchant
+  right after a sell step. Now the same NPC finishes nothing more until its windows have been closed for two seconds.
+  (2) "Talk to X" / "Speak with X" / "From X." / "To X." name X only when they are the whole instruction: words in
+  the middle of a note, a second sentence, "and ...", ", then ..." leave the step manual. (3) A treasure step needs
+  loot from a **game object** (`GetLootSourceInfo`), not a corpse looted beside the chest and not a fishing catch.
+  (4) A step titled only "Repair" needs a merchant who repairs (`CanMerchantRepair`). (5) The quest panes are read
+  through `"questnpc"` when `"npc"` is empty (Blizzard's quest frame uses that token).
+* *API sources.* Events and payloads were checked against the generated API documentation in
+  `Gethe/wow-ui-source`, branches `live` (12.1.5), `classic_era` (1.15.9), `classic_anniversary` (2.5.6) and `classic`
+  (5.5.4): every window, close and loot event used is in all four; `GARRISON_MISSION_COMPLETE_RESPONSE` (missionID,
+  canComplete, success, ...) is in `live` only and is not registered elsewhere (guarded). `CanMerchantRepair` and
+  `IsFishingLoot` are called by Blizzard's own merchant and loot frames on all four; `GetLootSourceInfo` is listed
+  for all five clients on warcraft.wiki.gg. **Not verified anywhere: WoW Forever** (no public source), and whether
+  `UnitName("npc")` is filled in the quest panes (hence the `"questnpc"` fallback).
+* *Recent.* The list no longer counts marks to decide what to show (one table read per saved record; a route with
+  thousands of finished steps costs the same as one with two). A saved record whose route is gone from the data is
+  passed over and ages out; the table stays at 30 records.
+* *Step window.* At the largest text size with "re-planning..." showing, the room for the route name came out
+  negative (a string anchored right-of-left is drawn over its neighbour): now "re-planning..." gives way first, then
+  the name is hidden (it is in the line's tooltip), and the step count is cut last. The menus and the Start over
+  question are clamped to the screen. In the end-of-route state the hidden card (the arrows hang from it) goes back to
+  its plain place. A sentence in brackets is taken off the card only in a long note (over 150 characters); the
+  audit table above is the re-run with that (notes of 3 lines or more: 6,138 before, 4,000 now; none cut at 8).
+* *Click path back.* The x used to leave no way to show the window again without `/cr`. The options page
+  (Esc > Options > AddOns > CompletionRoute) now has **Show step window** and **Routes**, and closing prints where.
+* *Start over* was checked against another route's and another character's marks (untouched) and circuits (still lap).
+* Still open: a herb or ore node looted within 25 yd of a treasure's spot would finish that step (no shipped guide
+  has such a step); a finished quest route chains to the next route at once, so its end screen and Start over button
+  are only seen on gold, profession and other side routes; no minimap button.
 
 ## 2026-11-11 night: Contribute (players build the location database)
 
