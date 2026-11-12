@@ -12,7 +12,7 @@ Inputs : Guides/Imported_Wiki_<fl>.lua, the wiki quest guides the client loads: 
          accepted and ignored).  For a quest this index lacks, the addon falls back to the loaded guide's own PRE tags
          (Core/Skip.lua: quest-line, hand-written and live guides).
          tools/wiki/wiki.sqlite + tools/wiki/cache/wiki_raw.sqlite (read-only) to tell breadcrumbs apart.
-Output : CompletionRoute/Data/QuestDeps_<fl>.lua (generated, gitignored; tools/install.sh ships each client its own)
+Output : CompletionRoute/Data/QuestDeps_<fl>.lua (generated, gitignored; a client loads only its own, by its TOC)
 
 Breadcrumbs.  The wiki's `previous` field (PRE in the guides) lists optional lead-in quests next to real prerequisites,
 so a plain reverse index would warn that skipping a breadcrumb blocks the quest it leads to.  It does not: a breadcrumb

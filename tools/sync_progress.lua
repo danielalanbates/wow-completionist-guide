@@ -9,7 +9,8 @@
 -- type, so copying records across clients never maps one client's step indices onto another client's guides.
 --   luajit tools/sync_progress.lua [--dry] [--wow "/path/to/World of Warcraft"]
 -- Backups: <file>.presync.bak (last pre-write copy). Run automatically by the launchd WatchPaths agent
--- installed by tools/install_sync_agent.sh, and once by tools/install.sh.
+-- installed by tools/install_sync_agent.sh (tools/install.sh does not run it).  It is a tool for a machine with several
+-- clients, not part of the add-on: a player's client never has it unless they set it up themselves.
 local WOW = "/Volumes/x10/Video Games/Mac/World of Warcraft"
 local dry = false
 for i = 1, #arg do if arg[i] == "--dry" then dry = true elseif arg[i] == "--wow" then WOW = arg[i + 1] end end

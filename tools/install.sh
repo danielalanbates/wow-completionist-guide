@@ -4,10 +4,12 @@
 set -e
 SRC="$(cd "$(dirname "$0")/.." && pwd)/CompletionRoute"
 WOW="${WOW_DIR:-/Volumes/x10/Video Games/Mac/World of Warcraft}"
-# There is one build: what this script installs is what a player gets from a public release (the same files
-# tools/package_release.py packages, each client only its own flavor's data). Everything generated is built from the
-# Warcraft Wiki (CC BY-SA 4.0), Blizzard client data and the project's own data. Nothing derived from another addon is
-# installed: such a file in the source folder stops the install.
+# There is one build: what this script installs is what a player gets from a public release. Every client folder
+# gets the whole add-on folder, file for file what the release zip holds (tools/package_release.py, universal
+# layout); the zip only adds LICENSE.txt, ATTRIBUTION.md, README.md and the stamped version line of the TOCs. A client
+# loads just the files its own TOC lists, so the other clients' data costs disk space (about 40 MB), nothing else.
+# Everything generated is built from the Warcraft Wiki (CC BY-SA 4.0), Blizzard client data and the project's own
+# data. Nothing derived from another addon is installed: such a file in the source folder stops the install.
 FLAVORS="era tbc mop retail forever"
 stop() { echo "install.sh: $*" >&2; exit 1; }
 # Guard: the quest guides every client loads are Imported_Wiki_<flavor>.lua, written by tools/wiki/gen_wiki_guides.py -
@@ -22,7 +24,7 @@ for f in Imported_Achievements_mop Imported_Achievements_retail Imported_QuestLi
   [ -s "$SRC/Guides/$f.lua" ] || echo "install.sh: note: Guides/$f.lua missing - run tools/gen_completion_guides.py to add it" >&2
 done
 # Baked route orders (tools/bake_resume.py, Data/RouteOrder_<flavor>.lua): generated, gitignored, optional -
-# without one a guide keeps its author order. Each client gets only its own (per-flavor excludes below).
+# without one a guide keeps its author order.
 for tier in $FLAVORS; do
   [ -s "$SRC/Data/RouteOrder_$tier.lua" ] || echo "install.sh: note: Data/RouteOrder_$tier.lua missing - run tools/bake_resume.py --flavors $tier (guides keep author order)" >&2
 done
@@ -61,6 +63,13 @@ if [ -n "$BAD" ]; then
   echo "$BAD" | while read -r f; do echo "install.sh: ${f#"$SRC"/} holds or credits another addon's data (or is the offline measurement file)" >&2; done
   stop "regenerate the files above (tools/wiki/gen_wiki_guides.py, then gen_gold, gen_professions, tools/gen_completion_guides.py, tools/gen_quest_deps.py); nothing was installed"
 fi
+# A baked order for a guide of the retired dev build (ids qdb:... / qpoi:...) was computed from another addon's points:
+# such a row must not reach a client either (tools/optimize_routes.py --merge --current drops it).
+BAD="$(LC_ALL=C /usr/bin/grep -l -E '^O\["q(db|poi):' "$SRC"/Data/RouteOrder_*.lua 2>/dev/null || true)"
+if [ -n "$BAD" ]; then
+  echo "$BAD" | while read -r f; do echo "install.sh: ${f#"$SRC"/} holds baked orders for guides that are not part of the build (qdb: / qpoi: rows)" >&2; done
+  stop "rewrite the route orders (tools/bake_resume.py, or tools/optimize_routes.py <flavor> --merge --current <list>); nothing was installed"
+fi
 flavor_of() { case "$1" in _retail_) echo retail;; _classic_) echo mop;; _classic_era_) echo era;; _anniversary_) echo tbc;; _forever_) echo forever;; *) echo retail;; esac; }
 # WoW Forever runs the era code path (Core/Init.lua) with its own wiki guides, taxi and map fix.
 for f in "$SRC"/Adapters/*; do
@@ -76,14 +85,8 @@ for fl in "${@:-_anniversary_}"; do
   fi
   DST="$WOW/$fl/Interface/AddOns/CompletionRoute"
   MINE="$(flavor_of "$fl")"
-  EXCL=()
-  for other in $FLAVORS; do
-    [ "$other" = "$MINE" ] && continue
-    EXCL+=(--exclude "Guides/Imported_Wiki_$other.lua" --exclude "Guides/Imported_Spine_$other.lua" --exclude "Guides/Imported_Professions_$other.lua" --exclude "Guides/Imported_Gold_$other.lua"
-           --exclude "Guides/Imported_Achievements_$other.lua" --exclude "Guides/Imported_QuestLines_$other.lua"
-           --exclude "Guides/Imported_Missions_$other.lua" --exclude "Data/RouteOrder_$other.lua" --exclude "Data/QuestDeps_$other.lua")
-  done
   mkdir -p "$DST"
-  rsync -a --delete --delete-excluded --exclude ".DS_Store" "${EXCL[@]}" "$SRC/" "$DST/"
+  # the whole folder, as the release zip has it (no per-client subset: the owner's client holds what a player's does)
+  rsync -a --delete --delete-excluded --exclude ".DS_Store" "$SRC/" "$DST/"
   echo "installed -> $DST ($MINE: $(du -sh "$DST" | cut -f1))"
 done
