@@ -205,8 +205,8 @@ do
     r = S.SkipQuest(101)
     t("chain: asks first", r == "asked" and #prompts == 1, r)
     t("warning names the quest and the blocked ones", prompts[1] and prompts[1]:find("Root") and prompts[1]:find("Child") and prompts[1]:find("Grandchild") and prompts[1]:find("Both"), prompts[1])
-    t("warning splits this guide / other guides", prompts[1] and prompts[1]:find("3 in this guide, 0 in other guides", 1, true), prompts[1])
-    t("warning counts the cost", prompts[1] and prompts[1]:find("removes 4 of your quests from this guide (14 steps)", 1, true), prompts[1])
+    t("warning splits this guide / other guides", prompts[1] and prompts[1]:find("3 in this route, 0 in other routes", 1, true), prompts[1])
+    t("warning counts the cost", prompts[1] and prompts[1]:find("removes 4 of your quests from this route (14 steps)", 1, true), prompts[1])
     t("cancel changes nothing", idx(P.steps) == before and S.version == ver and not S.IsRemoved(101))
     t("cancel does not touch the re-plan already running for the leaf skip", RP.Job() == job0 and job0 ~= nil)
 
@@ -753,8 +753,8 @@ do
     t("own PRE: the warning names the guide-only dependents", warn:find("Guide only", 1, true) and warn:find("Needs guide only", 1, true), warn)
     t("another class's dependent is not named", not warn:find("Paladin only", 1, true), warn)
     t("the warning says which ones only this guide loses", warn:find("2 of them only here", 1, true), warn)
-    t("...nor counted (3 quests need it, 3 in this guide)", warn:find("3 quests need it", 1, true) and warn:find("(3 in this guide, 0 in other guides)", 1, true), warn)
-    t("...and the cost counts only this character's quests and steps", warn:find("removes 4 of your quests from this guide (9 steps)", 1, true), warn)
+    t("...nor counted (3 quests need it, 3 in this guide)", warn:find("3 quests need it", 1, true) and warn:find("(3 in this route, 0 in other routes)", 1, true), warn)
+    t("...and the cost counts only this character's quests and steps", warn:find("removes 4 of your quests from this route (9 steps)", 1, true), warn)
     accept = true
     S.SkipQuest(301)
     t("own PRE: the guide-only dependents are not locked in other guides", not S.IsRemoved(310) and not S.IsRemoved(311))
@@ -763,7 +763,7 @@ do
     t("own PRE: the current step is the free quest", P.current and P.current.qid and P.current.qid[1] == 320, P.current and P.current.title)
     local n0 = #NS.printed
     S.Unskip(310)
-    t("own PRE: /cr unskip on one of them says why it is out", (NS.printed[n0 + 1] or ""):find("out of this guide", 1, true), NS.printed[n0 + 1])
+    t("own PRE: /cr unskip on one of them says why it is out", (NS.printed[n0 + 1] or ""):find("out of this route", 1, true), NS.printed[n0 + 1])
     S.Unskip("all")
     t("unskip: the whole guide is back", #P.steps == #P.baseSteps and #P.steps == #own)
 

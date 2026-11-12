@@ -43,7 +43,7 @@ function P.MarkSets()
 end
 -- /cr marks: how the loaded guide's progress is stored, in words (for a beta report after a data update)
 function P.MarksReport()
-    if not (P.guide and P.steps) then return { "No guide loaded." } end
+    if not (P.guide and P.steps) then return { "No route loaded." } end
     local d, s, r = P.MarkSets()
     local have = {}
     for _, st in ipairs(P.baseSteps or P.steps) do if st.key then have[st.key] = true end end
@@ -58,12 +58,12 @@ function P.MarksReport()
     local out = { ("%s: %d done, %d skipped, %d stepped back to, stored by step key (version %d)."):format(P.guide.name or P.guide.id, nd, ns, nr,
         G.KEY_VERSION) }
     if gd + gs > 0 then
-        out[#out + 1] = ("%d mark%s to steps this version of the guide no longer has; %s nowhere."):format(gd + gs,
+        out[#out + 1] = ("%d mark%s to steps this version of the route no longer has; %s nowhere."):format(gd + gs,
             gd + gs == 1 and " belongs" or "s belong", gd + gs == 1 and "it counts" or "they count")
     end
     local meta = NS.Account and NS.Account.me and NS.Account.me.stepMeta and NS.Account.me.stepMeta[P.guide.id]
     if meta and meta.stale then
-        out[#out + 1] = ("Not carried over from the previous release: %d mark%s. The guide has changed since they were made (it is shorter than they reach)."):format(
+        out[#out + 1] = ("Not carried over from the previous release: %d mark%s. The route has changed since they were made (it is shorter than they reach)."):format(
             meta.lost or 0, (meta.lost or 0) == 1 and "" or "s")
     elseif meta and (meta.mig or 0) > 0 then
         out[#out + 1] = ("Carried over from the previous release (by step position): %d mark%s%s."):format(meta.mig, meta.mig == 1 and "" or "s",
@@ -72,9 +72,9 @@ function P.MarksReport()
         out[#out + 1] = ("Not carried over from the previous release: %d mark%s (no matching step, or on a quest this character has not completed)."):format(
             meta.lost, meta.lost == 1 and "" or "s")
     elseif meta then
-        out[#out + 1] = "No marks from the previous release for this guide."
+        out[#out + 1] = "No marks from the previous release for this route."
     end
-    out[#out + 1] = "Guide version (step key checksum): " .. tostring(G.GuideSum(P.guide.id))
+    out[#out + 1] = "Route version (step key checksum): " .. tostring(G.GuideSum(P.guide.id))
     return out
 end
 

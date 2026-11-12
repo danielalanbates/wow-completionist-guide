@@ -305,7 +305,7 @@ function R.Describe(g, level)
     if inf.min or inf.max then
         out[#out + 1] = "Level: " .. (inf.min and inf.max and bandLabel(inf.min, inf.max) or inf.min and (inf.min .. "+") or ("1-" .. inf.max))
     elseif not (inf.prof and (inf.skillMin or inf.skillMax)) then
-        out[#out + 1] = "Level: any (this guide has no level data)"
+        out[#out + 1] = "Level: any (this route has no level data)"
     end
     if inf.reqName then
         local rank = NS.Professions and NS.Professions.Skill(inf.reqName)
@@ -352,7 +352,7 @@ function R.PrintList(rest)
         for _, e in ipairs(list) do NS:Print(entryLine(e)) end
         return
     end
-    NS:Print(("Guides for level %d (/cr load <name>; /cr list %d <category> for more):"):format(level, level))
+    NS:Print(("Routes for level %d (/cr load <name>; /cr list %d <category> for more):"):format(level, level))
     local picks = R.Picks(level)
     if #picks == 0 then NS:Print("  nothing for this level") end
     for _, sec in ipairs(picks) do
@@ -383,7 +383,7 @@ function R.PrintProf()
         for _, e in ipairs(entries) do
             if infoFor(e.g).prof == p.key then guide = e break end
         end
-        NS:Print(("%s %d/%d%s"):format(p.key, p.rank, p.max, guide and ("  ->  " .. (guide.g.name or guide.g.id)) or "  (no guide for this skill band)"))
+        NS:Print(("%s %d/%d%s"):format(p.key, p.rank, p.max, guide and ("  ->  " .. (guide.g.name or guide.g.id)) or "  (no route for this skill band)"))
     end
     if partial then NS:Print("Some skills are hidden: expand every header in the Skills pane to see them all.") end
 end
