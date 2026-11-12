@@ -216,7 +216,8 @@ function P.MarkDone(step, manual)
     end
     dirty = true
     NS:Debug("done: " .. step.action .. " " .. step.title)
-    NS:Fire("STEP_DONE", step)
+    -- manual = the forward arrow (or a menu click); wasCurrent = it was the step on screen (Core/Contribute.lua)
+    NS:Fire("STEP_DONE", step, manual and true or false, step == P.current)
     P.Refresh()
 end
 function P.Skip(step) if step and step.key then charReopened()[step.key] = nil charSkipped()[step.key] = true dirty = true P.Refresh() end end

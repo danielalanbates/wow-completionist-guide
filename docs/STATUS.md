@@ -1,5 +1,17 @@
 # Status / handoff (2026-11-11 evening: everything merged into `integration`, data regenerated, rebake running)
 
+## 2026-11-11 night: Contribute (players build the location database)
+
+Owner's request. A **Contribute** tick box on the guide window, left of Guides. While ticked, `Core/Contribute.lua`
+notes the player's map position on quest accept and turn-in (client events), on objective ticks of the guide's next
+steps, and on the forward arrow; clusters the samples into the most likely areas per step; `Router.StepWorld` uses the
+heaviest area for a step with no point ("learned spot"); the current step's areas are drawn on the world map as
+circles. No names or times are stored, nothing is sent; `/cr contribute export` gives a text to share. Details and
+what is not built (merging contributions into the shipped data): [CONTRIBUTE.md](CONTRIBUTE.md).
+Tests: new `tools/test_contribute.lua` (31 checks) and the touched harnesses pass. Not run in a client: the tick box,
+the map circles and the export window are the parts most likely to need a beta report.
+
+
 ## 2026-11-11 night: no other addon's guides
 
 Owner's decision: the addon is for the public, so it cannot depend on guides from another addon installed on the
