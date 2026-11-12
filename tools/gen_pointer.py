@@ -2,51 +2,102 @@
 # CompletionRoute :: tools/gen_pointer.py
 # Copyright (c) 2026 Daniel Bates / Bates LLC. All rights reserved.
 # Licensed under PolyForm Noncommercial 1.0.0 + 10% commercial-revenue rider (see LICENSE). https://batesai.org help@batesai.org
-"""Draw the pointer textures: an archery arrow (broadhead, shaft, fletching, nock) pointing up.
+"""Draw the pointer texture: an archery arrow pointing up, in natural colours.
 
     python3 tools/gen_pointer.py        (needs Pillow)
 
-Writes CompletionRoute/Textures/arrow.tga, arrow_green.tga, arrow_red.tga, arrow_blue.tga (128x128, 32-bit TGA).
-The owner asked for a bow-and-arrow arrow instead of a chevron (2026-11-11). Our own drawing; no outside art.
+Writes CompletionRoute/Textures/arrow.tga (128x128, 32-bit TGA): a steel broadhead with a bevel highlight, a wooden
+shaft with grain and two thread bindings, barred cream-and-brown feather fletching and a dark nock, all with a thin
+dark outline so it reads on any ground.  Our own drawing; no outside art.
+
+History: the owner asked for a bow-and-arrow arrow instead of a chevron (2026-11-11), drawn first in flat green /
+yellow / red / blue by distance; then for realistic colouring and no ETA line (2026-11-12), so there is one texture
+and the distance is the text under the arrow.
 """
 import os
 from PIL import Image, ImageDraw
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "CompletionRoute", "Textures")
-SIZE, S = 128, 6          # final size, supersample
+SIZE, S = 128, 8          # final size, supersample
+
+OUTLINE = (24, 16, 10, 255)
+STEEL, STEEL_LIGHT, STEEL_DARK = (150, 158, 166, 255), (214, 220, 226, 255), (92, 98, 106, 255)
+WOOD, WOOD_LIGHT, WOOD_DARK = (150, 98, 52, 255), (190, 136, 82, 255), (104, 64, 30, 255)
+THREAD = (70, 30, 20, 255)
+FEATHER, FEATHER_BAR, FEATHER_EDGE = (232, 222, 196, 255), (126, 84, 46, 255), (196, 182, 150, 255)
+NOCK = (40, 32, 28, 255)
 
 
-def arrow(name, fill, dark, feather):
+def draw():
     w = SIZE * S
     im = Image.new("RGBA", (w, w), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
-    def P(pts): return [(x * w, y * w) for x, y in pts]
-    ow = int(w * 0.022)                                   # outline width
+
+    def P(pts):
+        return [(x * w, y * w) for x, y in pts]
+
+    ow = int(w * 0.018)                                   # outline width
     cx = 0.5
-    # fletching: two swept vanes at the tail, drawn first so the shaft sits on top
+
+    # fletching: two swept feather vanes at the tail, barred like a natural feather; drawn first, under the shaft
     for sgn in (-1, 1):
-        vane = [(cx, 0.70), (cx + sgn * 0.17, 0.80), (cx + sgn * 0.17, 0.93), (cx, 0.86)]
-        d.polygon(P(vane), fill=feather)
-        d.line(P(vane + [vane[0]]), fill=dark, width=ow, joint="curve")
-        d.line(P([(cx + sgn * 0.02, 0.775), (cx + sgn * 0.15, 0.865)]), fill=dark, width=max(1, ow // 2))
-    # shaft
-    shaft = [(cx - 0.035, 0.36), (cx + 0.035, 0.36), (cx + 0.035, 0.90), (cx - 0.035, 0.90)]
-    d.polygon(P(shaft), fill=fill)
-    d.line(P(shaft + [shaft[0]]), fill=dark, width=ow, joint="curve")
-    # nock
-    nock = [(cx - 0.05, 0.89), (cx + 0.05, 0.89), (cx + 0.05, 0.955), (cx, 0.925), (cx - 0.05, 0.955)]
-    d.polygon(P(nock), fill=dark)
-    # broadhead: a barbed point
-    head = [(cx, 0.04), (cx + 0.19, 0.40), (cx + 0.06, 0.33), (cx, 0.40), (cx - 0.06, 0.33), (cx - 0.19, 0.40)]
-    d.polygon(P(head), fill=fill)
-    d.line(P(head + [head[0]]), fill=dark, width=ow, joint="curve")
-    d.line(P([(cx, 0.09), (cx, 0.36)]), fill=dark, width=max(1, ow // 2))   # the head's centre ridge
+        vane = [(cx + sgn * 0.02, 0.66), (cx + sgn * 0.16, 0.76), (cx + sgn * 0.17, 0.90), (cx + sgn * 0.02, 0.86)]
+        d.polygon(P(vane), fill=FEATHER)
+        # bars across the vane, following its sweep
+        for i in range(4):
+            t0, t1 = 0.08 + i * 0.22, 0.17 + i * 0.22
+            a0 = (cx + sgn * 0.02, 0.66 + (0.86 - 0.66) * t0)
+            a1 = (cx + sgn * 0.02, 0.66 + (0.86 - 0.66) * t1)
+            b1 = (cx + sgn * (0.16 + 0.01 * t1), 0.76 + (0.90 - 0.76) * t1)
+            b0 = (cx + sgn * (0.16 + 0.01 * t0), 0.76 + (0.90 - 0.76) * t0)
+            d.polygon(P([a0, a1, b1, b0]), fill=FEATHER_BAR)
+        # the outer edge of the vane is a little darker, the barbs a fine line
+        d.line(P([vane[1], vane[2]]), fill=FEATHER_EDGE, width=max(1, ow // 2))
+        d.line(P(vane + [vane[0]]), fill=OUTLINE, width=ow, joint="curve")
+
+    # shaft: wood, a lighter grain stripe on one side and a darker one on the other
+    shaft = [(cx - 0.032, 0.34), (cx + 0.032, 0.34), (cx + 0.032, 0.90), (cx - 0.032, 0.90)]
+    d.polygon(P(shaft), fill=WOOD)
+    d.polygon(P([(cx - 0.032, 0.34), (cx - 0.010, 0.34), (cx - 0.010, 0.90), (cx - 0.032, 0.90)]), fill=WOOD_LIGHT)
+    d.polygon(P([(cx + 0.014, 0.34), (cx + 0.032, 0.34), (cx + 0.032, 0.90), (cx + 0.014, 0.90)]), fill=WOOD_DARK)
+    for y in (0.45, 0.53, 0.60):                          # a few grain lines
+        d.line(P([(cx - 0.004, y), (cx + 0.006, y + 0.05)]), fill=WOOD_DARK, width=max(1, ow // 3))
+    d.line(P(shaft + [shaft[0]]), fill=OUTLINE, width=ow, joint="curve")
+    # thread bindings: behind the head and in front of the fletching
+    for y0, y1 in ((0.34, 0.375), (0.635, 0.665)):
+        band = [(cx - 0.038, y0), (cx + 0.038, y0), (cx + 0.038, y1), (cx - 0.038, y1)]
+        d.polygon(P(band), fill=THREAD)
+        d.line(P(band + [band[0]]), fill=OUTLINE, width=max(1, ow // 2))
+
+    # nock: dark horn with its slot
+    nock = [(cx - 0.045, 0.895), (cx + 0.045, 0.895), (cx + 0.045, 0.96), (cx, 0.93), (cx - 0.045, 0.96)]
+    d.polygon(P(nock), fill=NOCK)
+    d.line(P(nock + [nock[0]]), fill=OUTLINE, width=max(1, ow // 2), joint="curve")
+
+    # broadhead: steel, a light bevel on the left blade, a dark one on the right, a central ridge
+    tip, lb, rb = (cx, 0.04), (cx - 0.18, 0.37), (cx + 0.18, 0.37)
+    lbarb, rbarb, neck = (cx - 0.055, 0.31), (cx + 0.055, 0.31), (cx, 0.36)
+    head = [tip, rb, rbarb, neck, lbarb, lb]
+    d.polygon(P(head), fill=STEEL)
+    d.polygon(P([tip, (cx, 0.36), lbarb, lb]), fill=STEEL_LIGHT)
+    d.polygon(P([tip, rb, rbarb, (cx, 0.36)]), fill=STEEL_DARK)
+    d.polygon(P([tip, (cx + 0.025, 0.30), (cx, 0.34), (cx - 0.025, 0.30)]), fill=STEEL)   # the ridge
+    d.line(P(head + [head[0]]), fill=OUTLINE, width=ow, joint="curve")
+    d.line(P([tip, (cx, 0.34)]), fill=STEEL_DARK, width=max(1, ow // 3))
+
     im = im.resize((SIZE, SIZE), Image.LANCZOS)
-    im.save(os.path.join(OUT, name + ".tga"))
-    print("wrote", name)
+    im.save(os.path.join(OUT, "arrow.tga"))
+    preview = os.environ.get("CR_POINTER_PREVIEW")      # optional: a PNG on a dark and a light ground, to look at
+    if preview:
+        sheet = Image.new("RGBA", (2 * SIZE * 2, SIZE * 2), (0, 0, 0, 255))
+        sheet.paste((40, 46, 38, 255), (0, 0, SIZE * 2, SIZE * 2))
+        sheet.paste((196, 186, 160, 255), (SIZE * 2, 0, SIZE * 4, SIZE * 2))
+        big = im.resize((SIZE * 2, SIZE * 2), Image.LANCZOS)
+        sheet.alpha_composite(big, (0, 0))
+        sheet.alpha_composite(big, (SIZE * 2, 0))
+        sheet.save(preview)
+    print("wrote arrow")
 
 
-arrow("arrow", (255, 210, 0, 255), (60, 40, 0, 255), (255, 240, 170, 255))
-arrow("arrow_green", (80, 230, 90, 255), (0, 50, 0, 255), (200, 255, 200, 255))
-arrow("arrow_red", (240, 70, 60, 255), (60, 0, 0, 255), (255, 200, 195, 255))
-arrow("arrow_blue", (62, 198, 255, 255), (0, 40, 70, 255), (200, 235, 255, 255))
+if __name__ == "__main__":
+    draw()

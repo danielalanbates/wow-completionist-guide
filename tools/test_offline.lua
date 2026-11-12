@@ -373,11 +373,17 @@ do
 end
 print("travel line OK: walking is not narrated")
 
--- the pointer is a plain arrow (the hand pointer and its style option were removed on 2026-11-11)
+-- the pointer is one archery arrow in natural colours (the hand pointer went on 2026-11-11, the distance colours and
+-- the ETA line on 2026-11-12)
 do
     local f = assert(io.open("CompletionRoute/UI/Arrow.lua"))
     local src = f:read("*a") f:close()
-    assert(not src:find('"hand"') and src:find("arrow_green") and src:find("arrow_red"), "the pointer must be the arrow only")
+    assert(not src:find('"hand"') and not src:find("arrow_green") and not src:find("arrow_red") and not src:find("arrow_blue"),
+        "the pointer must be the one realistic arrow")
+    assert(not src:find("ETA ~", 1, true) and not src:find("eta:SetText", 1, true), "the arrow shows no ETA line")
+    for _, gone in ipairs({ "arrow_green", "arrow_red", "arrow_blue" }) do
+        assert(io.open("CompletionRoute/Textures/" .. gone .. ".tga") == nil, gone .. ".tga still shipped")
+    end
     assert(src:find("rec.dead"), "arrow has no dead branch")
     assert(io.open("CompletionRoute/Textures/hand.tga") == nil, "hand texture still shipped")
     local o = assert(io.open("CompletionRoute/UI/Options.lua"))
@@ -502,7 +508,7 @@ do
     assert(NS.Beacon.MarkerTexture(NS.Progress.current) == NS.Guide.ACTION_ICON.T, "turn-in icon")
     NS.db.profile.beacon.icon = "arrow"
     local t2, rot = NS.Beacon.MarkerTexture(NS.Progress.current)
-    assert(t2:find("arrow_green") and rot, "arrow style should rotate the arrow")
+    assert(t2:find("Textures\\arrow$") and rot, "arrow style should rotate the arrow: " .. tostring(t2))
     NS.db.profile.beacon.icon = "action"
     print("over-head icon OK: uses Blizzard step art, skull for kill steps, arrow style still available")
 end
