@@ -6,6 +6,10 @@ Read this first, then `docs/STATUS.md` (newest section on top), `docs/IDEAS.md` 
 were written before that: where they say dev build, fallback points, `--no-fallback`, `--wiki-only`, `--shippable`,
 `_gaps` guides, `Imported_Entrances` or a release rebake, read `docs/RELEASE.md` instead. The generators' default
 output is the build, and none of those variants exists any more.
+**State on 2026-11-12:** that work is branch `public-build-only` (worktree `wt-public`, its own copy of the
+regenerated data; gate and tests pass there). It is not merged, installed or baked: `repo/`, the Drive copy and the
+five clients still hold the dev build. The steps are in `docs/STATUS.md`, top section, *To apply*; the rebake that
+follows covers 1,611 of 1,640 guides.
 These notes cover work that was **in flight** when they were written. Before trusting any line, check the real state
 with the commands in each table, because jobs may have finished, failed or been cut off since.
 
@@ -24,7 +28,7 @@ separate GitHub repo** (see section 5, phase 4).
 | Rule | Detail |
 |---|---|
 | No commercial guide content, ever | The project is fully independent. Never read, import, imitate or **name** the commercial guide addon it replaced. It was purged from all git history on 2026-11-07; `tools/install.sh` refuses to install if such files reappear. |
-| Data sources | Quest and NPC data come from the Warcraft Wiki (warcraft.wiki.gg, CC BY-SA 4.0) and Blizzard client data (wago.tools DB2), plus the project's own data. Nothing derived from another addon is read, generated, loaded, installed, baked or shipped (the WoW-Pro adapter and the Questie-derived dev build were both removed on 2026-11-11: an addon for the public cannot depend on one, and the owner runs only the public build). The Questie tooling is in `archive/questie-tooling/`; `tools/measure/` holds one explicit offline comparison that never writes into `CompletionRoute/`. Wiki-derived data ships under CC BY-SA. Code is PolyForm Noncommercial with the 10% commercial rider, all rights reserved (batesai.org, help@batesai.org). |
+| Data sources | Quest and NPC data come from the Warcraft Wiki (warcraft.wiki.gg, CC BY-SA 4.0) and Blizzard client data (wago.tools DB2), plus the project's own data. Nothing derived from another addon is read, generated, loaded, installed, baked or shipped (the WoW-Pro adapter and the Questie-derived dev build were both removed on 2026-11-11: an addon for the public cannot depend on one, and the owner runs only the public build; the GatherMate2 and Routes node import in `Core/Farm.lua` went on 2026-11-12 for the same reason). The Questie tooling is in `archive/questie-tooling/`; `tools/measure/` holds one explicit offline comparison that never writes into `CompletionRoute/`. Wiki-derived data ships under CC BY-SA. Code is PolyForm Noncommercial with the 10% commercial rider, all rights reserved (batesai.org, help@batesai.org). |
 | One build | What the six TOCs list = what `tools/install.sh` installs = what the generators write by default = what `tools/bake_resume.py` bakes = what `tools/package_release.py` packages (plus the version stamp). `tools/validate_toc.lua`, the installer and the packager's gate each refuse a file outside that set. |
 | Testing | Daniel beta-tests in game himself. The AI never logs into Battle.net, launches WoW or drives the game. Verification is offline: `tools/vplayer.lua`, `tools/test_*.lua`, `tools/validate_toc.lua`, plus his reports. |
 | Releases | GitHub releases are public and must be bug free, so none is made until Daniel's beta passes. The beta is the local install plus the companion app in /Applications ("Completionist's Guide.app", 2.0.0-beta). The app runs `tools/install.sh` from the Google Drive project folder and does not bundle guide data, so it needs a rebuild only when `app/` changes. |

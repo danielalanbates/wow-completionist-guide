@@ -9,7 +9,7 @@ source TOC with the version stamped in.
 
 `tools/package_release.py` builds the add-on that players download and proves the above with a gate.
 
-**Status (2026-11-11).** Offline only: nothing here has run in a real client. The tool never tags, pushes or creates a
+**Status (2026-11-12).** Offline only: nothing here has run in a real client. The tool never tags, pushes or creates a
 GitHub release: v2.0 waits for Daniel's beta. Gate result on the regenerated data: see *Dry run* below.
 
 ## Commands
@@ -67,7 +67,17 @@ Zips are reproducible: fixed order, commit timestamp, mode 644.
 
 ## Universal zip, not per-client zips
 
-@SIZES@
+Measured 2026-11-12 on the build (dry run, deflate level 9):
+
+| Package | Files | Unpacked MB | Zip MB |
+|---|---:|---:|---:|
+| **universal** (all six TOCs) | 106 | 46.83 | **7.13** |
+| era | 69 | 3.47 | 0.68 |
+| tbc | 69 | 4.38 | 0.82 |
+| mop | 71 | 9.07 | 1.54 |
+| retail | 74 | 32.89 | 5.03 |
+| forever | 72 | 3.59 | 0.71 |
+| per-client zips together | | 53.40 | 8.78 |
 
 Default: **one universal zip**. The project is one add-on for five clients, and a client loads only the files its
 own TOC lists, so the other clients' data costs disk space (about 40 MB for a Classic-only player), not memory or
@@ -132,9 +142,18 @@ Notes, not failures: `RouteOrder` rows that name a guide found in no file (stale
 character names were checked, links read with `--allow-checkout-links`, uncommitted changes (the version then ends in
 `-dirty` unless `--version` is given).
 
-## Dry run on 2026-11-11 (branch `public-build-only`)
+## Dry run on 2026-11-12 (branch `public-build-only`)
 
-@GATE@
+`heavy.sh python3 tools/package_release.py` on the worktree's regenerated data, with no step that differs from the
+everyday workflow: **gate PASS**, exit 0, no problem and no stale-row note. 106 files (own code 40, own data 19, own
+docs 4, wiki CC BY-SA 29, Blizzard client data 8, libraries 6), universal zip 7.13 MB. The packaged TOCs differ from
+the source TOCs by the `## Version` line only. One WoW account name and 43 character names were checked as personal
+data. The route orders in that data hold 7 rows (the rest waits for the rebake), so the package would ship almost
+unbaked guides: bake before a release.
+
+One thing failed on the first try and was fixed in the generator, not worked around: the quest-line file copies
+steps whose point is a Blizzard quest pin from the wiki file, and its header did not name the quest-pin tables and
+their client build. `tools/gen_completion_guides.py` now repeats the wiki file's header line.
 
 ## Making a build
 

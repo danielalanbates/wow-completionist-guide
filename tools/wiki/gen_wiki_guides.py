@@ -760,8 +760,8 @@ class Gen:
         Stormwind.  And a page that says its NPC stood elsewhere before the Cataclysm gives none there: its lead
         describes the later place (Shadowmage Vivian Lagrave is "located in ... [[Blackrock Depths]]" now and was in
         Kargath then; place_links).  MoP and Retail keep every lead link: their NPCs reappear across expansions and the
-        location field lists only some of the places (measured 2026-11-12: the sentence rule moved 25 Retail steps to
-        a wrong zone, Garrosh Hellscream's Borean Tundra quests among them)."""
+        location field lists only some of the places (tried 2026-11-12: the sentence rule changed 60 Retail step lines,
+        many to a wrong zone; Garrosh Hellscream's Borean Tundra quests went to the Sanctum of Domination)."""
         page, kind = self.resolve_title(title)
         if not page:
             return []

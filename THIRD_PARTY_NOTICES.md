@@ -23,6 +23,10 @@ None of it was ever committed or released, and since that day none of it is gene
 The tools that read the checkout are in `archive/questie-tooling/` (unmaintained). One explicit offline comparison
 against those older files remains (`tools/measure/README.md`); it never writes into the add-on.
 
+**Not read at run time: other addons' saved data.** Until 2026-11-12 the add-on copied gathering nodes from
+GatherMate2 and Routes at login when they were installed. That import, its option and its command are removed; farm
+circuits are built from the nodes the player loots.
+
 Release packages are built by `tools/package_release.py`, which fails when the add-on folder holds Questie- or
 other addons' guide data and writes a provenance record for every shipped file ([docs/RELEASE.md](docs/RELEASE.md)).
 Each package carries `LICENSE.txt` and an `ATTRIBUTION.md` that lists its wiki, Blizzard-data and library files.
