@@ -25,6 +25,22 @@ local A = {}
 NS.Account = A
 
 local function key() return (NS.player.name or UnitName("player")) .. "-" .. (NS.player.realm or GetRealmName() or "?") end
+-- WoW Forever characters have a surname: UnitNameUnmodified("player") returns it second (the other clients return
+-- nothing there for the player).  It is shown after the name and is never part of the character's key, so progress saved
+-- before it was read stays where it is.
+local function playerSurname()
+    if not UnitNameUnmodified then return nil end
+    local ok, _, s = pcall(UnitNameUnmodified, "player")
+    if ok and type(s) == "string" and s ~= "" and s ~= (NS.player.realm or (GetRealmName and GetRealmName())) then return s end
+    return nil
+end
+-- "Name Surname" (or "Name") of a character record
+function A.DisplayName(c)
+    if not c then return "?" end
+    local n = c.name or "?"
+    if type(c.surname) == "string" and c.surname ~= "" then n = n .. " " .. c.surname end
+    return n
+end
 
 function A.Init()
     local db = NS.db.global
@@ -48,6 +64,7 @@ function A.Init()
     NS.db.char.stepReopened = NS.db.char.stepReopened or {}
     me.quests = me.quests or {}   -- [questID] = true, quests this character turned in
     me.name = NS.player.name
+    me.surname = playerSurname()
     me.realm = NS.player.realm
     me.class = NS.player.class
     me.faction = NS.player.faction
@@ -121,7 +138,7 @@ function A.ScopeLabel(sc) return A.SCOPE_LABEL[sc or A.Scope()] or "?" end
 -- What the current scope means, in words, for the character we are on
 function A.ScopeDetail(sc)
     sc = sc or A.Scope()
-    if sc == "char" then return (A.me and A.me.name or "this character") .. " only" end
+    if sc == "char" then return (A.me and A.DisplayName(A.me) or "this character") .. " only" end
     if sc == "realm" then return "every character on " .. ((A.me and A.me.realm) or "this realm") end
     if sc == "flavor" then return "every character in " .. A.GameTypeName() end
     return "every character on the account"
@@ -512,12 +529,12 @@ function A.GuideCompletedBy(g)
     if nq == 0 then A.Migrate(g.id, steps) end   -- a guide without quests is finished by its ticks
     -- this character first, then the others
     if charFinished(A.me, g, steps, qids, nq) then
-        A.completedCache[g.id] = { key = A.key, name = A.me.name or A.key }
+        A.completedCache[g.id] = { key = A.key, name = A.me.name and A.DisplayName(A.me) or A.key }
         return A.key, A.completedCache[g.id].name
     end
     for k, ch in pairs(NS.db.global.chars) do
         if k ~= A.key and charFinished(ch, g, steps, qids, nq) then
-            A.completedCache[g.id] = { key = k, name = ch.name or k }
+            A.completedCache[g.id] = { key = k, name = ch.name and A.DisplayName(ch) or k }
             return k, ch.name or k
         end
     end
@@ -562,7 +579,7 @@ function A.Characters()
         for gid, set in pairs(c.done or {}) do
             if not (c.stepMeta and c.stepMeta[gid]) then local n = count(set) steps = steps + n if n > 0 then guides = guides + 1 end end
         end
-        out[#out + 1] = { key = k, name = c.name, realm = c.realm, class = c.class, faction = c.faction,
+        out[#out + 1] = { key = k, name = c.name, surname = c.surname, display = A.DisplayName(c), realm = c.realm, class = c.class, faction = c.faction,
                           level = c.level, flavor = c.flavor, steps = steps, updated = c.updated, guides = guides }
     end
     table.sort(out, function(a, b) return (a.steps or 0) > (b.steps or 0) end)
