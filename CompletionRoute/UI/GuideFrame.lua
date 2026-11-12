@@ -385,10 +385,10 @@ function GF.Update()
     if not s then
         local applicable = #P.Pending(1)
         if done >= total and total > 0 then
-            showEmpty(("|cff00ff00Route complete|r - all %d steps done.\n|cffffd200Start over|r runs it again from the first step; |cffffd200Routes|r has the next one (|cff7ddf8fFor level|r lists what fits you now)."):format(total), true)
+            showEmpty(("|cff00ff00Route complete|r - all %d steps done.\n|cffffd200Start over|r runs it again from the first step; |cffffd200Routes|r has the next one (|cff7ddf8fRecommended|r lists what fits you now)."):format(total), true)
         elseif applicable == 0 then
             showEmpty("No steps left in this route apply to you right now.\nThey may be for the other faction, another class, or a level you have passed.\n"
-                .. (marks and "|cffffd200Start over|r runs it again from the first step; " or "") .. "|cffffd200Routes|r has others (|cff7ddf8fFor level|r lists what fits you now).", marks)
+                .. (marks and "|cffffd200Start over|r runs it again from the first step; " or "") .. "|cffffd200Routes|r has others (|cff7ddf8fRecommended|r lists what fits you now).", marks)
         else
             showEmpty("Nothing to show for this route right now.\nClick |cffffd200Routes|r to pick another.", marks)
         end
@@ -506,7 +506,7 @@ function GF.SafeUpdate()
     local ok, err = pcall(GF.Update)
     if not ok and not GF.errShown then
         GF.errShown = true
-        NS:Print("|cffff4040Guide window error:|r " .. tostring(err))
+        NS:Print("|cffff4040Step window error:|r " .. tostring(err))
         NS.db.char.luaErrors = NS.db.char.luaErrors or {}
         tinsert(NS.db.char.luaErrors, "GuideFrame.Update: " .. tostring(err))
     end
@@ -555,7 +555,7 @@ local dSkip = smallButton("Skip", 50, "Skip this step (on an accept: the whole q
     if detail.step then local st = detail.step detail:Hide() NS.Skip.SkipStep(st) end
 end, detail)
 dSkip:SetPoint("LEFT", dDone, "RIGHT", 4, 0)
-local dSkipQ = smallButton("Skip quest", 76, "Skip this whole quest in every guide (you are warned first if other quests need it). /cr unskip brings it back.", function()
+local dSkipQ = smallButton("Skip quest", 76, "Skip this whole quest in every route (you are warned first if other quests need it). /cr unskip brings it back.", function()
     local st = detail.step
     if st and st.qid then detail:Hide() NS.Skip.SkipQuest(st.qid[1]) end
 end, detail)
@@ -607,7 +607,7 @@ function GF.ShowDetail(step)
     end
     if step.zone then
         lines[#lines + 1] = ("|cff7ddf8fWhere:|r %s%s"):format(U.MapName(step.zone),
-            step.coords and (" " .. string.format("%.1f, %.1f", step.coords[1].x * 100, step.coords[1].y * 100)) or " (no exact spot in this guide)")
+            step.coords and (" " .. string.format("%.1f, %.1f", step.coords[1].x * 100, step.coords[1].y * 100)) or " (no exact spot in this route)")
     end
     local secs = NS.Router and NS.Router.TravelSecondsFromPlayer(step)
     if secs then

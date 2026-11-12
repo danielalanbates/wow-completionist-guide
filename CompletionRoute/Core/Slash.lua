@@ -21,7 +21,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             if id:lower() == rest:lower() or (g.name or ""):lower() == rest:lower() or id:lower():find(rest:lower(), 1, true) or (g.name or ""):lower():find(rest:lower(), 1, true) then P.Load(id) return end
         end
         NS:Print("No route matches '" .. rest .. "'. /cr routes")
-    elseif cmd == "next" or cmd == "done" then P.Forward()
+    elseif cmd == "next" or cmd == "done" then P.Forward()     -- mark the step done (the forward arrow)
     elseif cmd == "skip" then
         -- /cr skip [questID] [confirm]: drop a whole quest (default: the current step's); quests that need it are
         -- named first (Core/Skip.lua).  A current step without a quest is skipped as a step, as before.
@@ -45,7 +45,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         -- quests (Core/QuestAuto.lua, docs/QUEST_AUTO.md); no argument shows the settings and the last decision
         NS.QuestAuto.Command(rest)
     elseif cmd == "undo" or cmd == "back" or cmd == "prev" then P.Undo()
-    elseif cmd == "reset" then P.Reset() NS:Print("Guide progress reset.")
+    elseif cmd == "reset" then P.Reset() NS:Print("Route progress reset.")
     elseif cmd == "marks" then for _, line in ipairs(P.MarksReport()) do NS:Print(line) end   -- progress storage (docs/STEP_KEYS.md)
     elseif cmd == "arrow" then NS.db.profile.arrow.enabled = not NS.db.profile.arrow.enabled NS.Arrow.ApplySettings() NS:Print("Arrow " .. (NS.db.profile.arrow.enabled and "on" or "off"))
     elseif cmd == "contribute" or cmd == "contrib" then NS.Contribute.Slash(rest)
@@ -81,17 +81,19 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "hearth" then
         local wx, wy, inst, name = NS.TravelGraph.HearthWorld()
         NS:Print(("Hearth: %s  (%s)"):format(tostring(GetBindLocation and GetBindLocation()), wx and ("known: " .. tostring(name)) or "location unknown - hearth once or bind at an inn to teach me"))
-    elseif cmd == "next" then
+    elseif cmd == "suggest" then
+        -- the leveling route that fits your level best, weighed against the travel to it (Core/Guide.lua G.SuggestNext);
+        -- /cr switch loads it.  This was a second "next" branch, which "next" = mark the step done (above) never let run.
         local nxt, eta = G.SuggestNext(NS.Progress.guide and NS.Progress.guide.id)
         if nxt then
-            local msg = ("Next recommended guide: %s [%s-%s]%s"):format(nxt.name, tostring(nxt.minlevel), tostring(nxt.maxlevel), eta and (" ~%dm travel"):format(math.max(1, math.floor(eta / 60 + 0.5))) or "")
-            NS:Print(msg)
+            local msg = ("Suggested route: %s [%s-%s]%s"):format(nxt.name, tostring(nxt.minlevel), tostring(nxt.maxlevel), eta and (" ~%dm travel"):format(math.max(1, math.floor(eta / 60 + 0.5))) or "")
+            NS:Print(msg .. "  (/cr switch loads it)")
             NS.db.char.lastNext = nxt.id .. " | " .. msg
-        else NS:Print("No leveling guide fits your level/faction.") NS.db.char.lastNext = "none" end
+        else NS:Print("No leveling route fits your level and faction.") NS.db.char.lastNext = "none" end
     elseif cmd == "switch" then
         local nxt = G.SuggestNext(NS.Progress.guide and NS.Progress.guide.id)
         if nxt then NS.Progress.Load(nxt.id) NS:Print("Switched to: " .. nxt.name)
-        else NS:Print("No better guide found.") end
+        else NS:Print("No better route found.") end
     elseif cmd == "scan" then
         if NS.DynamicQuests then NS.DynamicQuests.Scan() NS:Print("Rescanned this zone's live quests.")
         else NS:Print("Live quest scan is retail-only (classic flavors use the baked quest DB).") end
@@ -108,7 +110,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "chars" or cmd == "account" then
         NS:Print(("Account-wide progress: %s (toggle: /cr accountwide)"):format(NS.db.profile.accountWide and "|cff00ff00ON|r" or "|cff888888OFF|r"))
         for _, c in ipairs(NS.Account.Characters()) do
-            NS:Print(("  %s%s  %s %s lvl %s  %s  %d steps in %d guides  (%s)"):format(
+            NS:Print(("  %s%s  %s %s lvl %s  %s  %d steps in %d routes  (%s)"):format(
                 c.key == NS.Account.key and "|cffffd200*|r " or "  ", c.key,
                 tostring(c.faction), tostring(c.class), tostring(c.level), tostring(c.flavor),
                 c.steps or 0, c.guides or 0, tostring(c.updated)))
@@ -144,14 +146,14 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         NS:Print("--- why ---")
         if not g then NS:Print("No route loaded. /cr routes") return end
         local done = P.VisibleDone()
-        NS:Print(("Guide: %s (%s) - %d/%d steps done, %d still applicable"):format(
+        NS:Print(("Route: %s (%s) - %d/%d steps done, %d still applicable"):format(
             g.name or g.id, g.source or "?", done, P.steps and #P.steps or 0, #P.Pending(999)))
         if P.baseSteps and #P.baseSteps > #(P.steps or {}) then
-            NS:Print(("  rebuilt without skipped quests: %d of the guide's %d steps left out (/cr skipped)"):format(#P.baseSteps - #P.steps, #P.baseSteps))
+            NS:Print(("  rebuilt without skipped quests: %d of the route's %d steps left out (/cr skipped)"):format(#P.baseSteps - #P.steps, #P.baseSteps))
         end
         if NS.db.profile.accountWide then NS:Print("Account-wide is ON: steps another character finished count as done (/cr accountwide)") end
         if not st then
-            NS:Print("No current step. Either the guide is finished, or every remaining step is filtered out by faction/class/race/level.")
+            NS:Print("No current step. Either the route is finished, or every remaining step is filtered out by faction/class/race/level.")
             local shown = 0
             for _, s2 in ipairs(P.steps or {}) do
                 if not P.IsDone(s2) and not Cond.StepApplies(s2) and shown < 5 then
@@ -163,7 +165,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             return
         end
         NS:Print(("Current step: [%s] %s"):format(st.action, st.title))
-        NS:Print(("  guide coords: %s   zone: %s   quest: %s"):format(
+        NS:Print(("  step coords: %s   zone: %s   quest: %s"):format(
             st.coords and (#st.coords .. " point(s)") or "|cffff9900none|r",
             st.zone and U.MapName(st.zone) or "|cffff9900none|r",
             st.qid and table.concat(st.qid, ", ") or "none"))
@@ -188,7 +190,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             rec.borrowedFrom and (" (pointing at a later step: " .. rec.borrowedFrom.title .. ")") or ""))
         if rec.why then NS:Print("  |cffff9900" .. rec.why .. "|r") end
         if rec.mode == "none" then
-            NS:Print("  |cffff9900This guide line has no map data. Nothing to point at until you pick up the quest (then the game's own objective location is used).|r")
+            NS:Print("  |cffff9900This step has no map data. Nothing to point at until you pick up the quest (then the game's own objective location is used).|r")
         else
             NS:Print(("  distance %s, ETA %s"):format(U.FmtDist(rec.dist), U.FmtTime(rec.eta)))
         end
@@ -211,7 +213,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
                     st2.index, st2.action, st2.title, tostring(P.IsDone(st2)), tostring(Cond.StepApplies(st2))))
             end
         end
-        if hits == 0 then NS:Print("  not in the loaded guide") end
+        if hits == 0 then NS:Print("  not in the loaded route") end
     elseif cmd == "icon" then
         local b = NS.db.profile.beacon
         b.icon = (b.icon == "action") and "arrow" or "action"
@@ -226,7 +228,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "stats" then
         local bySrc = {}
         for _, id in ipairs(G.list) do local g = G.registry[id] bySrc[g.source or "?"] = (bySrc[g.source or "?"] or 0) + 1 end
-        for src, n in pairs(bySrc) do NS:Print(("guides from %s: %d"):format(src, n)) end
+        for src, n in pairs(bySrc) do NS:Print(("routes from %s: %d"):format(src, n)) end
         NS:Print(("player: %s %s %s lvl %.1f; suggest = %s"):format(NS.player.faction, NS.player.race, NS.player.class, U.PlayerLevel(), tostring(G.Suggest() and G.Suggest().id)))
         for _, id in ipairs(G.list) do local g = G.registry[id] if g.source == "CompletionRoute" then NS:Print(("  native: %s [%s] %s-%s %s"):format(id, g.faction or "?", tostring(g.minlevel), tostring(g.maxlevel), Cond and NS.Cond.FactionMatch(g.faction) and "ok" or "faction-mismatch")) end end
     elseif cmd == "farm" then
@@ -291,7 +293,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | routes | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | farm | log | bug [note] | contribute [on|off|export|clear] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | routes | list [level] [category] | gold [level] | prof | load <name> | next (mark the step done) | suggest | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | farm | log | bug [note] | contribute [on|off|export|clear] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 
