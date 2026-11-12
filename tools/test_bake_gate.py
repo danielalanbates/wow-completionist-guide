@@ -182,6 +182,28 @@ class BakeGate(unittest.TestCase):
         self.assertEqual(len(rows), 180)
         self.assertEqual({(r["w"], r["j"]) for r in rows.values()}, {(str(w), j) for w in range(6) for j in range(30)})
 
+    def test_no_progress_file_is_left_behind(self):
+        """the per-process progress file goes away on success and on a checksum mismatch (exit 2); after a kill -9,
+        tools/bake_resume.py removes it on its next start, but never one a running process still owns"""
+        opt.run_vplayer = self.fake()
+        self.assertEqual(self.main("--in", self.inp, "--merge", "--gate"), 0)
+        d = os.path.dirname(self.out)
+        self.assertEqual([f for f in os.listdir(d) if ".solving." in f or ".part" in f], [])
+        bad = os.path.join(self.dir, "bad.jsonl")
+        r = row("t:bad", "Alliance"); r["sum"] = r["sum"] + 1
+        with open(bad, "w") as f:
+            f.write(json.dumps(r) + "\n")
+        self.assertEqual(self.main("--in", bad, "--merge"), 2)
+        self.assertEqual([f for f in os.listdir(d) if ".solving." in f or ".part" in f], [])
+        dead = subprocess.Popen([sys.executable, "-c", "pass"]); dead.wait()
+        for name in ("era.jsonl.solving.%d" % dead.pid, "era.jsonl.part.%d" % dead.pid, "era.jsonl.solving.%d" % os.getpid()):
+            open(os.path.join(d, name), "w").close()
+        old = os.path.join(d, "era.jsonl.part")
+        open(old, "w").close()
+        os.utime(old, (0, 0))
+        got = [os.path.basename(p) for p in bake_resume.stale_progress_files(self.dir)]
+        self.assertEqual(got, sorted(["era.jsonl.part", "era.jsonl.part.%d" % dead.pid, "era.jsonl.solving.%d" % dead.pid]))
+
     def test_gate_limits_come_from_the_rows(self):
         self.assertEqual(opt.gate_limits([{"cm": {"gate_frac": 0.02, "gate_abs": 45}}]), (0.02, 45.0))
         self.assertFalse(hasattr(opt, "GATE_FRAC"), "no second copy of the gate limits in the optimizer")

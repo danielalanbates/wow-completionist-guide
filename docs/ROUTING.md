@@ -691,6 +691,22 @@ the restart gated the 4 rows without solving them). Rows solved under another co
 write keeps only entries for guides that match the current list. `--lua-dir` writes the RouteOrder files elsewhere,
 `--only-file FLAVOR=ids` limits a run to some guides.
 
+**Several batches at once (2026-11-12).** `--jobs N` (default 1) runs N batches in parallel; each batch is one
+single-threaded cost-matrix, solve and gate chain of about 100 to 300 MB with its own scratch files. The optimizer puts
+its rows into the shared `<flavor>.jsonl` under a lock (`<flavor>.jsonl.lock`) after reading the file again, so a batch
+never writes back an older copy of rows another batch saved meanwhile (`save_rows(own=)`). Its progress file is
+`<flavor>.jsonl.solving.<pid>`, removed however the solve ends; one left by a `kill -9` is removed on the next start.
+Measured: 12 small Era guides took 14 s with `--jobs 3` and 42 s with one job, rows identical apart from `solve_s`,
+RouteOrder byte-identical; an independent check killed a 4-job run with `kill -9` mid-way and the resumed run matched a
+one-job run row for row. The live Retail bake went from about 20 minutes per 20-guide batch to about 1 minute per batch
+on this 8-core Mac with `--jobs 4`. The solver's limits are wall-clock, so with more jobs than fast cores a solve does
+less in its time; the gate still decides what is kept.
+
+**The generator writes the same bytes on every run (2026-11-12).** `tools/wiki/gen_spine.py` broke rank ties by object
+address and walked a set of guide ids, so every regeneration moved a few sibling quests on MoP and Retail and made
+those guides' baked orders stale. Ties now break by the quest's place in the guide. Eight hash seeds gave byte-identical
+guide, spine and sidecar files on all five clients; `tools/test_gen_determinism.py` checks two.
+
 **Saved quest-skip re-plans reset once.** `Core/Skip.lua` saves a re-plan under `S.PlanKey`, which includes
 `G.RouteChecksum` of the guide's list in its current (baked or author) order. Checksum version 2 changes that value for
 every guide (all 234 era guides checked), and so does any rebake that changes a guide's order. After this update, a guide
