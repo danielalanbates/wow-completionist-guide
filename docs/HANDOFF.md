@@ -367,6 +367,12 @@ numbers in docs/STATUS.md "2026-11-11: Coverage workstream B".
 * Homebrew git's HTTPS hangs, so use `/usr/bin/git` for push and fetch. `grep` in this shell is ugrep, so use
   `/usr/bin/grep` for complex patterns. zsh aborts on unmatched globs, so use `bash -O nullglob -c` for `rm` with globs.
 * `kern.memorystatus_vm_pressure_level` stays at 2 ("warn") with a game open, so gate on level 4 or under 10% free instead.
+* **Worktrees and symlinks.** A pattern ending in `/` ignores a directory but not a symlink of the same name. On
+  2026-11-11 a worktree's link `tools/teleports_db2` (to the data in `repo/`) was committed by `git add -A` and reached
+  `master` in PR #6; its target was an absolute path in the home folder, and checking it out in `repo/` replaced the
+  ignored cache directory there (regenerate with `tools/check_teleports.py --fetch --wiki`). The link was removed the
+  same evening and the three directory patterns now have no trailing slash. After linking data into a worktree, run
+  `git status --short` and make sure no link shows as untracked before any `git add`.
 * Generated data is gitignored. It lives in repo/, the Drive copy and the game folders. If it is lost, regenerate it with
   `tools/wiki/gen_*.py`, or copy it back from a client's `Interface/AddOns/CompletionRoute`.
 * `tools/install.sh` ships only the installing client's flavor data and refuses files from the banned product.
