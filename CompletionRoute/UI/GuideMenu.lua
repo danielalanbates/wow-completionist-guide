@@ -4,7 +4,7 @@
 -- Typing in the filter box switches to a flat search across all guides.
 -- On top of the tree sits "Recent": the routes this character has finished steps in, most recently used first
 -- (Core/Progress.lua P.RecentList, a small saved table: no guide is parsed for it).
--- The level box under the search field drives Core/Recommend.lua: the "Recommended" section, the "Only guides for this
+-- The level box under the search field drives Core/Recommend.lua: the "Recommended" section, the "Only routes for this
 -- level" filter and the "Group by level" tree all read the same cached per-level ranking, which never parses guide steps.
 local ADDON, NS = ...
 local U, G, P, Rec = NS.Util, NS.Guide, NS.Progress, NS.Recommend
@@ -140,9 +140,14 @@ end
 local levelLabel = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 levelLabel:SetPoint("TOPLEFT", 18, -113); levelLabel:SetText("Level")
 local function levelStep(delta) M.SetViewLevel(M.ViewLevel() + delta) end
+-- the button labels are in the addon's fonts (UI/GuideFrame.lua GF.ButtonFonts), so they follow the Text size option
+local levelButtons = {}
 local function smallButton(text, width, x, onClick, tip)
     local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
     b:SetSize(width, 22); b:SetPoint("TOPLEFT", x, -108); b:SetText(text)
+    b.minW = width
+    if NS.GuideFrame and NS.GuideFrame.ButtonFonts then NS.GuideFrame.ButtonFonts(b) end
+    levelButtons[#levelButtons + 1] = b
     b:SetScript("OnClick", onClick)
     if tip then
         b:SetScript("OnEnter", function(self)
@@ -166,15 +171,17 @@ levelBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
 levelBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
 levelBox:SetScript("OnEditFocusLost", function() M.UpdateLevelControls() end)
 smallButton("+", 24, 134, function() levelStep(1) end, "One level higher")
-smallButton("Current", 70, 162, function() M.SetViewLevel(nil) end, "Back to your character's current level")
+local current = smallButton("Current", 70, 162, function() M.SetViewLevel(nil) end, "Back to your character's current level")
+-- hung from the Current button (8 px right of it, where it always sat), so a wider label pushes it along
 local levelHint = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
-levelHint:SetPoint("LEFT", levelBox, "RIGHT", 112, 0); levelHint:SetTextColor(0.75, 0.75, 0.75)
+levelHint:SetPoint("LEFT", current, "RIGHT", 8, 0); levelHint:SetTextColor(0.75, 0.75, 0.75)
 
 local function viewCheck(name, x, label, tip, getKey)
     local cb = CreateFrame("CheckButton", name, f, "UICheckButtonTemplate")
     cb:SetSize(24, 24); cb:SetPoint("TOPLEFT", x, -133)
     local fs = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
     fs:SetPoint("LEFT", cb, "RIGHT", 2, 0); fs:SetText(label)
+    cb.label = fs
     cb:SetScript("OnClick", function(self)
         listPrefs()[getKey] = self:GetChecked() and true or false
         M.Refresh()
@@ -185,10 +192,11 @@ local function viewCheck(name, x, label, tip, getKey)
     cb:SetScript("OnLeave", function() GameTooltip:Hide() end)
     return cb
 end
-local onlyLevel = viewCheck("CompletionRouteGuideMenuOnlyLevel", 14, "Only guides for this level",
-    "Hide every guide that does not fit the level in the box: its bracket contains that level, or (professions) its skill band contains your skill. Guides with no level data are hidden too.", "onlyLevel")
-local groupLevel = viewCheck("CompletionRouteGuideMenuGroupLevel", 262, "Group by level",
-    "Show the list as level bands, then category, then guide. Guides with no level data go under Any level.", "groupByLevel")
+local onlyLevel = viewCheck("CompletionRouteGuideMenuOnlyLevel", 14, "Only routes for this level",
+    "Hide every route that does not fit the level in the box: its bracket contains that level, or (professions) its skill band contains your skill. Routes with no level data are hidden too.", "onlyLevel")
+local GROUP_X = 262
+local groupLevel = viewCheck("CompletionRouteGuideMenuGroupLevel", GROUP_X, "Group by level",
+    "Show the list as level bands, then category, then route. Routes with no level data go under Any level.", "groupByLevel")
 
 function M.UpdateLevelControls()
     if not NS.db then return end
@@ -198,6 +206,14 @@ function M.UpdateLevelControls()
     local prefs = listPrefs()
     onlyLevel:SetChecked(prefs.onlyLevel and true or false)
     groupLevel:SetChecked(prefs.groupByLevel and true or false)
+    -- the labels grow with the text size: the buttons fit their labels, and the second tick box moves right of the
+    -- first one's label when that runs past where it sits
+    if NS.GuideFrame and NS.GuideFrame.FitButton then for _, b in ipairs(levelButtons) do NS.GuideFrame.FitButton(b) end end
+    local lw = onlyLevel.label.GetStringWidth and onlyLevel.label:GetStringWidth()
+    if type(lw) == "number" then
+        groupLevel:ClearAllPoints()
+        groupLevel:SetPoint("TOPLEFT", math.max(GROUP_X, math.ceil(14 + 24 + 2 + lw + 16)), -133)
+    end
 end
 
 local scroll = CreateFrame("ScrollFrame", "CompletionRouteGuideMenuScroll", f, "UIPanelScrollFrameTemplate")

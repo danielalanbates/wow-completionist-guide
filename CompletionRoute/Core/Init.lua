@@ -60,7 +60,10 @@ NS.defaults = {
         -- Core/QuestAuto.lua: accept / turn in only the quests of the guide's live window; autoChooseReward takes a turn-in
         -- reward only when UI/ItemScore.lua sees a clear upgrade; holding autoModifier (SHIFT | CTRL | ALT | NONE) pauses it
         autoAccept = false, autoTurnin = false, autoChooseReward = false, autoModifier = "SHIFT",
-        autoAdvance = true, minimapButton = true, debug = false,
+        -- UI/Minimap.lua: the round button on the minimap's edge, and where on the edge it sits (degrees, 0 = east,
+        -- counter-clockwise; dragging it saves the angle)
+        minimapButton = true, minimapAngle = 200,
+        debug = false,
     },
     char = {
         guide = nil,          -- currently selected guide id
@@ -143,6 +146,9 @@ NS:RegisterEvent("ADDON_LOADED", function(_, name)
     -- keys left in a saved-variables file by an old verification run never start a sweep on a player's login.
     NS.devRun = CompletionRouteDB.devRun == true
     CompletionRouteDB.devRun = nil
+    -- autoAdvance: a setting of the first builds that nothing reads any more (steps complete themselves); dropped
+    -- from the saved profile so it does not look like it does something
+    CompletionRouteDB.profile.autoAdvance = nil
     if not NS.devRun then
         for _, k in ipairs(NS.DEV_KEYS) do CompletionRouteDB[k] = nil end
     end

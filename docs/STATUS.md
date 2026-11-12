@@ -1,5 +1,34 @@
 # Status / handoff (2026-11-12: one build, the public one; a full rebake is needed)
 
+## 2026-11-12: step window, routes list and options: text size, wording, scale, minimap button (`todo-ui`)
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `todo-ui` (worktree `wt-ui`), on top of the
+Recommended section (`23ff876`). Not merged, pushed or installed. No generated data was touched.
+
+| Item | What changed |
+|---|---|
+| Text size covers everything | The options pages (title, description, every check box, slider and pause-key label), every `UIPanelButtonTemplate` button label (step window, its two menus, the Details panel, the Start over question, the routes list's level buttons, the options page, the bug-report note window) and the titles of the bug-report and log windows now use `U.Font`, so the *Text size* slider covers them. Button labels: Title font (normal), Body (highlight) and a grey copy of Title (disabled; `GF.SyncFonts` re-copies it at login and when the slider moves). The log's lines stay in the client's chat font. |
+| Nothing runs over | Buttons widen to their label (`GF.FitButton`, never narrower than before); both step-window menus widen to their widest row; the Details panel widens to hold its button row; the options rows are placed from the measured label heights (`O.Layout`: on show and after the slider), labels wrap at 540 px, and the scroll area and the Auto quests controls hang under their descriptions; the pause-key choice moves right of a long label; the routes list's "your level" hint hangs from **Current**, and *Group by level* moves right of a long first label; the note window's edit box hangs under its title and the window grows with it. |
+| Wording | "routes" where it meant routes: options (*Lock step window*, *Step window scale*, *...order for quest routes*, the account-wide line now names the Character / Server / Game type / Account buttons at the top of the Routes window, the Auto quests page), the routes list (*Only routes for this level*), the step window (skip quest in every route, error line), `/cr` messages. The end-of-route text and the options description point at **Recommended** instead of the removed *For level N*. Developer self-test names (`/cr verify`, `verifyall`, `verifyfeatures`) keep "guide": they are keys in `featureVerify` and `docs/verification.sqlite`. |
+| Step window scale | The Options slider runs 60-250, the grip's 0.6-2.5 (`GF.SCALE_MIN/MAX`), and scales about the top-left corner like the grip (`GF.SetScale`, which shares `hangAt` with it; a window hidden since login uses its saved corner). No slider acts on the value it reports when the page opens any more, so a grip-made 2.5 (or 1.37) is no longer cut to 2.0 (or 1.35). A saved scale outside the limits is clamped at login. |
+| Minimap button | New `UI/Minimap.lua` (all six TOCs, after `UI/Options.lua`; `tools/validate_toc.lua` checks it): the addon's arrow on the client's round minimap-button art, on a circle 5 px outside the minimap's radius; on a square side (`GetMinimapShape`: SQUARE, CORNER-, SIDE-, TRICORNER-) on the square's edge. Left click: step window; right click: Routes; drag: around the edge, angle saved in `profile.minimapAngle` (default 200). Hidden when `profile.minimapButton` is false (Options: *Minimap button*). No library. |
+| `/cr suggest` | `/cr next` stays "mark the step done"; the old second `next` branch (never reachable) is `/cr suggest` and in the help line. `/cr guides` is still `/cr routes`. |
+| Leftovers | `autoAdvance` left the defaults and is dropped from saved profiles at load. Bug reports no longer carry `arrowStyle` or `autoAdvance`; they now carry `textSize`, `frameScale` and `minimapButton`. |
+
+**Tests** (worktree, through `heavy.sh`, `luajit -joff`):
+
+| Test | Result |
+|---|---|
+| `tools/test_ui.lua` (new): minimap button (made, round and square placement, clicks, tooltip, drag angle saved, hidden by the option), options pages (addon fonts on every text and button, no "guide" wording, no row overlaps at text size 2 and 6, page grows), scale slider (range, no change on show, corner kept, limits, hidden window), `/cr next` / `suggest` / `guides`, profile defaults | 90 checks pass |
+| `tools/test_step_window.lua` (+34: button fonts; at a 19 pt button font the title line, both menus, the Details panel and the Start over buttons fit their labels) | 286 checks pass |
+| `tools/test_bug_report.lua` (+3: removed settings gone, new ones reported, the note window opens) | 97 pass |
+| `test_load_all.lua` (Minimap.lua loads on all six TOCs), `validate_toc.lua` (and a scratch TOC without `UI\Minimap.lua` fails it), `test_live_route`, `test_offline`, `test_level_list`, `test_flow`, `test_quest_auto`, `test_parked`, `test_skip`, `test_contribute`, `test_farm`, `test_access`, `test_teleports`, `test_gold`, `test_professions_engine`, `test_professions`, `test_progress_keys`, `test_wiki`, `test_route_order`; Python `test_package.py`, `test_ingest_beta_reports.py`, `test_contrib_gen.py` | pass |
+
+**Not verified (needs the owner's eyes in game):** how the minimap button looks and drags on each client (the art
+is the client's own minimap-button textures, the icon `Textures/arrow.tga` tilted 45 degrees); that the options
+check boxes' labels wrap and centre as modelled in the Settings frame of every client; real label widths (the tests
+use a character-count font model). The fonts are a model: pixel overlap cannot be checked offline.
+
 ## 2026-11-12 morning: merged player contributions reach the shipped guides (`contributions-into-guides`)
 
 Offline only. **Nothing here has run in a real WoW client.** Branch `contributions-into-guides` (worktree
