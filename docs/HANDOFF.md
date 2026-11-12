@@ -162,6 +162,26 @@ the live window.
   check out `integration` in `repo/` -> regenerate (section 5 of each phase-5 report) -> full rebake -> install, Drive,
   PR, local merge, push.
 
+**Update 2026-11-11, 17:15.**
+* A usage limit stopped every agent twice (08:03 and 12:24). `coverage-ach` finished; the `coverage-prof` fixer did
+  not, so its uncommitted work was committed as `5bec90d` and finished by hand. Both are merged; `integration` is now
+  checked out in `repo/` and all other worktrees except `wt-cov1` / `wt-cov2` are gone (those two hold only caches
+  that were merged into `repo/`; remove them with `git worktree remove --force`).
+* Data regenerated in `repo/`; tests and numbers are at the top of STATUS. The regeneration script (cache merge,
+  generators, every harness) is a session scratch file; the order is: `parse_wiki.py`, `fetch_titles.py`,
+  `fetch_titles.py --db2-names`, `fetch_coord_history.py`, `parse_wiki.py`, `gen_wiki_guides.py`,
+  `gen_professions.py`, `gen_gold.py`, `gen_completion_guides.py retail mop`, `gen_quest_deps.py`, `coverage.py
+  --label L`, `status_report.py --label L`.
+* **Rebake running** (started 17:08): `caffeinate -is nice -n 10 venv/bin/python tools/bake_resume.py` from `repo/`,
+  log in the session scratchpad. If it died: run the same command again; it skips finished guides
+  (`--dry-run` shows what is left). Do not change `Routing/CostModel.lua`, `Routing/TravelGraph.lua`,
+  `Routing/StepOrder.lua` or the guide data while it runs.
+* After the rebake: `luajit -joff tools/test_route_order.lua` must pass, then `tools/install.sh` per client that is
+  not running, copy code + data to Drive (no `--delete`), rewrite the work email out of history (plan in the 07:45
+  update), push, PR, local merge.
+* Usage: a 5-hour window lasted about 40 minutes with four agents at the highest effort. Run at most one agent
+  beside the main session, or none.
+
 | Job | What it does | How to check | If it died |
 |---|---|---|---|
 | Route bake (started 15:46, about 3.5 h) | Bakes the 478 MoP and 725 retail quest guides that had no baked order, plus 10 TBC and 8 Forever guides with a stale checksum, at full solver quality. It runs from a session-scratch copy of `tools/bake_resume.py`. | `python3 tools/bake_resume.py --dry-run` from repo/: "to do 0" on mop and retail means done. | Re-run `python3 tools/bake_resume.py` from repo/. It skips finished guides. |

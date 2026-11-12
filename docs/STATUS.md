@@ -1,4 +1,55 @@
-# Status / handoff (2026-11-11, integration: skipping quests, beta bug reports, routing graph, release packager, stable step keys, auto quests)
+# Status / handoff (2026-11-11 evening: everything merged into `integration`, data regenerated, rebake running)
+
+## 2026-11-11 evening: one tree, regenerated data, pre-merge review
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `integration` (in `repo/`), not pushed.
+
+* **Merged:** `coverage-ach` and `coverage-prof` (their sections are below) on top of the nine feature branches. The
+  generator conflicts (`tools/wiki/gen_wiki_guides.py`, `fetch_titles.py`) keep both sides' rules. One bug only showed
+  with both together: item pages that name each other as sources made `entity_maps` recurse for ever (fixed).
+* **Data regenerated in `repo/`** with the merged generators (wiki caches of both worktrees merged, no refetch beyond 4
+  requests): wiki guides, spine, professions, gold, achievements, quest lines, missions, quest prerequisites. The old
+  `Imported_Storylines_retail.lua` is in `~/Downloads/CompletionistGuide-work/archive/storylines-2026-11-11/`.
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Quest guides (all guides) | 139 (184) | 183 (243) | 335 (476) | 811 (1,277) | 146 (193) |
+| Quests covered, of the client's | 3,565 / 4,807 | 5,845 / 6,160 | 16,562 / 17,140 | 34,266 / 66,552 | 3,752 / 6,616 |
+| Covered quests with a located step | 97.8% | 95.7% | 91.2% | 85.1% | 97.4% |
+| Achievements located (point or zone) | - | - | 84.8% | 82.8% | - |
+| Item-started quests with a located accept | 113 / 269 | 194 / 213 | 330 / 418 | 1,062 / 1,458 | 123 / 456 |
+
+  (dev build = what the TOCs load on this Mac, label `integration-2026-11-11` in `docs/verification.sqlite`. The
+  release-only shares are lower; see the two coverage sections below.)
+* **Tests on the regenerated data:** every harness passes (18 Lua harnesses, `validate_toc`, `test_package.py`, the
+  ingest and bake-gate unit tests) except:
+  * `test_route_order`: red by design until the rebake below ends (checksum v2 made every old row stale).
+  * `test_skip`, 1 of 332: `forever wiki:forever:1423:Alliance (drop 5246)`, "an accepted re-plan beats the margin".
+    The re-planner prices the route before its re-plan at 4,163 s and the test at 3,360 s; both price the new route at
+    3,301 s, so the route is not slower, but by the test's measure the gain (58 s) is under the 208 s margin.
+    **Open:** find which leg the two price differently (`Routing/Replan.lua routeCost` against `tools/test_skip.lua
+    routeCost`).
+* **Pre-merge review of the merged tree.** Three lenses were started; a usage limit cut two of them off three times.
+  * *Real-client API lens: finished.* Its findings are fixed in commit `529bc89`: the arrow frame is protected (its
+    secure buttons make it so) and was shown/hidden in combat, which both the Forever and the MoP client had already
+    recorded as `ADDON_ACTION_BLOCKED`; Retail 12.x secret values (cooldowns, NPC names and GUIDs, unit speed) were
+    compared as plain numbers; the Retail TOC listed interface numbers that do not exist (now 120105); the item
+    tooltip line never fired on TBC Anniversary and MoP Classic; the main options page ran off the Settings window.
+    It also confirmed: every event registration is pcall-guarded, every global the addon reads exists or is guarded on
+    all five clients, no protected function is called by addon code.
+  * *Plain Lua 5.1 lens: cut off, but its runs were kept.* Under a real PUC Lua 5.1.5 (the client's interpreter) every
+    harness passed on `integration` at `2a40df8`, including the coroutine re-planner. Measured cost under 5.1: the guide
+    list's completion scan took 30-60 ms a frame (p95 127 ms MoP, 211 ms Retail; one Retail achievement guide of
+    102,672 steps took 1.4 s). Fixed: the scan has a 4 ms per-frame budget, and the regenerated Retail achievement file
+    is 6.6 MB instead of 17 MB. **Not re-measured after the fix.** Live window refresh 3-6 ms, login work under 100 ms.
+    The Lua 5.1 binary and scripts are session scratch (not kept).
+  * *Saved-progress and cross-feature lens: not done.* Still worth doing: upgrade from the previous beta's saved
+    variables, a second character, a second client through the sync, a regenerated guide between sessions.
+* **Not verified in a client and most likely to need a beta report:** the arrow's combat behaviour (it now stays as it
+  is during a fight and updates after), teleport buttons, auto accept / turn-in, the scrolling options page.
+* **Rebake:** started 17:08 with the gate on, 2,618 quest guides (tbc 352, forever 243, era 236, mop 769, retail
+  1,018). Until it ends every guide plays in author order with the live window.
+
 
 ## 2026-11-11: Coverage push A: achievements, item-started quests, storylines (`coverage-ach`)
 
