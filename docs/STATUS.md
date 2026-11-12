@@ -1,5 +1,91 @@
 # Status / handoff (2026-11-12: one build, the public one; a full rebake is needed)
 
+## 2026-11-12 morning: merged player contributions reach the shipped guides (`contributions-into-guides`)
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `contributions-into-guides` (worktree
+`wt-contribgen`, its own copy of the generated data), cut from `master` at `e00d383`. Not merged, not pushed, not
+installed. No add-on code changed: the add-on already records, exports and uses its own learned spots; this is the
+tools' side. How it works: `docs/CONTRIBUTE.md`.
+
+**What was missing.** Players' positions were merged in the data repository (`wow-completionist-data`,
+`contributions/areas/<flavor>.json`) but no generator read them, so a contribution helped only on the machine that
+made it.
+
+**What is built.**
+
+| Part | What it does now |
+|---|---|
+| `tools/wiki/gen_wiki_guides.py` | Reads `areas/<flavor>.json` from `--contributions DIR`, else `CR_CONTRIB`, else `../wow-completionist-data/contributions`. Source order for a quest step: wiki point, Blizzard quest pin, **contributed area**, wiki place page, zone. Only `trusted` and `confirmed` areas on a map the client has. Accept and turn-in take the heaviest area; an objective takes up to three on one map. Note `(location: player contributions, N players)`. The file header names the data repository, CC BY-SA 4.0 and its commit. `--out DIR` writes a whole run into another folder; `--no-contributions` reads none. |
+| Conflicts | A wiki point more than 100 yd from the contributed area of the same step on the same map goes into `wiki_db2_conflict` (`A_xy_contrib`, `T_xy_contrib`, `C_xy_contrib`). The guide keeps the wiki point. |
+| Statistics | `wiki_point_sources` has a `contrib` column (added to an existing chart on the next run); the run prints the count per client. |
+| `tools/gen_completion_guides.py` | A contributed step passes through to the quest-line file unchanged. An achievement criterion that takes a contributed quest point says `location: player contributions, N players; quest <id>` instead of `wiki:`. Both files repeat the provenance line. |
+| `tools/package_release.py` | A data file with a step that credits player contributions fails the gate (`no-provenance`) unless its header names the data repository with a full commit. `unknown` and `<commit>-dirty` fail. `ATTRIBUTION.md` and `WIKI_DATA_LICENSE.md` have an entry. |
+| `tools/coverage.py`, `tools/status_report.py` | Such a step counts as located. New rows `quest-contrib` and `quest-contrib-steps`; new column *contributed*. |
+
+**Keys.** The generator uses the add-on's own keys: `A:<quest>`, `T:<quest>`, `C:<quest>:<QO number>`, and
+`C:<quest>:0` for an objective step written without `QO` (`Core/Contribute.lua` `KeyFor`). The test parses generated
+steps with `Core/Guide.lua` and asks `KeyFor`: they agree. One limit: on Retail, when the wiki's objective count
+differs from the client's, the steps carry no `QO` and several of them share key 0, so a quest with more than one
+such step takes no objective area.
+
+**Nothing changes for players today.** No contribution has been merged, so no `areas` file exists. Proof, in the
+worktree, each generator run once:
+
+| Run | Result against the copy it started from (sha256) |
+|---|---|
+| `gen_wiki_guides.py` (all five clients, default options: the sibling data repository has no `areas` folder) | 9 of 10 guide and spine files and 4 of 5 sidecars byte-identical. `Imported_Wiki_retail.lua` and `parts_retail.json` differ: see below. |
+| `gen_completion_guides.py retail mop` (from the original retail wiki file) | all four files byte-identical |
+| `gen_wiki_guides.py era --no-contributions --out <temp>` (inside the test) | guide, spine and sidecar byte-identical |
+
+**The Retail difference is not from this work.** Four lines of `Imported_Wiki_retail.lua` moved: in guide
+`wiki:retail:2371:Both:3` two sibling quests (86187 and 86188, same giver, same prerequisite) swapped places. Every
+line is the same text. `parts_retail.json` shows the same swap, two more swapped pairs in `quests` lists that move
+no line, and two entries of `cycles` in the other order. Step order is made in `tools/wiki/gen_spine.py`
+`build_parts`, which got the same step lines and prerequisites in both runs. Its final fix-up gives quests it moves
+behind the same prerequisite the same rank (`orank = rank + 0.5`), and it re-orders guides in the order of a set of
+guide ids (`for gid in changed`: Python hashes strings differently in every process) and breaks rank ties by object
+address (`frozen_resplit`: `(q.rank, id(q), q)`). `cycles` is filled in that set's order, and its two swapped
+entries show the order differed between the two runs. Not checked by a second run of the unchanged generator (one run per generator was allowed). The worktree
+copy was put back to the starting file afterwards. Worth fixing in its own change with a stable tie-break (quest id,
+faction); that will reorder a few tied steps once.
+
+**Tests** (worktree, each once through `heavy.sh`):
+
+| Test | Result |
+|---|---|
+| `python3 tools/test_contrib_gen.py` (new; fixture `tools/fixtures/contributions`, invented positions) | 84 checks pass. It runs the generator for Classic Era twice into a temp folder and the quest-line generator once on a synthetic wiki file. |
+| `python3 tools/test_package.py` | all pass, 7 new checks for the contributions rule |
+| `luajit tools/validate_toc.lua` | valid |
+| `luajit -joff tools/test_wiki.lua` | pass (new check: a contributed step has a point, a player count and the header line; 0 such steps today) |
+| `test_completion.lua` (runs the new place checks), `test_offline.lua`, `test_load_all.lua`, `test_contribute.lua` (31), `test_skip.lua` (342) | pass |
+| `tools/coverage.py`, `tools/status_report.py` on the worktree's chart | same numbers as label `public-2026-11-11`; contributed 0 quests, 0 steps on every client |
+
+What the fixture run shows on Classic Era: 7 steps take a contributed point (6 had only a zone or nothing, 1 came
+from a wiki place page), 2 conflict rows are logged (832 and 880 yd), no step of any other quest changes, and the
+packager's gate passes the file and fails it when the header line is removed.
+
+**Not verified.**
+* Nothing was run in a client. A step with three contributed points relies on `Router.NearestCoord`, which the
+  wiki guides already use for multi-point steps.
+* No real contribution exists, so the path from the issue form to a shipped point was never run end to end with
+  real data. The header line was produced from a scratch git checkout that stands in for the data repository.
+* The full packager dry run was not repeated on this branch (its tests were).
+
+**Stays open.**
+* The Retail tie order above.
+* `G:` keys (steps with no quest) are merged in the data repository and read by nothing. Hand-written, gold and
+  profession guides take no contributed points.
+* Found on the way, unchanged: an achievement criterion that takes a quest's point from the wiki file says
+  `wiki: <page>` even when that point is a Blizzard quest pin there.
+* `docs/status_table.txt` was not regenerated: it gets the *contributed* column after the next `tools/coverage.py`
+  run in `repo/`.
+
+**To apply** (after the running bake has finished): merge `contributions-into-guides` into `master` locally. No
+regeneration, bake or install is needed while there are no contributions: the generators write the same files.
+When the first contributions are merged in the data repository: `git -C ../wow-completionist-data pull`, then the
+steps of `docs/RELEASE.md` "Making a build" (regenerate, bake the guides whose points changed, test, package).
+
+
 ## 2026-11-12 early morning: saved-state review, fixes on `state-review-fixes`
 
 Offline only. **Nothing here has run in a real WoW client.** Branch `state-review-fixes` (worktree `wt-state`), `master`
