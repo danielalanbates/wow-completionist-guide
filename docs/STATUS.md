@@ -1,5 +1,38 @@
 # Status / handoff (2026-11-12: one build, the public one; a full rebake is needed)
 
+## 2026-11-12: generator fixes, contributions for gold and profession routes (`todo-gen`)
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `todo-gen` (worktree `wt-gen`). Not merged, not
+installed, not pushed. The regenerated files are in `wt-gen` only (its links for those 14 files were replaced by copies).
+
+| What | Before | After |
+|---|---|---|
+| Retail achievement steps whose point is a Blizzard quest pin the wiki file took, but whose note said `wiki: <page>` | 866 quest criteria (873 lines in all) | 0: they say `Blizzard QuestPOI, quest N, the turn-in area` (or objective area) |
+| Internal achievements in the retail file (`[HIDDEN]`, `<Tracking Achievement>`, `[CRITERIA ... REMOVED]`) | 8 (30 lines) | left out like the other internal rows (821 now) |
+| Steps that named an internal part with its marker (`1st level 80 on account (DNT)`) | 38 | the same steps, named without the marker |
+| Wiki braces in shipped notes (`on <Normal/Heroic/Mythic}} difficulty`) | 1 quest-line step | 0 (the wiki file itself still has it: `tools/wiki/gen_wiki_guides.py`) |
+| Retail Midnight Cooking 1-100 | ended in a step with no name (spell 1296257, a decor recipe no local table names) | that recipe is left out (`recipe_no_name`); the plan reaches 100 through Thalassian Fillet, Mana Lily Tea, Hearty Food, Hearty Feast |
+| WoW Forever gold routes | written on Forever's maps but not marked so: the add-on moved points on Mulgore, Eastern Plaguelands, Redridge and Stormwind a second time (138 map references) | `forever=true` on all 173 |
+
+**Player contributions for gold and profession routes** (`tools/contrib_areas.py`, read by `tools/wiki/gen_gold.py`
+and `tools/wiki/gen_professions.py`): a step with no point of its own takes the trusted or confirmed area for the
+add-on's own key (`G:<route>#<step key>`, or a quest step's `A:`/`T:`/`C:` key); a step that names a zone keeps it
+unless the area lies in that zone; note `(location: player contributions, N players)`; the header names the data
+repository and its commit. Both generators take `--contributions DIR`, `--no-contributions` and `--out DIR`. The step
+keys are computed in Python and checked against the add-on: all 14,876 steps of the ten generated route files agree.
+No contribution is merged, so no route changed. **Blocker found:** the data repository refused every `G:` key the
+add-on exports (its pattern allows no `~` or `=`); fixed on its branch `g-step-keys` (not pushed). Its issue form
+now takes an attached `.txt` file (`render: text` removed; branch `issue-form-attachments`, not pushed).
+
+Regenerated and compared with `repo/`: professions (only retail Midnight Cooking changed), gold (only `forever=true`
+on Forever), `gen_completion_guides.py retail mop` (the rows above; mop only its header). Tests run:
+`tools/test_contrib_gen.py` (all parts), `test_completion.lua`, `test_professions.lua`, `test_gold.lua`,
+`test_load_all.lua`, `validate_toc.lua`, `test_route_order.lua`, `test_progress_keys.lua`, `test_offline.lua`,
+`test_skip.lua`, `test_bug_report.lua`, `test_quest_auto.lua`, `test_wiki.lua`, `tools/test_package.py`, the
+packager's dry-run gate (PASS), `tools/coverage.py` into a scratch database, and the data repository's own tests.
+Corrected below: the 11-11 table's Pandaria Cooking row (the shipped route stops at 22, not 75). docs/IDEAS.md #1-#9
+are marked done.
+
 ## 2026-11-12 morning: merged player contributions reach the shipped guides (`contributions-into-guides`)
 
 Offline only. **Nothing here has run in a real WoW client.** Branch `contributions-into-guides` (worktree
@@ -823,7 +856,7 @@ merged, not installed. Generated data was rebuilt only in this worktree; the mai
   | Outland Cooking | no guide | 75 / 75, 4 |
   | Northrend Cooking | 73 / 75, 4 | 75 / 75, 4 |
   | Cataclysm Cooking | 36 / 75, 0 | 75 / 75, 0 |
-  | Pandaria Cooking | 22 / 75, 3 | 75 / 75, 3 |
+  | Pandaria Cooking | 22 / 75, 3 | 22 / 75, 3 (corrected 2026-11-12: the first pass reached 75 only through Recipe: Spicy Salmon, Exalted with the Tillers; the review the same day left such recipes out, so the shipped route stops at 22, as [PROFESSIONS.md](PROFESSIONS.md) says) |
   | Shadowlands Cooking | no guide | 75 / 175, 1 (the client's recipes stop at grey 75; the wiki table says 175) |
   | Kul Tiran / Dragon Isles / Khaz Algar / Midnight Cooking | full, 0 trainers each | full, 3 / 1 / 3 / 1 |
   | Khaz Algar / Midnight Fishing | full, 0 trainers | full, 5 / 5 |
