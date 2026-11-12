@@ -9,6 +9,8 @@
 
 Writes CompletionRoute/Guides/Imported_Gold_<fl>.lua (gitignored, CC BY-SA 4.0 header) and the gold_guides table in
 docs/verification.sqlite.  See docs/GOLD_ROUTES.md.
+WoW Forever's routes are written on Forever's own maps (the wiki points are placed there), so they carry forever=true:
+without it the add-on would move a point on a reshaped map (Data/MapFix_forever.lua) a second time.
 
 Sources.  Warcraft Wiki pages (fetched through wiki_fetch.py) and tools/wiki/wiki.sqlite + cache/wiki_raw.sqlite;
 Guides/Imported_Wiki_<fl>.lua steps, but never a step whose location came from another project's data (their note
@@ -638,7 +640,7 @@ def q(s):
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def lua_guide(g, attrib_author="Warcraft Wiki contributors (CC BY-SA 4.0)"):
+def lua_guide(g, attrib_author="Warcraft Wiki contributors (CC BY-SA 4.0)", forever=False):
     fac = f'faction="{g.faction}", ' if g.faction else ""
     req = f'requires="{g.req}", ' if g.req else ""
     zone = f'zone={g.zone}, ' if g.zone else ""
@@ -648,7 +650,8 @@ def lua_guide(g, attrib_author="Warcraft Wiki contributors (CC BY-SA 4.0)"):
         def lv(v):
             return "true" if v is True else "false" if v is False else f'"{q(v)}"' if isinstance(v, str) else str(v)
         farm = "farm={ " + ", ".join(f"{k}={lv(v)}" for k, v in g.farm.items()) + " }, "
-    head = f'R({{ id="{g.id}", name="{q(g.name)}", type="Gold", folder="{g.kind}", goldKind="{g.kind}", {zone}{fac}minlevel={g.lo}, maxlevel={g.hi}, {req}{loop}{farm}author="{attrib_author}", source="CompletionRoute", text=[==[\n'
+    fv = "forever=true, " if forever else ""
+    head = f'R({{ id="{g.id}", name="{q(g.name)}", type="Gold", folder="{g.kind}", goldKind="{g.kind}", {zone}{fac}minlevel={g.lo}, maxlevel={g.hi}, {req}{loop}{farm}{fv}author="{attrib_author}", source="CompletionRoute", text=[==[\n'
     return head + "\n".join(g.lines) + "\n]==] })\n"
 
 
@@ -1357,7 +1360,7 @@ def write_guides(fl, guides):
     with (GUIDES / f"Imported_Gold_{fl}.lua").open("w", encoding="utf-8") as f:
         f.write(head)
         for g in guides:
-            f.write(lua_guide(g))
+            f.write(lua_guide(g, forever=fl == "forever"))
 
 
 def write_sql(rows):

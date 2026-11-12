@@ -7,7 +7,8 @@
 --   circuits have enough waypoints and the ring closes; no text claims a price or a rate; level and goldKind are set;
 --   names are unique; faction-specific guides name the right faction and only point at that faction's cities;
 --   every level band on every client has a gold guide for both factions, and Recommend.ForLevel returns gold guides
---   at every level from 1 to the cap.  Generated files are gitignored: a fresh clone SKIPS.
+--   at every level from 1 to the cap; WoW Forever's routes carry forever=true (they are written on Forever's own maps).
+--   Generated files are gitignored: a fresh clone SKIPS.
 -- Run: luajit tools/test_gold.lua   (from repo root; loads every flavor's guide file, run through the heavy lock)
 package.path = "./?.lua;" .. package.path
 local TOC = { era = 11508, tbc = 20506, mop = 50504, retail = 121500, forever = 16001 }
@@ -63,6 +64,9 @@ local function checkGuides(flavor, NS, MAPS)
             local kind = g.goldKind
             check(KINDS[kind], who .. " goldKind " .. tostring(kind))
             check(g.folder == kind, who .. " folder/goldKind mismatch")
+            -- WoW Forever's gold routes are placed on Forever's own maps: without forever=true the add-on would move a
+            -- point on a reshaped map (Data/MapFix_forever.lua: Mulgore, Eastern Plaguelands, Redridge, Stormwind) again
+            if flavor == "forever" then check(g.forever == true, who .. " not marked Forever-native (forever=true)") end
             check(g.type == "Gold", who .. " type " .. tostring(g.type))
             check(g.minlevel and g.maxlevel and g.minlevel >= 1 and g.minlevel <= g.maxlevel and g.maxlevel <= CAP[flavor],
                 ("%s level band %s-%s"):format(who, tostring(g.minlevel), tostring(g.maxlevel)))
