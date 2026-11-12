@@ -88,6 +88,10 @@ current skill and below its grey threshold.
   The wiki describes retail, and most of those recipes moved to trainers in later patches.
 * The wiki writes expansion recipes on the retail per-expansion scale, so on the one-track clients a learn value more than 120 below the client's yellow is discarded and yellow is used.
 * A band the recipes cannot reach is cut short: `skillMax` and the guide name show where it really stops, and the gap is counted.
+* A recipe the client's `SpellName` table has no name for is left out and counted (`recipe_no_name`): a step must say
+  what to make. (2026-11-12: retail Midnight Cooking 1-100 ended in a nameless step, spell 1296257, a decor recipe the
+  client teaches by itself, build 12.1.5.70783; no local table names it. Without it the plan reaches 100 through
+  Thalassian Fillet, Mana Lily Tea, Hearty Food and Hearty Feast.)
 
 ## Step grammar actually emitted
 

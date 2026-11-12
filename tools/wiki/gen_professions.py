@@ -9,7 +9,8 @@
 
 Sources and rules: docs/PROFESSIONS.md.  Warcraft Wiki is the source of truth; the client tables (db2_fetch) decide
 which recipes exist on which client, their yellow/grey thresholds and their reagents.  Nothing is invented: a fact
-that is missing is omitted and counted in docs/verification.sqlite table prof_guides.
+that is missing is omitted and counted in docs/verification.sqlite table prof_guides (a recipe the client's SpellName
+table has no name for is left out and counted as recipe_no_name).
 """
 import csv, datetime, json, math, re, sqlite3, sys
 from collections import defaultdict
@@ -529,6 +530,12 @@ def build_recipes(fl, prof, tier, names, sla, reag, lists, fa, boxes, faction, s
             stats["recipe_one_class"] += 1
             continue
         name = names.get(r["Spell"]) or ""
+        if not name:
+            # the client's SpellName table has no row for this spell (retail Midnight Cooking's decor recipe 1296257,
+            # build 12.1.5.70783), and nothing else here names it: a step with no name cannot be shown, so it is left
+            # out and counted
+            stats["recipe_no_name"] += 1
+            continue
         if re.search(r"campfire|cooking fire", name, re.I):     # the fire itself, not a dish
             continue
         body, cats = boxes.get(name, ("", ""))

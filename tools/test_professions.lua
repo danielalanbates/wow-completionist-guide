@@ -146,6 +146,9 @@ for _, id in ipairs(ids) do
             if not s then parseFail = parseFail + 1 fail(id .. " does not parse: " .. tostring(err) .. " :: " .. line:sub(1, 90)) end
             local a = line:sub(1, 1)
             if not ACTIONS_OK[a] then fail(id .. " unexpected action '" .. a .. "'") end
+            -- every step has a name (2026-11-12: retail Midnight Cooking had "M |SKILL|...|SPELL|1296257|", a recipe the
+            -- client's SpellName table does not name; tools/wiki/gen_professions.py now leaves such a recipe out)
+            check(s == nil or (s.title or ""):find("%S") ~= nil, id .. " step without a name: " .. line:sub(1, 90))
             total = total + 1
             local alt = line:match("|ALT|([^|]*)|")
             if alt then
