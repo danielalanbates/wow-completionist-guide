@@ -233,6 +233,7 @@ function A.Update()
     local speed = U.TravelSpeed()
     local tag = ""
     if rec.locSource == "quest" then tag = "  |cff6ac9ff(quest objective)|r"
+    elseif rec.locSource == "learned" then tag = "  |cff7ddf8f(learned spot)|r"
     elseif rec.locSource == "zone" then tag = "  |cffff9900(zone only)|r"
     elseif rec.locSource == "borrowed" then tag = "  |cffff9900(next known step)|r" end
     sub:SetText(U.FmtDist(dist) .. tag)

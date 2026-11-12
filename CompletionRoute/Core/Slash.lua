@@ -48,6 +48,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "reset" then P.Reset() NS:Print("Guide progress reset.")
     elseif cmd == "marks" then for _, line in ipairs(P.MarksReport()) do NS:Print(line) end   -- progress storage (docs/STEP_KEYS.md)
     elseif cmd == "arrow" then NS.db.profile.arrow.enabled = not NS.db.profile.arrow.enabled NS.Arrow.ApplySettings() NS:Print("Arrow " .. (NS.db.profile.arrow.enabled and "on" or "off"))
+    elseif cmd == "contribute" or cmd == "contrib" then NS.Contribute.Slash(rest)
     elseif cmd == "options" or cmd == "opt" or cmd == "config" then NS.Options.Open()
     elseif cmd == "route" then
         local path = NS.Router.CurrentPath(true)
@@ -294,7 +295,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | import | farm | log | bug [note] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | import | farm | log | bug [note] | contribute [on|off|export|clear] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 

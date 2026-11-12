@@ -26,7 +26,7 @@ f:SetFrameStrata("MEDIUM")
 
 -- title bar
 local titleText = f:CreateFontString(nil, "OVERLAY", U.Font("Title"))
-titleText:SetPoint("TOPLEFT", 10, -8); titleText:SetPoint("RIGHT", -70, 0); titleText:SetJustifyH("LEFT")
+titleText:SetPoint("TOPLEFT", 10, -8); titleText:SetPoint("RIGHT", -180, 0); titleText:SetJustifyH("LEFT")
 titleText:SetText("|cff7ddf8fCompletion|r|cffffd200Route|r")
 
 local function smallButton(text, w, tip, onClick, parent)
@@ -41,6 +41,25 @@ local bClose = smallButton("x", 20, "Hide (/or show)", function() f:Hide() end)
 bClose:SetPoint("TOPRIGHT", -6, -6)
 local bMenu = smallButton("Guides", 48, "Choose a guide", function() NS.GuideMenu.Toggle() end)
 bMenu:SetPoint("RIGHT", bClose, "LEFT", -2, 0)
+-- Contribute (Core/Contribute.lua): while ticked, the addon notes where steps are done to build the location database
+local cbContrib = CreateFrame("CheckButton", "CompletionRouteContributeCheck", f, "UICheckButtonTemplate")
+cbContrib:SetSize(20, 20); cbContrib:SetPoint("RIGHT", bMenu, "LEFT", -4, 0)
+local cbLabel = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
+cbLabel:SetPoint("RIGHT", cbContrib, "LEFT", -1, 0); cbLabel:SetText("Contribute")
+cbContrib:SetScript("OnClick", function(self) NS.Contribute.SetEnabled(self:GetChecked() and true or false) end)
+cbContrib:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:SetText("Contribute locations")
+    GameTooltip:AddLine("While this is ticked, the addon notes where you are standing when you accept or turn in a quest, when a quest objective ticks up, and when you click the forward arrow.", 1, 1, 1, true)
+    GameTooltip:AddLine("It builds the most likely spot for every step, uses it for steps that have no location, and draws the areas on your map.", 1, 1, 1, true)
+    GameTooltip:AddLine("Only map positions and quest ids are kept, on this computer. /cr contribute export gives a text you can share.", 0.6, 0.85, 1, true)
+    GameTooltip:Show()
+end)
+cbContrib:SetScript("OnLeave", function() GameTooltip:Hide() end)
+local function syncContrib() cbContrib:SetChecked(NS.Contribute and NS.Contribute.Enabled() or false) end
+NS:On("PLAYER_READY", syncContrib)
+NS:On("CONTRIBUTE_CHANGED", syncContrib)
+GF.contribute = cbContrib
 local bRoute = smallButton("Route", 44, "Toggle route optimizer (reordering)", function()
     NS.db.profile.routing.reorder = not NS.db.profile.routing.reorder
     NS:Print("Step reordering " .. (NS.db.profile.routing.reorder and "ON" or "OFF"))

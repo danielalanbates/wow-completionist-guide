@@ -706,9 +706,12 @@ do
     assert(src:find("if not f:IsShown%(%) then f:Show%(%) end"), "loading a guide must show the guide window")
     assert(src:find("function GF.ShowDetail"), "no step detail popup")
     assert(src:find("GF.ShowDetail%(self.step%)"), "clicking the step card must open its details")
-    assert(not src:find("UICheckButtonTemplate"), "the guide window must not have a tick box - steps complete themselves")
+    -- steps complete themselves, so there is no tick box per step; the one box on the window is the owner's
+    -- "Contribute" setting next to Guides (Core/Contribute.lua, 2026-11-11)
+    local _, boxes = src:gsub("UICheckButtonTemplate", "")
+    assert(boxes == 1 and src:find('"CompletionRouteContributeCheck"'), "the guide window has one tick box only: Contribute")
     assert(src:find("P.Undo%(%)") and src:find("P.Forward%(%)"), "back/forward arrows missing")
-    print("guide selection UX OK: window opens on load, one step at a time, arrows, no checkbox")
+    print("guide selection UX OK: window opens on load, one step at a time, arrows, no step checkbox")
 end
 
 -- login sync: completed quests come from the client, and a guide is "(Character)" only when WHOLLY done
