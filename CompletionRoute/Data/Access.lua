@@ -71,6 +71,72 @@ A The Storm Gathers|QID|32681|M|49.9,69.0|Z|Townlong Steppes|
 C Tell Vereesa you are ready; discover the Isle of Thunder|QID|32681|M|49.9,69.0|Z|Townlong Steppes|
 T The Storm Gathers|QID|32681|M|34.6,89.5|Z|Isle of Thunder|N|Lady Jaina Proudmoore.|
 ]] },
+    -- MoP Classic (5.5): the same chain, as the Warcraft Wiki writes it for 5.2 (2026-11-11).  Pages: "Thunder Calls
+    -- (Horde)" / "(Alliance)" (givers Sunwalker Dezco, Lyalia; their NPC pages give the Vale points), "The Storm Gathers
+    -- (Horde)" / "(Alliance)" (Scout Captain Elsia 50.0,73.0 / Vereesa Windrunner 49.9,69.0 in Townlong Steppes;
+    -- Lor'themar Theron 28.0,52.0 / Lady Jaina Proudmoore 34.6,89.4 on the island), "Isle of Thunder" ("take a portal
+    -- from the faction camps outside the Shado-Pan Garrison": Horde camp 50.6,73.4, Alliance camp 49.7,68.7).
+    -- All four quest ids are in MoP Classic's QuestV2.
+    { key = "isle_of_thunder_h_mop", fac = "H", flavors = { mop = true }, unlock = { 32680 }, cost = 600,
+      from = { "Vale of Eternal Blossoms", 62.8, 28.0 }, to = { "Isle of Thunder", 28.0, 52.0 },
+      after = { from = { "Townlong Steppes", 50.6, 73.4 }, cost = 20, title = "Take the portal at the Horde camp outside the Shado-Pan Garrison to the Isle of Thunder" },
+      title = "Isle of Thunder (Horde): Thunder Calls (Sunwalker Dezco) -> Scout Captain Elsia in Townlong Steppes -> portal",
+      steps = [[
+A Thunder Calls|QID|32678|M|62.8,28.0|Z|Vale of Eternal Blossoms|N|Sunwalker Dezco.|
+T Thunder Calls|QID|32678|M|50.0,73.0|Z|Townlong Steppes|N|Scout Captain Elsia.|
+A The Storm Gathers|QID|32680|M|50.0,73.0|Z|Townlong Steppes|N|Scout Captain Elsia.|
+C Take the portal at the Horde camp to the Isle of Thunder|QID|32680|M|50.6,73.4|Z|Townlong Steppes|
+T The Storm Gathers|QID|32680|M|28.0,52.0|Z|Isle of Thunder|N|Lor'themar Theron.|
+]] },
+    { key = "isle_of_thunder_a_mop", fac = "A", flavors = { mop = true }, unlock = { 32681 }, cost = 600,
+      from = { "Vale of Eternal Blossoms", 84.0, 58.8 }, to = { "Isle of Thunder", 34.6, 89.4 },
+      after = { from = { "Townlong Steppes", 49.7, 68.7 }, cost = 20, title = "Take the portal at the Alliance camp outside the Shado-Pan Garrison to the Isle of Thunder" },
+      title = "Isle of Thunder (Alliance): Thunder Calls (Lyalia) -> Vereesa Windrunner in Townlong Steppes -> portal",
+      steps = [[
+A Thunder Calls|QID|32679|M|84.0,58.8|Z|Vale of Eternal Blossoms|N|Lyalia.|
+T Thunder Calls|QID|32679|M|49.9,69.0|Z|Townlong Steppes|N|Vereesa Windrunner.|
+A The Storm Gathers|QID|32681|M|49.9,69.0|Z|Townlong Steppes|N|Vereesa Windrunner.|
+C Take the portal at the Alliance camp to the Isle of Thunder|QID|32681|M|49.7,68.7|Z|Townlong Steppes|
+T The Storm Gathers|QID|32681|M|34.6,89.4|Z|Isle of Thunder|N|Lady Jaina Proudmoore.|
+]] },
+    -- ---------------- Mists of Pandaria: reaching Pandaria on MoP Classic (5.0.4) ----------------
+    -- Warcraft Wiki "Jade Forest": "introductory quests in ... Stormwind City or Orgrimmar ... bring them to the zone via
+    -- gunships. There is no boat or road you can take without the starting quest."  Retail has the Portal Room instead.
+    -- Alliance (fully cited): "The King's Command" (automatic) -> Rell Nightwind 78.9,39.8 Stormwind -> "The Mission"
+    -- on the Skyfire -> Sky Admiral Rogers 42.0,92.8 Jade Forest.  Horde: "The Art of War" (automatic) -> General
+    -- Nazgrim (the wiki gives no point in Orgrimmar) -> "All Aboard!" ("the gunship ... northeast of Bladefist Bay",
+    -- {{co|38|95.9|Azshara}}) -> "Into the Mists" -> Hellscream's Fist lands at Honeydew Village ({{co|28|14|Jade Forest}})
+    -- -> "Paint it Red!" (previous = Into the Mists, next = Touching Ground (Horde); General Nazgrim to Rivett
+    -- Clutchpop, the gunship turrets) -> "Touching Ground" (Horde).  "All Aboard!" and "Into the Mists" both end at
+    -- Nazgrim on the gunship.  approx: the Horde edge starts at the gunship, not at Nazgrim, and the wiki gives no point
+    -- for the turn-ins on the gunship, so they use the boarding and landing points.
+    { key = "pandaria_a_mop", fac = "A", flavors = { mop = true }, unlock = { 29548 }, cost = 900,
+      from = { "Stormwind City", 78.9, 39.8 }, to = { "The Jade Forest", 42.0, 92.8 },
+      title = "Pandaria (Alliance): The King's Command -> Rell Nightwind -> The Mission on the Skyfire to the Jade Forest",
+      steps = [[
+A The King's Command|QID|29547|Z|Stormwind City|N|Offered automatically in Stormwind City at level 85.|
+T The King's Command|QID|29547|M|78.9,39.8|Z|Stormwind City|N|Rell Nightwind.|
+A The Mission|QID|29548|M|78.9,39.8|Z|Stormwind City|N|Rell Nightwind.|
+T The Mission|QID|29548|M|42.0,92.8|Z|The Jade Forest|N|Sky Admiral Rogers, after the Skyfire lands.|
+]] },
+    { key = "pandaria_h_mop", fac = "H", flavors = { mop = true }, unlock = { 31766 }, cost = 900, approx = true,
+      from = { "Azshara", 38.0, 95.9 }, to = { "The Jade Forest", 28.0, 14.0 },
+      title = "Pandaria (Horde): The Art of War -> General Nazgrim -> All Aboard! on Hellscream's Fist to the Jade Forest",
+      steps = [[
+A The Art of War|QID|29611|Z|Orgrimmar|N|Offered automatically in Orgrimmar at level 85.|
+T The Art of War|QID|29611|Z|Orgrimmar|N|General Nazgrim.|
+A All Aboard!|QID|31853|Z|Orgrimmar|N|General Nazgrim.|
+C Board the gunship northeast of Bladefist Bay|QID|31853|M|38.0,95.9|Z|Azshara|
+T All Aboard!|QID|31853|M|38.0,95.9|Z|Azshara|N|General Nazgrim, on Hellscream's Fist.|
+A Into the Mists|QID|29690|M|38.0,95.9|Z|Azshara|N|General Nazgrim.|
+N Hellscream's Fist lands at Honeydew Village|M|28.0,14.0|Z|The Jade Forest|
+T Into the Mists|QID|29690|M|28.0,14.0|Z|The Jade Forest|N|General Nazgrim, on Hellscream's Fist.|
+A Paint it Red!|QID|31765|M|28.0,14.0|Z|The Jade Forest|N|General Nazgrim.|
+C Paint it Red!|QID|31765|M|28.0,14.0|Z|The Jade Forest|N|Use a Gunship Turret to kill 80 Thunder Hold troops and destroy 9 Thunder Hold cannons.|
+T Paint it Red!|QID|31765|M|28.0,14.0|Z|The Jade Forest|N|Rivett Clutchpop.|
+A Touching Ground|QID|31766|M|28.0,14.0|Z|The Jade Forest|N|Rivett Clutchpop.|
+T Touching Ground|QID|31766|M|28.0,14.0|Z|The Jade Forest|N|General Nazgrim.|
+]] },
     -- ---------------- Midnight (12.0): Quel'Thalas ----------------
     { key = "midnight_h", fac = "H", flavors = { retail = true }, unlock = { 88719 }, cost = 600,
       from = { "Orgrimmar", 52.97, 77.46 }, to = { "2432", 52.5, 88.2, name = "Isle of Quel'Danas" },

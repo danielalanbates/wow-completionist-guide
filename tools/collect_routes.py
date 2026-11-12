@@ -25,7 +25,7 @@ import sqlite3
 import subprocess
 import sys
 
-TMP = "/Users/daniel/.claude/jobs/ff3c728a/tmp"
+TMP = os.environ.get("CR_TMP") or os.path.expanduser("~/.claude/jobs/ff3c728a/tmp")   # as tools/optimize_routes.py
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB = os.path.join(REPO, "docs", "verification.sqlite")
 FLAVORS = ["era", "tbc", "mop", "retail", "forever"]
@@ -91,7 +91,7 @@ def collect(flavors):
     lua = {}
     try:
         outp = subprocess.run(["luajit", "tools/test_route_order.lua"], cwd=REPO, capture_output=True, text=True, timeout=1800).stdout
-        for m in re.finditer(r"^ok\s+(\w+)\s+(\d+) entries, (\d+) guides baked \((\d+) spine\), (\d+) steps, (\d+) moved, (\d+) violations", outp, re.M):
+        for m in re.finditer(r"^(?:ok|BAD)\s+(\w+)\s+(\d+) entries, (\d+) guides baked \((\d+) spine\), (\d+) steps, (\d+) moved, (\d+) violations", outp, re.M):
             lua[m.group(1)] = (int(m.group(3)), int(m.group(5)), int(m.group(7)), "%s entries, %s spine, %s moved" % (m.group(2), m.group(4), m.group(6)))
         fails = [l for l in outp.splitlines() if l.startswith("FAIL")]
     except Exception as e:  # pragma: no cover

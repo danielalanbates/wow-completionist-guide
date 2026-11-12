@@ -22,9 +22,31 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         end
         NS:Print("No guide matches '" .. rest .. "'. /cr guides")
     elseif cmd == "next" or cmd == "done" then P.Forward()
-    elseif cmd == "skip" then if P.current then P.Skip(P.current) end
+    elseif cmd == "skip" then
+        -- /cr skip [questID] [confirm]: drop a whole quest (default: the current step's); quests that need it are
+        -- named first (Core/Skip.lua).  A current step without a quest is skipped as a step, as before.
+        local q, word = rest:match("^(%d+)%s*(%a*)")
+        local confirm = (word or rest):lower() == "confirm"
+        if not q then
+            if not P.current then NS:Print("No current step.") return end
+            if not P.current.qid then NS.Skip.SkipStep(P.current) return end
+            q = P.current.qid[1]
+        end
+        NS.Skip.SkipQuest(tonumber(q), { confirm = confirm })
+    elseif cmd == "skipstep" then if P.current then NS.Skip.SkipStep(P.current) end
+    elseif cmd == "unskip" then
+        local w = rest:lower():match("^%s*(%S*)")
+        if w == "all" then NS.Skip.Unskip("all")
+        elseif tonumber(w) then NS.Skip.Unskip(tonumber(w))
+        else NS:Print("Usage: /cr unskip <questID|all>   (/cr skipped lists them)") end
+    elseif cmd == "skipped" then NS.Skip.List()
+    elseif cmd == "auto" then
+        -- /cr auto [accept|turnin|reward|on|off|key <shift|ctrl|alt|none>]: auto accept / turn-in of the guide's own
+        -- quests (Core/QuestAuto.lua, docs/QUEST_AUTO.md); no argument shows the settings and the last decision
+        NS.QuestAuto.Command(rest)
     elseif cmd == "undo" or cmd == "back" or cmd == "prev" then P.Undo()
     elseif cmd == "reset" then P.Reset() NS:Print("Guide progress reset.")
+    elseif cmd == "marks" then for _, line in ipairs(P.MarksReport()) do NS:Print(line) end   -- progress storage (docs/STEP_KEYS.md)
     elseif cmd == "arrow" then NS.db.profile.arrow.enabled = not NS.db.profile.arrow.enabled NS.Arrow.ApplySettings() NS:Print("Arrow " .. (NS.db.profile.arrow.enabled and "on" or "off"))
     elseif cmd == "pointer" then
         local a = NS.db.profile.arrow
@@ -45,10 +67,18 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             NS:Print(("  %d. [%s] %s  (%s, ~%s)"):format(i, s.action, s.title, s.zone and U.MapName(s.zone) or "?", U.FmtTime(secs)))
         end
     elseif cmd == "taxi" then
-        local n = 0 for _ in pairs(NS.db.char.knownTaxi) do n = n + 1 end
-        local pol = NS.TravelGraph.TaxiPolicy()
-        NS:Print(("Flight paths: policy=%s, learned=%d, graph nodes=%d (%d road). %s"):format(pol, n, #NS.TravelGraph.nodes, NS.TravelGraph.roadCount or 0,
-            pol == "faction" and "Routing uses every flight master your faction can reach; unlearned ones are labelled (new flight path)." or "Routing uses learned flight paths only."))
+        local TG = NS.TravelGraph
+        local n = U.tcount(NS.db.char.knownTaxi or {})
+        local acct = U.tcount(NS.db.global.knownTaxi or {})
+        local pol = TG.TaxiPolicy()
+        NS:Print(("Flight paths: policy=%s, this character %d, account %d (%s), graph nodes=%d (%d road)."):format(pol, n, acct,
+            TG.TaxiShared() and "shared on this client" or "not shared on this client", #TG.nodes, TG.roadCount or 0))
+        NS:Print(pol == "faction" and "Routing flies to every flight master your faction can use; undiscovered ones are labelled (new flight path)."
+            or "Routing flies only into flight paths you have discovered; it may walk you to a new flight master to pick it up. Open a flight master's map once per continent to teach me the rest.")
+    elseif cmd == "teleports" or cmd == "tele" or cmd == "teleport" then
+        if not NS.Teleports then NS:Print("Teleports not loaded.") return end
+        NS:Print(("Teleports (%s):"):format(NS.db.profile.routing.teleports == false and "OFF in options" or "used when faster"))
+        for _, l in ipairs(NS.Teleports.Report()) do NS:Print("  " .. l) end
     elseif cmd == "road" or cmd == "roads" then
         if NS.Roads then NS.Roads.Command(rest) else NS:Print("Road recorder not loaded.") end
     elseif cmd == "hearth" then
@@ -117,10 +147,12 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         local g, st = P.guide, P.current
         NS:Print("--- why ---")
         if not g then NS:Print("No guide loaded. /cr guides") return end
-        local done = 0
-        for _ in pairs((NS.Account and NS.Account.me and NS.Account.me.done[g.id]) or {}) do done = done + 1 end
+        local done = P.VisibleDone()
         NS:Print(("Guide: %s (%s) - %d/%d steps done, %d still applicable"):format(
             g.name or g.id, g.source or "?", done, P.steps and #P.steps or 0, #P.Pending(999)))
+        if P.baseSteps and #P.baseSteps > #(P.steps or {}) then
+            NS:Print(("  rebuilt without skipped quests: %d of the guide's %d steps left out (/cr skipped)"):format(#P.baseSteps - #P.steps, #P.baseSteps))
+        end
         if NS.db.profile.accountWide then NS:Print("Account-wide is ON: steps another character finished count as done (/cr accountwide)") end
         if not st then
             NS:Print("No current step. Either the guide is finished, or every remaining step is filtered out by faction/class/race/level.")
@@ -194,6 +226,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     elseif cmd == "verifyfeatures" then
         NS.RunFeatureVerify()
     elseif cmd == "log" then NS.Log.Toggle()
+    elseif cmd == "bug" then NS.BugReport.Command(rest)   -- beta report snapshot (Core/BugReport.lua, docs/BETA_REPORTS.md)
     elseif cmd == "stats" then
         local bySrc = {}
         for _, id in ipairs(G.list) do local g = G.registry[id] bySrc[g.source or "?"] = (bySrc[g.source or "?"] or 0) + 1 end
@@ -265,7 +298,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip | undo | reset | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | hearth | import | farm | log | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | guides | list [level] [category] | gold [level] | prof | load <name> | next | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | pointer | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | import | farm | log | bug [note] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 
@@ -431,15 +464,17 @@ function NS.RunFeatureVerify(quiet)
     end)
     chk("account", "per-guide progress math", function()
         if not P.guide or not P.steps then return false, "no guide loaded" end
-        local cn, cp = A.GuideProgress(P.guide.id, #P.steps, "char")
-        local an, ap = A.GuideProgress(P.guide.id, #P.steps, "account")
+        local keep
+        if P.baseSteps and P.steps ~= P.baseSteps then keep = {} for _, st in ipairs(P.steps) do keep[st.key] = true end end
+        local cn, cp = A.GuideProgress(P.guide.id, #P.steps, "char", keep)
+        local an, ap = A.GuideProgress(P.guide.id, #P.steps, "account", keep)
         return an >= cn, ("char %d/%d (%d%%), account %d/%d (%d%%)"):format(cn, #P.steps, cp, an, #P.steps, ap)
     end)
     chk("account", "opt-in gate honoured", function()
         -- with the opt-in OFF, another character's completion must never mark a step done
         local was = NS.db.profile.accountWide
         NS.db.profile.accountWide = false
-        local leaked = A.OtherDid(P.guide and P.guide.id or "none", 1)
+        local leaked = A.OtherDid(P.guide and P.guide.id or "none", P.steps and P.steps[1] and P.steps[1].key or "?")
         NS.db.profile.accountWide = was
         return leaked == false, "off => other characters ignored"
     end)

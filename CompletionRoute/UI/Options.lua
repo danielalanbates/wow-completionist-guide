@@ -12,20 +12,29 @@ local d = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
 d:SetPoint("TOPLEFT", t, "BOTTOMLEFT", 0, -6); d:SetWidth(560); d:SetJustifyH("LEFT")
 d:SetText("The completionist's guide: community-driven guides for every quest, with open travel routing.\nSlash: /cr   Guides: /cr guides   What can I do now: /cr guides -> For level N   Debug route: /cr route")
 
-local y = -70
+-- The main page is taller than the Settings canvas (about 600 px; 22 checkboxes and 6 sliders need about 830), so its
+-- controls sit in a scroll frame.  The template exists on all five clients.
+local scroll = CreateFrame("ScrollFrame", "CompletionRouteOptionsScroll", panel, "UIPanelScrollFrameTemplate")
+scroll:SetPoint("TOPLEFT", 0, -64); scroll:SetPoint("BOTTOMRIGHT", -30, 8)
+local content = CreateFrame("Frame", nil, scroll)
+content:SetSize(620, 10)
+scroll:SetScrollChild(content)
+
+local y = -4
+local host = content   -- the page check() and slider() add to (the "Auto quests" page below switches it)
 local function check(label, get, set, tip)
     local tmpl = (C_XMLUtil and C_XMLUtil.GetTemplateInfo and C_XMLUtil.GetTemplateInfo("InterfaceOptionsCheckButtonTemplate")) and "InterfaceOptionsCheckButtonTemplate" or "SettingsCheckBoxTemplate"
-    local okcb, cb = pcall(CreateFrame, "CheckButton", nil, panel, tmpl)
-    if not okcb or not cb then cb = CreateFrame("CheckButton", nil, panel, "UICheckButtonTemplate") end
+    local okcb, cb = pcall(CreateFrame, "CheckButton", nil, host, tmpl)
+    if not okcb or not cb then cb = CreateFrame("CheckButton", nil, host, "UICheckButtonTemplate") end
     cb:SetPoint("TOPLEFT", 16, y); y = y - 26
-    if cb.Text then cb.Text:SetText(label) else local fs = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight") fs:SetPoint("LEFT", cb, "RIGHT", 4, 0) fs:SetText(label) end
+    if cb.Text then cb.Text:SetText(label) else local fs = host:CreateFontString(nil, "OVERLAY", "GameFontHighlight") fs:SetPoint("LEFT", cb, "RIGHT", 4, 0) fs:SetText(label) end
     cb.tooltipText = tip
     cb:SetScript("OnShow", function(self) self:SetChecked(get()) end)
     cb:SetScript("OnClick", function(self) set(self:GetChecked() and true or false) end)
     return cb
 end
 local function slider(label, min, max, step, get, set)
-    local s = CreateFrame("Slider", nil, panel, "OptionsSliderTemplate")
+    local s = CreateFrame("Slider", nil, host, "OptionsSliderTemplate")
     s:SetPoint("TOPLEFT", 24, y - 10); y = y - 46
     s:SetMinMaxValues(min, max); s:SetValueStep(step); s:SetObeyStepOnDrag(true); s:SetWidth(200)
     s.Low:SetText(min); s.High:SetText(max)
@@ -51,14 +60,15 @@ check("Route optimizer: use the pre-computed fastest order for quest guides", fu
     end
     if NS.Progress.guide then NS.Progress.Load(NS.Progress.guide.id) end
 end, "Data/RouteOrder: each quest guide's steps solved offline for the least travel time (A before C before T, prerequisites, quest log size and level kept). Off = the guide's own order.")
-check("Routing: use flight paths", function() return P().routing.taxi end, function(v) P().routing.taxi = v NS.Router.Invalidate() end)
-check("Routing: prefer flight paths (comfort mode)", function() return P().routing.preferTaxi end, function(v) P().routing.preferTaxi = v NS.Router.Invalidate() end, "Favors comfortable automated flight paths over manual flying.")
-check("Routing: route by every flight path your faction can use (off = only ones you have learned)", function() return NS.TravelGraph.TaxiPolicy() == "faction" end, function(v) P().routing.taxiPolicy = v and "faction" or "known" P().routing.assumeAllTaxi = nil NS.Router.Invalidate() end, "A flight you have not learned yet is labelled (new flight path); the route still walks you to the right flight master.")
+check("Routing: use flight paths", function() return P().routing.taxi end, function(v) P().routing.taxi = v NS.TravelGraph.PathCacheWipe() NS.Router.Invalidate() end)
+check("Routing: prefer flight paths (comfort mode)", function() return P().routing.preferTaxi end, function(v) P().routing.preferTaxi = v NS.TravelGraph.PathCacheWipe() NS.Router.Invalidate() end, "Favors comfortable automated flight paths over manual flying.")
+check("Routing: fly to every flight master your faction can use, discovered or not (off = only flight paths this character has discovered)", function() return NS.TravelGraph.TaxiPolicy() == "faction" end, function(v) P().routing.taxiPolicy = v and "faction" or "known" P().routing.assumeAllTaxi = nil NS.TravelGraph.TaxiChanged() end, "Off (default): a flight only lands at a flight master you have discovered - on Retail and WoW Forever any character of the account counts, on Classic only this one. The route may walk you to a new flight master to pick it up. On: the old rule; an undiscovered landing is labelled (new flight path).")
 check("Flight map: highlight destination when talking to a flight master", function() return P().beacon.highlightTaxi ~= false end, function(v) P().beacon.highlightTaxi = v end, "Shows a pulsing beacon and name over the exact destination pin/button on the flight master map.")
 check("Routing: follow roads through zones (authored + recorded paths)", function() return P().routing.roads ~= false end, function(v) P().routing.roads = v NS.TravelGraph.RebuildRoads() NS.Router.Invalidate() end)
 check("Routing: record the roads I walk to improve pathing (stored in SavedVariables, shareable)", function() return P().routing.recordRoads ~= false end, function(v) P().routing.recordRoads = v end)
-check("Routing: use boats / zeppelins / portals / tram", function() return P().routing.transit end, function(v) P().routing.transit = v NS.Router.Invalidate() end)
-check("Routing: suggest Hearthstone when it is faster", function() return P().routing.hearth end, function(v) P().routing.hearth = v NS.Router.Invalidate() end)
+check("Routing: use boats / zeppelins / portals / tram", function() return P().routing.transit end, function(v) P().routing.transit = v NS.TravelGraph.PathCacheWipe() NS.Router.Invalidate() end)
+check("Routing: suggest Hearthstone when it is faster", function() return P().routing.hearth end, function(v) P().routing.hearth = v NS.TravelGraph.OneShotChanged() end)
+check("Routing: suggest class teleports, transporters and hub hearthstones when faster", function() return P().routing.teleports ~= false end, function(v) P().routing.teleports = v NS.TravelGraph.OneShotChanged() end, "Mage teleports, Teleport: Moonglade, Death Gate (MoP Classic), engineering transporters, the Dalaran and Garrison hearthstones (Data/Teleports.lua). Only what this character knows or owns, with at most 15 minutes of cooldown left. /cr teleports lists them.")
 check("Target beacon: marker over the head of the step's NPC / mob", function() return P().beacon.enabled end, function(v) P().beacon.enabled = v NS.Beacon.ApplySettings() end)
 check("Target beacon: bob the marker up and down", function() return P().beacon.bounce end, function(v) P().beacon.bounce = v NS.Beacon.RescanPlates() end, "Turn this off for a completely still marker.")
 check("Target beacon: minimap + world map pins for the step location", function() return P().beacon.pins end, function(v) P().beacon.pins = v NS.Beacon.UpdatePins() end)
@@ -67,11 +77,19 @@ check("Account-wide progress: count steps ANY of my characters finished (finer c
 check("Account-wide: also match by quest ID across different guides", function() return P().accountQuests end, function(v) P().accountQuests = v NS.Progress.Refresh() end, "A quest an alt turned in clears the matching step in any guide that covers it, not just the same guide.")
 check("Debug messages", function() return P().debug end, function(v) P().debug = v end)
 slider("Reorder window (steps)", 3, 24, 1, function() return P().routing.window end, function(v) P().routing.window = v NS.Progress.Refresh() end)
-slider("Terrain detour factor x100", 100, 200, 5, function() return math.floor((P().routing.terrainFactor or 1.25) * 100 + 0.5) end, function(v) P().routing.terrainFactor = v / 100 NS.Router.Invalidate() end)
-slider("Hearth base cost (seconds)", 10, 300, 10, function() return P().routing.hearthCost or 60 end, function(v) P().routing.hearthCost = v NS.Router.Invalidate() end)
+slider("Terrain detour factor x100", 100, 200, 5, function() return math.floor((P().routing.terrainFactor or NS.CostModel.TERRAIN) * 100 + 0.5) end, function(v)
+    -- OnShow's SetValue lands here too: drop the cached paths only when the factor really changed
+    if P().routing.terrainFactor ~= v / 100 then P().routing.terrainFactor = v / 100 NS.TravelGraph.PathCacheWipe() end
+    NS.Router.Invalidate()
+end)
+slider("Hearth base cost (seconds)", 10, 300, 10, function() return P().routing.hearthCost or NS.CostModel.HEARTH end, function(v)
+    if (P().routing.hearthCost or NS.CostModel.HEARTH) ~= v then P().routing.hearthCost = v NS.TravelGraph.OneShotChanged() end
+end)
 slider("Beacon scale x100", 50, 200, 5, function() return math.floor((P().beacon.scale or 1) * 100 + 0.5) end, function(v) P().beacon.scale = v / 100 NS.Beacon.RescanPlates() end)
 slider("Arrow scale x100", 50, 200, 5, function() return math.floor((P().arrow.scale or 1) * 100 + 0.5) end, function(v) P().arrow.scale = v / 100 NS.Arrow.ApplySettings() end)
 slider("Guide window scale x100", 50, 200, 5, function() return math.floor((P().frame.scale or 1) * 100 + 0.5) end, function(v) P().frame.scale = v / 100 NS.GuideFrame.ApplySettings() end)
+
+content:SetHeight(-y + 24)
 
 local category
 if Settings and Settings.RegisterCanvasLayoutCategory then
@@ -83,4 +101,85 @@ end
 function O.Open()
     if Settings and Settings.OpenToCategory and category then Settings.OpenToCategory(category:GetID())
     elseif InterfaceOptionsFrame_OpenToCategory then InterfaceOptionsFrame_OpenToCategory(panel) InterfaceOptionsFrame_OpenToCategory(panel) end
+end
+
+-- ---------------------------------------------------------------------------
+-- Auto quests (Core/QuestAuto.lua, docs/QUEST_AUTO.md): a page of its own under the addon's entry
+-- ---------------------------------------------------------------------------
+local auto = CreateFrame("Frame", "CompletionRouteOptionsAutoPanel")
+auto.name, auto.parent = "Auto quests", panel.name
+local at = auto:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
+at:SetPoint("TOPLEFT", 16, -16); at:SetText("Auto quests")
+local ad = auto:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+ad:SetPoint("TOPLEFT", at, "BOTTOMLEFT", 0, -6); ad:SetWidth(560); ad:SetJustifyH("LEFT")
+ad:SetText("Accepts and turns in only the quests of the guide's next steps: never a quest you skipped, never the rest of the guide.\n"
+    .. "Quests that cost gold, repeatable quests the guide does not ask for, and turn-ins with a reward choice are left to you.\n"
+    .. "Slash: /cr auto [accept|turnin|reward|on|off|key shift|ctrl|alt|none]")
+host, y = auto, -84
+check("Auto accept the guide's quests", function() return P().autoAccept end, function(v) P().autoAccept = v end,
+    "Only a quest that belongs to one of the guide's next steps, from a quest giver you are talking to.")
+check("Auto turn in the guide's quests", function() return P().autoTurnin end, function(v) P().autoTurnin = v end,
+    "Completes the quest when the game says it can be completed. A turn-in with a reward choice stays open for you.")
+check("Auto choose the reward (only a clear upgrade by the gear score)", function() return P().autoChooseReward end, function(v) P().autoChooseReward = v end,
+    "Off: every reward choice is yours. On: only when one usable item beats what you wear by 10% or more and clearly beats the others.")
+
+-- the pause key: the client's menu dropdown (Retail 11.0+), the classic UIDropDownMenu, or a button that cycles the keys
+local function keyChoice(label)
+    local QA = NS.QuestAuto
+    local keys = QA and QA.KEYS or { "SHIFT", "CTRL", "ALT", "NONE" }
+    local function current() return QA and QA.Key() or (P().autoModifier or "SHIFT") end
+    local function text(k) return (QA and QA.KEY_LABEL[k]) or k end
+    local function set(k) P().autoModifier = k end
+    local fs = host:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
+    fs:SetPoint("TOPLEFT", 20, y - 6); fs:SetText(label)
+    local made, dd
+    if MenuUtil and C_XMLUtil and C_XMLUtil.GetTemplateInfo and C_XMLUtil.GetTemplateInfo("WowStyle1DropdownTemplate") then
+        local ok = pcall(function()
+            dd = CreateFrame("DropdownButton", nil, host, "WowStyle1DropdownTemplate")
+            dd:SetPoint("TOPLEFT", 260, y); dd:SetWidth(140)
+            dd:SetupMenu(function(_, root)
+                for _, k in ipairs(keys) do root:CreateRadio(text(k), function() return current() == k end, function() set(k) end) end
+            end)
+        end)
+        if ok then made = dd elseif dd and dd.Hide then dd:Hide() end
+    end
+    if not made and UIDropDownMenu_Initialize and UIDropDownMenu_CreateInfo and UIDropDownMenu_AddButton and UIDropDownMenu_SetText then
+        dd = nil
+        local ok = pcall(function()
+            dd = CreateFrame("Frame", "CompletionRouteAutoKeyDropDown", host, "UIDropDownMenuTemplate")
+            dd:SetPoint("TOPLEFT", 244, y + 2)
+            if UIDropDownMenu_SetWidth then UIDropDownMenu_SetWidth(dd, 120) end
+            UIDropDownMenu_Initialize(dd, function()
+                for _, k in ipairs(keys) do
+                    local info = UIDropDownMenu_CreateInfo()
+                    info.text, info.checked = text(k), current() == k
+                    info.func = function() set(k) UIDropDownMenu_SetText(dd, text(k)) end
+                    UIDropDownMenu_AddButton(info)
+                end
+            end)
+            dd:SetScript("OnShow", function() UIDropDownMenu_SetText(dd, text(current())) end)
+        end)
+        if ok then made = dd elseif dd and dd.Hide then dd:Hide() end
+    end
+    if not made then
+        local b = CreateFrame("Button", nil, host, "UIPanelButtonTemplate")
+        b:SetPoint("TOPLEFT", 260, y); b:SetSize(120, 22)
+        local function show() b:SetText(text(current())) end
+        b:SetScript("OnShow", show)
+        b:SetScript("OnClick", function()
+            local cur, nxt = current(), keys[1]
+            for i, k in ipairs(keys) do if k == cur then nxt = keys[i % #keys + 1] end end
+            set(nxt) show()
+        end)
+        made = b
+    end
+    y = y - 34
+    return made
+end
+keyChoice("Hold to do a quest giver yourself:")
+
+if Settings and Settings.RegisterCanvasLayoutSubcategory and category then
+    O.autoCategory = Settings.RegisterCanvasLayoutSubcategory(category, auto, "Auto quests")
+elseif InterfaceOptions_AddCategory then
+    InterfaceOptions_AddCategory(auto)
 end

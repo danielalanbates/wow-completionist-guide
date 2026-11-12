@@ -49,6 +49,9 @@ end)
 bRoute:SetPoint("TOPLEFT", f, "TOPLEFT", 8, -28)
 local bOpt = smallButton("Opts", 40, "Options", function() NS.Options.Open() end)
 bOpt:SetPoint("LEFT", bRoute, "RIGHT", 2, 0)
+local bBug = smallButton("Report", 52, "Save a bug report: guide, step, position, route and recent log (/cr bug [note])",
+    function() NS.BugReport.FromButton() end)
+bBug:SetPoint("LEFT", bOpt, "RIGHT", 2, 0)
 
 local pathText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 pathText:SetPoint("BOTTOMLEFT", 10, 8); pathText:SetPoint("RIGHT", -24, 0)
@@ -95,9 +98,10 @@ card.note:SetJustifyH("LEFT"); card.note:SetWordWrap(true); card.note:SetMaxLine
 card.where = card:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 card.where:SetPoint("BOTTOMLEFT", 6, 6); card.where:SetPoint("RIGHT", -6, 0)
 card.where:SetJustifyH("LEFT"); card.where:SetWordWrap(false); card.where:SetTextColor(0.6, 0.85, 1)
-card:RegisterForClicks("LeftButtonUp")
-card:SetScript("OnClick", function(self)
+card:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+card:SetScript("OnClick", function(self, button)
     if not self.step then return end
+    if button == "RightButton" then GF.ShowStepMenu(self.step, self) return end
     GF.ShowDetail(self.step)
 end)
 card:SetScript("OnEnter", function(self)
@@ -109,7 +113,7 @@ card:SetScript("OnEnter", function(self)
     if s.qid then GameTooltip:AddLine("Quest ID: " .. table.concat(s.qid, ", "), 0.6, 0.6, 0.6) end
     if s.zone then GameTooltip:AddLine("Zone: " .. U.MapName(s.zone) .. (s.coords and (" " .. string.format("%.1f, %.1f", s.coords[1].x * 100, s.coords[1].y * 100)) or ""), 0.6, 0.6, 0.6) end
     if s.item then GameTooltip:AddLine("Uses item: " .. U.ItemName(s.item), 0.6, 1, 0.6) end
-    GameTooltip:AddLine("|cff888888Click for details. Steps complete themselves; use the arrows to move by hand.|r", 1, 1, 1, true)
+    GameTooltip:AddLine("|cff888888Click for details, right-click to skip. Steps complete themselves; use the arrows to move by hand.|r", 1, 1, 1, true)
     GameTooltip:Show()
 end)
 card:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -151,8 +155,8 @@ function GF.Update()
         bBack:Disable() bFwd:Disable()
         return
     end
-    local done, total = 0, #P.steps
-    for _ in pairs(NS.db.char.done[P.guide.id] or {}) do done = done + 1 end
+    -- counts over the list on screen: a guide rebuilt without skipped quests (Core/Skip.lua) counts only what is left
+    local done, total = P.VisibleDone(), #P.steps
     local s = P.current
     local pos = total
     if s then   -- position in the loaded list (access-chain steps carry negative indices and sit in front)
@@ -166,9 +170,10 @@ function GF.Update()
         titleText:SetText(("|cff3ec6ff%s|r  |cff888888lap %d - waypoint %d of %d|r%s"):format(
             P.guide.name or P.guide.id, (P.Lap and P.Lap(P.guide.id) or 0) + 1, math.min(pos, total), total, worth))
     else
-    titleText:SetText(("|cff3ec6ff%s|r  |cff888888%s %d of %d|r"):format(P.guide.name or P.guide.id, label, math.min(pos, total), total))
+    titleText:SetText(("|cff3ec6ff%s|r  |cff888888%s %d of %d|r%s"):format(P.guide.name or P.guide.id, label, math.min(pos, total), total,
+        (NS.Replan and NS.Replan.running) and "  |cff6ac9ffre-planning...|r" or ""))
     end
-    bBack:SetEnabled(done > 0 or next(NS.db.char.skipped[P.guide.id] or {}) ~= nil)
+    bBack:SetEnabled(done > 0 or next((select(2, P.MarkSets()))) ~= nil)
     bFwd:SetEnabled(s ~= nil)
     if not s then
         card:Hide()
@@ -269,20 +274,27 @@ local dDone = smallButton("Complete", 76, "Mark this step done", function()
     if detail.step then P.MarkDone(detail.step, true) detail:Hide() end
 end, detail)
 dDone:SetPoint("BOTTOMLEFT", 12, 10)
-local dSkip = smallButton("Skip", 50, "Skip this step", function()
-    if detail.step then P.Skip(detail.step) detail:Hide() end
+-- Skip on an accept or turn-in of a quest that other quests need warns first (Core/Skip.lua SkipStep)
+local dSkip = smallButton("Skip", 50, "Skip this step (on an accept: the whole quest, so its turn-in is not left behind)", function()
+    if detail.step then local st = detail.step detail:Hide() NS.Skip.SkipStep(st) end
 end, detail)
 dSkip:SetPoint("LEFT", dDone, "RIGHT", 4, 0)
+local dSkipQ = smallButton("Skip quest", 76, "Skip this whole quest in every guide (you are warned first if other quests need it). /cr unskip brings it back.", function()
+    local st = detail.step
+    if st and st.qid then detail:Hide() NS.Skip.SkipQuest(st.qid[1]) end
+end, detail)
+dSkipQ:SetPoint("LEFT", dSkip, "RIGHT", 4, 0)
 local dTrack = smallButton("Show on map", 96, "Open the world map at this step", function()
     local s2 = detail.step
     if s2 and s2.zone and OpenWorldMap then pcall(OpenWorldMap, s2.zone)
     elseif s2 and s2.zone and WorldMapFrame then pcall(function() WorldMapFrame:SetMapID(s2.zone) ShowUIPanel(WorldMapFrame) end) end
 end, detail)
-dTrack:SetPoint("LEFT", dSkip, "RIGHT", 4, 0)
+dTrack:SetPoint("LEFT", dSkipQ, "RIGHT", 4, 0)
 
 function GF.ShowDetail(step)
     if not step then return end
     detail.step = step
+    dSkipQ:SetEnabled(step.qid ~= nil)
     dTitle:SetText(("|cffffd200%s|r: %s"):format(G.ACTION_LABEL[step.action] or step.action, G.StepTitle(step)))
     local lines = {}
     if step.note and step.note ~= "" then lines[#lines + 1] = step.note end
@@ -323,6 +335,41 @@ function GF.ShowDetail(step)
     dBody:SetText(table.concat(lines, "\n"))
     detail:Show()
 end
+
+-- ---------------------------------------------------------------------------
+-- Right-click on the step: skip the step, skip its quest, or open the details.  A plain frame of buttons (the
+-- dropdown APIs differ between the five clients).
+-- ---------------------------------------------------------------------------
+local menu = CreateFrame("Frame", "CompletionRouteStepMenu", UIParent, "BackdropTemplate")
+GF.stepMenu = menu
+menu:SetSize(170, 92)
+menu:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+menu:SetBackdropColor(0.03, 0.03, 0.05, 0.96)
+menu:SetBackdropBorderColor(0.3, 0.6, 0.9, 0.9)
+menu:SetFrameStrata("DIALOG")
+menu:EnableMouse(true)
+menu:Hide()
+tinsert(UISpecialFrames, "CompletionRouteStepMenu")
+local function menuButton(text, tip, y, fn)
+    local b = smallButton(text, 154, tip, function() local st = menu.step menu:Hide() if st then fn(st) end end, menu)
+    b:SetPoint("TOP", menu, "TOP", 0, y)
+    return b
+end
+menu.skipStep = menuButton("Skip this step", "Skip this step. On the accept of a quest you do not have, that skips the quest (its objectives and turn-in go too); you are warned first when other quests need it", -8, function(st) NS.Skip.SkipStep(st) end)
+menu.skipQuest = menuButton("Skip this quest", "Drop the whole quest from every guide; quests that need it are listed before anything changes", -28, function(st)
+    if st.qid then NS.Skip.SkipQuest(st.qid[1]) end
+end)
+menu.details = menuButton("Details", "Everything known about this step", -48, function(st) GF.ShowDetail(st) end)
+menu.close = menuButton("Cancel", "Close this menu", -68, function() end)
+function GF.ShowStepMenu(step, anchor)
+    if not step then return end
+    menu.step = step
+    menu.skipQuest:SetEnabled(step.qid ~= nil)
+    menu:ClearAllPoints()
+    menu:SetPoint("TOPLEFT", anchor or f, "BOTTOMLEFT", 0, -2)
+    menu:Show()
+end
+NS:On("REPLAN_STATE", function() GF.SafeUpdate() end)
 
 function GF.ApplySettings()
     local p = NS.db.profile.frame

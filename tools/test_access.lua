@@ -2,20 +2,23 @@
 -- resolves a zone, and from Orgrimmar (Horde) / Stormwind (Alliance) a route to each destination exists that
 -- goes through the chain. Then: a fake guide whose first step is on the Siren Isle gets the chain injected.
 --   luajit tools/test_access.lua
+-- The same per-entry checks then run on the MoP Classic map table for the entries flagged for mop
+-- (`luajit tools/test_access.lua --flavor mop`, started by the retail run): Pandaria and the Isle of Thunder.
 package.path = "./?.lua;" .. package.path
-STUB_MAPS = dofile("tools/maps_retail.lua")
+local FL = (arg[1] == "--flavor" and arg[2]) or "retail"
+STUB_MAPS = dofile("tools/maps_" .. FL .. ".lua")
 local ADDON, NS = "CompletionRoute", {}
 dofile("tools/stubs.lua")
-function GetBuildInfo() return "x", "0", "2026", 120100 end
+function GetBuildInfo() return "x", "0", "2026", FL == "mop" and 50504 or 120100 end
 FACTION, LEVEL = "Horde", 80
 function UnitFactionGroup() return FACTION end
 function UnitLevel() return LEVEL end
 PLAYER = { map = 85, x = 0.5, y = 0.5 }
 local function place(map, x, y) local wx, wy, inst = z2w(x, y, map) PLAYER.map, PLAYER.x, PLAYER.y, PLAYER.wx, PLAYER.wy, PLAYER.inst = map, x, y, wx, wy, inst end
 local function load(path) local fn = assert(loadfile("CompletionRoute/" .. path)) fn(ADDON, NS) end
-for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_retail.lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
-    "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Progress.lua" }) do load(f) end
-NS.flavor = "retail"
+for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_" .. FL .. ".lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
+    "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Progress.lua" }) do load(f) end
+NS.flavor = FL
 NS.db = NS.db or { profile = { routing = {} }, char = { knownTaxi = {}, done = {}, skipped = {} }, global = {} }
 NS.db.global = NS.db.global or {}
 NS.db.profile.routing = NS.db.profile.routing or {}
@@ -28,7 +31,8 @@ for _, fac in ipairs({ "Horde", "Alliance" }) do
     TG.built = false TG.Build()
     print(("%s from %s: %d nodes, %d access edges, unresolved: %s"):format(fac, fac == "Horde" and "Orgrimmar" or "Stormwind", #TG.nodes, #TG.accessEdges, table.concat(TG.unresolved or {}, "; ")))
     for _, a in ipairs(NS.AccessData) do
-        if (not a.fac) or a.fac == (fac == "Horde" and "H" or "A") then
+        -- an entry for another client is never built here (TG.Build reads `flavors`); it is checked by that client's run
+        if ((not a.fac) or a.fac == (fac == "Horde" and "H" or "A")) and ((not a.flavors) or a.flavors[FL]) then
             local bx, by, bi = TG.zoneToWorld(a.to[1], a.to[2], a.to[3])
             check(bx ~= nil, a.key .. " destination resolves")
             local p = bx and TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, bx, by, bi, {})
@@ -41,8 +45,34 @@ for _, fac in ipairs({ "Horde", "Alliance" }) do
             local located = 0
             for _, s in ipairs(steps) do if NS.Router.StepWorld(s) then located = located + 1 end end
             check(located >= #steps - 3, a.key .. " chain steps located " .. located .. "/" .. #steps)
+            -- MoP Classic chains are written quest by quest (no "follow the chapter" N summaries like the retail ones):
+            -- every quest the chain accepts is turned in inside the chain, before the next one is accepted.  A chain that
+            -- leaves one open skips the quest its successor needs (the Horde way into Pandaria accepted Into the Mists
+            -- and then Touching Ground, without turning in Into the Mists or doing Paint it Red! in between)
+            if a.flavors and a.flavors.mop then
+            local open, order = {}, true
+            for _, s in ipairs(steps) do
+                local q = s.qid and s.qid[1]
+                if q and s.action == "A" then
+                    if next(open) ~= nil then order = false end
+                    open[q] = true
+                elseif q and s.action == "T" then
+                    open[q] = nil
+                end
+            end
+            check(order and next(open) == nil, a.key .. " chain turns in each quest before it accepts the next")
+            end
         end
     end
+end
+if FL ~= "retail" then
+    if fails > 0 then print(fails .. " ACCESS TESTS FAILED (" .. FL .. ")") os.exit(1) end
+    print("ALL ACCESS TESTS PASSED (" .. FL .. ")")
+    os.exit(0)
+end
+do
+    local rc = os.execute("luajit tools/test_access.lua --flavor mop")
+    check(rc == 0 or rc == true, "MoP Classic access entries (luajit tools/test_access.lua --flavor mop)")
 end
 -- prefix injection: fake guide starting on the Siren Isle, Horde at Orgrimmar
 FACTION = "Horde" NS.player = { faction = "Horde" } place(85, 0.5, 0.5) TG.built = false TG.Build()
@@ -62,6 +92,80 @@ check(NS.Access.PrefixFor(steps, "test:siren") == nil, "once 84720 is complete n
 local bx, by, bi = TG.zoneToWorld("Siren Isle", 69.3, 48.0)
 local p = TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, bx, by, bi, {})
 check(p and TG.Describe(p):find("Skaggit") ~= nil, "unlocked route goes via the airship: " .. (p and TG.Describe(p):sub(1, 120) or "-"))
+
+-- Turn-ins (docs/ROUTING.md "What changes the graph"): an ordinary turn-in keeps the graph and every kept cost; the
+-- turn-in of an access chain's unlock quest rebuilds only the access edges, even before the client's completed-quest
+-- flag catches up with the QUEST_TURNED_IN event.
+do
+    local kx, ky, ki = TG.zoneToWorld("Tazavesh", 59.74, 83.36)
+    local function viaRift(path)     -- the unlocked K'aresh edge (the Spatial Rift), not the locked chain
+        for _, l in ipairs(path and path.legs or {}) do
+            if l.mode == "access" and l.data.access.key == "karesh" then return not l.data.locked end
+        end
+        return false
+    end
+    local p0 = TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, kx, ky, ki, {})
+    check(p0 and not viaRift(p0), "K'aresh locked: the route does the Locus-Walker chain")
+    local builds, rebuilds, cache, nodes = TG.stats.builds, TG.stats.accessRebuilds, TG.pathCache, #TG.nodes
+    TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, kx, ky, ki, { hearth = false })   -- something worth keeping in the cache
+    check(TG.OnQuestTurnedIn(424242) == false and TG.built and not TG.accessDirty, "an ordinary turn-in does not touch the graph")
+    TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, kx, ky, ki, {})
+    check(TG.stats.builds == builds and TG.stats.accessRebuilds == rebuilds and TG.pathCache == cache,
+          "an ordinary turn-in keeps the graph and the path cache (builds " .. TG.stats.builds - builds .. ", access rebuilds " .. TG.stats.accessRebuilds - rebuilds .. ")")
+    check(TG.unlockQuests[84957] == "access", "K'aresh unlock quest 84957 is in the unlock set")
+    check(TG.OnQuestTurnedIn(84957) == true and TG.accessDirty, "the unlock turn-in marks the access edges dirty")
+    local p1 = TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, kx, ky, ki, {})
+    check(TG.stats.builds == builds and TG.stats.accessRebuilds == rebuilds + 1, "the unlock rebuilt only the access edges, not the whole graph")
+    check(TG.pathCache ~= cache, "the unlock dropped the path cache (and with it StepOrder's kept costs)")
+    check(#TG.nodes == nodes, "access-only rebuild keeps the node count (" .. #TG.nodes .. " vs " .. nodes .. ")")
+    check(viaRift(p1), "after the unlock turn-in the route takes the Spatial Rift: " .. (p1 and TG.Describe(p1):sub(1, 120) or "-"))
+    -- a full build from scratch agrees with the access-only rebuild
+    TG.built = false TG.Build()
+    local p2 = TG.FindPath(PLAYER.wx, PLAYER.wy, PLAYER.inst, kx, ky, ki, {})
+    check(#TG.nodes == nodes and p2 and p1 and math.abs(p2.cost - p1.cost) < 0.01,
+          ("full rebuild matches the access-only rebuild (%s vs %s s)"):format(tostring(p2 and math.floor(p2.cost)), tostring(p1 and math.floor(p1.cost))))
+end
+
+-- `cond` on a Data/Transit.lua entry (TG.CondOK): the edge exists only for characters it holds for; a quest cond is
+-- re-read on the turn-in of that quest (a full rebuild, since it is a transit edge)
+do
+    local saved = NS.TransitData
+    local extra = { from = { "Orgrimmar", 50, 50 }, to = { "Silithus", 50, 50 }, mode = "portal", cost = 5, title = "Test cond portal",
+                    cond = { class = "MAGE", quest = 424243 } }
+    NS.TransitData = { extra }
+    for _, row in ipairs(saved) do NS.TransitData[#NS.TransitData + 1] = row end
+    local function hasEdge()
+        for _, n in ipairs(TG.nodes) do for _, e in ipairs(n.edges) do if e.title == "Test cond portal" then return true end end end
+        return false
+    end
+    NS.player = { faction = "Horde", class = "WARRIOR" }
+    TG.built = false TG.Build()
+    check(not hasEdge(), "cond: a warrior gets no mage-only edge")
+    NS.player.class = "MAGE"
+    TG.built = false TG.Build()
+    check(not hasEdge(), "cond: a mage without the cond quest gets no edge")
+    check(TG.unlockQuests[424243] == "full", "cond quest registered for a full rebuild")
+    check(TG.OnQuestTurnedIn(424243) == true and not TG.built, "cond quest turn-in marks the graph for a rebuild")
+    TG.Ensure()
+    check(hasEdge(), "cond: a mage who turned the quest in gets the edge")
+    check(TG.CondOK({ notQuest = 424243 }) == false and TG.CondOK({ level = 1 }) and TG.CondOK(function() return true end) and TG.CondOK(nil),
+          "cond: notQuest / level / function forms")
+    NS.TransitData = saved
+    NS.player = { faction = "Horde" }
+    TG.built = false TG.Build()
+    -- the Maelstrom portal is conjured for the quest The Maelstrom (27203): its edge goes once that quest is turned in
+    local function maelstrom()
+        for _, n in ipairs(TG.nodes) do for _, e in ipairs(n.edges) do
+            if e.title and e.title:find("portal to the Maelstrom", 1, true) then return true end
+        end end
+        return false
+    end
+    check(maelstrom() and TG.unlockQuests[27203] == "full", "Maelstrom portal edge exists before The Maelstrom (27203) is turned in")
+    TG.OnQuestTurnedIn(27203) TG.Build()
+    check(not maelstrom(), "Maelstrom portal edge is gone after The Maelstrom (27203) is turned in")
+    TG.turnedIn[27203] = nil
+    TG.built = false TG.Build()
+end
 
 -- Legion Class Order Halls: verify all 12 class order halls resolve and are routable
 local order_halls = {

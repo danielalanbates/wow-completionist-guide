@@ -8,6 +8,18 @@
 -- Opt-in: profile.accountWide.  When ON, a step counts as done if ANY character on the account
 -- did it (completionists chasing "all content once"); when OFF you get classic per-character
 -- behaviour and other characters' data is left untouched.
+--
+-- Step marks are stored by stable step key (Core/Guide.lua "Stable step keys", docs/STEP_KEYS.md), so a guide
+-- regenerated with lines added, removed or moved keeps ticks and skips on their steps (STEP_KEYS.md: what still moves one):
+--   chars[k].stepDone[guide][key] = true       ticked (by hand or by the auto-completer)
+--   chars[k].stepSkipped[guide][key] = true    skipped as a step (quest-level skips: Core/Skip.lua questSkip)
+--   CompletionRouteCharDB.stepReopened[guide][key] = true   stepped back to (Progress.Undo)
+--   chars[k].stepMeta[guide] = { v = key version, sum = Guide.GuideSum when last loaded or migrated,
+--                                mig = old marks imported, lost = old marks that matched no step,
+--                                ro = the character's own stepped-back marks imported (false: not yet, see A.Migrate) }
+-- The tables of earlier releases, chars[k].done / skipped and CompletionRouteCharDB.reopened, keyed by author step
+-- index, are read once per character and guide (A.Migrate) and then left alone, so the previous release still finds
+-- the progress made before the update if the addon is downgraded.  Reset clears both.
 local ADDON, NS = ...
 local A = {}
 NS.Account = A
@@ -30,6 +42,10 @@ function A.Init()
     end
     me.done = me.done or {}
     me.skipped = me.skipped or {}
+    me.stepDone = me.stepDone or {}
+    me.stepSkipped = me.stepSkipped or {}
+    me.stepMeta = me.stepMeta or {}
+    NS.db.char.stepReopened = NS.db.char.stepReopened or {}
     me.quests = me.quests or {}   -- [questID] = true, quests this character turned in
     me.name = NS.player.name
     me.realm = NS.player.realm
@@ -124,33 +140,190 @@ function A.Enabled() return A.Scope() ~= "char" end
 
 -- Sandbox: while a bulk sweep is loading every guide in the catalogue, progress writes must not
 -- land in the character's real record (otherwise /cr verifyall marks thousands of steps "done").
+local SCRATCH = { "done", "skipped", "stepDone", "stepSkipped", "stepMeta" }
 function A.BeginScratch()
     if A.scratch then return end
-    A.scratch = { done = A.me.done, skipped = A.me.skipped }
-    A.me.done, A.me.skipped = {}, {}
+    A.scratch = {}
+    for _, f in ipairs(SCRATCH) do A.scratch[f], A.me[f] = A.me[f], {} end
 end
 function A.EndScratch()
     if not A.scratch then return end
-    A.me.done, A.me.skipped = A.scratch.done, A.scratch.skipped
+    for _, f in ipairs(SCRATCH) do A.me[f] = A.scratch[f] end
     A.scratch = nil
 end
 
+-- This character's marks for one guide, by step key (created on first use: callers write to them)
 function A.Done(guideid)
-    A.me.done[guideid] = A.me.done[guideid] or {}
-    return A.me.done[guideid]
+    local t = A.me.stepDone[guideid]
+    if not t then t = {} A.me.stepDone[guideid] = t end
+    return t
 end
 function A.Skipped(guideid)
-    A.me.skipped[guideid] = A.me.skipped[guideid] or {}
-    return A.me.skipped[guideid]
+    local t = A.me.stepSkipped[guideid]
+    if not t then t = {} A.me.stepSkipped[guideid] = t end
+    return t
+end
+function A.Reopened(guideid)
+    local c = NS.db.char
+    c.stepReopened = c.stepReopened or {}
+    local t = c.stepReopened[guideid]
+    if not t then t = {} c.stepReopened[guideid] = t end
+    return t
+end
+
+-- ---------------------------------------------------------------------------
+-- Migration of index-keyed marks (earlier releases) to step keys
+-- ---------------------------------------------------------------------------
+-- Once per character and guide: the old marks are mapped index -> key with the guide as it is NOW.  That is right only
+-- because the guide data has not been re-ordered since those marks were written (this is the first release with keys);
+-- from here on keys carry the marks across data changes.  stepMeta[guide] records that it ran, so it never runs again:
+-- marks a downgraded client later writes into the old tables, maybe on different data, are never mapped.
+-- Characters other than the one logged in are migrated too (their marks count for account-wide progress), but only
+-- those of this client's game type: a record copied in from another client by tools/sync_progress.lua was written
+-- against that client's guide data, and its own client migrates it.  Access-chain steps (negative indices) are not
+-- carried over: their numbers depended on which chains were locked at each load; their quests re-tick from the log.
+-- Stepped-back marks (CompletionRouteCharDB.reopened) live in the character's own file, so only that character can import
+-- them: a record another character migrated gets ro = false, and its owner imports its set on its own next load.
+-- During a bulk sweep (A.BeginScratch) the logged-in character is not migrated: its record's marks are swapped for empty
+-- ones but its character file is not, so the sweep would re-import old stepped-back marks the player has since moved on.
+local function baseType(t) return t and (t:gsub("%-hardcore$", "")) or nil end
+local function migratable(c, k)
+    if c == A.me or k == A.key then return true end
+    if c.gametype then return baseType(c.gametype) == baseType(A.GameType()) end
+    -- a record from before game types: its flavor, except "era", which Classic Era and WoW Forever both report
+    return c.flavor ~= nil and c.flavor ~= "era" and c.flavor == NS.flavor and not NS.isForever
+end
+A.Migratable = migratable
+-- author index -> key for the guide's own steps
+local function indexMap(steps)
+    local m = {}
+    for _, s in ipairs(steps) do if (s.index or 0) > 0 and s.key then m[s.index] = s.key end end
+    return m
+end
+-- Copy one old index-keyed set into a key set; returns copied, lost
+local function importSet(old, dst, map)
+    local n, lost = 0, 0
+    for i, v in pairs(old) do
+        local k = v and map[i]
+        if k then
+            if not dst[k] then dst[k] = true end
+            n = n + 1
+        elseif v then lost = lost + 1 end
+    end
+    return n, lost
+end
+local function nonEmpty(t) return t ~= nil and next(t) ~= nil end
+-- This character's old stepped-back set (character file) into its keyed one; sets meta.ro.  Returns whether it had any.
+local function importReopened(meta, gid, steps, ctx)
+    local c = NS.db.char
+    local ro = c.reopened and c.reopened[gid]
+    meta.ro = true
+    if not nonEmpty(ro) then return false end
+    ctx.map = ctx.map or indexMap(steps)
+    c.stepReopened = c.stepReopened or {}
+    local dst = c.stepReopened[gid] or {}
+    local n, lost = importSet(ro, dst, ctx.map)
+    if next(dst) then c.stepReopened[gid] = dst end
+    meta.mig = (meta.mig or 0) + n
+    if lost > 0 then meta.lost = (meta.lost or 0) + lost end
+    return true
+end
+-- c: one character record; me: it is the logged-in character (its reopened set lives in the character file)
+local function migrateOne(c, gid, steps, me, touch, ctx)
+    local meta = c.stepMeta and c.stepMeta[gid]
+    if meta then
+        if not me then return false end
+        -- migrated by another character of this client, which could not see this character's stepped-back marks
+        local now = meta.ro == false and importReopened(meta, gid, steps, ctx)
+        if touch then
+            local sum = ctx.sum()
+            if sum and meta.sum ~= sum then meta.sum = sum end
+        end
+        return now
+    end
+    local od, osk = c.done and c.done[gid], c.skipped and c.skipped[gid]
+    local ro = me and NS.db.char.reopened and NS.db.char.reopened[gid] or nil
+    local has = nonEmpty(od) or nonEmpty(osk) or nonEmpty(ro)
+    if not has and not (me and touch) then return false end
+    c.stepDone, c.stepSkipped, c.stepMeta = c.stepDone or {}, c.stepSkipped or {}, c.stepMeta or {}
+    meta = { v = NS.Guide.KEY_VERSION, sum = ctx.sum(), mig = 0 }
+    if has then
+        ctx.map = ctx.map or indexMap(steps)
+        local lost = 0
+        local function into(old, all)
+            if not nonEmpty(old) then return end
+            local dst = all[gid] or {}
+            local n, l = importSet(old, dst, ctx.map)
+            meta.mig, lost = meta.mig + n, lost + l
+            if next(dst) then all[gid] = dst end
+        end
+        into(od, c.stepDone)
+        into(osk, c.stepSkipped)
+        if lost > 0 then meta.lost = lost end
+    end
+    if me then importReopened(meta, gid, steps, ctx) else meta.ro = false end
+    c.stepMeta[gid] = meta
+    return true
+end
+-- Migrate every character this client may migrate, for one guide.  steps = the guide's parsed steps (any order; the
+-- loaded list with its access prefix is fine).  touch: record stepMeta for the logged-in character even when it had no
+-- old marks (Progress.Load does: a guide played on this release never imports old marks later).  Returns how many
+-- records were migrated now.
+function A.Migrate(gid, steps, touch)
+    if not (A.me and gid and steps) then return 0 end
+    local G = NS.Guide
+    local sum
+    local ctx, n = {}, 0
+    function ctx.sum()
+        if sum == nil then sum = (G and G.registry[gid] and G.GuideSum(gid)) or false end
+        return sum or nil
+    end
+    -- not the logged-in character during a sweep (A.BeginScratch): it migrates on its first load after the sweep
+    if not A.scratch and migrateOne(A.me, gid, steps, true, touch, ctx) then n = n + 1 end
+    for k, c in pairs(NS.db.global.chars or {}) do
+        if c ~= A.me and k ~= A.key and type(c) == "table" and migratable(c, k) then
+            if migrateOne(c, gid, steps, false, false, ctx) then n = n + 1 end
+        end
+    end
+    return n
+end
+-- A character's done set for a guide, read only (nil when it has none)
+local function doneSet(c, gid) return c.stepDone and c.stepDone[gid] or nil end
+A.DoneSetOf = doneSet
+
+-- Has this character any progress in the guide (keyed marks, or old marks not migrated yet)?
+function A.Started(gid, c)
+    c = c or A.me
+    if not c then return false end
+    if nonEmpty(doneSet(c, gid)) then return true end
+    return not (c.stepMeta and c.stepMeta[gid]) and nonEmpty(c.done and c.done[gid])
+end
+
+-- Clear one guide's marks for this character (Progress.Reset, a new farm lap).  legacy: the old index-keyed tables
+-- too (a reset the player asked for must not come back after a downgrade).
+-- (CompletionRouteCharDB.done / skipped are the same tables as the record's since A.Init, and stay the real ones during
+-- a scratch sweep, so they are only ever cleared through the record.  The reopened sets live in the character file and
+-- are not part of the scratch store: a sweep leaves them alone.)
+function A.ClearMarks(gid, legacy)
+    if not A.me then return end
+    A.me.stepDone[gid], A.me.stepSkipped[gid] = nil, nil
+    local c = NS.db.char
+    if c.stepReopened and not A.scratch then c.stepReopened[gid] = nil end
+    if legacy then
+        if A.me.done[gid] then A.me.done[gid] = {} end
+        if A.me.skipped[gid] then A.me.skipped[gid] = {} end
+        if c.reopened and c.reopened[gid] and not A.scratch then c.reopened[gid] = {} end
+    end
 end
 
 -- Did ANY *other* character finish this step?  (never counts skips — a skip is a personal choice)
-function A.OtherDid(guideid, index)
-    if not A.Enabled() then return false end
+-- key: the step's stable key (step.key).
+function A.OtherDid(guideid, key)
+    if not A.Enabled() or key == nil then return false end
     for k, c in pairs(NS.db.global.chars) do
         if k ~= A.key and A.CharInScope(k, c) then
-            local g = c.done and c.done[guideid]
-            if g and g[index] then return k end
+            local g = doneSet(c, guideid)
+            if g and g[key] then return k end
         end
     end
     return false
@@ -184,18 +357,24 @@ end
 
 -- Per-guide completion, for the guide list / tooltips.
 -- scope "char" = this character, "account" = union across the account.
-function A.GuideProgress(guideid, total, scope)
+-- keep (optional): the step keys still in the guide after quests were skipped (Core/Skip.lua ViewOf); ticks of steps
+-- left out do not count, so the numbers match the rebuilt guide.  Without it, when the guide is parsed, only keys the
+-- guide still has count (a tick of a step a data update removed does not).
+function A.GuideProgress(guideid, total, scope, keep)
     if not total or total == 0 then return 0, 0 end
+    local g = NS.Guide and NS.Guide.registry[guideid]
+    if g and g.steps then
+        A.Migrate(guideid, g.steps)
+        keep = keep or NS.Guide.KeySet(g.steps)
+    end
     local seen = {}
-    local function eat(t) if t then for i in pairs(t) do seen[i] = true end end end
+    local function eat(t) if t then for k in pairs(t) do if not keep or keep[k] then seen[k] = true end end end end
     if scope and scope ~= "char" then
         for k, c in pairs(NS.db.global.chars) do
-            if A.CharInScope(k, c, scope) then eat(c.done and c.done[guideid]) end
+            if A.CharInScope(k, c, scope) then eat(doneSet(c, guideid)) end
         end
-        eat(A.me.done[guideid]); eat(A.me.skipped[guideid])
-    else
-        eat(A.me.done[guideid]); eat(A.me.skipped[guideid])
     end
+    eat(A.me.stepDone[guideid]); eat(A.me.stepSkipped[guideid])
     local n = 0
     for _ in pairs(seen) do n = n + 1 end
     if n > total then n = total end
@@ -244,12 +423,16 @@ local function charFinished(ch, g, steps, qids, nq)
     if not ch or (ch.faction and g.faction and g.faction ~= "Both" and ch.faction ~= g.faction) then return false end
     if nq > 0 then
         if not ch.quests then return false end
-        for q in pairs(qids) do if not ch.quests[q] then return false end end
+        -- quests this character dropped (Core/Skip.lua) are not part of its guide any more, nor what this guide then
+        -- can no longer offer
+        local gone = (ch == A.me and NS.Skip and NS.Skip.Any()) and select(3, NS.Skip.Project(steps, nil, g.id)) or nil
+        for q in pairs(qids) do if not ch.quests[q] and not (gone and gone[q]) then return false end end
         return true
     end
-    local d = ch.done and ch.done[g.id]
+    local d = doneSet(ch, g.id)
     if not d then return false end
-    local n = 0 for _ in pairs(d) do n = n + 1 end
+    local have, n = NS.Guide.KeySet(steps), 0
+    for k in pairs(d) do if have[k] then n = n + 1 end end
     return n >= #steps
 end
 
@@ -260,6 +443,7 @@ function A.GuideCompletedBy(g)
     local steps = g.steps or (NS.Guide and NS.Guide.Steps(g.id))
     if not steps or #steps == 0 then A.completedCache[g.id] = false return nil end
     local qids, nq = guideQuests(steps)
+    if nq == 0 then A.Migrate(g.id, steps) end   -- a guide without quests is finished by its ticks
     -- this character first, then the others
     if charFinished(A.me, g, steps, qids, nq) then
         A.completedCache[g.id] = { key = A.key, name = A.me.name or A.key }
@@ -287,6 +471,7 @@ function A.GuideIsComplete(g, scope)
     local steps = g.steps or (NS.Guide and NS.Guide.Steps(g.id))
     if not steps or #steps == 0 then cache[g.id] = false return false end
     local qids, nq = guideQuests(steps)
+    if nq == 0 then A.Migrate(g.id, steps) end
     local ok = charFinished(A.me, g, steps, qids, nq)
     if not ok and scope ~= "char" then
         for k, ch in pairs(NS.db.global.chars) do
@@ -304,11 +489,15 @@ end
 function A.Characters()
     local out = {}
     for k, c in pairs(NS.db.global.chars or {}) do
-        local steps = 0
-        for _, g in pairs(c.done or {}) do for _ in pairs(g) do steps = steps + 1 end end
+        -- keyed marks, plus old index-keyed ones of guides not migrated yet
+        local steps, guides = 0, 0
+        local function count(set) local n = 0 for _ in pairs(set) do n = n + 1 end return n end
+        for _, set in pairs(c.stepDone or {}) do local n = count(set) steps = steps + n if n > 0 then guides = guides + 1 end end
+        for gid, set in pairs(c.done or {}) do
+            if not (c.stepMeta and c.stepMeta[gid]) then local n = count(set) steps = steps + n if n > 0 then guides = guides + 1 end end
+        end
         out[#out + 1] = { key = k, name = c.name, realm = c.realm, class = c.class, faction = c.faction,
-                          level = c.level, flavor = c.flavor, steps = steps, updated = c.updated,
-                          guides = (function() local n = 0 for _ in pairs(c.done or {}) do n = n + 1 end return n end)() }
+                          level = c.level, flavor = c.flavor, steps = steps, updated = c.updated, guides = guides }
     end
     table.sort(out, function(a, b) return (a.steps or 0) > (b.steps or 0) end)
     return out

@@ -17,6 +17,11 @@ local raceAliases = { human="Human", dwarf="Dwarf", gnome="Gnome", nightelf="Nig
 
 local function norm(s) return (s or ""):lower():gsub("^%s+", ""):gsub("%s+$", "") end
 
+-- the UnitClass / UnitRace token a guide's class or race name stands for ("Death knight" -> DEATHKNIGHT, "Night elf" ->
+-- NightElf).  Routing/CostModel.lua's planning character names its class and race the same way.
+function C.ClassToken(name) return classAliases[norm(name)] or (norm(name):upper()) end
+function C.RaceToken(name) return raceAliases[norm(name)] or name end
+
 -- list may be "Warrior;Paladin" or "Warrior,Paladin"; leading '-' means NOT
 function C.ClassMatch(list)
     if not list or list == "" then return true end
@@ -24,8 +29,7 @@ function C.ClassMatch(list)
     local neg = list:sub(1, 1) == "-"
     if neg then list = list:sub(2) end
     for _, c in ipairs(U.split(list, ";,/")) do
-        local k = classAliases[norm(c)] or norm(c):upper()
-        if k == mine then return not neg end
+        if C.ClassToken(c) == mine then return not neg end
     end
     return neg
 end
@@ -35,8 +39,7 @@ function C.RaceMatch(list)
     local neg = list:sub(1, 1) == "-"
     if neg then list = list:sub(2) end
     for _, r in ipairs(U.split(list, ";,/")) do
-        local k = raceAliases[norm(r)] or r
-        if k == mine or norm(r) == norm(mine) then return not neg end
+        if C.RaceToken(r) == mine or norm(r) == norm(mine) then return not neg end
     end
     return neg
 end
@@ -62,6 +65,8 @@ function C.ProfMatch(spec)
     return rank >= need
 end
 
+local function pre_ok(q) return U.IsQuestComplete(q) or U.IsOnQuest(q) end
+
 -- Whether a step should be shown at all for this character
 -- `atLevel` asks the question for another level (Core/Progress.lua: would this step open at its level gate?)
 function C.StepApplies(step, atLevel)
@@ -74,8 +79,12 @@ function C.StepApplies(step, atLevel)
     -- PRE: prerequisite quest(s).  A list built from Questie's preQuestSingle is an OR set (any one of them
     -- opens the quest); a "&" list (preQuestGroup) needs all of them.  Requiring all of an OR set hid steps
     -- the player could actually take.
-    if step.pre and #step.pre > 0 then
-        local function pre_ok(q) return U.IsQuestComplete(q) or U.IsOnQuest(q) end
+    -- A prerequisite the player skipped (/cr skip, Core/Skip.lua) is never done: the step then opens only if that
+    -- one was a soft lead-in (breadcrumb, optional), which no longer counts.
+    local skipped
+    if step.pre and #step.pre > 0 and NS.Skip then skipped = NS.Skip.PreOpen(step, pre_ok) end
+    if skipped == false then return false end
+    if skipped == nil and step.pre and #step.pre > 0 then
         if step.pre.andor == "and" then
             for _, q in ipairs(step.pre) do if not pre_ok(q) then return false end end
         else

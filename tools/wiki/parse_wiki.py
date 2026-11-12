@@ -17,9 +17,19 @@ Tables (one run rebuilds them all):
   quest_objectives(quest_id, page_title, idx, kind, target_title, count, optional, text, coords_json)
   npcs(title, npc_id, zone, x, y, flavor_hint, raw)       best single point per page (npc or object)
   npc_coords(title, idx, zone, x, y, source, badge, classic)  every coordinate on the page
-  items(title, item_id, sources_json)                    item pages we have (Itembox): who drops it
+  items(title, item_id, sources_json, starts_quest, coords_json)
+                                                         item pages we have (Itembox / Itemtip): who drops it, where it
+                                                         is fished, found or obtained (linked pages in the order the
+                                                         page names them) and any {{Coords}} in those sentences
   achievements(id, name, category, points, faction, account, description, criteria_json, page_title, revid)
   achievement_criteria(ach_id, idx, text, link_title, quest_id)
+  achievement_links(ach_id, idx, link_title, coords_json)  article links (and {{Coords}}) in the achievement page's lead
+                                                         and location sections, in page order
+  race_courses(course, zone, x, y, page_title)           every skyriding race course the race list pages ("Skyriding
+                                                         races", "<Continent> Cup") give a {{co}} start point for
+  glyph_points(name, zone, x, y, page_title)             every dragon / skyriding glyph the glyph pages ("Dragon Glyph",
+                                                         "Skyriding Glyph", "<zone> Glyph Hunter") give a {{co}} or a
+                                                         {{Zone Map Note}} for
   titles(title, page_title, kind)                         resolution table: every fetched page by title
   parse_stats(metric, value)                              the parse rates printed at the end
 
@@ -52,6 +62,17 @@ T_SEASON = re.compile(r"classic season", re.I)
 T_ACHTIP = re.compile(r"#data:\s*achievementtip", re.I)
 T_ITEMTIP = re.compile(r"#data:\s*itemtip", re.I)
 T_PLAINLIST = re.compile(r"plainlist|ubl|unbulleted list|flatlist", re.I)
+# a sentence that says where an item comes from: the links after the verb are its sources
+ITEM_FROM = re.compile(r"\b(?:drops?|dropped|loot(?:s|ed)?|found|obtain(?:ed|s)?|fished|fishing|sold|purchased|bought|contained|"
+                       r"mined|gathered|picked|skinned|comes|rewarded|awarded|provided|given|located|available|collected|"
+                       r"interacting|looting|killing|defeating)\b", re.I)
+ITEM_SOURCE_SECTIONS = ("source", "sources", "location", "locations", "obtaining", "acquisition", "how to obtain")
+ACH_PLACE_SECTIONS = ("location", "locations", "criteria", "guide", "strategy", "overview")
+RACE_PAGE = re.compile(r"^(?:Skyriding races|Dragonriding races|[A-Z][\w' ]+ Cup)$")
+GLYPH_PAGE = re.compile(r"^(?:Dragon Glyph|Skyriding Glyph|[A-Z][\w' -]+ Glyph Hunter)$")
+# {{Zone Map|zone=<zone>|notes= ... {{Zone Map Note|x|y|icon|name}} ... }}: the zone a note's x,y belong to
+ZONE_MAP = re.compile(r"\{\{\s*Zone Map\s*\|[^{}]*?zone\s*=\s*([^|}\n]+)", re.I)
+ZONE_MAP_NOTE = re.compile(r"\{\{\s*Zone Map Note\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|[^|{}]*\|\s*([^|{}]+?)\s*\}\}", re.I)
 RE_ELINK = {
     "quest": re.compile(r"\{\{\s*elinks-quest\s*\|\s*(\d+)", re.I),
     "npc": re.compile(r"\{\{\s*elinks-npc\d?\s*\|([^{}]*)\}\}", re.I),
@@ -276,10 +297,13 @@ def main():
     create table npcs(title text primary key, npc_id text, zone text, x real, y real, flavor_hint text, raw text,
         kind text, page_classic int);
     create table npc_coords(title text, idx int, zone text, x real, y real, source text, badge int, classic int);
-    create table items(title text primary key, item_id int, sources_json text, starts_quest int);
+    create table items(title text primary key, item_id int, sources_json text, starts_quest int, coords_json text);
     create table achievements(id int, name text, category text, points int, faction text, account int,
         description text, criteria_json text, page_title text, revid int);
     create table achievement_criteria(ach_id int, idx int, text text, link_title text, quest_id int);
+    create table achievement_links(ach_id int, idx int, link_title text, coords_json text);
+    create table race_courses(course text, zone text, x real, y real, page_title text);
+    create table glyph_points(name text, zone text, x real, y real, page_title text);
     create table titles(title text primary key, page_title text, kind text);
     create table parse_stats(metric text primary key, value real);
     """)
@@ -387,7 +411,7 @@ def main():
             st[f"{kind}_pages"] += 1
             if pts:
                 st[f"{kind}_with_coords"] += 1
-        if "Itembox" in kinds or next(W.find_templates(text[:200], T_ITEMTIP), None):
+        if "Itembox" in kinds or next(W.find_templates(text[:600], T_ITEMTIP), None):
             itip = next(W.find_templates(text[:4000], T_ITEMTIP), None)
             if itip or "Itembox" in kinds:
                 title_kind.setdefault(title, "item")
@@ -401,14 +425,70 @@ def main():
                 if not iid:
                     m = RE_ELINK["item"].search(text)
                     iid = int(m.group(1)) if m else None
-                src = sec.get("source") or sec.get("sources") or ""
+                src = "\n".join(sec.get(k) or "" for k in ITEM_SOURCE_SECTIONS)
                 lead = sec.get("", "")
-                srcs = [l[0] for l in W.links(src)]
+                if itip:
+                    lead = lead.replace("{{" + itip[3] + "}}", "")
+                srcs = [l[0] for l in W.links(simple_templates_to_links(src))]
+                pts = [[c[0], c[1], c[2]] for c in W.coords(src)]
                 for mm in re.finditer(r"(?:drop(?:s|ped)? (?:by|from)|looted from|found (?:in|on)|obtained from)([^.]*)",
                                       lead, re.I):
                     srcs += [l[0] for l in W.links(mm.group(1))]
-                db.execute("insert or replace into items values (?,?,?,?)", (title, iid, json.dumps(srcs[:20]), qb))
+                # every sentence of the lead that says where the item comes from ("can be fished on [[Mechagon Island]]",
+                # "drops ... from [[Itoka]]", "found on Henrig's body{{coords|...}}"): its links after the verb, its coords
+                for sent in re.split(r"(?<=[.!?])\s+|\n+", lead):
+                    m = ITEM_FROM.search(sent)
+                    if not m or re.search(r"\b(?:starts|begins|started|began)\b", sent[:m.start()], re.I):
+                        continue
+                    tail = sent[m.start():]
+                    srcs += [l[0] for l in W.links(simple_templates_to_links(tail))]
+                    pts += [[c[0], c[1], c[2]] for c in W.coords(sent)]
+                srcs = [t for t in dict.fromkeys(srcs) if not re.match(r"(?i)(category|file|image):", t)]
+                db.execute("insert or replace into items values (?,?,?,?,?)",
+                           (title, iid, json.dumps(srcs[:20]), qb, json.dumps(pts[:8])))
                 st["item_pages"] += 1
+                st["item_pages_with_sources"] += 1 if srcs else 0
+                st["item_pages_with_coords"] += 1 if pts else 0
+        if RACE_PAGE.match(title) and re.search(r"\brac(?:e|es|ing)\b", text[:3000], re.I):
+            # "* Apex Canopy River Run, [[Apex Canopy]] {{co|23.3|84.3|Waking Shores}}" and
+            # "| [[Silithus]] || {{co|39.6|84.2|Silithus}} || Ahn'Qiraj Circuit"
+            for ln in text.splitlines():
+                cs = W.coords(ln)
+                if len(cs) != 1 or not cs[0][2]:
+                    continue
+                s_ = ln.strip()
+                if s_.startswith("*"):
+                    name = W.plain(s_.lstrip("*").split(",")[0])
+                elif s_.startswith("|") and "||" in s_:
+                    name = W.plain(s_.split("||")[-1])
+                else:
+                    continue
+                if name and len(name) < 60:
+                    db.execute("insert into race_courses values (?,?,?,?,?)", (name, cs[0][2], cs[0][0], cs[0][1], title))
+                    st["race_courses"] += 1
+        if GLYPH_PAGE.match(title):
+            # "* Windsong Rise {{co|61.5|64.4|Ohn'ahran Plains}}" (the first {{co}} of the line), and the same glyphs as
+            # "{{Zone Map Note|61.5|64.4|OBJ353|Windsong Rise}}" inside "{{Zone Map|zone=Ohn'ahran Plains|notes=...}}"
+            got = set()
+            for ln in text.splitlines():
+                s_ = ln.strip()
+                cs = W.coords(ln)
+                if not s_.startswith("*") or not cs or not cs[0][2]:
+                    continue
+                name = W.plain(ln[:cs[0][3]]).strip(" *,:;-")
+                if name and len(name) < 60 and name not in got:
+                    got.add(name)
+                    db.execute("insert into glyph_points values (?,?,?,?,?)", (name, cs[0][2], cs[0][0], cs[0][1], title))
+                    st["glyph_points"] += 1
+            zones = [(m.start(), W.plain(m.group(1)).strip()) for m in ZONE_MAP.finditer(text)]
+            for m in ZONE_MAP_NOTE.finditer(text):
+                zone = next((z for pos, z in reversed(zones) if pos < m.start()), "")
+                name = W.plain(m.group(3)).strip()
+                if zone and name and len(name) < 60 and name not in got:
+                    got.add(name)
+                    db.execute("insert into glyph_points values (?,?,?,?,?)",
+                               (name, zone, float(m.group(1)), float(m.group(2)), title))
+                    st["glyph_points"] += 1
         if "Achievementtip" in kinds:
             title_kind.setdefault(title, "achievement")
             st["achievement_pages"] += 1
@@ -437,6 +517,20 @@ def main():
             for i, c in enumerate(crits, 1):
                 db.execute("insert into achievement_criteria values (?,?,?,?,?)", (aid, i, c["text"], c["link"], None))
             st["achievement_criteria"] += len(crits)
+            # where the page says it happens: links in the lead (after the tip) and in location-like sections, with
+            # the {{Coords}} written next to them (tools/gen_completion_guides.py keeps only places, NPCs and maps)
+            if aid:
+                body = sec.get("", "").replace("{{" + tip[3] + "}}", "") + "\n" + "\n".join(
+                    sec.get(k) or "" for k in ACH_PLACE_SECTIONS)
+                n = 0
+                for ln in body.splitlines():
+                    cs = [[c[0], c[1], c[2]] for c in W.coords(ln)]
+                    lks = [l[0] for l in W.links(simple_templates_to_links(ln))]
+                    for lk in lks or ([None] if cs else []):
+                        n += 1
+                        db.execute("insert into achievement_links values (?,?,?,?)", (aid, n, lk, json.dumps(cs)))
+                        cs = []
+                st["achievement_links"] += n
     db.executemany("insert into quests values (" + ",".join("?" * 33) + ")", quests_rows)
     db.executemany("insert into quest_objectives values (?,?,?,?,?,?,?,?,?)", obj_rows)
     # redirects seen by tools/wiki/fetch_titles.py: [[Old name]] -> page

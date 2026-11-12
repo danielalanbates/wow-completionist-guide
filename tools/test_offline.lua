@@ -12,7 +12,7 @@ local function load(path)
     end
     local fn = assert(loadfile("CompletionRoute/" .. path)) fn(ADDON, NS)
 end
-for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Sweep.lua", "Adapters/WoWPro.lua", "Guides/Imported_WoWPro_tbc.lua", "Guides/Imported_WoWPro.lua" }) do load(f) end
+for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Sweep.lua", "Adapters/WoWPro.lua", "Guides/Imported_WoWPro_tbc.lua", "Guides/Imported_WoWPro.lua" }) do load(f) end
 -- fake ADDON_LOADED
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
@@ -225,18 +225,20 @@ NS.Progress.MarkDone(ast[1])
 local cn, cp = NS.Account.GuideProgress("t:acct", 4, "char")
 assert(cn == 1 and cp == 25, ("char progress %d/%d%%"):format(cn, cp))
 -- a second character on the account finished steps 2 and 3
-NS.db.global.chars["Alt-Test"] = { name = "Alt", realm = "Test", class = "MAGE", faction = "Alliance",
+-- (written in the layout of the release before step keys, by author index: Core/Account.lua migrates it on first read)
+NS.db.global.chars["Alt-Test"] = { name = "Alt", realm = "Test", class = "MAGE", faction = "Alliance", flavor = "tbc", gametype = "tbc",
     done = { ["t:acct"] = { [2] = true, [3] = true } }, skipped = {} }
 local an, ap = NS.Account.GuideProgress("t:acct", 4, "account")
 assert(an == 3 and ap == 75, ("account progress %d/%d%%"):format(an, ap))
 -- opt-in OFF: the alt's work must not affect this character
 NS.db.profile.accountWide = false
 assert(NS.Progress.IsDone(ast[2]) == false, "accountWide OFF leaked the alt's progress")
-assert(NS.Account.OtherDid("t:acct", 2) == false, "OtherDid must respect the opt-in")
+assert(NS.Account.OtherDid("t:acct", ast[2].key) == false, "OtherDid must respect the opt-in")
 -- opt-in ON: it does
 NS.db.profile.accountWide = true
 assert(NS.Progress.IsDone(ast[2]) == true, "accountWide ON did not honour the alt's progress")
-assert(NS.Account.OtherDid("t:acct", 2) == "Alt-Test")
+assert(NS.Account.OtherDid("t:acct", ast[2].key) == "Alt-Test")
+assert(NS.Account.OtherDid("t:acct", ast[4].key) == false, "OtherDid on a step the alt never did")
 assert(NS.Progress.IsDone(ast[4]) == false, "step nobody did came back done")
 -- pending list shrinks to the one step no character has done
 NS.Progress.Refresh()
@@ -264,17 +266,24 @@ NS.db.global.chars["Alt-Test"] = { name = "Alt", done = { ["t:acct"] = { [2] = t
 NS.db.profile.accountWide = false
 -- a bulk sweep must not write into the character's real progress
 do
-    local before = 0
+    local before, beforeK = 0, 0
     for _ in pairs(NS.Account.me.done) do before = before + 1 end
+    for _ in pairs(NS.Account.me.stepDone) do beforeK = beforeK + 1 end
+    local had2 = NS.Account.me.stepDone["t:acct"] and NS.Account.me.stepDone["t:acct"][NS.Guide.Steps("t:acct")[2].key]
     NS.Account.BeginScratch()
     NS.Progress.Load("t:acct")
     NS.Progress.MarkDone(NS.Guide.Steps("t:acct")[2])
     NS.Account.Done("t:sweep-noise")[99] = true
     NS.Account.EndScratch()
-    local after = 0
+    local after, afterK = 0, 0
     for _ in pairs(NS.Account.me.done) do after = after + 1 end
+    for _ in pairs(NS.Account.me.stepDone) do afterK = afterK + 1 end
     assert(after == before, ("sweep polluted progress: %d -> %d guides"):format(before, after))
+    assert(afterK == beforeK, ("sweep polluted keyed progress: %d -> %d guides"):format(beforeK, afterK))
     assert(NS.Account.me.done["t:sweep-noise"] == nil, "scratch write leaked")
+    assert(NS.Account.me.stepDone["t:sweep-noise"] == nil, "scratch write leaked into the keyed store")
+    assert((NS.Account.me.stepDone["t:acct"] and NS.Account.me.stepDone["t:acct"][NS.Guide.Steps("t:acct")[2].key]) == had2,
+        "a scratch tick leaked into the real keyed marks")
 end
 print("account-wide progression OK: char 25%, account 75%, opt-in gate honoured both ways")
 
@@ -560,6 +569,93 @@ do
     NS.db.profile.routing.taxiPolicy = "faction"
 end
 
+-- discovered flight paths (docs/ROUTING.md): a flight may only LAND at a discovered flight master; it may take off from
+-- one the character has not discovered yet, because walking there discovers it - that walk is labelled.
+do
+    local TG = NS.TravelGraph
+    local savedShared = NS.taxiShared
+    NS.taxiShared = false                          -- tbc: every character has its own flight paths
+    NS.db.profile.routing.assumeAllTaxi = nil
+    NS.db.profile.routing.taxiPolicy = "known"
+    -- Lakeshire, Morgan's Vigil, Thorium Point, Thelsamar; NOT Darkshire (12), where the faction route above takes off
+    NS.db.char.knownTaxi = { [5] = true, [71] = true, [74] = true, [8] = true }
+    NS.db.global.knownTaxi = {}
+    TG.TaxiChanged()
+    local sx, sy, si = z2w(0.42, 0.65, 1429)                    -- Goldshire
+    local gx, gy, gi = z2w(0.5, 0.5, 1437)                      -- Wetlands
+    local p = TG.FindPath(sx, sy, si, gx, gy, gi, { hearth = false })
+    assert(p, "no path Goldshire->Wetlands with the Redridge-Loch Modan flight paths known")
+    local firstTaxi, prevWalk
+    for i, l in ipairs(p.legs) do
+        if l.mode == "taxi" then
+            assert(TG.IsTaxiKnown(l.to), "known policy landed at an undiscovered flight master: " .. tostring(l.to.name))
+            if not firstTaxi then firstTaxi, prevWalk = l, p.legs[i - 1] end
+        end
+    end
+    assert(firstTaxi, "known policy did not fly although the landing nodes are known: " .. TG.Describe(p))
+    assert(firstTaxi.from.taxiID == 12 and not TG.IsTaxiKnown(firstTaxi.from), "expected to take off from undiscovered Darkshire: " .. TG.Describe(p))
+    assert(prevWalk and prevWalk.mode == "walk" and prevWalk.pickup, "the walk to Darkshire is not marked as the flight-path pickup")
+    assert(TG.Describe(p):find("pick up the flight path", 1, true), "Describe does not say where to pick up the flight path: " .. TG.Describe(p))
+    -- with Lakeshire undiscovered no flight may land there (Darkshire -> Morgan's Vigil has no direct flight)
+    NS.db.char.knownTaxi = { [71] = true, [74] = true, [8] = true }
+    TG.TaxiChanged()
+    local p2 = TG.FindPath(sx, sy, si, gx, gy, gi, { hearth = false })
+    for _, l in ipairs(p2 and p2.legs or {}) do
+        if l.mode == "taxi" then assert(TG.IsTaxiKnown(l.to), "landed at undiscovered " .. tostring(l.to.name)) end
+    end
+    -- Classic clients do not share flight paths: the account-wide set is kept but not routed on; retail/Forever share it
+    NS.db.char.knownTaxi = {}
+    NS.db.global.knownTaxi = { [5] = true, [71] = true, [74] = true, [8] = true }
+    TG.TaxiChanged()
+    assert(not TG.IsTaxiKnownID(5), "tbc routed on another character's flight path")
+    NS.taxiShared = true
+    assert(TG.IsTaxiKnownID(5), "shared client ignored the account-wide flight paths")
+    local p3 = TG.FindPath(sx, sy, si, gx, gy, gi, { hearth = false })
+    local flew3 = false
+    for _, l in ipairs(p3 and p3.legs or {}) do if l.mode == "taxi" then flew3 = true end end
+    assert(flew3, "shared client did not fly on the account's flight paths")
+    -- learning marks both the character and the account
+    NS.taxiShared = false
+    NS.db.global.knownTaxi = {}
+    assert(TG.MarkTaxiKnown(4) == true and NS.db.char.knownTaxi[4] and NS.db.global.knownTaxi[4], "MarkTaxiKnown did not record char + account")
+    assert(TG.MarkTaxiKnown(4) == false, "MarkTaxiKnown reported an old node as new")
+    -- the harvest counts only nodes the client says this character has (state on the flight map, or isUndiscovered == false)
+    local savedTM = C_TaxiMap
+    C_TaxiMap = { GetTaxiNodesForMap = function() return { { nodeID = 5, isUndiscovered = false }, { nodeID = 2, isUndiscovered = true }, { nodeID = 8 } } end }
+    NS.db.char.knownTaxi = {}
+    TG.LearnTaxi(true)
+    C_TaxiMap = savedTM
+    assert(NS.db.char.knownTaxi[5] and not NS.db.char.knownTaxi[2] and not NS.db.char.knownTaxi[8], "harvest trusted a node the client did not mark as discovered")
+    NS.taxiShared = savedShared
+    NS.db.char.knownTaxi, NS.db.global.knownTaxi = {}, {}
+    NS.db.profile.routing.taxiPolicy = "faction"
+    NS.db.profile.routing.assumeAllTaxi = true
+    TG.TaxiChanged()
+    print("discovered taxi OK: lands only on discovered flight masters, walks to pick a new one up, shares only on retail/Forever")
+end
+
+-- Core/Init.lua migration: the client default is now "known" (once, for a profile on the old default), and a Classic
+-- character's flight paths start empty once (older builds copied the whole account's set into every character)
+do
+    local savedDB, savedChar, savedNS = CompletionRouteDB, CompletionRouteCharDB, NS.db
+    CompletionRouteDB = { profile = { routing = { taxiPolicy = "faction" } }, knownTaxi = { [2] = true, [6] = true } }
+    CompletionRouteCharDB = { knownTaxi = { [2] = true, [6] = true, [99] = true } }
+    for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
+    assert(NS.taxiShared == false, "tbc should not share flight paths")
+    assert(NS.db.profile.routing.taxiPolicy == "known" and NS.db.profile.routing.taxiKnown1, "old faction default not moved to known")
+    assert(next(NS.db.char.knownTaxi) == nil and NS.db.char.knownTaxiMerged and NS.db.char.knownTaxiMerged[99], "classic char flight paths not reset once")
+    assert(NS.db.global.knownTaxi[99], "account union lost the character's nodes")
+    -- second load: a player who picked "faction" in Options keeps it, and the character's own nodes stay
+    NS.db.profile.routing.taxiPolicy = "faction"
+    NS.db.char.knownTaxi[7] = true
+    for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
+    assert(NS.db.profile.routing.taxiPolicy == "faction", "migration ran twice and overrode the player's choice")
+    assert(NS.db.char.knownTaxi[7], "a later load wiped the character's own flight paths")
+    CompletionRouteDB, CompletionRouteCharDB, NS.db = savedDB, savedChar, savedNS
+    NS.db.profile.routing.assumeAllTaxi = true
+    print("taxi migration OK: once to known, classic characters keep only their own flight paths")
+end
+
 -- roads: authored polylines become graph vertices; a detour road beats the straight line only when cheaper,
 -- and the path keeps its via points so the arrow can follow it
 do
@@ -646,9 +742,10 @@ do
     local handled = {}
     for name in src:gmatch('cmd%s*==%s*"([%w_]+)"') do handled[name] = true end
     local required = { "guides", "load", "icon", "why", "next", "skip", "undo", "reset", "arrow", "beacon", "demo",
-                       "chars", "accountwide", "forget", "options", "route", "order", "taxi",
+                       "chars", "accountwide", "forget", "options", "route", "order", "taxi", "teleports",
                        "hearth", "import", "switch", "scan", "verify", "verifyfeatures",
-                       "verifyall", "autoverify", "log", "stats", "debug", "test", "list", "gold", "prof" }
+                       "verifyall", "autoverify", "log", "stats", "debug", "test", "list", "gold", "prof",
+                       "skipstep", "unskip", "skipped", "marks", "auto" }
     local missing = {}
     for _, c in ipairs(required) do if not handled[c] then missing[#missing + 1] = c end end
     assert(#missing == 0, "slash commands not handled: " .. table.concat(missing, ", "))

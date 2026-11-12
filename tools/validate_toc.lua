@@ -36,7 +36,7 @@ for _, toc in ipairs(tocs) do
                 seen[rel] = true
                 local f = io.open("CompletionRoute/" .. rel, "r")
                 if f then f:close()
-                elseif rel:match("^Guides/Imported_") or rel:match("^Data/Imported_") or rel:match("^Data/RouteOrder_") then
+                elseif rel:match("^Guides/Imported_") or rel:match("^Data/Imported_") or rel:match("^Data/RouteOrder_") or rel:match("^Data/QuestDeps_") then
                     print("skip " .. toc .. ": " .. rel .. " (baked locally, gitignored)")
                 else print("FAIL " .. toc .. ": missing file " .. rel); fail = fail + 1 end
             end
@@ -56,11 +56,28 @@ for _, toc in ipairs(tocs) do
                 if seen[f] then print("FAIL " .. toc .. ": must not load " .. f); fail = fail + 1 end
             end
         end
+        -- same rule for the quest prerequisite index (tools/gen_quest_deps.py; generated, gitignored)
         local ro = ROUTE_ORDER[toc]
         for _, fl in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
-            local f = "Data/RouteOrder_" .. fl .. ".lua"
-            if fl == ro and not seen[f] then print("FAIL " .. toc .. ": does not load " .. f); fail = fail + 1 end
-            if fl ~= ro and seen[f] then print("FAIL " .. toc .. ": must not load " .. f); fail = fail + 1 end
+            for _, kind in ipairs({ "RouteOrder", "QuestDeps" }) do
+                local f = "Data/" .. kind .. "_" .. fl .. ".lua"
+                if fl == ro and not seen[f] then print("FAIL " .. toc .. ": does not load " .. f); fail = fail + 1 end
+                if fl ~= ro and seen[f] then print("FAIL " .. toc .. ": must not load " .. f); fail = fail + 1 end
+            end
+        end
+        -- quest-level skipping: the module comes after Progress (it rebuilds P.steps), the re-planner after the Router;
+        -- auto accept / turn-in (Core/QuestAuto.lua) after Util (read at load) and after Skip, whose drops it obeys
+        -- the cost model (Routing/CostModel.lua) before the travel graph, the live window, the re-planner and the router that read it
+        local order = {}
+        local k = 0
+        for line in bodies[toc]:gmatch("[^\n]+") do k = k + 1 order[line:gsub("\\", "/")] = k end
+        for _, pair in ipairs({ { "Core/Progress.lua", "Core/Skip.lua" }, { "Routing/Router.lua", "Routing/Replan.lua" },
+                                { "Core/Util.lua", "Core/QuestAuto.lua" }, { "Core/Skip.lua", "Core/QuestAuto.lua" },
+                                { "Routing/CostModel.lua", "Routing/TravelGraph.lua" }, { "Routing/CostModel.lua", "Routing/StepOrder.lua" },
+                                { "Routing/CostModel.lua", "Routing/Replan.lua" }, { "Routing/CostModel.lua", "Routing/Router.lua" } }) do
+            if not (order[pair[1]] and order[pair[2]] and order[pair[1]] < order[pair[2]]) then
+                print("FAIL " .. toc .. ": " .. pair[2] .. " must load after " .. pair[1]); fail = fail + 1
+            end
         end
         print(("OK   %-24s %d files"):format(toc, n))
     end

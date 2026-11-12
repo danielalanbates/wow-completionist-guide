@@ -248,14 +248,30 @@ end
 -- ---------------------------------------------------------------------------
 function U.ItemCount(itemID) return (C_Item and C_Item.GetItemCount and C_Item.GetItemCount(itemID)) or (GetItemCount and GetItemCount(itemID)) or 0 end
 function U.HasItem(itemID) return U.ItemCount(itemID) > 0 end
+-- Retail 12.x hands addons "secret" values for some reads while combat restrictions are on (cooldowns, NPC names and
+-- GUIDs, unit speed).  Comparing, adding, indexing or using one as a table key is a Lua error, so every such read is
+-- tested first.  issecretvalue does not exist on the Classic clients: nothing is ever secret there.
+function U.IsSecret(v)
+    return issecretvalue ~= nil and issecretvalue(v) and true or false
+end
+-- Cooldowns: when the client hides the numbers, answer with what was last seen (the time each cooldown ends).
+local cdEnds = { item = {}, spell = {} }
+local function cooldownLeft(kind, id, start, dur)
+    if U.IsSecret(start) or U.IsSecret(dur) then
+        local ends = cdEnds[kind][id]
+        return ends and math.max(ends - GetTime(), 0) or 0
+    end
+    local left = (start and start > 0 and dur) and (start + dur - GetTime()) or 0
+    if left < 0 then left = 0 end
+    cdEnds[kind][id] = left > 0 and (GetTime() + left) or nil
+    return left
+end
 function U.ItemCooldown(itemID)
     local start, dur
     if C_Container and C_Container.GetItemCooldown then start, dur = C_Container.GetItemCooldown(itemID)
     elseif C_Item and C_Item.GetItemCooldown then start, dur = C_Item.GetItemCooldown(itemID)
     elseif GetItemCooldown then start, dur = GetItemCooldown(itemID) end
-    if not start or start == 0 or not dur then return 0 end
-    local left = start + dur - GetTime()
-    return left > 0 and left or 0
+    return cooldownLeft("item", itemID, start, dur)
 end
 function U.ItemIcon(itemID)
     local tex = (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(itemID)) or (GetItemIcon and GetItemIcon(itemID))
@@ -266,24 +282,64 @@ function U.ItemName(itemID)
     return n or ("item:" .. tostring(itemID))
 end
 
--- Hearthstone: item 6948; Astral Recall (shaman) spell 556; retail alternates ignored for now
+-- Toys (retail, and MoP Classic where the client has a toy box): owned, and usable here
+function U.HasToy(itemID) return (PlayerHasToy and PlayerHasToy(itemID)) and true or false end
+-- Equipped (Classic Era / TBC engineering transporters are trinkets: they work only while worn)
+function U.IsEquipped(itemID)
+    if C_Item and C_Item.IsEquippedItem then return C_Item.IsEquippedItem(itemID) and true or false end
+    return (IsEquippedItem and IsEquippedItem(itemID)) and true or false
+end
+-- false only when the client says the item cannot be used (wrong profession, too low a skill); unknown = usable
+function U.ItemUsable(itemID)
+    local f = (C_Item and C_Item.IsUsableItem) or IsUsableItem
+    if not f then return true end
+    local ok, usable = pcall(f, itemID)
+    if not ok then return true end
+    return usable and true or false
+end
+
+-- Spells: known by this character, and the cooldown left in seconds (0 = ready).  The modern spell book API
+-- moved several times; try every shape, newest last, and treat a missing API as "not known".
+local function knows(fn, id)
+    if not fn then return false end
+    local ok, v = pcall(fn, id)
+    return ok and v and true or false
+end
+function U.SpellKnown(spellID)
+    return knows(IsPlayerSpell, spellID) or knows(IsSpellKnown, spellID)
+        or (C_SpellBook and knows(C_SpellBook.IsSpellKnown, spellID)) or false
+end
+function U.SpellCooldown(spellID)
+    local start, dur
+    if C_Spell and C_Spell.GetSpellCooldown then local c = C_Spell.GetSpellCooldown(spellID); start, dur = c and c.startTime, c and c.duration
+    elseif GetSpellCooldown then start, dur = GetSpellCooldown(spellID) end
+    return cooldownLeft("spell", spellID, start, dur)
+end
+
+-- Hearthstone: item 6948; Astral Recall (shaman) spell 556.  Hearthstone stand-ins (Data/Teleports.lua, `hearth = true`) share
+-- the Hearthstone's cooldown, so one of them stands in for the stone only when the stone is not in the bags.
 NS.HEARTH_ITEM = 6948
 NS.HEARTH_SPELL = 8690
 NS.ASTRAL_RECALL = 556
+-- returns ready, cooldown left, kind ("item"), item id, isToy
 function U.HearthReady()
     if U.HasItem(NS.HEARTH_ITEM) then
         local cd = U.ItemCooldown(NS.HEARTH_ITEM)
         return cd == 0, cd, "item", NS.HEARTH_ITEM
     end
+    local T = NS.Teleports
+    local id, isToy
+    if T and T.HearthToy then id, isToy = T.HearthToy() end
+    if id then
+        local cd = U.ItemCooldown(id)
+        return cd == 0, cd, "item", id, isToy
+    end
     return false, math.huge
 end
 function U.AstralRecallReady()
-    if NS.player and NS.player.class == "SHAMAN" and IsSpellKnown and IsSpellKnown(NS.ASTRAL_RECALL) then
-        local start, dur
-        if C_Spell and C_Spell.GetSpellCooldown then local c = C_Spell.GetSpellCooldown(NS.ASTRAL_RECALL); start, dur = c and c.startTime, c and c.duration
-        elseif GetSpellCooldown then start, dur = GetSpellCooldown(NS.ASTRAL_RECALL) end
-        local left = (start and start > 0 and dur) and (start + dur - GetTime()) or 0
-        return left <= 0, math.max(left, 0), "spell", NS.ASTRAL_RECALL
+    if NS.player and NS.player.class == "SHAMAN" and U.SpellKnown(NS.ASTRAL_RECALL) then
+        local left = U.SpellCooldown(NS.ASTRAL_RECALL)
+        return left <= 0, left, "spell", NS.ASTRAL_RECALL
     end
     return false, math.huge
 end
@@ -302,6 +358,7 @@ end
 function U.CanFly()
     if IsFlying and IsFlying() then return true end
     local cur = GetUnitSpeed and GetUnitSpeed("player") or 0
+    if U.IsSecret(cur) then cur = 0 end
     if cur > 15 then return true end
     -- Classic Era has no flying anywhere
     if NS.flavor == "era" then return false end
@@ -340,8 +397,8 @@ function U.FlySpeed()
     if p.flySpeed then return p.flySpeed end
     if not NS.isClassic then
         -- Retail Skyriding is typically 705%-830% (~50-60 yd/s); steady flying is 310% (~30 yd/s).
-        -- 45 yd/s gives a realistic average point-to-point travel speed.
-        return 45
+        -- 45 yd/s gives a realistic average point-to-point travel speed (Routing/CostModel.lua FLY_SPEED).
+        return NS.CostModel.FLY_SPEED
     else
         if IsSpellKnown and IsSpellKnown(90265) then return 29 end -- 310%
         if IsSpellKnown and IsSpellKnown(34091) then return 27 end -- 280%
@@ -355,6 +412,7 @@ end
 function U.TravelSpeed()
     local p = NS.db and NS.db.profile.routing or {}
     local cur = GetUnitSpeed and GetUnitSpeed("player") or 0
+    if U.IsSecret(cur) then cur = 0 end
     if cur and cur > 15 then return cur end
     if U.CanFly() then
         return U.FlySpeed()
@@ -363,13 +421,8 @@ function U.TravelSpeed()
     if IsMounted and IsMounted() and cur > 0 then return cur end
     if p.mountSpeed then return p.mountSpeed end
     local lvl = UnitLevel("player")
-    if NS.isClassic then
-        if lvl >= 60 then return 14 end   -- assume 100% ground / can't assume epic
-        if lvl >= 40 then return 11.2 end -- 60% mount
-        return p.runSpeed or 7
-    end
-    if lvl >= 10 then return 14 end
-    return p.runSpeed or 7
+    -- the speed bands live in Routing/CostModel.lua (the offline bake and vplayer use the same ones)
+    return NS.CostModel.GroundSpeed(lvl, NS.isClassic, p.runSpeed)
 end
 
 function U.tcount(t) local n = 0 for _ in pairs(t) do n = n + 1 end return n end

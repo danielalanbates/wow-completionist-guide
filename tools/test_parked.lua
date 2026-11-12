@@ -32,10 +32,13 @@ C_QuestLog = {
 
 local function load(path) assert(loadfile("CompletionRoute/" .. path))(ADDON, NS) end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua", "Data/Access.lua",
-    "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua",
+    "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua",
     "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua" }) do load(f) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
+-- the flight rule these tests were written for (every flight master of the faction); Core/Init.lua's default is now
+-- "known", which with an empty knownTaxi would quietly make every route below walk-only
+NS.db.profile.routing.assumeAllTaxi = true
 NS.Account.Init()
 local printed = {}
 NS.Print = function(_, s) printed[#printed + 1] = s end

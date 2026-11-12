@@ -382,7 +382,12 @@ end
 local scanned = {}          -- [guideid] = true|false (complete for the CURRENT scope)
 local scanQueue, scanPos = nil, 1
 local scanFrame = CreateFrame("Frame")
-local PER_FRAME = 40        -- guides per frame; ~4s for a full retail catalogue, once
+local PER_FRAME = 40        -- most guides per frame
+-- ...and a time budget: under the client's plain Lua 5.1 forty guides cost 30-60 ms a frame (measured 2026-11-11, p95
+-- 127 ms on MoP and 211 ms on Retail), a visible stutter for as long as the list scans.  A slice now stops after
+-- SCAN_MS; one guide is always done, so a single huge guide can still overrun it.
+local SCAN_MS = 4
+local clock = debugprofilestop or function() return os.clock() * 1000 end
 local scanDirty = false
 
 local function scopeKey() return (NS.Account and NS.Account.Scope()) or "char" end
@@ -398,6 +403,7 @@ local function scanSlice()
     if not scanQueue then scanQueue, scanPos = G.Available(), 1 end
     local sk = scopeKey()
     local active = P.guide and P.guide.id
+    local t0 = clock()
     for _ = 1, PER_FRAME do
         local g = scanQueue[scanPos]
         if not g then scanQueue = nil return true end
@@ -409,6 +415,7 @@ local function scanSlice()
             -- do not hold on to step tables we only parsed to answer this question
             if not hadSteps and g.id ~= active and g.steps then g.steps = nil end
             scanDirty = true
+            if clock() - t0 >= SCAN_MS then break end
         end
     end
     return false
@@ -443,6 +450,13 @@ local function nodeCompletion(node)
     return done, total, pending
 end
 
+-- steps of a parsed guide as this character sees it (rebuilt without skipped quests, Core/Skip.lua), and the author
+-- indices it keeps (nil = all of them)
+local function viewOf(g)
+    if NS.Skip then return NS.Skip.ViewOf(g) end
+    return g.steps and #g.steps or nil, nil
+end
+
 -- completion badge, but only for guides whose steps are already parsed (never force a parse here:
 -- the quest DB has thousands of guides and the list refreshes on every keystroke)
 local function pctBadge(g)
@@ -457,7 +471,9 @@ local function pctBadge(g)
     local _, who = NS.Account.GuideCompletedBy(g)
     if who then return ("  |cff00ff00(%s)|r"):format(who) end
     if not g.steps then return "" end
-    local _, pct = NS.Account.GuideProgress(g.id, #g.steps, NS.Account.Scope())
+    -- a guide rebuilt without skipped quests (Core/Skip.lua) counts only the steps it still has
+    local total, keep = viewOf(g)
+    local _, pct = NS.Account.GuideProgress(g.id, total, NS.Account.Scope(), keep)
     if not pct or pct <= 0 then return "" end
     local color = pct >= 100 and "00ff00" or "ffd200"
     return ("  |cff%s%d%%|r"):format(color, pct)
@@ -541,9 +557,11 @@ function M.Refresh()
                 if NS.Account and NS.Account.me then
                     local okS, st = pcall(G.Steps, gg.id)
                     local total = okS and st and #st or 0
+                    local keep
+                    if total > 0 then total, keep = viewOf(gg) end
                     if total > 0 then
-                        local cn, cp = NS.Account.GuideProgress(gg.id, total, "char")
-                        local an, ap = NS.Account.GuideProgress(gg.id, total, "account")
+                        local cn, cp = NS.Account.GuideProgress(gg.id, total, "char", keep)
+                        local an, ap = NS.Account.GuideProgress(gg.id, total, "account", keep)
                         GameTooltip:AddLine(("This character: %d/%d (%d%%)"):format(cn, total, cp), 1, 0.82, 0)
                         GameTooltip:AddLine(("Whole account: %d/%d (%d%%)"):format(an, total, ap), 0.25, 0.78, 1)
                         GameTooltip:AddLine("Counting: " .. NS.Account.ScopeLabel() .. " (" .. NS.Account.ScopeDetail() .. ")", 0.6, 0.6, 0.6, true)
@@ -588,10 +606,10 @@ function M.Refresh()
             elseif v == nil then b.right:SetText("|cff666666...|r")
             elseif v then b.right:SetText("|cff00ff00completed|r")
             else
-                local total = g.steps and #g.steps or nil
+                local total, keep = viewOf(g)
                 local pct = 0
                 if total and total > 0 and NS.Account and NS.Account.me then
-                    _, pct = NS.Account.GuideProgress(g.id, total, scopeKey())
+                    _, pct = NS.Account.GuideProgress(g.id, total, scopeKey(), keep)
                 end
                 b.right:SetText(pct > 0 and ("|cffffd200%d%%|r"):format(pct) or "")
             end

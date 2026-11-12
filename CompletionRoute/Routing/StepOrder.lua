@@ -78,9 +78,12 @@ local function buildConstraints(steps)
 end
 
 -- Costs kept between refreshes, keyed by the step tables themselves (no string keys in a hot path).
--- Router.TravelSeconds is hearth-free and stable; the graph's own path cache table is replaced on a rebuild, which
--- tells us to drop ours.  Costs from the player are kept until the player has moved a little.
-local kept = { pair = {}, from = {}, guide = nil, speed = nil, tgCache = nil, px = nil, py = nil, pinst = nil }
+-- Router.TravelSeconds is hearth-free and stable; the graph's own path cache table is replaced when the graph changes
+-- (an access chain unlocks, a flight path is learned, roads are rebuilt), which tells us to drop ours.  A plain quest
+-- turn-in no longer touches the graph, so the pair costs survive it.  Costs from the player are kept until the player
+-- has moved a little, or until the one-shot legs change (TG.oneShotGen: hearth re-bound, a teleport or hearth item
+-- became usable or unusable) - those drop only the from-player costs.
+local kept = { pair = {}, from = {}, guide = nil, speed = nil, tgCache = nil, oneShot = nil, px = nil, py = nil, pinst = nil }
 
 local function dropKept()
     kept.pair, kept.from = {}, {}
@@ -89,15 +92,28 @@ end
 
 function SO.Reset()
     dropKept()
-    kept.guide, kept.speed, kept.tgCache = nil, nil, nil
+    kept.guide, kept.speed, kept.tgCache, kept.oneShot = nil, nil, nil, nil
     SO.plan = nil
+end
+
+-- Read-only: the kept travel seconds a -> b, or nil when the planner has not priced that pair, or priced it before the
+-- graph was rebuilt or the speed changed (its next refresh drops those).  Never searches: Core/BugReport.lua uses it
+-- so that a report costs no path search for its upcoming list.
+function SO.KeptCost(a, b)
+    if not (a and b) or kept.tgCache ~= (NS.TravelGraph and NS.TravelGraph.pathCache) or kept.speed ~= U.TravelSpeed() then return nil end
+    local ca = kept.pair[a]
+    return ca and ca[b] or nil
 end
 
 local now = debugprofilestop or function() return 0 end
 
--- located: anywhere Router.StepWorld can point, which includes the zone fallback for a step with no |M| (the arrow goes
--- there too, so the plan has to pay for that trip).  A step with no place at all rides along with the block before it.
-local function located(s) return s.zone ~= nil end
+-- located: the cost model's rule (Routing/CostModel.lua): a step with its own |M|, an NPC point borrowed from elsewhere in
+-- the guide, or the centre of a zone the route is not in yet starts a block and is priced where Router.StepWorld points.
+-- A step done where the player already is (same zone, no point) or with no place at all rides with the block before it.
+-- (A step CostModel.Locate never saw keeps the old rule: any zone counts.)
+local CM = assert(NS.CostModel, "Routing/CostModel.lua must load before Routing/StepOrder.lua")
+local LOCATED = CM.LOCATED
+local function located(s) local k = s._cmk if k then return LOCATED[k] or false end return s.zone ~= nil end
 
 -- Collapse steps into blocks.  A block is { list of positions in `steps`, in order }.  Returns blocks and block-level
 -- precedence.  A leading step with no location is its own block and is pinned first (nothing else can jump it).
@@ -182,7 +198,7 @@ local function buildMatrix(steps, blocks, after, router, deadline, bb, baseFirst
     local afterStep = after and located(after) and after or nil
     local m = {}
     for u = 0, nb do m[u] = {} end
-    local UNKNOWN = 600
+    local UNKNOWN = CM.NOROUTE   -- a leg the router cannot path (one cost everywhere)
     local spent = false
     local function over()
         if not spent and now() > deadline then spent = true end
@@ -485,10 +501,13 @@ function SO.Plan(head, router, opts)
         kept.guide, kept.speed, kept.tgCache = guide, speed, tg
         if SO.plan and SO.plan.guide ~= guide then SO.plan = nil end
     end
-    -- Costs from the player live until the player has moved 40 yd (the walk-time error is then at most a few seconds).
-    if not (kept.px and kept.pinst == pinst and pwx and math.abs(kept.px - pwx) + math.abs(kept.py - pwy) < 40) then
+    -- Costs from the player live until the player has moved 40 yd (the walk-time error is then at most a few seconds),
+    -- or until the hearth or a teleport changed (they are the only legs a from-player search adds)
+    local oneShot = NS.TravelGraph and NS.TravelGraph.oneShotGen
+    if not (kept.px and kept.pinst == pinst and pwx and math.abs(kept.px - pwx) + math.abs(kept.py - pwy) < 40)
+       or kept.oneShot ~= oneShot then
         kept.from = {}
-        kept.px, kept.py, kept.pinst = pwx, pwy, pinst
+        kept.px, kept.py, kept.pinst, kept.oneShot = pwx, pwy, pinst, oneShot
     end
     -- the baseline: the current plan's steps that are still pending, in plan order; steps new to the window after them
     local baseBlocks

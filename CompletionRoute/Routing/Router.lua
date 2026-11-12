@@ -2,9 +2,10 @@
 -- Facade between guide steps and the travel graph.  Provides:
 --   Router.OrderSteps(steps)   -> reordered steps (optimizer)
 --   Router.CurrentPath()       -> path from player to the current step (legs)
---   Router.Recommendation()    -> what the arrow should do right now (walk / hearth / item / taxi / transit)
+--   Router.Recommendation()    -> what the arrow should do right now (walk / hearth / teleport / item / taxi / transit)
 local ADDON, NS = ...
 local U, HBD, TG = NS.Util, NS.HBD, NS.TravelGraph
+local CM = assert(NS.CostModel, "Routing/CostModel.lua must load before Routing/Router.lua")
 local R = {}
 NS.Router = R
 
@@ -51,34 +52,35 @@ function R.EntranceFor(step)
     return ex, ey, ei
 end
 
+-- the step's own |M| point (the first one), or the dungeon door for one inside an instance: wx, wy, inst, source
+function R.OwnWorld(step)
+    if not (step and step.coords and step.zone) then return nil end
+    if step._wx and step._winst then return step._wx, step._wy, step._winst, "guide" end
+    local c = step.coords[1]
+    local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(c.x, c.y, step.zone)
+    if not wx then return nil end
+    -- Target inside a dungeon/raid we are not standing in? Route to the DOOR (Core/Instances.lua)
+    -- instead of reporting "no route": the player's job is to get there, the boss is inside.
+    local ex, ey, ei = R.EntranceFor(step)
+    if ex then return ex, ey, ei, "entrance" end
+    step._wx, step._wy, step._winst = wx, wy, inst
+    return wx, wy, inst, "guide"
+end
+
 function R.StepWorld(step)
     if not step then return nil end
     if step.coords and step.zone then
-        if step._wx and step._winst then return step._wx, step._wy, step._winst end
-        local c = step.coords[1]
-        local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(c.x, c.y, step.zone)
-        if wx then
-            -- Target inside a dungeon/raid we are not standing in? Route to the DOOR (Core/Instances.lua)
-            -- instead of reporting "no route": the player's job is to get there, the boss is inside.
-            local ex, ey, ei = R.EntranceFor(step)
-            if ex then return ex, ey, ei end
-            step._wx, step._wy, step._winst, step._locSource = wx, wy, inst, "guide"
-            return wx, wy, inst
-        end
+        local wx, wy, inst, src = R.OwnWorld(step)
+        if wx then step._locSource = src return wx, wy, inst end
     end
     -- no coordinates in the guide: fall back to the live quest objective
     local qx, qy, qi = R.QuestWorld(step)
     if qx then step._locSource = "quest" return qx, qy, qi end
-    if step.zone then
-        if step._zwx then step._locSource = "zone" return step._zwx, step._zwy, step._zwinst end
-        local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(0.5, 0.5, step.zone)
-        if wx then
-            step._zwx, step._zwy, step._zwinst, step._locSource = wx, wy, inst, "zone"
-            return wx, wy, inst
-        end
-    end
-    step._locSource = nil
-    return nil
+    -- then the cost model's point (Routing/CostModel.lua): the NPC's point from elsewhere in the guide, the step it rides
+    -- with (it is done where the player already is), or the centre of a zone the route is not in yet
+    local wx, wy, inst, src = CM.World(step, R.OwnWorld)
+    step._locSource = wx and src or nil
+    return wx, wy, inst
 end
 
 -- Nearest coordinate of a multi-coord step to the player
@@ -96,23 +98,27 @@ function R.NearestCoord(step)
     return best, bd
 end
 
-local WALK_ONLY_BELOW = 700  -- yards: below this, never bother with the full graph
+-- yards: below this, never bother with the full graph (Routing/CostModel.lua)
+local WALK_ONLY_BELOW = CM.WALK_ONLY_BELOW
+-- the walking factor of a short walk: the graph's own (Routing/CostModel.lua: flying flattens the terrain)
+local function shortFactor() return TG.WalkFactor() end
 
 -- pairwise: seconds between two steps (no hearth — hearth is a one-shot resource)
-function R.TravelSeconds(a, b)
+-- tick (optional) is handed to TravelGraph.FindPath: the quest-skip re-planner yields from it (Routing/Replan.lua)
+function R.TravelSeconds(a, b, tick)
     local ax, ay, ai = R.StepWorld(a)
     local bx, by, bi = R.StepWorld(b)
     if not ax or not bx then return nil end
     local speed = U.TravelSpeed()
     if ai == bi then
         local d = math.sqrt((ax - bx) ^ 2 + (ay - by) ^ 2)
-        if d < WALK_ONLY_BELOW then return d * (NS.db.profile.routing.terrainFactor or 1.25) / speed end
+        if d < WALK_ONLY_BELOW then return d * shortFactor() / speed end
     end
-    local p = TG.FindPath(ax, ay, ai, bx, by, bi, { hearth = false, speed = speed })
+    local p = TG.FindPath(ax, ay, ai, bx, by, bi, { hearth = false, speed = speed, tick = tick })
     return p and p.cost or nil
 end
 local EXIT_INSTANCE_SECONDS = 30
-function R.TravelSecondsFromPlayer(b)
+function R.TravelSecondsFromPlayer(b, tick)
     local map, x, y, inst, wx, wy = U.PlayerPos()
     local bx, by, bi = R.StepWorld(b)
     if not wx or not bx then return nil end
@@ -123,16 +129,70 @@ function R.TravelSecondsFromPlayer(b)
     if inst ~= bi and I and I.IsInstanceMap(map) then
         local ex, ey, ei = I.Entrance(map)
         if ex then
-            local p = TG.FindPath(ex, ey, ei, bx, by, bi, { speed = speed })
+            local p = TG.FindPath(ex, ey, ei, bx, by, bi, { speed = speed, tick = tick })
             return p and (p.cost + EXIT_INSTANCE_SECONDS) or nil
         end
     end
     if inst == bi then
         local d = math.sqrt((wx - bx) ^ 2 + (wy - by) ^ 2)
-        if d < WALK_ONLY_BELOW then return d * (NS.db.profile.routing.terrainFactor or 1.25) / speed end
+        if d < WALK_ONLY_BELOW then return d * shortFactor() / speed end
     end
-    local p = TG.FindPath(wx, wy, inst, bx, by, bi, { speed = speed })
+    local p = TG.FindPath(wx, wy, inst, bx, by, bi, { speed = speed, tick = tick })
     return p and p.cost or nil
+end
+
+-- The player's position as a point for TravelRow (inside an instance: with its door, for goals outside it)
+function R.PlayerPoint()
+    local map, x, y, inst, wx, wy = U.PlayerPos()
+    if not wx then return nil end
+    local pt = { wx = wx, wy = wy, inst = inst }
+    local I = NS.Instances
+    if I and map and I.IsInstanceMap(map) then
+        local ex, ey, ei = I.Entrance(map)
+        if ex then pt.exit = { wx = ex, wy = ey, inst = ei } end
+    end
+    return pt
+end
+
+-- Seconds from point `a` to every point in `goals` ({ wx, wy, inst }) by TravelSeconds' rule - a walk below 700 yards,
+-- else the graph without the hearth - from ONE graph search (TravelGraph.FindPaths) instead of one per goal.  a.exit
+-- (R.PlayerPoint inside an instance): goals on another continent start from the door, plus the walk out, as
+-- TravelSecondsFromPlayer does.  opts: speed, walkFactor, graph, tick (TravelGraph.FindPaths); a short walk uses
+-- walkFactor too (Routing/CostModel.lua).  The quest-skip re-planner (Routing/Replan.lua) and the offline bake
+-- (tools/cost_matrix.lua) fix all of them for a whole job.
+function R.TravelRow(a, goals, opts, out)
+    opts = opts or {}
+    out = out or {}
+    local speed = opts.speed or U.TravelSpeed()
+    local tfShort = opts.walkFactor or shortFactor()
+    local far, farAt, out2, out2At = {}, {}, {}, {}
+    for i = 1, #goals do
+        local g = goals[i]
+        out[i] = nil
+        if g and a then
+            if a.exit and g.inst ~= a.inst then
+                out2[#out2 + 1] = g out2At[#out2At + 1] = i
+            else
+                local short = false
+                if g.inst == a.inst then
+                    local dx, dy = a.wx - g.wx, a.wy - g.wy
+                    local d = math.sqrt(dx * dx + dy * dy)
+                    if d < WALK_ONLY_BELOW then out[i] = d * tfShort / speed short = true end
+                end
+                if not short then far[#far + 1] = g farAt[#farAt + 1] = i end
+            end
+        end
+    end
+    if #far > 0 then
+        local res = TG.FindPaths(a.wx, a.wy, a.inst, far, opts)
+        for j = 1, #far do out[farAt[j]] = res[j] end
+    end
+    if #out2 > 0 then
+        local e = a.exit
+        local res = TG.FindPaths(e.wx, e.wy, e.inst, out2, opts)
+        for j = 1, #out2 do out[out2At[j]] = res[j] and (res[j] + EXIT_INSTANCE_SECONDS) or nil end
+    end
+    return out
 end
 
 -- The quest log's size now and its capacity, for the repair's log check (nil when the client will not say).
@@ -151,6 +211,7 @@ local function questLog()
     end
     return quests or entries or 0, cap or QUEST_LOG_CAP[NS.isForever and "era" or NS.flavor]
 end
+R.QuestLog = questLog
 
 -- Reorder the upcoming window (Routing/StepOrder.lua): the baked order unless a repair wins by a real margin.
 function R.OrderSteps(steps)
@@ -247,7 +308,7 @@ function R.CorpseRecommendation()
     if wx and inst == cinst then
         rec.dist = math.sqrt((wx - cwx) ^ 2 + (wy - cwy) ^ 2)
         -- ghosts move faster than the living; do not promise a walking ETA off the live speed
-        rec.eta = rec.dist / ((NS.db.profile.routing.runSpeed or 7) * 1.5)
+        rec.eta = rec.dist / ((NS.db.profile.routing.runSpeed or CM.RUN_SPEED) * 1.5)
     end
     local delay = GetCorpseRecoveryDelay and GetCorpseRecoveryDelay() or 0
     if delay and delay > 0 then rec.why = ("resurrection sickness timer: %ds"):format(delay) end
@@ -276,8 +337,10 @@ function R.Recommendation()
     end
     -- 2) hearth step itself
     if step.action == "H" then
-        local ready, cd, kind, id = U.HearthReady()
-        rec.mode = "hearth"; rec.item = NS.HEARTH_ITEM; rec.text = ready and "Use your Hearthstone" or ("Hearthstone ready in " .. U.FmtTime(cd))
+        local ready, cd, kind, id, isToy = U.HearthReady()
+        rec.mode = "hearth"; rec.item = id or NS.HEARTH_ITEM; rec.toy = isToy or nil
+        local what = (not id or id == NS.HEARTH_ITEM) and "your Hearthstone" or U.ItemName(id)
+        rec.text = ready and ("Use " .. what) or ((id and id ~= NS.HEARTH_ITEM) and (what .. " ready in ") or "Hearthstone ready in ") .. U.FmtTime(cd)
         return rec
     end
     -- Still nothing to aim at? Borrow the location of the nearest upcoming step that does have
@@ -311,10 +374,12 @@ function R.Recommendation()
     end
     rec.eta = path.cost
     local leg = path.legs[1]
-    if leg.mode == "hearth" then
-        rec.mode = "hearth"
+    if leg.mode == "hearth" or leg.mode == "teleport" then
+        -- the secure button casts the spell, uses the item, or uses the toy (Data/Teleports.lua) for this leg
+        rec.mode = leg.mode
         rec.item = leg.data and leg.data.kind == "item" and leg.data.id or nil
         rec.spell = leg.data and leg.data.kind == "spell" and leg.data.id or nil
+        rec.toy = leg.data and leg.data.toy or nil
         rec.text = leg.title .. " (saves time)"
         rec.wx, rec.wy, rec.inst = leg.to.wx, leg.to.wy, leg.to.inst
     elseif leg.mode == "walk" then
@@ -328,7 +393,8 @@ function R.Recommendation()
         end
         local nxt = path.legs[2]
         if nxt then
-            if nxt.mode == "taxi" then rec.text = (U.CanFly() and "Fly to flight master: " or "Flight master: ") .. (leg.to.name or "") .. " -> fly to " .. (nxt.to.name or "") .. (nxt.discover and " (new path)" or "")
+            if nxt.mode == "taxi" then rec.text = (U.CanFly() and "Fly to flight master: " or "Flight master: ") .. (leg.to.name or "") .. " -> fly to " .. (nxt.to.name or "")
+                                              .. (leg.pickup and " (pick up the flight path)" or (nxt.discover and " (new path)" or ""))
             else rec.text = nxt.title or ((U.CanFly() and "Fly to " or "Go to ") .. (leg.to.name or "transport")) end
         elseif not rec.borrowedFrom then
             rec.text = (U.CanFly() and "Fly to " or "Go to ") .. step.title

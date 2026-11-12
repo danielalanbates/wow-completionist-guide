@@ -15,10 +15,10 @@ for tier in era tbc mop retail forever; do
     [ -s "$SRC/Guides/$f.lua" ] || { echo "install.sh: missing Guides/$f.lua - run tools/wiki/parse_wiki.py + tools/wiki/gen_wiki_guides.py (needs Guides/Imported_Quests_$tier.lua for the gaps file; forever uses Imported_Quests_era.lua); refusing to wipe the quest guides from the clients" >&2; exit 1; }
   done
 done
-# Completionist sets (tools/gen_completion_guides.py): achievements (mop, retail), storylines + mission
+# Completionist sets (tools/gen_completion_guides.py): achievements (mop, retail), quest lines (storylines) + mission
 # tables (retail).  Same rule as above - generated, gitignored - but only a warning: a client without
-# them still has every quest guide.
-for f in Imported_Achievements_mop Imported_Achievements_retail Imported_Storylines_retail Imported_Missions_retail; do
+# them still has every quest guide.  The older Imported_Storylines_retail.lua (Questie-derived) is never installed.
+for f in Imported_Achievements_mop Imported_Achievements_retail Imported_QuestLines_retail Imported_Missions_retail; do
   [ -s "$SRC/Guides/$f.lua" ] || echo "install.sh: note: Guides/$f.lua missing - run tools/gen_completion_guides.py to add it" >&2
 done
 # Baked route orders (tools/optimize_routes.py, Data/RouteOrder_<flavor>.lua): generated, gitignored, optional -
@@ -32,6 +32,17 @@ for f in "$SRC"/Data/RouteOrder_*; do
     *) echo "install.sh: unknown route order file $f - delete it first" >&2; exit 1;;
   esac
 done
+# Quest prerequisite index for quest-level skipping (tools/gen_quest_deps.py, Data/QuestDeps_<flavor>.lua): generated,
+# gitignored, optional - without one, skipping a quest warns from the loaded guide's own PRE tags only.
+for tier in era tbc mop retail forever; do
+  [ -s "$SRC/Data/QuestDeps_$tier.lua" ] || echo "install.sh: note: Data/QuestDeps_$tier.lua missing - run tools/gen_quest_deps.py $tier (skip warnings fall back to the loaded guide)" >&2
+done
+for f in "$SRC"/Data/QuestDeps_*; do
+  [ -e "$f" ] || continue
+  case "$(basename "$f")" in QuestDeps_era.lua|QuestDeps_tbc.lua|QuestDeps_mop.lua|QuestDeps_retail.lua|QuestDeps_forever.lua) ;;
+    *) echo "install.sh: unknown quest prerequisite file $f - delete it first" >&2; exit 1;;
+  esac
+done
 flavor_of() { case "$1" in _retail_) echo retail;; _classic_) echo mop;; _classic_era_) echo era;; _anniversary_) echo tbc;; _forever_) echo forever;; *) echo retail;; esac; }
 # WoW Forever runs the era code path (Core/Init.lua) with its own wiki/gaps guides, taxi and map fix; it still
 # loads the era WoW-Pro adapter file (Guides/Imported_WoWPro_era.lua, see CompletionRoute_Forever.toc).
@@ -40,7 +51,7 @@ wowpro_of() { case "$1" in forever) echo era;; *) echo "$1";; esac; }
 # (Daniel, 2026-11-07). Anything else in Guides/ or Adapters/ stops the install.
 for f in "$SRC"/Guides/Imported_*; do
   case "$(basename "$f")" in
-    Imported_Wiki_*|Imported_Spine_*|Imported_Professions_*|Imported_Gold_*|Imported_Quests_*|Imported_WoWPro_*|Imported_Achievements_*|Imported_Storylines_*|Imported_Missions_*|Imported_Entrances_*) ;;
+    Imported_Wiki_*|Imported_Spine_*|Imported_Professions_*|Imported_Gold_*|Imported_Quests_*|Imported_WoWPro_*|Imported_Achievements_*|Imported_QuestLines_*|Imported_Storylines_*|Imported_Missions_*|Imported_Entrances_*) ;;
     *) echo "install.sh: unknown generated guide $f is not on the allowlist - delete it first" >&2; exit 1;;
   esac
 done
@@ -60,12 +71,14 @@ for fl in "${@:-_anniversary_}"; do
   EXCL=()
   # the full Imported_Quests_<tier>.lua files are generator INPUT now (no TOC loads them); never ship them
   for tier in era tbc wotlk cata mop retail; do EXCL+=(--exclude "Guides/Imported_Quests_$tier.lua"); done
+  # the storylines built before 2026-11-11 copied Questie-derived lines; Imported_QuestLines_<tier>.lua replaced them
+  for tier in era tbc mop retail forever; do EXCL+=(--exclude "Guides/Imported_Storylines_$tier.lua"); done
   for other in era tbc mop retail forever; do
     [ "$other" = "$MINE" ] && continue
     [ "$other" != "$(wowpro_of "$MINE")" ] && EXCL+=(--exclude "Guides/Imported_WoWPro_$other.lua")
     EXCL+=(--exclude "Guides/Imported_Wiki_$other.lua" --exclude "Guides/Imported_Spine_$other.lua" --exclude "Guides/Imported_Professions_$other.lua" --exclude "Guides/Imported_Gold_$other.lua" --exclude "Guides/Imported_Quests_${other}_gaps.lua"
-           --exclude "Guides/Imported_Achievements_$other.lua" --exclude "Guides/Imported_Storylines_$other.lua"
-           --exclude "Guides/Imported_Missions_$other.lua" --exclude "Data/RouteOrder_$other.lua")
+           --exclude "Guides/Imported_Achievements_$other.lua" --exclude "Guides/Imported_QuestLines_$other.lua"
+           --exclude "Guides/Imported_Missions_$other.lua" --exclude "Data/RouteOrder_$other.lua" --exclude "Data/QuestDeps_$other.lua")
   done
   mkdir -p "$DST"
   rsync -a --delete --delete-excluded --exclude ".DS_Store" "${EXCL[@]}" "$SRC/" "$DST/"

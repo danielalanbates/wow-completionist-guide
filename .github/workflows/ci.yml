@@ -29,3 +29,6 @@ jobs:
       - name: Offline behavior tests
         # Baked guide data is gitignored; the harness skips baked-guide checks when absent.
         run: luajit tools/test_offline.lua
+      - name: Release packager gate tests
+        # Builds a throwaway fixture checkout from the tracked code; plants one bad file per gate rule.
+        run: python3 tools/test_package.py

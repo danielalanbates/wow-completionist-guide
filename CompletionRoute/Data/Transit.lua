@@ -57,6 +57,18 @@ NS.TransitData = {
     { from = { "Stormwind City", 49.2, 87.2 }, to = { "Dornogal", 48.0, 42.6 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Dornogal" },
     { from = { "Stormwind City", 49.2, 87.2 }, to = { "Ironforge", 27.0, 8.5 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to Ironforge" },
     { from = { "Stormwind City", 49.2, 87.2 }, to = { "The Exodar", 48.0, 62.0 }, mode = "portal", fac = "A", cost = 6, flavors = { retail = true }, title = "Take the Stormwind Portal Room portal to the Exodar" },
+    -- Cataclysm: the Maelstrom (2026-11-11).  Warcraft Wiki "The Maelstrom (quest)": Naraat the Earthspeaker (Stormwind
+    -- 74.5,19.0) / Farseer Krogar (Orgrimmar 50.5,38.4) conjure a portal to Thrall at {{co|33.4|50.2|The Maelstrom}};
+    -- "Maelstrom": Stormwind and Orgrimmar "via portal".  "Deepholm, Realm of Earth": Aggra's wyvern flies from Thrall
+    -- through the breach to the Temple of Earth (Maruut Stonebinder {{co|49.6|53.0|Deepholm}}).
+    -- Both are quest transport, not standing portals: "I will conjure a portal. Take it and report to Thrall" (The
+    -- Maelstrom, 27203), and the wyvern is the ride of "Deepholm, Realm of Earth" (27123); on retail the page adds that
+    -- the quest "may not be available on modern realms without starting a Timewalking Campaign (Chromie Time)".  So each
+    -- edge exists only until its quest is turned in (cond notQuest).  approx: TG.CondOK has no "quest in the log" form,
+    -- so a character who has not reached the quest yet gets the edge too.
+    { from = { "Stormwind City", 74.5, 19.0 }, to = { "276", 33.4, 50.2, name = "The Maelstrom" }, mode = "portal", fac = "A", cost = 10, twoway = false, flavors = R, cond = { notQuest = 27203 }, title = "Take Naraat the Earthspeaker's portal to the Maelstrom (quest The Maelstrom)" },
+    { from = { "Orgrimmar", 50.5, 38.4 }, to = { "276", 33.4, 50.2, name = "The Maelstrom" }, mode = "portal", fac = "H", cost = 10, twoway = false, flavors = R, cond = { notQuest = 27203 }, title = "Take Farseer Krogar's portal to the Maelstrom (quest The Maelstrom)" },
+    { from = { "276", 33.4, 50.2, name = "The Maelstrom" }, to = { "Deepholm", 49.6, 53.0 }, mode = "flight", cost = 60, twoway = false, flavors = R, cond = { notQuest = 27123 }, title = "Ride Aggra's wyvern through the breach to the Temple of Earth (Deepholm; quest Deepholm, Realm of Earth)" },
     -- Stormwind: Eastern Earthshrine (Cataclysm zones) and the harbor
     { from = { "Stormwind City", 76.0, 18.5 }, to = { "Mount Hyjal", 62.7, 23.5 }, mode = "portal", fac = "A", cost = 6, flavors = R, title = "Take the Eastern Earthshrine portal to Mount Hyjal" },
     { from = { "Stormwind City", 76.0, 18.5 }, to = { "Kelp'thar Forest", 60.0, 34.0 }, mode = "portal", fac = "A", cost = 6, flavors = R, title = "Take the Eastern Earthshrine portal to Vashj'ir" },
@@ -146,4 +158,7 @@ NS.TransitData = {
     -- ===================== THE WAR WITHIN EXTENDED (Retail) =====================
     { from = { "Siren Isle", 69.3, 48.0 }, to = { "Isle of Dorn", 55.40, 33.86 }, mode = "boat", cost = 60, twoway = false, flavors = { retail = true }, title = "Sail Skaggit's airship from Siren Isle to Isle of Dorn" },
     { from = { "Undermine", 24.10, 51.17 }, to = { "The Ringing Deeps", 72.95, 73.20 }, mode = "portal", cost = 60, twoway = false, flavors = { retail = true }, title = "Take the Rocket Drill from Undermine to The Ringing Deeps" },
+    -- K'aresh (2026-11-11): Warcraft Wiki "Tazavesh": "Portal to Dornogal {{Co|63|94|Tazavesh}}"; the Spatial Rift from
+    -- Dornogal (40.3,22.8) drops players at 62.1,92.9 (that way in is the karesh access chain, Data/Access.lua).
+    { from = { "Tazavesh", 63.0, 94.0 }, to = { "Dornogal", 40.3, 22.8 }, mode = "portal", cost = 8, twoway = false, flavors = { retail = true }, title = "Take the portal in Tazavesh back to Dornogal" },
 }

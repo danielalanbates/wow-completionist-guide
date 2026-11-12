@@ -113,6 +113,107 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
                 end
             end
         end
+        -- 2026-11-11, where a step's point came from (tools/wiki/gen_wiki_guides.py): a zone-level step names the quest's
+        -- zone and has no point; a place-page or quest-POI step has one; retail no longer puts a wiki point on map 41 (a
+        -- Deadwind Pass micro map called "Dalaran" that the lowest-id rule used to pick for the city)
+        do
+            local zoneOnly, place, poi, bad41 = 0, 0, 0, 0
+            for _, id in ipairs(NS.Guide.list) do
+                if id:find("^wiki:" .. flavor .. ":") then
+                    for ln in NS.Guide.registry[id].text:gmatch("[^\n]+") do
+                        if ln:find("No coordinates on the wiki; the quest is in", 1, true) then
+                            zoneOnly = zoneOnly + 1
+                            check(ln:find("|Z|%d+") and not ln:find("|M|", 1, true), flavor .. ": zone-level step without a zone or with a point: " .. ln:sub(1, 90))
+                        end
+                        if ln:find("(location: the wiki's", 1, true) then
+                            place = place + 1
+                            check(ln:find("|M|[%d.]+,[%d.]+") and ln:find("|Z|%d+"), flavor .. ": place-page step without a point: " .. ln:sub(1, 90))
+                        end
+                        if ln:find("(location: Blizzard quest POI", 1, true) then
+                            poi = poi + 1
+                            check(flavor == "retail" and ln:find("|M|[%d.]+,[%d.]+|Z|%d+"), flavor .. ": quest-POI step off retail or without a point: " .. ln:sub(1, 90))
+                        end
+                        -- the client's own quest pins do use map 41 for a few Legion quests; only wiki points must not
+                        if flavor == "retail" and ln:find("|Z|41;", 1, true) and not ln:find("(location: Blizzard", 1, true) then bad41 = bad41 + 1 end
+                    end
+                end
+            end
+            check(bad41 == 0, ("retail: %d steps on map 41 (Deadwind Pass 'Dalaran')"):format(bad41))
+            print(("%-6s zone-level steps %d, wiki place-page points %d, client quest-POI points %d"):format(flavor, zoneOnly, place, poi))
+        end
+        -- 2026-11-11 review: a zone-level step names the map the NPC's own page names, not the quest-log category; a
+        -- WoD quest's zone is Draenor's; a place page gives only its own point (not a portal, quest or note listed on it,
+        -- not a WoW Forever coordinate), and on the Classic clients not a place made or moved at the Cataclysm
+        local function first(q, act)
+            for _, st in ipairs(byQ[q] or {}) do if st.action == act then return st end end
+        end
+        local function near(st, x, y)
+            local c = st and st.coords and st.coords[1]
+            return c and math.abs(c.x * 100 - x) < 1 and math.abs(c.y * 100 - y) < 1
+        end
+        if flavor == "era" or flavor == "tbc" or flavor == "forever" then
+            local orgr = { era = 1454, tbc = 1454, forever = 1454 }
+            local a = first(7241, "A")    -- In Defense of Frostwolf: filed under the battleground, given in Orgrimmar
+            check(a and a.zone == orgr[flavor], ("%s quest 7241 accept on map %s, want Orgrimmar (Rokhstrom's page)"):format(flavor, tostring(a and a.zone)))
+            local t = first(510, "T")     -- Foreboding Plans: filed under Alterac Mountains, Henry Maleb is in Southshore
+            check(t and t.zone == 1424, ("%s quest 510 turn-in on map %s, want Hillsbrad Foothills 1424"):format(flavor, tostring(t and t.zone)))
+            a = first(1518, "A")          -- Call of Earth: Zephras Isle's portal point exists only on WoW Forever's maps
+            check(a and a.zone ~= 1416, ("%s quest 1518 accept on Alterac Mountains (a Forever-only coordinate)"):format(flavor))
+            a = first(953, "A")           -- The Fall of Ameth'Aran: not a point from the Ruins of Mathystra page's NPC list
+            check(a and not near(a, 59.3, 22.8), ("%s quest 953 accept uses the Ruins of Mathystra page's section point"):format(flavor))
+            a = first(1920, "A")          -- Investigate the Blue Recluse: not the Wizard's Sanctum page's portal list
+            check(a and not near(a, 38.0, 87.3), ("%s quest 1920 accept uses the Wizard's Sanctum portal list"):format(flavor))
+            -- Vivian Lagrave: Shadowmage Vivian Lagrave stands in the Undercity since the Cataclysm; her page says she
+            -- "was located at [[Kargath]], [[Badlands]]" before it, which is where she is on these clients
+            t = first(4133, "T")
+            check(t and t.zone == 1418, ("%s quest 4133 turn-in on map %s, want the Badlands 1418 (pre-Cataclysm place)"):format(flavor, tostring(t and t.zone)))
+            local lordanel, raven = 0, 0  -- Lor'danel replaced Auberdine at patch 4.0.3
+            for _, id in ipairs(NS.Guide.list) do
+                local text = id:find("^wiki:" .. flavor .. ":") and NS.Guide.registry[id].text or ""
+                if text:find("(location: the wiki's Lor'danel page", 1, true) then lordanel = lordanel + 1 end
+                -- Duke Hydraxis stood "on an island northeast of the [[Ravencrest Monument]]": a landmark, not his place
+                if text:find("(location: the wiki's Ravencrest Monument page", 1, true) then raven = raven + 1 end
+            end
+            check(lordanel == 0, ("%s: %d steps placed at Lor'danel, a Cataclysm town"):format(flavor, lordanel))
+            check(raven == 0, ("%s: %d steps placed at the Ravencrest Monument, a landmark Duke Hydraxis stood northeast of"):format(flavor, raven))
+        end
+        if flavor == "tbc" or flavor == "mop" then
+            local t = first(11371, "T")   -- WANTED: Coilfang Myrmidons: not the Lower City page's rewards/quests list
+            check(t and not near(t, 62.0, 68.8) and not near(t, 48.0, 18.0), ("%s quest 11371 turn-in uses the Lower City page's section points"):format(flavor))
+        end
+        if flavor == "retail" then
+            local wod = 0
+            for _, id in ipairs(NS.Guide.list) do
+                if id:find("^wiki:retail:") then
+                    for ln in NS.Guide.registry[id].text:gmatch("[^\n]+") do
+                        local q = tonumber(ln:match("|QID|(%d+)|"))
+                        if q and q >= 33000 and q < 37000 and ln:find("|Z|104;", 1, true) and ln:find("the quest is in", 1, true) then wod = wod + 1 end
+                    end
+                end
+            end
+            check(wod == 0, ("retail: %d Warlords quest steps sent to Outland's Shadowmoon Valley (104)"):format(wod))
+            local c = first(33786, "C")   -- Crippled Caravan, filed under "Shadowmoon Valley (alternate universe)"
+            check(c and c.zone == 539, ("retail quest 33786 objective on map %s, want Draenor's Shadowmoon Valley 539"):format(tostring(c and c.zone)))
+        end
+        -- Blasted Lands (2026-11-11): Daio the Decrepit's and Kum'isha's wiki numbers predate patch 4.0.3, so they are
+        -- Classic-map numbers and stay as written on the Classic clients (they used to move 5.5 units through the retail
+        -- map).  Needs the page history (tools/wiki/fetch_coord_history.py): without it the check says SKIP, loudly,
+        -- because the guide files were then built without the Classic marks.
+        local hist = io.open("tools/wiki/cache/coord_history.sqlite", "rb")
+        if hist then hist:close() end
+        if (flavor == "era" or flavor == "tbc") and not hist then
+            print(("  SKIP %s Blasted Lands Classic-map check: tools/wiki/cache/coord_history.sqlite is missing "
+                .. "(run tools/wiki/fetch_coord_history.py, then gen_wiki_guides.py)"):format(flavor))
+        elseif flavor == "era" or flavor == "tbc" then
+            for q, want in pairs({ [7581] = { 34.0, 50.0 }, [2521] = { 52.0, 36.0 } }) do
+                local a
+                for _, st in ipairs(byQ[q] or {}) do if st.action == "A" then a = st end end
+                local c = a and a.coords and a.coords[1]
+                check(a and a.zone == 1419 and c and math.abs(c.x * 100 - want[1]) < 0.2 and math.abs(c.y * 100 - want[2]) < 0.2,
+                    ("%s quest %d accept at %s %s, want Blasted Lands %.1f,%.1f"):format(flavor, q, tostring(a and a.zone),
+                        c and ("%.1f,%.1f"):format(c.x * 100, c.y * 100) or "-", want[1], want[2]))
+            end
+        end
         if flavor == "retail" then
             local ok = 0
             for _, st in ipairs(byQ[25172] or {}) do
@@ -150,10 +251,20 @@ for _, flavor in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
             check(fromWiki >= 50, ("forever: only %d of %d Zephras Isle steps have a wiki coordinate"):format(fromWiki, onIsle))
             print(("forever Zephras Isle: %d steps, %d with a wiki coordinate"):format(onIsle, fromWiki))
             -- quest 697 Malin's Request turn-in: Era map 39.8,81.5 on Stormwind City (1453) = the same spot on Forever's
-            -- larger Stormwind map (Data/MapFix_forever.lua); the generator converts it (fallback point)
+            -- larger Stormwind map (Data/MapFix_forever.lua); the generator converts it (fallback point).  A release build
+            -- (--no-fallback: the file header has no fallback line) has no point for it: the step names Stormwind City,
+            -- where Archmage Malin's own page puts him, not the quest's Arathi Highlands category.
             local t
             for _, st in ipairs(byQ[697] or {}) do if st.action == "T" then t = st end end
-            check(t and t.zone == 1453 and t.coords, "forever quest 697 turn-in has no Stormwind point")
+            local fh = io.open("CompletionRoute/Guides/Imported_Wiki_forever.lua", "r")
+            local head = fh and fh:read(4096) or ""
+            if fh then fh:close() end
+            local release = not head:find("Regenerate with --no-fallback", 1, true)
+            if release then
+                check(t and t.zone == 1453 and not t.coords, "forever (release build) quest 697 turn-in should be a Stormwind City zone-level step")
+            else
+                check(t and t.zone == 1453 and t.coords, "forever quest 697 turn-in has no Stormwind point")
+            end
             if t and t.coords then
                 local c = t.coords[1]
                 check(math.abs(c.x * 100 - 50.5) < 1 and math.abs(c.y * 100 - 87.5) < 1,

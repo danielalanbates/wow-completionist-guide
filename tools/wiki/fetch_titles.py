@@ -6,43 +6,132 @@
 """Fetch the pages quests LINK to but the template crawl did not cover (items, objects, subzones, redirects).
 
     nice -n 10 python3 tools/wiki/parse_wiki.py              # needs tools/wiki/wiki.sqlite first
-    nice -n 10 python3 tools/wiki/fetch_titles.py [--max-requests N]
+    nice -n 10 python3 tools/wiki/fetch_titles.py [--max-requests N] [--db2-names] [--dry-run]
     nice -n 10 python3 tools/wiki/parse_wiki.py              # re-parse with the new pages
 
-Queue = quest start/end targets + objective targets + item drop sources (from wiki.sqlite) that are not in the
-raw cache and were never tried before.  Same etiquette and client as fetch_wiki.py (MediaWiki API only, serial,
+Queue = quest start/end targets + objective targets + item drop sources + achievement page links (from wiki.sqlite)
+that are not in the raw cache and were never tried before, plus the places named in the {{Npcbox}}/{{Objectbox}}
+location field of those NPC and object pages that have no coordinate of their own (2026-11-11; the zone link at the end
+is left out), and the places linked in such a page's "Before the Cataclysm ... was located at [[Kargath]]" sentence
+(gen_wiki_guides.py Places.MOVED, read on the Classic clients).  --db2-names adds names taken from Blizzard client tables
+(tools/db2): every quest-starting item (ItemSparse.StartQuestID, all flavors) as "<name>" and "<name> (item)", the
+items achievement criteria ask for (Criteria types 36/42), and the NPC / object / place names criteria are named after
+(tools/gen_completion_guides.py NAMED_TYPES), so the wiki pages for them can be found.  Same etiquette and client as fetch_wiki.py (MediaWiki API only, serial,
 >= 1 s apart, maxlag=5, Retry-After, gzip, 50 titles per request, descriptive UA).  redirects=1: the redirect
 pairs are stored in `redirects`, so a later parse resolves [[Old name]] links.  Every attempted title goes into
 `title_attempts`, so nothing is fetched twice and the job resumes where it stopped.
 """
 import argparse
+import csv
 import os
+import re
 import signal
 import sqlite3
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fetch_wiki as F  # noqa: E402
+import re  # noqa: E402
+import wikitext as W  # noqa: E402
+
+T_BOX = re.compile(r"npcbox|objectbox", re.I)
+# the "Before the Cataclysm ... was located at [[Place]]" sentence, exactly as gen_wiki_guides.py reads it
+from gen_wiki_guides import Places  # noqa: E402
+MOVED = Places.MOVED
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PARSED = os.path.join(HERE, "wiki.sqlite")
+DB2 = os.path.join(HERE, "..", "db2")
 TAG = "linked"
+csv.field_size_limit(1 << 28)
 
 
-def queue(raw, parsed):
+def db2_rows(fl, table):
+    p = os.path.join(DB2, fl, table + ".csv")
+    if not os.path.exists(p):
+        return []
+    with open(p, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+
+def db2_names():
+    """page titles worth trying, from Blizzard tables: quest-starting items, criteria items, criteria named after NPCs"""
+    sys.path.insert(0, os.path.join(HERE, ".."))
+    from gen_completion_guides import NAMED_TYPES, ITEM_TYPES, NAME_WRAP, internal_achievement
+    out = []
+    for fl in ("era", "tbc", "mop", "retail", "forever"):
+        quests = {r["ID"] for r in db2_rows(fl, "QuestV2")}
+        names = {r["ID"]: r.get("Display_lang") or "" for r in db2_rows(fl, "ItemSparse")}
+        for r in db2_rows(fl, "ItemSparse"):
+            if (r.get("StartQuestID") or "0") in quests and r.get("Display_lang"):
+                out += [r["Display_lang"], r["Display_lang"] + " (item)"]
+        crit = {r["ID"]: r for r in db2_rows(fl, "Criteria")}
+        if not crit:
+            continue
+        live = {r["Criteria_tree"] for r in db2_rows(fl, "Achievement") if not internal_achievement(r)}
+        parent = {r["ID"]: r["Parent"] for r in db2_rows(fl, "CriteriaTree")}
+
+        def in_live(ct, depth=0):
+            while ct and depth < 8:
+                if ct in live:
+                    return True
+                ct, depth = parent.get(ct), depth + 1
+            return False
+        for r in db2_rows(fl, "CriteriaTree"):
+            c = crit.get(r["CriteriaID"])
+            if not c or not in_live(r["ID"]):
+                continue
+            if c["Type"] in ITEM_TYPES and names.get(c["Asset"]):
+                out += [names[c["Asset"]], names[c["Asset"]] + " (item)"]
+            elif c["Type"] in NAMED_TYPES and r["Description_lang"]:
+                d = re.sub(r"\s+", " ", r["Description_lang"]).strip()
+                out += [d, NAME_WRAP.sub("", d).strip()]
+    return [t for t in dict.fromkeys(out) if t and "|" not in t and "[" not in t and "{" not in t and "#" not in t]
+
+
+def queue(raw, parsed, extra=()):
     have = {r[0] for r in raw.execute("select title from pages")}
     have |= {r[0] for r in raw.execute("select title from title_attempts")}
     have |= {r[0] for r in raw.execute("select from_title from redirects")}
     want = []
+    used = set()
     for sql in ("select start_npc from quests", "select end_npc from quests",
                 "select target_title from quest_objectives",
                 "select value from items, json_each(items.sources_json)",
                 "select json_extract(e.value, '$.title') from quests, json_each(quests.start_json) e",
                 "select json_extract(e.value, '$.title') from quests, json_each(quests.end_json) e"):
         for (t,) in parsed.execute(sql):
+            if t:
+                used.add(t)
             if t and t not in have and len(t) < 200 and ":" not in t[:12]:
                 have.add(t)
                 want.append(t)
+    # achievement page links and the --db2-names titles: fetched, but not searched for place links below
+    more = list(extra)
+    if parsed.execute("select 1 from sqlite_master where name = 'achievement_links'").fetchone():
+        more = [t for (t,) in parsed.execute("select link_title from achievement_links")] + more
+    for t in more:
+        if t and t not in have and len(t) < 200 and ":" not in t[:12]:
+            have.add(t)
+            want.append(t)
+    # the places named in the location field of the NPC/object pages quests use that carry no coordinate of their own
+    # ("| location = [[Razor Hill]], [[Durotar]]"): gen_wiki_guides.py takes the place page's point for them
+    located = {r[0] for r in parsed.execute("select distinct title from npc_coords")}
+    titles = {r[0]: r[1] for r in parsed.execute("select title, page_title from titles")}
+    pages = {titles.get(t, t) for t in used} - located
+    for t in sorted(pages):
+        r = raw.execute("select wikitext from pages where title = ?", (t,)).fetchone()
+        box = next(W.find_templates(r[0] or "", T_BOX), None) if r else None
+        if not box:
+            continue
+        links = W.links(W.split_params(box[3])[1].get("location", ""))[:-1] or W.links(W.split_params(box[3])[1].get("location", ""))
+        moved = MOVED.search(r[0] or "")
+        if moved and moved.group(1):
+            links += W.links(moved.group(1))
+        for ln, _ in links:
+            if ln and ln not in have and ln not in titles and len(ln) < 200:
+                have.add(ln)
+                want.append(ln)
     return want
 
 
@@ -51,6 +140,8 @@ def main():
     ap.add_argument("--db", default=F.DEFAULT_DB)
     ap.add_argument("--max-requests", type=int, default=None)
     ap.add_argument("--min-interval", type=float, default=1.0)
+    ap.add_argument("--db2-names", action="store_true", help="also try names from Blizzard tables (see the docstring)")
+    ap.add_argument("--dry-run", action="store_true", help="print the queue size and stop")
     a = ap.parse_args()
     signal.signal(signal.SIGINT, F._on_signal)
     signal.signal(signal.SIGTERM, F._on_signal)
@@ -60,8 +151,11 @@ def main():
     CREATE TABLE IF NOT EXISTS redirects(from_title TEXT PRIMARY KEY, to_title TEXT);
     """)
     parsed = sqlite3.connect(PARSED)
-    want = queue(raw, parsed)
+    want = queue(raw, parsed, db2_names() if a.db2_names else ())
     print(f"{len(want)} linked titles not cached -> {(len(want) + 49) // 50} requests", flush=True)
+    if a.dry_run:
+        print("\n".join(want[:40]))
+        return
     cli = F.Client(a.min_interval)
     stored = missing = 0
     for i in range(0, len(want), 50):

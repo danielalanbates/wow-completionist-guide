@@ -5,8 +5,11 @@ WoW stores an addon's SavedVariables **per client folder** (`_retail_/WTF`, `_cl
 finished in Classic" needs a merge outside the game.
 
 ## What syncs
-`CompletionRouteDB.chars[<Name-Realm>]` = one record per character on the account: `done[guide][step]`,
-`skipped`, `quests[questID]` (harvested from the client at login + every turn-in), plus name/class/faction/level.
+`CompletionRouteDB.chars[<Name-Realm>]` = one record per character on the account: `stepDone[guide][stepKey]`,
+`stepSkipped`, `stepMeta` (marks by stable step key and their migration record, [STEP_KEYS.md](STEP_KEYS.md)), the
+index-keyed `done[guide][step]` / `skipped` of earlier releases, `quests[questID]` (harvested from the client at login +
+every turn-in), plus name/class/faction/level. A client migrates index marks only for records of its own game type, so
+a record copied in from another client is never mapped onto this client's guides.
 `tools/sync_progress.lua` loads every flavor's file, **unions** those records (and the recorded road traces) and
 writes the merged `chars` back into each file. Idempotent. Backups: `<file>.presync.bak`.
 Then in any client: the guide browser shows `(CharacterName)` for wholly completed guides from every game, and

@@ -4,12 +4,26 @@
 subscription.
 
 ```
-luajit tools/vplayer.lua <era|tbc|mop|retail> [--limit N] [--shard i/n] [--type Leveling]
+luajit tools/vplayer.lua <era|tbc|mop|retail|forever> [--limit N] [--shard i/n] [--type Leveling]
                          [--guide ID] [--faction Horde] [--guidecap 20] [--out PATH] [--verbose]
-                         [--order author|baked] [--live on|off]
-# --order baked loads Data/RouteOrder_<fl>.lua (tools/optimize_routes.py); --live off disables the 12-step window
+                         [--order author|baked] [--route-order PATH] [--live on|off] [--who warrior|plan|gate]
+                         [--both-as Alliance|Horde] [--taxi model|all|band|learn] [--turnins]
+# --order baked loads Data/RouteOrder_<fl>.lua (tools/optimize_routes.py), or --route-order PATH; --live off disables
+# the live window; --who plan plays the character the bake plans for, --who gate a real character of its faction, class
+# and race (the bake gate); --both-as plays guides for both factions as that faction; --taxi learn: fly only into
+# discovered flight paths, starting each guide with none; --turnins: time QUEST_TURNED_IN; CR_TRACE=F writes one line
+# per visited step
 python3 tools/collect_vplayer.py       # -> docs/verification.sqlite
 ```
+
+## Replaying a beta bug report
+
+`luajit tools/vplayer.lua --repro <report id | latest | report.json> [--db PATH] [--check] [--show]` puts the
+virtual character where a `/cr bug` report says (flavor, guide, step progress, quest log, position, level,
+faction, flight paths, hearth, speed, options) and prints the route and the next steps next to what the client
+recorded, ending in `RESULT MATCH` or `RESULT DIFF` (current step, open steps, route legs, route time, arrow mode).
+`<flavor> --capture auto --capture-out r.json [--capture-done 6623]` makes a report in the fake world for the
+round-trip self-test. See [BETA_REPORTS.md](BETA_REPORTS.md).
 
 ## How it differs from the route sweep
 
@@ -18,11 +32,11 @@ moves.  The virtual player asks the question that actually matters — **would a
 guide?** — and answers it by running the real addon:
 
 1. `Progress.Load(id)` — the real loader, including access-chain prefixes and gold-guide circuits.
-2. For the current step: `Router.TravelSecondsFromPlayer(step)` (this is the real router, so a step
-   with no route is counted), then the player is teleported onto the step's coordinates.
+2. For the current step: the travel time by the cost model ("Cost model" below; the real router, so a step
+   with no route is counted), then the player is teleported onto the step's point.
 3. The step's action is performed **against the world, not against the addon**: an `A` puts its quest
-   in the log, a `C`/`K` finishes the objectives, a `T` flags the quest complete, a `B` fills the bags,
-   an `L` raises the level, `h`/`f` set the bind/taxi flags.
+   in the log, a `C`/`K`/`l`/`U` finishes its `|QO|` objective (the whole quest when it names none), a `T` flags
+   the quest complete, a `B` fills the bags, an `L` raises the level, `h`/`f` set the bind/taxi flags.
 4. `Progress.Refresh()` runs — the same auto-completion the client runs on `QUEST_LOG_UPDATE`.
 5. If the step ticked, that is an **auto** step.  If it did not, see below.
 
@@ -71,6 +85,51 @@ done
 ```
 
 Progress is flushed every 25 guides, so a long shard is watchable in `tail -f`.
+
+## Flight paths: `--taxi model|all|band|learn` (2026-11-10)
+
+The client now flies only into flight paths the character has discovered (docs/ROUTING.md). vplayer's default
+`--taxi model` is the bake's own rule (`CostModel.OFFLINE_TAXI`, faction-wide), so its numbers stay comparable with the
+bake and with earlier runs (`all` is the same rule by name; `band` is the experimental level-band rule). `--taxi learn`
+uses the client's rule: each guide (or a whole `--chain`) starts with no flight path known, on the character and on the
+account. A flight master is discovered when the route the player took flew from it, which means the player walked
+there, and when it is within 40 yd of the step the player is placed on (an `f` step's flight master, for example). The
+`DONE` line reports how many were discovered. vplayer still models no teleports (its character is a warrior with no
+toys) and no Hearthstone in the bags.
+
+## Cost model and the planning character (2026-11-10, branch cost-model)
+
+vplayer prices travel exactly as the bake does (`Routing/CostModel.lua`, docs/ROUTING.md "One cost model"), installed
+through `tools/cm_offline.lua`:
+
+* a leg runs from the point of the last step the cost model locates to the next one, at the speed of the planning level
+  of the step it leaves from (the guide's start level raised by every `|LVL|` up to that step), never with the
+  hearth (until 2026-11-10 it ran from wherever the player stood, at the warrior's level, and could hearth);
+* a step that rides along (no point, same zone) costs nothing and does not move the player; a zone-only step in a new
+  zone goes to the zone centre, an NPC step to the NPC's point from elsewhere in the guide;
+* a leg with no route costs `CostModel.NOROUTE` (1,800 s; it used to cost 0); an `H` step costs `CostModel.HEARTH`;
+* an objective step finishes only its own `|QO|` objective; the quest is complete once every numbered objective the
+  guide names is done. A second objective somewhere else is now walked to, as in the client.
+
+`--who plan` plays the character the bake plans for instead of the warrior (`CostModel.Persona`, docs/ROUTING.md "One
+cost model"): the guide's faction, or in a guide for both factions the faction at least half of the located steps are
+tagged for; then the class, race and profession at least half of the located steps it takes name. It takes exactly the
+steps that character takes, every prerequisite that no step it takes turns in counts as done before the guide, and every
+level gate is open. With `--live off` it walks exactly the order it is given, which is what `tools/test_cost_parity.lua`
+compares with the optimizer. `--who gate` (2026-11-11) is a real character for the bake gate: the planning character's
+faction, class and race (a Human or Orc warrior where it has none), the real condition rules and levelling.
+`--both-as Alliance|Horde` plays a guide for both factions as that faction (not with `--who plan`); the gate plays such
+guides both ways. `--route-order PATH` plays another RouteOrder file
+(the bake gate's own, a test bake). `--repro` and `--capture` still replay the client's own way (from the player's spot,
+hearth allowed).
+
+## Turn-in cost: `--turnins` (2026-11-10)
+
+vplayer used to complete turn-ins without the `QUEST_TURNED_IN` event, so the cost of what the addon does on that
+event was never measured. `--turnins` fires every registered handler at each turn-in, as the client does, and times them
+(the Progress refresh and live re-plan they start included). It also counts graph builds and router calls made while
+the handlers run, and prints a `TURNIN` line. Run it under `luajit -joff`, which is closer to the client's plain Lua 5.1;
+`CR_OVERRIDE` loads older copies of addon files for a before/after comparison (docs/ROUTING.md "What changes the graph").
 
 ## What it does not cover
 

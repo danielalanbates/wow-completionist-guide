@@ -1,0 +1,515 @@
+
+CompletionRouteDB = {
+	["bugReports"] = {
+		[1] = {
+			["addon"] = {
+				["toc"] = 20506,
+				["version"] = "test",
+			},
+			["arrow"] = {
+				["dist"] = 683.9,
+				["eta"] = 108.6,
+				["locSource"] = "guide",
+				["mode"] = "walk",
+				["text"] = "Go to Bounty on Murlocs",
+			},
+			["at"] = "2026-11-10 21:09:03",
+			["captureMs"] = 1,
+			["char"] = {
+				["canFly"] = false,
+				["class"] = "WARRIOR",
+				["dead"] = false,
+				["faction"] = "Alliance",
+				["flying"] = false,
+				["hardcore"] = false,
+				["level"] = 5,
+				["levelFrac"] = 5,
+				["mounted"] = false,
+				["race"] = "Human",
+				["speed"] = 7,
+			},
+			["client"] = {
+				["build"] = "2.5.6",
+				["buildDate"] = "2026",
+				["buildNum"] = "69110",
+				["dataFlavor"] = "tbc",
+				["flavor"] = "tbc",
+				["interface"] = 20506,
+				["isForever"] = false,
+				["locale"] = "enUS",
+			},
+			["epoch"] = 1794373743,
+			["guide"] = {
+				["authored"] = 7,
+				["baked"] = false,
+				["faction"] = "Alliance",
+				["id"] = "t:elwynn",
+				["maxlevel"] = 10,
+				["minlevel"] = 5,
+				["name"] = "Elwynn sample",
+				["parseErrors"] = 0,
+				["source"] = "test",
+				["steps"] = 7,
+				["sum"] = 1983946178,
+				["type"] = "Leveling",
+			},
+			["id"] = "tbc-20261110-210903-cb51",
+			["items"] = {
+				["6948"] = 1,
+			},
+			["lastError"] = {
+				["ageSeconds"] = 0,
+				["at"] = "2026-11-10 21:09:03",
+				["count"] = 2,
+				["msg"] = "Interface/AddOns/CompletionRoute/Core/Farm.lua:1: repeated",
+				["source"] = "hook",
+				["stack"] = "",
+				["version"] = "test",
+			},
+			["log"] = {
+				[1] = "21:09:03 [dbg] Roads: 23 polylines, 121 vertices", -- [1]
+				[2] = "21:09:03 [dbg] TravelGraph: 261 nodes (121 road), 12 transit entries unresolved", -- [2]
+				[3] = "21:09:03 [dbg] Roads: 23 polylines, 121 vertices", -- [3]
+				[4] = "21:09:03 [dbg] TravelGraph: 261 nodes (121 road), 12 transit entries unresolved", -- [4]
+				[5] = "21:09:03 Guide: Elwynn sample (7 steps, from test)", -- [5]
+				[6] = "21:09:03   <char>  Alliance WARRIOR lvl 5", -- [6]
+				[7] = "21:09:03 Scope: This server (<realm>)", -- [7]
+			},
+			["luaErrorCount"] = 7,
+			["note"] = "later note about <char>",
+			["objectives"] = {
+				["46"] = {
+					[1] = {
+						[1] = 3, -- [1]
+						[2] = 8, -- [2]
+						[3] = false, -- [3]
+					}, -- [1]
+				},
+			},
+			["options"] = {
+				["accountQuests"] = true,
+				["accountWide"] = false,
+				["arrow"] = true,
+				["arrowStyle"] = "hand",
+				["autoAdvance"] = true,
+				["beacon"] = true,
+				["circuitizeGold"] = true,
+				["debug"] = false,
+				["guideShown"] = false,
+				["routing"] = {
+					["baked"] = true,
+					["enabled"] = true,
+					["hearth"] = true,
+					["preferTaxi"] = false,
+					["recordRoads"] = true,
+					["reorder"] = true,
+					["roadFactor"] = 1,
+					["roads"] = true,
+					["runSpeed"] = 7,
+					["taxi"] = true,
+					["taxiPolicy"] = "faction",
+					["taxiSpeed"] = 32,
+					["terrainFactor"] = 1.25,
+					["transit"] = true,
+					["window"] = 24,
+					["window24"] = true,
+				},
+				["scope"] = "char",
+			},
+			["order"] = "3,4,6,7",
+			["plan"] = "3,4,6,7",
+			["player"] = {
+				["inInstance"] = false,
+				["inst"] = 0,
+				["instanceType"] = "none",
+				["map"] = 1429,
+				["mapName"] = "Elwynn Forest",
+				["subzone"] = "Goldshire",
+				["wx"] = -11300,
+				["wy"] = -1300,
+				["x"] = 40,
+				["y"] = 60,
+				["zoneText"] = "Elwynn Forest",
+			},
+			["progress"] = {
+				["done"] = "1,2,5",
+				["doneCount"] = 3,
+				["open"] = "3,4,6,7",
+				["pending"] = 4,
+				["reopened"] = "",
+				["scope"] = "char",
+				["skipped"] = "",
+				["skippedCount"] = 0,
+			},
+			["quests"] = {
+				["complete"] = "",
+				["done"] = "85",
+				["log"] = "46",
+				["named"] = 3,
+			},
+			["route"] = {
+				["desc"] = "Follow the road 684 yd to Destination (~1m 49s)",
+				["found"] = true,
+				["legs"] = {
+					[1] = {
+						["finst"] = 0,
+						["from"] = "You",
+						["fwx"] = -11300,
+						["fwy"] = -1300,
+						["mode"] = "walk",
+						["road"] = true,
+						["secs"] = 108.6,
+						["tinst"] = 0,
+						["to"] = "Destination",
+						["twx"] = -11939,
+						["twy"] = -1236,
+						["yards"] = 683.9,
+					}, -- [1]
+				},
+				["secs"] = 108.6,
+				["target"] = {
+					["inst"] = 0,
+					["wx"] = -11939,
+					["wy"] = -1236,
+				},
+			},
+			["schema"] = 1,
+			["sectionMs"] = {
+				["char"] = 0,
+				["client"] = 0,
+				["guide"] = 0,
+				["log"] = 0,
+				["options"] = 0,
+				["player"] = 0,
+				["progress"] = 0.1,
+				["route"] = 0.8,
+				["step"] = 0,
+				["travel"] = 0,
+				["upcoming"] = 0,
+			},
+			["step"] = {
+				["action"] = "C",
+				["coords"] = {
+					[1] = {
+						[1] = 38.4, -- [1]
+						[2] = 81.3, -- [2]
+					}, -- [1]
+					[2] = {
+						[1] = 39, -- [1]
+						[2] = 82, -- [2]
+					}, -- [2]
+				},
+				["index"] = 3,
+				["line"] = 3,
+				["locSource"] = "guide",
+				["pos"] = 3,
+				["qid"] = "46",
+				["raw"] = "C Bounty on Murlocs|QID|46|M|38.4,81.3;39.0,82.0|Z|1429; Elwynn Forest|",
+				["route"] = true,
+				["title"] = "Bounty on Murlocs",
+				["zone"] = 1429,
+				["zoneName"] = "Elwynn Forest",
+			},
+			["stepOrder"] = {
+				["baseCost"] = 338.08,
+				["bestCost"] = 327.73,
+				["changed"] = false,
+				["offRoute"] = true,
+				["partial"] = false,
+			},
+			["travel"] = {
+				["bindName"] = "Goldshire",
+				["built"] = true,
+				["graphNodes"] = 261,
+				["hasHearthstone"] = true,
+				["hearth"] = {
+					["inst"] = 0,
+					["name"] = "Goldshire",
+					["source"] = "seed",
+					["wx"] = -11474,
+					["wy"] = -1448,
+				},
+				["hearthCooldown"] = 0,
+				["hearthReady"] = true,
+				["knownTaxi"] = "2,4..6",
+				["knownTaxiCount"] = 4,
+				["roadNodes"] = 121,
+				["taxiPolicy"] = "faction",
+			},
+			["upcoming"] = {
+				[1] = {
+					["action"] = "C",
+					["index"] = 3,
+					["locSource"] = "guide",
+					["qid"] = "46",
+					["secs"] = 108.6,
+					["title"] = "Bounty on Murlocs",
+					["x"] = 38.4,
+					["y"] = 81.3,
+					["zone"] = 1429,
+				}, -- [1]
+				[2] = {
+					["action"] = "T",
+					["index"] = 4,
+					["locSource"] = "guide",
+					["qid"] = "46",
+					["secs"] = 86.6,
+					["title"] = "Bounty on Murlocs",
+					["x"] = 42.1,
+					["y"] = 65.9,
+					["zone"] = 1429,
+				}, -- [2]
+				[3] = {
+					["action"] = "A",
+					["index"] = 6,
+					["locSource"] = "guide",
+					["qid"] = "36",
+					["secs"] = 44.6,
+					["title"] = "Westfall Stew",
+					["x"] = 56,
+					["y"] = 31,
+					["zone"] = 1436,
+				}, -- [3]
+				[4] = {
+					["action"] = "C",
+					["index"] = 7,
+					["locSource"] = "guide",
+					["qid"] = "36",
+					["secs"] = 92.2,
+					["title"] = "Westfall Stew",
+					["x"] = 45,
+					["y"] = 40,
+					["zone"] = 1436,
+				}, -- [4]
+			},
+		}, -- [1]
+		[2] = {
+			["addon"] = {
+				["toc"] = 20506,
+				["version"] = "test",
+			},
+			["at"] = "2026-11-10 21:09:03",
+			["captureMs"] = 0.1,
+			["char"] = {
+				["canFly"] = false,
+				["class"] = "WARRIOR",
+				["dead"] = false,
+				["faction"] = "Alliance",
+				["flying"] = false,
+				["hardcore"] = false,
+				["level"] = 5,
+				["levelFrac"] = 5,
+				["mounted"] = false,
+				["race"] = "Human",
+				["speed"] = 7,
+			},
+			["client"] = {
+				["build"] = "2.5.6",
+				["buildDate"] = "2026",
+				["buildNum"] = "69110",
+				["dataFlavor"] = "tbc",
+				["flavor"] = "tbc",
+				["interface"] = 20506,
+				["isForever"] = false,
+				["locale"] = "enUS",
+			},
+			["epoch"] = 1794373743,
+			["id"] = "tbc-20261110-210903-bc59",
+			["lastError"] = {
+				["ageSeconds"] = 0,
+				["at"] = "2026-11-10 21:09:03",
+				["count"] = 2,
+				["msg"] = "Interface/AddOns/CompletionRoute/Core/Farm.lua:1: repeated",
+				["source"] = "hook",
+				["stack"] = "",
+				["version"] = "test",
+			},
+			["log"] = {
+				[1] = "21:09:03 [dbg] Roads: 23 polylines, 121 vertices", -- [1]
+				[2] = "21:09:03 [dbg] TravelGraph: 261 nodes (121 road), 12 transit entries unresolved", -- [2]
+				[3] = "21:09:03 [dbg] Roads: 23 polylines, 121 vertices", -- [3]
+				[4] = "21:09:03 [dbg] TravelGraph: 261 nodes (121 road), 12 transit entries unresolved", -- [4]
+				[5] = "21:09:03 Guide: Elwynn sample (7 steps, from test)", -- [5]
+				[6] = "21:09:03   <char>  Alliance WARRIOR lvl 5", -- [6]
+				[7] = "21:09:03 Scope: This server (<realm>)", -- [7]
+				[8] = "21:09:03 Bug report tbc-20261110-210903-cb51 saved (1 stored). It is written to disk at /reload or logout.", -- [8]
+				[9] = "21:09:03 1 bug report(s), newest first:", -- [9]
+				[10] = "21:09:03   tbc-20261110-210903-cb51  Elwynn sample step 3  \"later note about <char>\"", -- [10]
+				[11] = "21:09:03 Bug report tbc-20261110-210903-b2e7 saved (2 stored). It is written to disk at /reload or logout.", -- [11]
+				[12] = "21:09:03 Guide: Gated sample (6 steps, from test)", -- [12]
+				[13] = "21:09:03 Guide: Elwynn sample (7 steps, from test)", -- [13]
+				[14] = "21:09:03 Scope: Al only", -- [14]
+			},
+			["luaErrorCount"] = 7,
+			["options"] = {
+				["accountQuests"] = true,
+				["accountWide"] = false,
+				["arrow"] = true,
+				["arrowStyle"] = "hand",
+				["autoAdvance"] = true,
+				["beacon"] = true,
+				["circuitizeGold"] = true,
+				["debug"] = false,
+				["guideShown"] = false,
+				["routing"] = {
+					["baked"] = true,
+					["enabled"] = true,
+					["hearth"] = true,
+					["preferTaxi"] = false,
+					["recordRoads"] = true,
+					["reorder"] = true,
+					["roadFactor"] = 1,
+					["roads"] = true,
+					["runSpeed"] = 7,
+					["taxi"] = true,
+					["taxiPolicy"] = "faction",
+					["taxiSpeed"] = 32,
+					["terrainFactor"] = 1.25,
+					["transit"] = true,
+					["window"] = 24,
+					["window24"] = true,
+				},
+				["scope"] = "char",
+			},
+			["order"] = "",
+			["player"] = {
+				["inInstance"] = false,
+				["inst"] = 0,
+				["instanceType"] = "none",
+				["map"] = 1429,
+				["mapName"] = "Elwynn Forest",
+				["subzone"] = "Goldshire",
+				["wx"] = -11300,
+				["wy"] = -1300,
+				["x"] = 40,
+				["y"] = 60,
+				["zoneText"] = "Elwynn Forest",
+			},
+			["schema"] = 1,
+			["sectionMs"] = {
+				["char"] = 0,
+				["client"] = 0,
+				["guide"] = 0,
+				["log"] = 0,
+				["options"] = 0,
+				["player"] = 0,
+				["progress"] = 0,
+				["route"] = 0,
+				["step"] = 0,
+				["travel"] = 0,
+				["upcoming"] = 0,
+			},
+			["travel"] = {
+				["bindName"] = "Goldshire",
+				["built"] = true,
+				["graphNodes"] = 261,
+				["hasHearthstone"] = true,
+				["hearth"] = {
+					["inst"] = 0,
+					["name"] = "Goldshire",
+					["source"] = "seed",
+					["wx"] = -11474,
+					["wy"] = -1448,
+				},
+				["hearthCooldown"] = 0,
+				["hearthReady"] = true,
+				["knownTaxi"] = "2,4..6",
+				["knownTaxiCount"] = 4,
+				["roadNodes"] = 121,
+				["taxiPolicy"] = "faction",
+			},
+			["upcoming"] = {
+			},
+		}, -- [2]
+	},
+	["chars"] = {
+		["Zorbulon-Quelthar"] = {
+			["done"] = {
+			},
+			["level"] = 5,
+		},
+	},
+	["knownTaxi"] = {
+	},
+	["lastError"] = {
+		["at"] = "2026-11-10 21:09:03",
+		["count"] = 2,
+		["epoch"] = 1794373743,
+		["flavor"] = "tbc",
+		["msg"] = "Interface/AddOns/CompletionRoute/Core/Farm.lua:1: repeated",
+		["stack"] = "",
+		["version"] = "test",
+	},
+	["profile"] = {
+		["accountQuests"] = true,
+		["accountWide"] = false,
+		["arrow"] = {
+			["alpha"] = 1,
+			["enabled"] = true,
+			["lock"] = false,
+			["point"] = "TOP",
+			["scale"] = 1,
+			["style"] = "hand",
+			["x"] = 0,
+			["y"] = -180,
+		},
+		["autoAccept"] = false,
+		["autoAdvance"] = true,
+		["autoTurnin"] = false,
+		["beacon"] = {
+			["bounce"] = true,
+			["enabled"] = true,
+			["highlightTaxi"] = true,
+			["icon"] = "action",
+			["pins"] = true,
+			["scale"] = 1,
+			["targetButton"] = true,
+		},
+		["debug"] = false,
+		["farm"] = {
+			["autoImport"] = true,
+			["circuitizeGold"] = true,
+			["radius"] = 40,
+			["record"] = true,
+			["recordUnknown"] = false,
+			["seeds"] = true,
+		},
+		["frame"] = {
+			["alpha"] = 0.95,
+			["height"] = 300,
+			["lock"] = false,
+			["point"] = "CENTER",
+			["scale"] = 1,
+			["showSteps"] = 6,
+			["width"] = 320,
+			["x"] = 0,
+			["y"] = 0,
+		},
+		["guideList"] = {
+			["groupByLevel"] = false,
+			["onlyLevel"] = false,
+		},
+		["minimapButton"] = true,
+		["routing"] = {
+			["baked"] = true,
+			["enabled"] = true,
+			["hearth"] = true,
+			["preferTaxi"] = false,
+			["recordRoads"] = true,
+			["reorder"] = true,
+			["roadFactor"] = 1,
+			["roads"] = true,
+			["runSpeed"] = 7,
+			["taxi"] = true,
+			["taxiPolicy"] = "faction",
+			["taxiSpeed"] = 32,
+			["terrainFactor"] = 1.25,
+			["transit"] = true,
+			["window"] = 24,
+			["window24"] = true,
+		},
+		["scope"] = "char",
+	},
+	["roadTrace"] = {
+	},
+}

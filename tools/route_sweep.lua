@@ -39,7 +39,7 @@ local function load(path)
     local fn = assert(loadfile("CompletionRoute/" .. path)) fn(ADDON, NS)
 end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua",
-    "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
+    "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
     "Core/Account.lua", "Core/Progress.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua", "Adapters/WoWPro.lua",
     ("Guides/Imported_WoWPro_" .. flavor .. ".lua"),
     -- quest guides exactly as the flavor TOC loads them: wiki guides + the older generated guides' gaps
@@ -47,6 +47,7 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
 NS.db.profile.debug = false
+NS.db.profile.routing.taxiPolicy = "faction"   -- every flight master of the faction, as before (the client default is "known")
 NS.Print = function() end   -- silence chat
 pcall(NS.Adapters.WoWPro.ImportStatic)
 NS.TravelGraph.Build()
@@ -116,6 +117,11 @@ for _, id in ipairs(G.list) do
         NS.player.faction = FACTION
         LEVEL = math.max(1, tonumber(g.minlevel) or 1)
         NS.db.char.done, NS.db.char.skipped, NS.db.char.guide = {}, {}, nil
+        NS.db.char.stepDone, NS.db.char.stepSkipped, NS.db.char.stepReopened = {}, {}, {}
+        if NS.Account and NS.Account.me then   -- marks by step key (Core/Account.lua)
+            NS.Account.me.done, NS.Account.me.skipped = NS.db.char.done, NS.db.char.skipped
+            NS.Account.me.stepDone, NS.Account.me.stepSkipped, NS.Account.me.stepMeta = {}, {}, {}
+        end
         -- place the player at the centre of the guide's zone (first located step's zone if the guide has none)
         local zone = g.zone
         if not zone then for _, s in ipairs(steps) do if s.zone then zone = s.zone break end end end

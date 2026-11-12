@@ -1,3 +1,627 @@
+# Status / handoff (2026-11-11 evening: everything merged into `integration`, data regenerated, rebake running)
+
+## 2026-11-11 evening: one tree, regenerated data, pre-merge review
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `integration` (in `repo/`), not pushed.
+
+* **Merged:** `coverage-ach` and `coverage-prof` (their sections are below) on top of the nine feature branches. The
+  generator conflicts (`tools/wiki/gen_wiki_guides.py`, `fetch_titles.py`) keep both sides' rules. One bug only showed
+  with both together: item pages that name each other as sources made `entity_maps` recurse for ever (fixed).
+* **Data regenerated in `repo/`** with the merged generators (wiki caches of both worktrees merged, no refetch beyond 4
+  requests): wiki guides, spine, professions, gold, achievements, quest lines, missions, quest prerequisites. The old
+  `Imported_Storylines_retail.lua` is in `~/Downloads/CompletionistGuide-work/archive/storylines-2026-11-11/`.
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Quest guides (all guides) | 139 (184) | 183 (243) | 335 (476) | 811 (1,277) | 146 (193) |
+| Quests covered, of the client's | 3,565 / 4,807 | 5,845 / 6,160 | 16,562 / 17,140 | 34,266 / 66,552 | 3,752 / 6,616 |
+| Covered quests with a located step | 97.8% | 95.7% | 91.2% | 85.1% | 97.4% |
+| Achievements located (point or zone) | - | - | 84.8% | 82.8% | - |
+| Item-started quests with a located accept | 113 / 269 | 194 / 213 | 330 / 418 | 1,062 / 1,458 | 123 / 456 |
+
+  (dev build = what the TOCs load on this Mac, label `integration-2026-11-11` in `docs/verification.sqlite`. The
+  release-only shares are lower; see the two coverage sections below.)
+* **Tests on the regenerated data:** every harness passes (18 Lua harnesses, `validate_toc`, `test_package.py`, the
+  ingest and bake-gate unit tests) except:
+  * `test_route_order`: red by design until the rebake below ends (checksum v2 made every old row stale).
+  * `test_skip`, 1 of 332: `forever wiki:forever:1423:Alliance (drop 5246)`, "an accepted re-plan beats the margin".
+    The re-planner prices the route before its re-plan at 4,163 s and the test at 3,360 s; both price the new route at
+    3,301 s, so the route is not slower, but by the test's measure the gain (58 s) is under the 208 s margin.
+    **Open:** find which leg the two price differently (`Routing/Replan.lua routeCost` against `tools/test_skip.lua
+    routeCost`).
+* **Pre-merge review of the merged tree.** Three lenses were started; a usage limit cut two of them off three times.
+  * *Real-client API lens: finished.* Its findings are fixed in commit `529bc89`: the arrow frame is protected (its
+    secure buttons make it so) and was shown/hidden in combat, which both the Forever and the MoP client had already
+    recorded as `ADDON_ACTION_BLOCKED`; Retail 12.x secret values (cooldowns, NPC names and GUIDs, unit speed) were
+    compared as plain numbers; the Retail TOC listed interface numbers that do not exist (now 120105); the item
+    tooltip line never fired on TBC Anniversary and MoP Classic; the main options page ran off the Settings window.
+    It also confirmed: every event registration is pcall-guarded, every global the addon reads exists or is guarded on
+    all five clients, no protected function is called by addon code.
+  * *Plain Lua 5.1 lens: cut off, but its runs were kept.* Under a real PUC Lua 5.1.5 (the client's interpreter) every
+    harness passed on `integration` at `2a40df8`, including the coroutine re-planner. Measured cost under 5.1: the guide
+    list's completion scan took 30-60 ms a frame (p95 127 ms MoP, 211 ms Retail; one Retail achievement guide of
+    102,672 steps took 1.4 s). Fixed: the scan has a 4 ms per-frame budget, and the regenerated Retail achievement file
+    is 6.6 MB instead of 17 MB. **Not re-measured after the fix.** Live window refresh 3-6 ms, login work under 100 ms.
+    The Lua 5.1 binary and scripts are session scratch (not kept).
+  * *Saved-progress and cross-feature lens: not done.* Still worth doing: upgrade from the previous beta's saved
+    variables, a second character, a second client through the sync, a regenerated guide between sessions.
+* **Not verified in a client and most likely to need a beta report:** the arrow's combat behaviour (it now stays as it
+  is during a fight and updates after), teleport buttons, auto accept / turn-in, the scrolling options page.
+* **Rebake:** started 17:08 with the gate on, 2,618 quest guides (tbc 352, forever 243, era 236, mop 769, retail
+  1,018). Until it ends every guide plays in author order with the live window.
+
+
+## 2026-11-11: Coverage push A: achievements, item-started quests, storylines (`coverage-ach`)
+
+Offline only. **Nothing here has run in a real WoW client.** Not merged, not installed. Sources: Warcraft Wiki and
+Blizzard client tables only; no Questie, WoW-Pro or other data was used to build anything (Questie-derived local files
+were read only by `coverage.py` to measure the TOC set below).
+
+**Review fixes (same day).** An independent review found that the first pass placed many steps at the wrong spot:
+topic pages (Tailoring, Abundance, Noblegarden, Cataclysm) and zone pages' "geography" rows (the Silithus page's
+road to Un'Goro, the Hellfire Peninsula page's Exodar portal) used as points; glyphs at area-overlay centres (median
+539 yd off) or inside dungeons; same-name NPCs elsewhere (Fiona in Boralus); "Dalaran" on uiMap 41 (Deadwind Pass);
+Midnight content on the old Eversong Woods / Silvermoon maps; no source on wiki-derived rows. All fixed, numbers
+re-measured below. The first pass reported retail 83.4% / mop 85.9%; those numbers counted the wrong places.
+
+Two measurements, both in `docs/verification.sqlite` (`coverage`, `coverage_ach_types`, `item_quests`):
+**ship** = what a release loads (`coverage.py --shippable` on real `gen_wiki_guides.py --no-fallback` builds; labels
+`cov-before-ship-nf` (old code), `cov-fix-ship` (this branch)), **TOC** = what the TOCs load on Daniel's machine
+(fallback points, gaps guides, WoW-Pro; labels `cov-before`, `cov-fix`). `cov-after*` are the first pass.
+
+| | before (ship) | after (ship) | before (TOC) | after (TOC) |
+|---|---:|---:|---:|---:|
+| retail achievements located | 42.0% | **82.6%** | 43.1% | 82.7% |
+| mop achievements located | 68.8% | **84.8%** | 68.4% | 84.8% |
+| retail storylines covered / every quest has a point | 1,251 / 505 of 1,653 | 1,653 / 1,492 | 1,652 / 1,527 | 1,653 / 1,526 |
+| retail storyline quests with a point | 11,024 of 17,991 | 17,246 | 17,299 | 17,298 |
+| item-started quests, accept step point + zone-only: era | 21 + 0 of 269 | 32 + 28 | 74 + 2 | 73 + 3 |
+| tbc | 37 + 0 of 213 | 68 + 75 | 132 + 0 | 134 + 28 |
+| mop | 54 + 0 of 418 | 95 + 95 | 244 + 0 | 251 + 8 |
+| retail | 195 + 0 of 1,458 | 293 + 335 | 498 + 7 | 542 + 212 |
+| forever | 22 + 0 of 456 | 32 + 29 | 74 + 2 | 73 + 4 |
+
+* **The metric** (the plan's 80% target): achievements with a point or a zone-only step / (achievements minus
+  non-geographic ones). Internal rows (title or description marked DNT, `<DND>`, `<Hidden>`, Hidden Tracking, "char
+  specific hidden copy") are left out of the guides and of both universes: retail 813, mop 17. Retail ship: point
+  1,184 → 2,856, zone-only 2,378 → 4,200, non-geographic 2,725 → 2,665, neither 4,924 → 1,490 (of 11,211). mop: 315 →
+  350, 1,059 → 1,353, 1,091 → 1,081, 624 → 305 (of 3,089). `status_report.py` shows it (`--label`).
+* **Retail reaches 80% only with the achievement wiki-page source: 76.3% without it (mop 81.2%).** That source now
+  takes only links the title or description names, never a topic page, a zone's page only as that zone, and a point
+  only inside the achievement's zone. Two random samples of 40 of its picks after the fixes found 2 wrong:
+  "Traversing the Spheres" (Korthia for Zereth Mortis; fixed) and "Treasure Hunter" (zone-only Tanaan Jungle, which
+  its description excludes; not fixed). Retail: 113 point + 424 zone-only achievements rest on it; mop 19 + 54. A
+  sample of 32 name-matched criterion points found 1 doubtful (Malfurion in Firelands for "Fireside Chat"; now
+  zone-only Molten Front), against about 10 in the first pass.
+* **Achievements** (`tools/gen_completion_guides.py`). Criteria located by Blizzard `Criteria.Type`, ship, point /
+  zone / none, before → after:
+
+  | type | retail | mop |
+  |---|---|---|
+  | 27 complete quest | 2,952/1,934/4,550 → 3,673/1,663/4,100 | 571/188/858 → 566/386/665 |
+  | 0 kill creature | 902/2,971/1,026 → 891/2,964/1,044 | 237/1,401/179 → 238/1,422/157 |
+  | 43 explore area | 275/1,463/52 → **1,754**/36/0 | 170/911/21 → **1,102**/0/0 |
+  | 165 dungeon encounter | 31/1,597/439 → 18/2,046/3 | (none) |
+  | 71 complete instance | 0/4/67 → 0/71/0 | 4/81/32 → 0/117/0 |
+  | 216 dungeon (by name) | 34/59/688 → 62/601/118 | (none) |
+  | 158 pet tamer | 775/478/546 → 757/663/379 | 51/2/351 → 51/187/166 |
+  | 73 scripted event (delves) | 126/4/467 → 260/134/203 | 0/4/1 → 0/4/1 |
+  | 36 own item | 12/0/1,163 → 191/301/683 | 0/0/781 → 97/220/464 |
+  | 42 loot item | 6/0/314 → 39/157/124 | 0/0/148 → 23/95/30 |
+  | 68 use object | 130/1/236 → 164/12/191 | 70/1/108 → 93/1/85 |
+  | 28 spell target | 52/401/906 → 62/461/836 | 19/279/239 → 25/313/199 |
+  | all criteria | 5,411/9,496/21,077 → 7,976/9,870/18,090 | 1,182/3,203/7,672 → 2,234/3,243/6,532 |
+
+  Sources: explore = centre of the Blizzard `WorldMapOverlay` hit rectangle (checked against the wiki on Elwynn
+  Forest: Northshire Valley 50.4,42.5 vs the wiki's 50.2,42.2); quest = wiki point, else Blizzard `QuestPOI` turn-in pin
+  (retail; MoP Classic's QuestPOI has no quest rows), else wiki zone; encounter / instance = `DungeonEncounter.MapID` /
+  `Map` → the instance map (zone-only); kill / object / item / NPC-named = wiki NPC, object and item pages; a criterion
+  named after a map, or after an area a Blizzard overlay covers alone (`AreaTable` + `WorldMapOverlay`); meta parts
+  take their part achievement's one zone. **Rules added by the review:** a zone's wiki page gives only that zone; a
+  topic page (every `{{co}}` in a body section) gives nothing; a name-matched page's point must lie in the
+  achievement's zone (instance, explore or quests-in zone, else the one zone or orphan map its description or title
+  names) and not on a later expansion's map than its category names, else the step is that zone only (Fiona →
+  Eastern Plaguelands, Malfurion → Molten Front, Rokhan → Orgrimmar); names that exist twice resolve for the
+  achievement's expansion (category words, else the nearest category-named achievement ids, raised to the latest zone
+  its text names): Midnight's Eversong Woods / Silvermoon (0 Midnight steps left on maps 94/110, was 137), Legion's
+  Dalaran (0 steps on uiMap 41, was 248), Draenor's Shadowmoon Valley; a quest's wiki point on an old copy of a remade
+  map gives way to Blizzard's pin. Achievement-level when no criterion has a place, retail ship: glyph wiki lists 70
+  points (new table `glyph_points`, 74 glyphs from "Dragon Glyph" and the Dragon Isles "Glyph Hunter" pages; the
+  checked 69 lie 0 yd from the wiki's own point, were median 539 yd), single-area overlay centres 13, race courses
+  1,395 + 99 zone, the wiki page 113 + 424 zone, a named zone 311, the meta's zone 34 (TWW / Midnight glyphs have no
+  wiki coordinates). "Name: <place>" never picks a dungeon for a glyph (10 were sent into instances); a zone-type copy
+  of a continent ("Dragon Isles" 2063) is no zone. **Every located step names its source** ("(wiki: <page>)",
+  "(Blizzard WorldMapOverlay 941)", "(zone only; Blizzard Map 1004)"). Retail achievements file 5.8 → 6.6 MB.
+* **Non-geographic, marked `|NOGEO|reason|`**: feats, PvP, reputation, guild, character, collections,
+  battlegrounds/arenas, and achievements whose criteria are only counters (level, skill, quests done, dailies,
+  currency, titles, bank slots, reputation, archaeology finds, spells learned, ratings, recipes, pets collected or
+  levelled, missions done). Still unlocated (ship): retail 1,490, mop 305: mostly cast-spell (type 29), quest criteria
+  whose quest has no wiki page or pin, NPC names the wiki titles differently, Cup races without a course row, metas
+  whose parts span zones, and TWW / Midnight glyphs with no wiki point and no single-area overlay.
+* **Item-started quests** (`tools/wiki/gen_wiki_guides.py`): the universe is Blizzard `ItemSparse.StartQuestID` in each
+  client's QuestV2. The accept goes where the item is obtained (the item page's own coords, else a drop/source page's
+  point, else the source zone as zone-only), names the page its point came from, and carries `|U|<item>|`. The arrow
+  switches to "Use <item>" only when the item is in the bags **and** the player is within 40 yd of the step's point
+  (or the step has no location; `Routing/Router.lua`), so an item looted far from the step's point keeps the arrow on
+  travel. **Review fixes:** a zone's page never gives a point (ship steps at a zone page's out-of-zone point: era, tbc,
+  mop, forever 0, retail 4, all from other pages that share the spot; first pass 77, 136, 127, 286, 76; integration
+  23, 23, 5, 172, 22; retail achievements 19 coincidences, was 113; quest lines 5, was 167), a topic page reached as a
+  source gives none; zone sources give zone-only accepts (Salt of Shards: Silithus, was Un'Goro). In the TOC
+  (fallback) build, an item page's point gives way to the client's own point when they are over 300 yd apart or on
+  another continent: retail steps whose fallback point a wiki point replaced, against integration, C 678 (median
+  270 yd, 317 over 300 yd, 79 on another continent) → 345 (median 74 yd, 0 over 300 yd), A 65 → 14, T 15 → 4, none
+  over 300 yd. Checking item points against the quest's own zone was tried and dropped: many of a sample of 32
+  such points were right (Frozen Ectoplasm from Winterspring for a Tanaris quest). Item pages parsed 15,725 → 25,904. Still not covered (ship): era 33 /
+  tbc 8 / mop 14 / retail 66 / forever 233 quests with no wiki quest page, plus membership exclusions (Season of
+  Discovery: era 109, forever 85; Classic only, removed). Covered but no location (ship): era 66, tbc 48, mop 115,
+  retail 620, forever 76 (no item page, or sources with no point or zone).
+* **Storylines** are now `Guides/Imported_QuestLines_retail.lua` (the retail TOC loads it; `story:retail:<id>` ids kept,
+  so marks stay): Blizzard QuestLine order, each quest's wiki steps (fallback points dropped), Blizzard QuestPOI pins for
+  steps the wiki leaves without one (ship: 23,991 steps), the quest's map as a zone-only accept where nothing else exists
+  (ship: 7,618), and "Quest <id>" steps for the 2,345 quests without a wiki page (1,551 with a pin, 794 with no location).
+  No Questie data, so no faction or level gates on wiki-less quests (they show for both factions). The file depends on
+  the wiki build it reads: made from the default (fallback) build it has other steps (in this build 1,155 step keys only
+  there) and its header says so, naming the Questie-derived source, so `package_release.py` refuses it; the same holds
+  for the achievement files. A release regenerates both after `gen_wiki_guides.py --no-fallback`. File size 9.0 MB (old
+  storylines file 6.1 MB).
+* **Side effects.** `wikimaps.py` is coverage-prof's version (Dalaran by expansion), taken verbatim so both branches
+  merge cleanly there. Regenerating the wiki guides changes a few guide splits, so baked orders go stale (see HANDOFF
+  phase 5: after the merge `test_route_order.lua` lists 5 mop and 34 retail RouteOrder rows naming no guide until the
+  rebake). `gen_wiki_guides.py`'s spine split is not byte-stable between two runs (pre-existing). Found, not fixed
+  (pre-existing, in `gen_wiki_guides.py`'s NPC row choice): a quest's NPC point can come from another expansion's row
+  of the NPC page (Midnight quests at Lor'themar's old Silvermoon spot, BfA micro-hub quests at Halford Wyrmbane's
+  Dragonblight spot); the achievement file now skips such quest points on old map copies, the wiki guides keep them.
+* **Tests.** All 18 `tools/test_*.lua` (`luajit -joff`; new `test_completion.lua`: the place rules on synthetic rows via
+  `gen_completion_guides.py --selfcheck`, and the reviewed defects in the generated files; it fails 12 checks on the
+  first-pass files), `validate_toc.lua`, `test_package.py` (2 more checks: achievement and quest-line files made from
+  the fallback wiki build fail `interop-derived`) and the ingest unit tests pass. vplayer sample (author order,
+  `--guidecap 20`, TOC build): retail 12 storyline + 6 achievement guides, mop 8 achievement + 8 wiki guides with item
+  quests, era/tbc/forever 10 wiki guides with item quests each: 0 stalls; 56 of 64 finished, the other 8 are big
+  achievement category guides stopped by vplayer's per-guide time cap. no_route steps there are travel-graph gaps
+  (Voidstorm and Harandar have no edges) and instance doors.
+* **Open:** a client check of zone-only and "Use <item>" accepts, the storyline guides and achievement criteria ticks;
+  the unlocated rows above; TWW / Midnight glyph points; the Pandaria Cup; Forever-only item quests (no wiki pages);
+  the NPC row choice above.
+
+## 2026-11-11: Coverage workstream B: professions, routes, coordinates, release-ready points (`coverage-prof`)
+
+Offline only. **Nothing here has run in a real WoW client.** Committed on `coverage-prof` (from `integration`), not
+merged, not installed. Generated data was rebuilt only in this worktree; the main checkout needs the generators re-run
+(docs/HANDOFF.md section 5, Phase 5). Every new data row names its source (wiki page or DB2 table).
+
+* **Retail Cooking tiers** (`tools/wiki/gen_professions.py`, [PROFESSIONS.md](PROFESSIONS.md)). Cause: with no orange
+  value in the wiki's recipe box the learn skill fell back to the yellow threshold, so no recipe was usable at skill 1
+  and 7 of 12 tiers had no trainer. Now the client's own value comes first (ItemSparse `RequiredSkillRank` of the
+  recipe item the wiki names; `MinSkillLineRank` for a recipe the client teaches by itself), then the wiki box, then the
+  recipe page's opening sentence; a recipe the wiki gives no source for but whose recipe item the client has is a buy
+  step; rows for one class only are skipped; tiers the trainer table leaves empty take trainers from
+  `Category:<prof> trainers` (Npcbox point, or the page of the building they stand in). `tools/prof_tiers.py` prints
+  the table (`prof_tier_runs`, labels `before-2026-11-11` / `after-2026-11-11`). Retail, reached / cap, trainers:
+
+  | Tier | Before | After |
+  |---|---|---|
+  | Outland Cooking | no guide | 75 / 75, 4 |
+  | Northrend Cooking | 73 / 75, 4 | 75 / 75, 4 |
+  | Cataclysm Cooking | 36 / 75, 0 | 75 / 75, 0 |
+  | Pandaria Cooking | 22 / 75, 3 | 75 / 75, 3 |
+  | Shadowlands Cooking | no guide | 75 / 175, 1 (the client's recipes stop at grey 75; the wiki table says 175) |
+  | Kul Tiran / Dragon Isles / Khaz Algar / Midnight Cooking | full, 0 trainers each | full, 3 / 1 / 3 / 1 |
+  | Khaz Algar / Midnight Fishing | full, 0 trainers | full, 5 / 5 |
+  | Legion, Draenor Cooking; Cataclysm Fishing | full, 0 trainers | unchanged (no located trainer page; Cataclysm has no landmass) |
+
+  Every other profession x tier on all five clients already reached its cap and still does (era/tbc/forever 300/375,
+  mop 600, Archaeology 600/950). Their plans changed: recipes the client teaches automatically now count from skill 1
+  (era Cooking opens with Charred Wolf Meat), and MoP's Death-Knight-only bandage rows are no longer planned.
+* **no_route** (`Data/Transit.lua`, `Data/Access.lua`, cited from the wiki). vplayer on the guides that had routable
+  no_route rows in the Nov 7 sweep (mop 19, retail 39 guide parts; same guide build before and after, so only the
+  data fix differs): **mop 14 -> 6, retail 57 -> 47** routable (all classes: mop 38 -> 27, retail 116 -> 102; tables
+  `noroute_rerun` / `noroute_steps`, labels `routable-before/after-2026-11-11`). The Nov 7 figures were 27 / 62 on
+  older guides. Causes and fixes: MoP Classic had no way into Pandaria and no Isle of Thunder chain (new mop-only access
+  chains from the quest pages and the "Isle of Thunder" portal camps); no Maelstrom edges (Earthshrine portals to
+  Thrall, Aggra's wyvern into Deepholm); no way out of K'aresh (Tazavesh portal to Dornogal). Left: Tol Barad on MoP
+  Classic is its own instance (2755) and the wiki gives no point for the Blackstone Span (6 rows); retail Midnight
+  (Voidstorm, Slayer's Rise, Naigtal, Val, Ritual Site, the Midnight Isle of Quel'Danas), Argus, the 10.0.7 Forbidden
+  Reach and the player-housing zones have no cited exit; one Ashran and one Underrot row.
+* **Blasted Lands offset: root cause found.** The transforms are right (the Nethergarde Keep flight master's wiki point
+  lands on the Blizzard TaxiNodes position on both maps; regression check in `wikimaps.py`). Patch 4.0.3 redrew the
+  map (it now reaches further south), and several pages still carry numbers measured on the Classic map with no
+  "(Classic)" tag (Daio the Decrepit 34,50; Kum'isha 52,36), so they were converted as retail numbers and moved
+  ~5.5 units. New `tools/wiki/fetch_coord_history.py` reads each page's last revision before 4.0.3 (87 pages, cached):
+  a coordinate already there number for number is a Classic-map number (24 in Blasted Lands). Median error of the
+  16 era Blasted Lands A/T steps against the local reference (measurement only): **5.54 -> 0.27** map units. What is
+  left there are NPCs that moved at the Cataclysm (Quartermaster Lungertz: the wiki has no pre-4.0.3 point).
+  Also fixed: "Dalaran" resolved to map 41, a micro map in Deadwind Pass (485 retail wiki steps; Classic drop
+  sources too); now the Northrend city, or the Broken Isles one for "Dalaran (Broken Isles)" or a Legion-on page.
+* **Release-ready wiki points** (`gen_wiki_guides.py --no-fallback`, the shipped build). Steps with a point,
+  before -> after (same inputs; `wiki_point_sources`):
+
+  | Client | Before | After: wiki + client quest POI + wiki place page | Zone-level | None |
+  |---|---|---|---|---|
+  | era | 3,881 / 9,644 (40.2%) | 4,829 (50.1%): 3,879 + 0 + 950 | 3,113 | 1,702 |
+  | tbc | 6,262 / 14,796 (42.3%) | 7,849 (53.0%): 6,260 + 0 + 1,589 | 5,561 | 1,386 |
+  | mop | 15,369 / 32,004 (48.0%) | 18,096 (56.5%): 15,369 + 0 + 2,727 | 11,525 | 2,383 |
+  | retail | 35,120 / 87,580 (40.1%) | 62,081 (70.9%): 35,122 + 23,989 + 2,970 | 18,569 | 6,930 |
+  | forever | 4,210 / 10,177 (41.4%) | 5,175 (50.9%): 4,208 + 0 + 967 | 3,252 | 1,750 |
+
+  Steps that lose their point under `--no-fallback` (dev-build points minus release-build points, before): era 4,727,
+  tbc 7,280, mop 15,026, retail 27,847, forever 4,731; recovered with a point: era 948, tbc 1,587, mop 2,727, retail
+  26,961, forever 965; most of the rest now name the quest's zone. Shippable quest coverage (`coverage.py --guides` on
+  the shipped files only, labels `ship_before` / `ship_after-2026-11-11`), quests with a located step: era 2,115 ->
+  2,470, tbc 3,353 -> 3,920, mop 7,775 -> 8,639, retail 18,130 -> 23,375, forever 2,274 -> 2,640. Sources: retail
+  `QuestPOIBlob`/`QuestPOIPoint` read directly (turn-in area for T, objective area for C, A only when the wiki names
+  the same NPC as giver and ender); the wiki page of the place an NPC page names when it has no point itself
+  (`fetch_titles.py` fetched 2,627 such pages); otherwise the quest's zone (`|Z|` only, honest note). Place-page
+  points against the local reference (measurement only; release build; era 203, tbc 322, mop 590 steps compared):
+  median 81 / 76 / 71 yd, p90 673 / 287 / 443 yd; 54-61% within 100 yd. Retail was not measured usefully (its
+  reference is itself a quest pin). The Classic clients have no quest pins.
+* **Packager dry run** (release build per RELEASE.md steps 1-2 in this worktree): **gate FAIL, 5 problems, all
+  `RouteOrder_<fl>.lua` rows that order Questie-derived `_gaps` guides** (era 56, tbc 101, mop 217, retail 159,
+  forever 55; plus stale-row notes). The wiki fallback lines, the old achievements/missions header and the local
+  QuestDeps build no longer fail. A rebake over the shipped guides only (RELEASE.md step 3) is still needed.
+* **Dev build** (fallback): quests with a located step, `coverage.py` label `dev-after-2026-11-11` against `ach-after`:
+  era 3,486 -> 3,488, tbc 5,593 -> 5,596, mop 15,093 -> 15,099, retail 28,730 -> 29,194, forever 3,646 -> 3,659.
+* **Tests.** New checks in `test_professions.lua` (tier reach and trainers; fails on the old retail file with 13
+  failures), `test_wiki.lua` (zone-level / place / POI tags, no wiki point on map 41, Blasted Lands accepts),
+  `wikimaps.py` (TaxiNodes calibration, Classic marks, Dalaran), `test_access.lua` (entries checked only on their
+  clients, plus a MoP pass). Full run on 2026-11-11 with the dev build in place (`luajit -joff`): all 17
+  `tools/test_*.lua` and `validate_toc.lua` pass (`test_skip.lua` 332/332, `test_quest_auto.lua` 1,272/1,272),
+  `tools/test_package.py` passes, `test_ingest_beta_reports.py` 5/5.
+* **Open:** nothing in a client; route orders are stale wherever points moved (Blasted Lands, Dalaran, every new POI,
+  place and zone-level step); the pre-4.0.3 history was fetched for Blasted Lands only (`--changed-zones` covers every
+  redrawn zone, not run); NPCs that moved at the Cataclysm keep their retail point on Classic; the routable no_route
+  gaps listed above; Shadowlands Cooking 75-175 and the Legion/Draenor Cooking trainers.
+
+## 2026-11-10: Stable step keys (`stable-step-id`, IDEAS #6)
+
+Offline only. **Nothing here has run in a real WoW client.** Not merged, not installed. Details: [STEP_KEYS.md](STEP_KEYS.md).
+
+* **What changed.** Done, skipped and stepped-back marks are stored by a stable step key instead of the author step
+  index: quest steps by action + quest ids + objective, other steps by a 45-bit hash of the title's words (plus
+  achievement, recipe, skill and mission ids), repeats numbered in author order, access-chain steps prefixed with their
+  chain. Coordinates, zone and note are never part of a key. Keys are built once per parse; parse results and the
+  RouteOrder checksum are unchanged. In a regenerated guide (or a WoW-Pro update read at runtime) marks stay on their
+  steps through added, removed and moved lines and moved points, with two exceptions: a step whose quest-less title is
+  reworded loses its mark (it is not given to another step), and among identical repeated steps (same quest and
+  objective, or same words; 2.4-4.0% of steps) adding or removing one ahead of the others shifts their marks to a
+  neighbouring identical step.
+* **Storage.** New `stepDone` / `stepSkipped` / `stepMeta` in each character record of `CompletionRouteDB.chars`, and
+  `stepReopened` in the character file. `stepMeta` keeps the guide's key checksum next to the marks for later
+  migrations. The old index tables are read once and kept for one release.
+* **Migration.** Once per character and guide, when the guide is loaded or its progress is shown: old index marks are
+  mapped with the guide as it is now (the data has not been re-ordered since they were written). Other characters of the
+  same game type are migrated too; records from other clients (copied by `tools/sync_progress.lua`) and records without
+  a game type on Era/Forever are left to their own client. Access-chain marks and indices with no step are counted, not
+  placed. A saved re-plan's rebuild key now binds the step keys; an old-format key is converted once.
+* **Everything that reads or writes marks follows:** Progress (done, skip, undo, reopen, reset, laps, auto-complete,
+  visible count), Account (scopes, OtherDid, guide %, "finished", roster, sweep scratch), Skip (rebuild, guide list
+  view, rebuild key), BugReport (keyed sets, plus `guide.keySum` and the step's `key`), Recommend, `/cr why`, the Back
+  button, `tools/vplayer.lua`, `tools/route_sweep.lua`, `tools/vplayer_repro.lua` (report marks put back by key,
+  current step found by key when the guide changed), `tools/sync_progress.lua` (unions the new tables). New
+  `/cr marks`. Fixed on the way (found by reading the code; no harness drives `/cr sweep`): a route sweep cleared the
+  character's real progress for every swept guide, because it wrote to `CompletionRouteCharDB.done`, which stays the
+  real table while the sweep's scratch sandbox swaps only the account record's fields.
+* **Review fixes (2026-11-11).** (1) A route sweep or `/cr verifyall` re-ran the one-time migration for the logged-in
+  character (the sweep's scratch store swaps out its record but not its character file) and put old stepped-back marks
+  back, by the current index, onto steps the player had since ticked forward: the logged-in character is no longer
+  migrated during a sweep. (2) An alt whose record another character migrated first never got its own stepped-back
+  marks (they live in the alt's file): such a record now carries `ro = false` and the alt imports them on its next
+  load. (3) The claim that every mark stays on its step was too strong (repeats, above). (4) The migration test now runs
+  on a baked guide, as in game. Neither bug touches live data yet: none of the 11 real character files read has a
+  stepped-back mark.
+* **Tests.** New `tools/test_progress_keys.lua`: 196 checks, all pass on all five flavors (`luajit -joff`, about 15-20 s, 260 MB).
+  A guide regenerated with one line inserted, one deleted, one point moved and one block moved keeps ticks, skips, a
+  stepped-back step and a quest skip on their steps (the same marks by index would sit on 3 wrong steps); the same on 3
+  wiki guides and 1 WoW-Pro guide per flavor; migration from a fixture of today's SavedVariables layout (placeholder
+  names) on a baked guide; an alt's stepped-back marks after another character migrated its record; a route sweep through
+  the real `Core/Sweep.lua` after the migration, on the same data and after a data update; idempotence; the downgrade, by loading the previous release's own code from git commit `b322bb6` on the new
+  files; `tools/sync_progress.lua` on temp files. Key collisions: **0** in 893,834 steps (5 flavors); no two different
+  texts share a hash in any guide. Cost (`-joff`): 0.9 microseconds per step on retail, 2.9-7.0% of parse time; the
+  largest retail guide (102,672 steps) 0.24 s on a 1.06 s parse. `tools/vplayer.lua` on 15 era and 15 retail guides:
+  byte-identical output before and after. Existing harnesses: all pass in the final run (2026-11-11, `test_skip.lua`
+  332 of 332). Earlier runs failed `test_skip.lua`'s frame-time checks now and then (1-2 re-plan frames of about
+  1,000-3,300 just over 2 ms). They fail the same way without this branch: in two back-to-back
+  runs each, the integration head and this branch each failed once and passed once, and the same guide's re-plan took
+  189-527 ms of CPU on the head and 212-946 ms on the branch for identical work (moves, pairs, searches). The spread is the
+  machine (nice-10 jobs next to other agents' work), not the change.
+* **Open:** a client check of `/cr marks` and of progress after the first data update; the previous release in the
+  downgrade check is the integration head, the installed beta may be older; sync unions marks, so a reset on one client
+  comes back from another client's older copy (as before).
+
+## Auto accept and turn-in (`auto-quest`, 2026-11-10)
+
+IDEAS #7. Offline only. **Nothing here has run in a real WoW client.** Committed on `auto-quest` (from `integration`),
+not merged, not installed. Details and the client API matrix: [QUEST_AUTO.md](QUEST_AUTO.md).
+
+* **New `Core/QuestAuto.lua`**, loaded right after `Core/Skip.lua` in all six TOCs (`tools/validate_toc.lua` checks the
+  order). Off by default (`autoAccept`, `autoTurnin`; new `autoChooseReward` off and `autoModifier` = Shift).
+* **Only the live window:** a quest is accepted or handed in only if a step of it is among the next `routing.window + 5`
+  pending steps (`P.order`). Never a quest `/cr skip` dropped or locked, never one whose accept or turn-in step the
+  player skipped, never one that costs gold, never a daily, weekly or repeatable unless the step is that daily (`!`, or a
+  Dailies / Daily Gold guide). A full quest log is said in one chat line per quest giver. Holding the pause key pauses
+  that conversation.
+* **Turn-in:** `CompleteQuest()` only when `IsQuestCompletable()`; the reward is taken with 0 or 1 choice. With more it
+  stops with one chat line, unless "Auto choose reward" is on and the new `ItemScore.ClearWinner` sees a usable item 10%
+  over what it would replace and 1.5x better than the other choices; if any usable choice cannot be weighed, it picks
+  nothing.
+* **Clients:** `C_GossipInfo` (all five clients, per warcraft.wiki.gg), the old gossip API (none of them; fallback for
+  old builds) and the greeting frame, detected at call time. No dialog without a quest giver (popups), no world quests,
+  nothing the game auto-accepted. One action per dialog event; no re-pick loop after a decline.
+* **UI:** Options > CompletionRoute > **Auto quests** page (three checkboxes and the pause-key dropdown), `/cr auto
+  [accept|turnin|reward|on|off|key ...]` in the help line and README; `/cr bug` reports carry the settings and the last
+  eight decisions.
+* **Review fixes (2026-11-11):**
+  * Major, fixed: with "Auto choose reward" on, an empty off hand counted as a +100% upgrade, so a warrior with a
+    two-hand weapon offered a shield or a one-hand sword took it over a real upgrade (reproduced: `GetQuestReward 2`,
+    "took item:shield ... (+100%)"). New `IS.ChoiceGain` weighs the hands together: a shield or off-hand item is weighed
+    against the two-hander it takes off, a one-hand weapon against the main hand (the weaker weapon only for a dual
+    wielder holding two weapons), a two-hander against both hands; an empty off hand next to a one-hand weapon, a
+    ranged item with nothing in slot 18 (always so on MoP Classic and Retail) or a worn item whose stats cannot be read
+    means nothing is picked. New checks: 3 per flavor and API family through the reward dialog, plus 23 direct
+    `ChoiceGain`/`ClearWinner` checks (two-hand, sword and board, dual wield, staff caster, ranged, unreadable stats).
+  * Minor, fixed: a full log printed one line per window quest at one quest giver (3 lines for 3 quests); now one line
+    per quest giver ("Bravo and 2 more"), and the quest text that follows adds none.
+  * Minor, fixed: the Retail "ignored quest" flag had no check (breaking it still passed); now two gossip checks.
+  * Minor, fixed: merged the current `integration` (commit 22046c3); the 3 text conflicts kept both sides.
+  * Minor, fixed: `docs/BETA_REPORTS.md` lists `options.questAuto`.
+* **Tests:** new `tools/test_quest_auto.lua`, 1,272 checks on all five flavors x three API families (2026-11-11); 13
+  deliberate breakages of the module were each caught on 2026-11-10, and 5 more (ignored flag, empty off hand, shield as
+  the weaker hand, unreadable worn stats, per-quest log-full line) on 2026-11-11. All other harnesses, `validate_toc.lua`,
+  the ingest unittest and `tools/test_package.py` pass.
+  Not this branch: `tools/test_skip.lua`'s two "re-plan frames never over 2 ms" timing checks fail now and then on this
+  loaded Mac (route bake running, load average 4 to 13): 5 of 8 runs here (1 to 3 frames over, worst 2.16 to 2.39 ms,
+  JIT on; the one `-joff` run passed), and 2 of 3 runs (worst 2.15 and 2.45 ms) with the integration versions of the two
+  files this branch changes in its load list (`Core/Init.lua`, `Core/Progress.lua`). The re-planner is untouched.
+  2026-11-11 (load average about 2.5): 3 of 4 JIT runs failed one such check (worst 2.20 to 2.48 ms), the `-joff` run
+  passed; with the integration versions of those two files, 1 of 2 runs failed (2.29 ms). The review fixes touch
+  neither file nor anything `test_skip.lua` loads.
+* **CPU** (`luajit -joff`, biggest real wiki guide per flavor): about 0.01 ms per dialog event, 0.06 to 0.36 ms right
+  after a quest change; `ClearWinner` with four choices 0.012 ms (max 0.03 ms).
+* **Open:** client test of every path; whether game-object quest givers give `UnitGUID("npc")`; quest ids from the
+  greeting frame on the classic clients; reward data that arrives late is never chosen.
+
+## 2026-11-10: one cost model and the bake gate (branch `cost-model`, IDEAS #9 then #1)
+
+Offline only. **Nothing here has run in a real WoW client.** Not merged, not installed. Details and every table:
+docs/ROUTING.md "One cost model" and "Bake gate and stale-bake check"; docs/VPLAYER.md "Cost model".
+
+**Review fixes (2026-11-11).** A reviewer found one major and five minor problems; all are fixed or documented:
+* **Guides with nothing to bake (major).** The planning character had no class, race or profession and, in a guide for
+  both factions, no faction tag, so race starting zones, class campaigns and Alliance-only "Both" guides had nothing to
+  bake: 89 quest guides, 75 of them with a bake today. Cost model version 2 plans each guide for the character most of
+  its located steps are written for (`CostModel.Persona`: faction, then class, race, profession, each at least half).
+  Left without a bake: 12 (mop 2, retail 10), all split between many classes. On a 50-guide sample of the changed guides:
+  parity 50/50, 30 bakes kept by the gate (24,153 s saved), 10 rejected. Tests: `tools/test_cost_parity.lua` (synthetic
+  rules, 5 real guides, no 0 s guide in the sample).
+* **Gate for both factions.** The gate plays a real character of the planning character's faction, class and race
+  (`vplayer --who gate`); a guide for both factions is played as Alliance and as Horde and must pass both (entries add
+  `vah`/`vbh`). Same 20 guides per client: kept / rejected 7/6, 11/2, 11/0, 13/1, 13/2 (era, tbc, mop, retail, forever);
+  two bakes are now rejected only for the Horde play.
+* **Kill during the gate.** The solves were written only after the gate, so a killed run solved the batch again. They
+  are now saved first; a vplayer failure exits 3 with the rows saved. `tools/test_bake_gate.py` (new) and an end-to-end
+  kill test prove a restart gates without solving.
+* **No hand-copied constants.** The client files read the cost model directly (no fallback literals); the gate limits
+  live in `CostModel.GATE_FRAC`/`GATE_ABS`, which the optimizer reads from the rows and test_route_order from the file.
+* **Saved quest-skip re-plans reset once** after this update (their key includes the route checksum, and the rebake
+  changes the orders anyway): a guide with skipped quests is re-planned once in the background when next opened.
+  Documented, not changed.
+* **Re-planner CPU, corrected.** Slices keep p50 0.80 ms, p99 0.82-0.89 ms, no frame over 2 ms; but the worst frame with
+  the collector running rose from 0.96-0.98 to 1.42-1.47 ms and retail re-plans do more work (+41% CPU on one guide, +24%
+  summed over the test's 22 re-plans, all on retail): more blocks under the located rule, and the firm-only second search
+  runs more often on retail. Accepted; the earlier "max 1.43 -> 1.46 ms" compared against one outlier run.
+
+* **One cost model.** `Routing/CostModel.lua` (all six TOCs, before the travel graph) owns where a step is priced, the
+  no-route cost (1,800 s everywhere; it was 1,800 / 600 / 0), the speed per level band (each leg at the planning level of
+  the step it leaves from; the bake used the guide's lowest level), the walking factor (short walks now use the flying
+  factor when flying, like the graph) and the offline flight rule. cost_matrix, optimize_routes (through the row's `"cm"`,
+  no second copy), StepOrder, Replan, Router.StepWorld and vplayer read it. cost_matrix now uses `Router.TravelRow` instead
+  of its own Dijkstra copy.
+* **Located rule:** an NPC's point from elsewhere in the guide, else ride along in the zone the route is in, else the new
+  zone's centre. Chosen by a hold-out test (`tools/cost_holdout.lua`, 3,000 steps per client): mean error 22-50 s per step,
+  against 117-194 s for the zone centre alone and 27-110 s for riding along alone.
+* **Parity** (`tools/test_cost_parity.lua`, new): the optimizer's predicted seconds and vplayer's (planning character, no
+  live window) agree within 2% per guide: 100 of 100 sample guides with the full solver after one vplayer fix; the
+  harness's own 30-guide run: 28 inside, the 2 misses are author orders that break their own prerequisites (qdb gaps
+  guides; excused by rule, listed).
+* **Predicted against measured** (20 guides per client, warrior, live window off), measured / predicted saving:
+  before 0.59 / 0.62 / 0.42 / 0.12 / 0.53 (era, tbc, mop, retail, forever), after 0.63 / 0.76 / 0.88 / 0.60 / 0.67. With
+  the live window on, the bake's measured saving went from -1,234 / 2,581 / 1,584 / 307 / 94 s to 2,943 / 4,873 / 3,937 /
+  9,067 / 9,073 s.
+* **Flight paths offline stay faction-wide.** A level-band rule changed 27 of 64 baked orders; under the client's
+  discovered-only rule both bakes beat author order on every client and faction-wide is 0.4% faster overall.
+* **vplayer changed:** cost-model walking, no hearth, 1,800 s per unroutable leg, one objective per `|QO|` step,
+  `--who plan`, `--route-order`, `--taxi model|band`. Earlier vplayer numbers are not comparable.
+* **Optimizer:** PRE now orders every step that names the prerequisite (was: accepts only); objective steps of a quest
+  keep author order when one of them would tick by itself.
+* **Checksum version 2** (zone + first point in 0.5 % steps) in Core/Guide.lua, cost_matrix and optimize_routes; the three
+  agree on all 2,621 quest guides. Every existing baked entry is now stale (era 168, tbc 260, mop 501, retail 854, forever
+  170): the game plays those guides in author order with the live window (vplayer: the stale files play second for second
+  like author order on 40 sample guides). `tools/test_route_order.lua` **fails** on stale entries until the rebake.
+* **Gate:** `optimize_routes.py --gate` keeps a bake only if vplayer finds baked + live no slower than author + live by more
+  than max(1%, 30 s); entries carry `va`/`vb`. On the samples it kept 55 of 64 bakes (saves 32,701 s) and rejected 9 (would
+  have cost 2,808 s); after the review fixes 55 of 66 (both factions played for guides for both, see above). `tools/bake_resume.py` gates every batch (`--no-gate`), resumes an ungated row without re-solving,
+  writes entries only for current guides, and takes `--lua-dir` and `--only-file`.
+* **CPU** (`luajit -joff`): the live window got cheaper (warm mean 1.64 -> 1.25 ms era, 1.64 -> 1.18 ms retail); re-plan
+  slices keep their budget (p99 0.82-0.89 ms, none over 2 ms) but retail re-plans do more work (see the fixes above).
+* **Harnesses:** all pass except `tools/test_route_order.lua` (fails on the stale entries above, by design, until the
+  rebake; with `CR_ROUTE_ORDER_DIR` on the gated sample bakes of all five clients it passes) and the JIT-on frame check in
+  `tools/test_skip.lua` (one frame of about 1,000 over 2 ms in some runs; the branch base fails it the same way, 1 of 3
+  runs; under `luajit -joff`, the client's proxy, both pass with max 1.0-1.5 ms). New: `tools/test_bake_gate.py`
+  (`venv/bin/python -m unittest tools/test_bake_gate.py`).
+* **Next (orchestrator):** merge, then the full rebake with the gate, then `luajit tools/test_route_order.lua` must pass.
+  See docs/HANDOFF.md section 5.
+
+## Skipping quests (`quest-skip`)
+
+Offline only. **Nothing here has run in a real WoW client.** Merged into `integration`, not installed. All 13 existing
+harnesses pass, plus the new `tools/test_skip.lua` (542 checks with 6 guides per flavor). A second round fixed what two
+reviewers found (below).
+
+* **Skip a quest** from the step details ("Skip quest"), the right-click menu on the step, or `/cr skip [questID]`. If other
+  quests need it, a confirmation names them (this guide / other guides, and which ones only this guide loses) and says what
+  the guide loses; confirming drops the chain. `/cr unskip <questID|all>`, `/cr skipped`. The per-step Skip on the accept of
+  a quest you do not have now drops the quest (it used to leave the turn-in behind); on a turn-in others need it warns.
+  Per character, never shared.
+* **The guide is rebuilt**, not just routed around: the dropped and locked quests, any quest this guide could then no
+  longer offer (its accepts wait on a dropped quest through the guide's own `|PRE|`), and the notes, use-item and travel
+  steps that only served them leave the list. Counts and progress follow; ticks are kept by author index; unskip gives back
+  the identical list; other guides rebuild when opened; a reload shows the same guide. Checked by dropping every accept
+  prerequisite one at a time on wiki, WoW-Pro and storyline guides: nothing stranded.
+* **Breadcrumbs never block**, end to end: the index leaves them out, and a guide step that waits on a skipped breadcrumb
+  stops waiting (era: skip Eagan Peltskinner, Wolves Across the Border's accept is next).
+* **Locks** grow "can still be had" from outside the dropped quest's dependents, so prerequisite cycles go too (retail 82863:
+  19 quests, was 1); exact against a whole-index reachability reference on all five clients. Quests for another class, race
+  or faction are locked but not named or counted.
+* **Re-plan for travel time** in the background (0.8 ms per frame, "re-planning..." in the title): one speed, position and
+  graph per job; one Dijkstra per block row instead of one per pair (13-23x faster; retail 122: 3.3 s CPU, was 14.4 s);
+  arrow-accurate costs (steps without `|M|` priced at the zone); two starts; kept only when it beats "baked order minus
+  removed steps" by the live window's margin on the arrow's route AND does not lengthen the route through the `|M|` steps.
+  On 30 sample guides (route orders as baked by 22:17): 7 kept, 2.7% less travel overall, 6 held back because the gain was
+  only at zone stand-ins. Frames: max 1.53 ms of 11,993 with the collector running, none over 2 ms.
+* **Data:** `tools/gen_quest_deps.py` -> `Data/QuestDeps_<flavor>.lua` (gitignored): hard prerequisites (era 2,163 quests,
+  tbc 3,237, mop 9,613, retail 18,071, forever 2,249), freed breadcrumb / optional edges, breadcrumb quests, and quests the
+  data never makes obtainable (retail 179).
+* **Open:** client test of the popup, right-click menu and frame times; applying a kept order is one normal refresh
+  (about 3 ms, the live window's own budget); heavy retail guides still re-plan for up to about 90 s in the background;
+  a storyline guide loses the rest of its storyline when one quest of it is dropped (the warning says so). Details in
+  `docs/ROUTING.md`, "Skipping quests".
+
+## Beta bug reports: `/cr bug`, `beta_reports`, `vplayer --repro` (`beta-bug-report`)
+
+IDEAS #3, merged into `integration`. Offline only. **Nothing here has run in a real WoW client.** Details: [BETA_REPORTS.md](BETA_REPORTS.md).
+
+* **In game.** `/cr bug [note]` and a **Report** button on the guide window save a snapshot to
+  `CompletionRouteDB.bugReports` (newest first, at most 50, about 400 KB; one report about 16 KB, trimmed past that).
+  It holds flavor and build, addon version, class, race, level and faction (no character or realm name), the guide
+  and step with its raw line and location source, the 8 visible steps, window order and kept plan, done and skipped
+  steps and the open steps, the quest states of the guide's quests and of the quests that only gate a step (PRE,
+  ACTIVE, AVAILABLE), profession skill for `|P|` and `SKILL` steps, objectives, map, x, y and world position, the
+  route legs and arrow advice,
+  flight paths, hearth and options, the last 30 log lines and the last Lua error raised inside the addon. Chat
+  confirms the id. `/cr bug list` shows the stored ones. New file `Core/BugReport.lua`, loaded right after
+  `Core/Init.lua` in all six TOCs.
+* **Error hook.** Wraps the client's handler, always calls the previous one and returns its result, keeps only
+  errors whose message or stack names this addon's folder in a path (not a bare `CompletionRouteDB`), re-wraps at
+  login, counts repeats.
+* **Names.** Character and realm names (2 letters or more) are replaced as whole words in the log, the error and the
+  note; the note in any letter case.
+* **SQL.** `tools/ingest_beta_reports.py` reads every client's SavedVariables through `tools/sv_to_json.lua`
+  (sandboxed luajit, read-only) into `beta_reports` (key `id`; triage columns are never overwritten; the account
+  folder is stored only as a hash). Run against the five real SavedVariables files into a temp database: all five
+  read, 0 reports (none made yet), files unchanged.
+* **Replay.** `luajit tools/vplayer.lua --repro <id|latest|file.json> [--check]` (new `tools/vplayer_repro.lua`).
+  It restores the quest states, including gate-only quests, and profession skill, and compares the open steps both
+  ways: a step open in the client but not offline is a DIFF. Self-test: `--capture` makes a report in the fake world,
+  `--repro --check` replays it. MATCH with the same open steps on all five flavors (author order) and on era with
+  baked order, with routes of 4 to 8 legs including tram, portal, boat and taxi.
+* **Review fixes (same day).** A verifier found that reports left out quests named only by `PRE`/`ACTIVE`/`AVAILABLE`
+  (78 of 137 era wiki guides have such steps), so a replay hid a step and still said MATCH; that 2-letter names and a
+  lower-case name in the note were not scrubbed; that another addon's error naming `CompletionRouteDB` was kept;
+  that the ingest crashed on a missing file; and that "under 1 ms" held only with warm caches. All five fixed, each
+  with a regression test.
+* **Cost of a click** (`luajit -joff`, virtual player): 0.2 to 0.7 ms when the arrow's path is fresh, also right
+  after a graph rebuild (the upcoming list reads the planner's kept costs and never searches). When the arrow's
+  path is stale the click runs one route search: 3.7 ms era, 8.2 tbc, 22 mop, 45 retail, 5.7 forever. Largest guide
+  (retail, 1950 steps): 11.9 ms. Not measured in a client.
+* **Tests.** New `tools/test_bug_report.lua` (93 checks) and `tools/test_ingest_beta_reports.py` (5 tests, fixture
+  `tools/fixtures/beta_reports_SavedVariables.lua`). All existing harnesses pass (see the commit for the list).
+* **Not done.** The skip-reason menu, an opt-in for the character name, a companion app view, and any in-client run.
+
+## Routing graph: discovered flight paths, turn-in rebuilds, teleports (`routing-graph`)
+
+Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** Merged into `integration`, not
+installed. All 14 harnesses pass (the 13 below plus the new `tools/test_teleports.lua`), and `tools/check_teleports.py
+--fetch --wiki` reports 0 failures. Details: [ROUTING.md](ROUTING.md) "Flight paths", "What changes the graph", "Teleports".
+
+* **Discovered flight paths only (IDEAS #2).** Default flight rule is now `known`: a flight lands only at a flight master
+  the character has discovered; it may take off from a new one, and the walk there says "pick up the flight path".
+  Per character on Classic Era, TBC Anniversary and MoP Classic; account-wide on Retail and WoW Forever. On first load a
+  Classic character's flight paths start empty once (older builds had copied the whole account's set into it) and
+  fill again at the next flight-master visit. A profile on the old `faction` default moves to `known` once; Options
+  keeps the old rule. **Behaviour change Daniel will see:** a Classic alt walks until it has opened a flight master's map
+  on each continent, unless the login harvest (`isUndiscovered == false` from `C_TaxiMap.GetTaxiNodesForMap`) works on
+  that client, which is not verified.
+* **Which rule the tools use.** The bake (`cost_matrix.lua`) and `route_sweep.lua` are pinned to `faction`, so the bake is
+  unchanged (cost_matrix output for one era and one retail guide compared before/after: identical but for run time). `vplayer.lua` has `--taxi all|learn` (default `all`, unchanged). On the 12-guide samples below, `--taxi
+  learn` (each guide starts with no flight path) costs era 58,842 -> 75,444 s of travel (+28%) and retail 16,664 ->
+  19,083 s (+15%), with 8 and 29 flight paths discovered. The bake gain under `learn` was not re-measured.
+* **Turn-ins no longer rebuild the graph (IDEAS #4).** Only the access edges are rebuilt when an access chain's unlock quest
+  is turned in; a learned flight path wipes the path cache; a hearth re-bind or a teleport change drops only the costs
+  from the player; any other turn-in changes nothing. Measured under `luajit -joff` with the new `vplayer --turnins`
+  (12 guides per flavor, before = branch base code via `CR_OVERRIDE`): era handler time per turn-in 9.30 -> 5.24 ms mean
+  (p95 47.7 -> 32.5), 95 -> 0 graph builds, whole run 19 -> 5 CPU s; retail 90.4 -> 37.6 ms mean (p95 300 -> 180),
+  225 -> 0 builds, whole run 193 -> 43 CPU s. Retail results identical; one era guide differs slightly, explained in
+  ROUTING.md. Guides: era `wiki:era:` 1416:Alliance, 1417:Alliance, 1447:Horde, 1428:Both, 1443:Both, 1431:Alliance,
+  1423:Alliance, 1448:Both, 1455:Alliance:1, 1450:Both, 1433:Alliance, 1421:Both; retail `wiki:retail:` 648:Both,
+  885:Both, 1565:Both:3, 1408:Alliance, 2255:Both:1, 76:Horde:1, 630:Both:4, 15:Horde, 105:Both, 1161:Both, 114:Horde:1,
+  646:Both:4.
+* **Teleports as router edges (IDEAS #5).** `Data/Teleports.lua`, 73 entries: 30 class spells (every mage teleport per
+  faction and expansion, Teleport: Moonglade, Death Gate on MoP Classic), 4 engineering transporters, the Dalaran and
+  Garrison hearthstones, 36 Hearthstone stand-ins. Ids, names, reagents, use spells, cooldowns, trinket slots and the
+  shared Hearthstone cooldown are checked against each client's DB2; landing points come from Warcraft Wiki coordinates
+  (or TaxiNodes) and are recomputed by the test. Used like the hearth: a first leg only when known or owned and usable,
+  with at most 15 minutes of cooldown left; never in pairwise costs, so the bake is unchanged. The arrow's secure button
+  casts the spell, uses the item, or uses the toy (`type = "toy"`). `/cr teleports` lists them. `cond` now works on
+  Transit and Access entries.
+* **Fixed on the way:** a combat-queued arrow-button change is replayed with an explicit argument count (it relied on `#`
+  of a table with a nil hole); toggling taxi, transit or the flight rule in Options left StepOrder's kept costs stale.
+* **Fixed after review (same day):**
+  * Turning in "Establish Your Garrison" bumped the one-shot generation but did not re-check what is usable, so the
+    Garrison Hearthstone stayed unused until some later bag, spell or toy event. The turn-in now re-checks at once
+    (`T.Recheck`), and bumps only when what is offered changed. Test: the `QUEST_TURNED_IN` event alone, with no
+    manual re-check, makes the next route to Frostwall use it.
+  * `test_live_route.lua` and `test_parked.lua` had silently picked up the new `known` default with no flight paths
+    known (walk-only routing). Both now pin the faction rule, as the other harnesses do.
+  * Options: comfort mode and the terrain detour slider now wipe the path cache (they changed costs without dropping
+    cached paths); the hearth base cost slider now re-prices the from-player costs. The two sliders act only when the
+    value really changes, because opening the panel re-sets them. New test drives every cost-changing Options control
+    (`test_live_route.lua` section 10); 4 of its checks fail on the old handlers.
+  * Engineering transporters carry `profession = 202`, checked against ItemSparse `RequiredSkill` by
+    `check_teleports.py`; a character the client says has no Engineering is not offered them.
+  * Harness counts now: test_teleports 42 (was 35), test_live_route 52 (was 40), test_parked 26; all 14 pass, and
+    `check_teleports.py --wiki` reports 134 entry-client and 73 wiki checks, 0 failures. None of these fixes is on the
+    code path of `vplayer.lua` or `cost_matrix.lua` (neither loads `Routing/Teleports.lua` or `UI/Options.lua`), so the
+    turn-in measurements above and the bake are unchanged.
+* **Not done / unverified:** everything in-game (secure `toy` action, `C_ToyBox.IsToyUsable`, toy cooldowns, Classic
+  taxi harvest, landing spots); Zen Pilgrimage, retail Death Gate, Dreamwalk, class halls, Midnight's Teleport:
+  Silvermoon City, Ultrasafe Transporter: Mechagon (no landing coordinate on the wiki; DB2 SpellTargetPosition not read
+  yet); Orgrimmar's landing point on Classic Era and TBC is the modern city's; engineering malfunctions are
+  not priced; the bake and the cost-model rework (IDEAS #9) still use the faction rule.
+  Noticed, older than this branch: the return leg of a two-way portal reuses the outbound title ("Take the Orgrimmar
+  Portal Room portal to Silithus" when going from Silithus to Orgrimmar).
+
+## Release packager with a data-provenance gate (`release-packager`)
+
+Offline only. **Nothing here has run in a real WoW client, and no build has passed the gate on real data.** No tag, push
+or GitHub release was made. All 12 `tools/test_*.lua` harnesses, `validate_toc` and `tools/test_package.py` (97 checks,
+Python 3.12 and 3.9) pass.
+
+* **`tools/package_release.py`** ([RELEASE.md](RELEASE.md)) assembles the add-on from the tracked code plus the local
+  generated data, limited to what the TOCs load. It writes `provenance.json` (category, licence, source, generator per
+  file), `LICENSE.txt`, `ATTRIBUTION.md` and a player README, and stamps the version into the packaged TOCs only. WoW-Pro
+  and Questie-derived files never ship and their TOC lines are stripped (19 lines in 6 TOCs). Dry run by default.
+* **Layout:** one universal zip (6.06 MB, 43 MB unpacked on today's data) instead of per-client zips (0.56 to 4.07 MB,
+  7.27 MB together); each client loads only its own TOC's files. `--layout per-client` still builds them.
+* **Gate** fails on: no provenance, WoW-Pro/Questie data (by file, by content, or a baked order row for a gaps guide),
+  "do not redistribute", the replaced commercial product's name, personal data (e-mail, home paths, WoW account and
+  character names), secrets, any symlink (worktrees: `--allow-checkout-links`), TOC lines with no packaged file, missing
+  licence notices. `--db` writes `data_provenance` and `release_gate` tables.
+* **Today's local data fails with 13 problems:** the wiki files carry fallback points (`--no-fallback` build needed),
+  achievements and missions keep the old header (regenerate), and every `RouteOrder` file orders Questie-derived gaps
+  guides (era 56, tbc 101, mop 44, retail 29, forever 55 rows). RELEASE.md lists the steps to a passing build, including
+  a rebake inside the staged package; that rebake was smoke-tested on one era guide only.
+* The staged package (interop lines stripped) loads clean in `test_load_all.lua` on all six TOCs. Stub load only.
+* **Review fixes:** `--write` never deletes or displaces a build. A failing build goes to
+  `dist/failed/<version>-<time>/`, a same-version rebuild archives the earlier one, and only the packager's own build
+  folders are ever moved, so `--out` is safe anywhere. Per-client zips carry an `ATTRIBUTION.md` listing only their
+  files. The secret rule also catches Cerebras, Groq, Hugging Face, xAI, npm and GitLab keys and unquoted
+  `api_key=` lines. Personal terms in file names are masked in every report. Edits to the packager or its templates
+  make a build `-dirty`. Usage errors exit 2, crashes 3. The player README describes the real guide-window controls.
+* Also: CallbackHandler ships its Ace3 licence text; HereBeDragons is BSD as declared upstream (no upstream text);
+  `WIKI_DATA_LICENSE.md` lists the Forever wiki and spine files and no longer calls the hand-written guides non-CC BY-SA;
+  `release.yml` no longer publishes on a tag (manual run of the gate tests only).
+* **Next:** regenerate wiki `--no-fallback`, gold, professions, achievements and missions; rebake route orders in the
+  stage; `--write`; Daniel's beta; only then publish by hand.
+
 # Status / handoff (2026-11-09, gold guides, secondary professions, guides by level)
 
 Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** Installed on all five clients. All 13 harnesses pass
@@ -8,7 +632,8 @@ Offline only. **Nothing here has run in a real WoW client; Daniel beta-tests.** 
 |---|---:|---:|---:|---:|---:|
 | Gold guides | 165 | 204 | 258 | 335 | 168 |
 | Profession guides | 24 | 30 | 64 | 78 | 24 |
-| Quest guides with a baked route | 234 of 234 | 356 of 356 | 294 of 771 | 296 of 1,021 | 241 of 241 |
+| Quest guides optimized (bake of 2026-11-10, map fix redone) | 234 of 234 | 354 of 354 | 772 of 772 | 1,021 of 1,021 | 240 of 240 |
+| ...of which a baked order is kept (the rest stay in author order) | 168 | 260 | 501 | 854 | 170 |
 
 * **Gold** (`tools/wiki/gen_gold.py`, [GOLD_ROUTES.md](GOLD_ROUTES.md)): realm-independent, no prices shipped. Gathering circuits are still labelled
   coarse because no shippable node database exists; they sharpen as the player records nodes.
@@ -412,7 +1037,7 @@ Per operational directives ("Keep a .app version of any apps made in my applicat
 
 ## Storage & Headroom Compliance
 * Available disk space maintained comfortably above the 8 GB threshold (> 15 GiB available on `/System/Volumes/Data`).
-* Project boundary preserved (no code written directly to `/Users/daniel`).
+* Project boundary preserved (no code written directly to the home folder).
 
 # Status / handoff (2026-08-25)
 

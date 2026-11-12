@@ -30,7 +30,7 @@ print = function() end
 loadG("Guides/Imported_WoWPro_" .. flavor .. ".lua", "x")
 loadG("Guides/Imported_Quests_" .. flavor .. ".lua", "Imported_Quests_" .. flavor)
 loadG("Guides/Imported_Achievements_" .. flavor .. ".lua", "Imported_Achievements_" .. flavor)
-loadG("Guides/Imported_Storylines_" .. flavor .. ".lua", "Imported_Storylines_" .. flavor)
+loadG("Guides/Imported_QuestLines_" .. flavor .. ".lua", "Imported_QuestLines_" .. flavor)
 for _, lv in ipairs({ "Alliance_Human_01_06_Northshire", "Horde_Orc_Troll_01_06_ValleyOfTrials" }) do loadG("Guides/Leveling/" .. lv .. ".lua", "Leveling/" .. lv) end
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs((NS.wowHandlers or {}).ADDON_LOADED or {}) do pcall(h, "ADDON_LOADED", "CompletionRoute") end
