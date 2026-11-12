@@ -1,4 +1,89 @@
-# Status / handoff (2026-11-11 evening: everything merged into `integration`, data regenerated, rebake running)
+# Status / handoff (newest section first; 2026-11-11 evening: everything merged into `integration`, data regenerated, rebake running)
+
+## 2026-11-12: readable step window, Recent, Start over, more steps that finish themselves (`recents-restart-autoadvance`)
+
+Owner's four beta requests. Offline only: **nothing here has run in a real WoW client.** Branch
+`recents-restart-autoadvance`, not pushed, not merged.
+
+**Step window (`UI/GuideFrame.lua`).** One hierarchy, top to bottom: a single title line (route name, cut with "..."
+when long; "step N of M" in its own string so it is never cut; then Contribute and its box, Routes, `...`, close), the
+card (action and title, note, one distance line), the travel line. The second button row is gone: Route (now "Reorder
+steps: ON/OFF"), Opts and Report live in the `...` menu with Start over. The word **Contribute** is a button that opens
+the export window. The arrows hang from the card, so they cannot reach the title or travel line. The card shows the
+note without its trailing source note ("(location: ...)", "(zone only ...)", "(wiki: ...)", "(point: ...)",
+"(Blizzard ...)") and without wiki asides in sentence form ("(This item drops from ...)", with "(click for more)");
+the tooltip and the Details panel show the note whole (`G.CardNote`, guide data untouched). The Details panel now
+grows with its text (a fixed 260 let a long note run over its buttons). The travel line may use three lines (was two).
+The layout numbers are one table, `GF.L`.
+
+**Text audit (`tools/audit_step_text.lua`, all five TOCs, 351,656 steps).** Width is estimated from character
+counts (per-class character widths close to Friz Quadrata, at 17/13/12 pt; stated in the file), so it is good to
+about a word per line.
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Steps | 14,749 | 22,143 | 70,207 | 229,216 | 15,341 |
+| Title on 2 lines / 3 lines | 905 / 0 | 1,467 / 0 | 5,029 / 11 | 15,965 / 103 | 913 / 0 |
+| Title cut at 3 lines | 0 | 0 | 1 | 10 (23 with 10% wider text) | 0 |
+| Note cut at 8 lines, before -> now | 0 -> 0 | 0 -> 0 | 2 -> 0 | 8 -> 0 | 0 -> 0 |
+| Notes of 3 lines or more, before -> now | 512 -> 476 | 679 -> 615 | 1,707 -> 1,240 | 2,721 -> 1,144 | 519 -> 479 |
+| Source notes and asides moved off the card | 5,566 | 8,444 | 25,173 | 95,153 | 5,581 |
+| Notes with raw markup left | 0 | 0 | 3 | 5 | 0 |
+
+The 11 cut titles are achievement descriptions of 140 to 191 characters; they end in "..." and are whole in the
+tooltip and Details. The markup left is quest-text placeholders (`<NAME>`, `<NPC>`, `<Tracking Achievement>`, one
+broken `}}`); a wiki external link in a note now reads as its label. The travel line cannot be enumerated offline
+(live routing): sized by shape, a three-leg route with long flight-master names needs 3 lines (4 on Retail, cut).
+**Pixel overlap cannot be verified offline**; `tools/test_step_window.lua` (222 checks) holds the code to the rules
+that prevent it (widths set before heights are read, no fixed text heights, the note's anchor follows the title's
+height, the card ends above the travel line, the title line is one chain) on a widget mock, at scale 0.6, 1 and 2.5
+(the whole window scales, so the layout is the same).
+
+**Recent (`UI/GuideMenu.lua`, `P.RecentList`).** The routes list opens with **Recent**, above "For level N": the
+routes this character has finished at least one step in, most recently used first, 12 rows at most, each with its
+progress, click to load. Hidden when empty. Built from `CompletionRouteCharDB.recent` (at most 30 records: sequence,
+time, step total), so it parses no guide and survives `/reload`. A route goes to the top when the player picks it or
+finishes a step in it; the chain walking through finished routes at login does not count. First run: seeded from the
+routes that already have marks, most marks first. The list window's title now reads "Routes (N)".
+
+**Start over (`P.StartOver`, `P.Reset`).** A route with no step left shows a **Start over** button under its end
+text; the card's right-click menu and the `...` menu offer it at any time and ask first while steps are left. It
+clears the route's marks for this character and returns to step one; what the game reports as done ticks again.
+`/cr reset` is the same code and now also clears the event flags on steps (a "set hearth" step used to finish itself
+again after a reset). Circuits still lap by themselves.
+
+**Auto-advance.** Census first (`tools/census_step_kinds.lua`): of the steps the five TOCs load, these finish by
+themselves, and from what.
+
+| family | steps | by themselves | how | manual |
+|---|---:|---:|---|---|
+| Wiki quest guides (spine reuses them) | 156,337 | 100% | quest log: accept, objectives, turn-in | 0 |
+| Quest lines (Retail) | 73,088 | 100% | quest log | 0 |
+| Achievements (MoP, Retail) | 69,548 | 100% | achievement or criterion earned; quest log | 0 |
+| Gold | 13,414 | 92.8% | G waypoint arrival 11,855; R/D arrival 505; quest log 92 | 962 `N` advice notes ("Sell or cook the catch", the Methods lists): nothing to read |
+| Professions | 1,365 | 99.3% | skill reached, recipe learned, items in bags, arrival, quest log | 10 `N` notes ("Get a Fishing Pole", "Way of the Grill") |
+| Missions (Retail) | 2,590 | 100%, was 0.2% | **new:** mission success event 2,584; arrival 6 | 0 |
+| Hand-written leveling | 264 | 100% | quest log, arrival, hearth bound; **new:** merchant window (4) | 0 |
+| Quest gaps (local only) | 35,050 | 100% | quest log | 0 |
+
+So the shipped guides were already automatic except advice notes and missions. The new rules (all in
+`docs/GUIDE_FORMAT.md`, "What completes a step by itself"; predicates in `NS.StepSignal`, `Core/Guide.lua`):
+talking to the NPC a step names (`N`/`R` steps without a quest; `T` tag, `ALT` names, "From X." / "To X.", "Talk to
+X" / "Speak with X"; whole name, any case; only the step on screen; never a secret name); a merchant window on a
+repair/sell step; `L` items on every action but accept and turn-in (with a quest id only while on the quest); a buy
+step that names its item with `U`/`ITEM`; standing at any of an `R` step's `ALT` places; loot taken at a treasure's
+spot; a mission's success. Left manual on purpose: advice notes, a buy or train step that only names the vendor, a
+kill step's target, a treasure with no spot.
+**Open:** the census says quest steps finish from the quest log, so if steps did not advance in play, a rule that
+exists is failing in the client and cannot be seen offline. A bug report (`...` > Report a bug) on one such step
+would show which.
+
+**Tests.** New: `tools/test_step_window.lua` (222), `tools/test_flow.lua` (117). `validate_toc` and the twelve
+harnesses of the task list pass (`test_progress_keys` needed Recent to stop rewriting an unchanged record).
+**Look at first in the client:** the title line (does the route name get enough room next to "step N of M"); a
+wrapped title with a long note; the `...` menu; the word Contribute; Start over on a finished fishing or profession
+route; Recent after a `/reload`.
+
 
 ## 2026-11-11 night: Contribute (players build the location database)
 
