@@ -50,6 +50,14 @@ was heading (`char.parkReturn`), not from the parked guide's own `next`. `G.Sugg
 waiting. A guide the player picks ends any detour. `tools/vplayer.lua --chain Alliance|Horde` plays a whole spine with this
 logic and fails on a bounce; `tools/test_parked.lua` and `tools/test_live_route.lua` cover it in stubs.
 
+A route the player picks (routes list, Recent, `/cr load`, `/cr switch`: every `Progress.Load` outside the chain) that
+has nothing left when it loads is **held** (2026-11-12): it stays loaded, the step window shows its end screen with
+Start over, and the chain does not move on. If a level gate holds steps back it is also parked (quietly), so it still
+comes back after another route. The hold ends the moment the route shows a step (Start over, a level-up), so a route
+that runs out during play chains on as before. `char.held` keeps it held across `/reload` (part of a sweep's scratch
+store). `GUIDE_LOADED` fires once per load the player sees, for the route that ends up loaded (it used to fire for the
+next route inside the chain and then again, wrongly, for the finished one). `tools/test_flow.lua` section 4.
+
 ## Arrow recommendation (`Routing/Router.lua`)
 1. step has `|U|item` in bags and you're within 40 yd (or step has no location) → **item button**
 2. step is `H` → **hearth button** (the Hearthstone, or a hearth toy when no stone is in the bags)

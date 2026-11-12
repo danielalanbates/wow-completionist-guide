@@ -4,6 +4,9 @@
 --   3. Auto-advance  the completion rules new on that day (Core/Guide.lua NS.StepSignal, Core/Progress.lua):
 --                    talking to the step's NPC, a merchant on a repair/sell step, L items on every action, a bought
 --                    item, any ALT place, loot at a treasure's spot, a mission's success
+--   4. Finished routes the player picks stay loaded with the end screen (held, also across /reload); a route that runs
+--      out during play still chains on; GUIDE_LOADED fires once, for the route that ends up loaded; the first login
+--      opens the routes list until a route has been loaded once (Core/Progress.lua P.Load, P.Refresh, autoload)
 -- Run from the repo root:  luajit -joff tools/test_flow.lua
 -- Stubs only: nothing here has run in a client.
 package.path = "./?.lua;" .. package.path
@@ -569,7 +572,7 @@ do
     local NS = boot()
     local P, G = NS.Progress, NS.Guide
     local gone = "qdb:era:1431:Both"
-    CompletionRouteCharDB.guide, CompletionRouteCharDB.welcomed = gone, true
+    CompletionRouteCharDB.guide = gone
     NS.Account.me.stepDone[gone] = { k1 = true, k2 = true }
     local said = {}
     local realPrint = NS.Print
@@ -608,6 +611,167 @@ do
     check(ok and P.guide and P.guide.id == "f:level" and NS.db.char.guide == "f:level",
           "with a fitting route the login loads that one instead: " .. tostring(err or (P.guide and P.guide.id)))
     NS.Print = realPrint
+end
+
+-- ---------------------------------------------------------------------------
+-- 4. A finished route the player picks stays loaded; GUIDE_LOADED fires once; first launch (2026-11-12)
+-- ---------------------------------------------------------------------------
+-- Leveling routes chain (gold and profession routes never do).  UI/GuideFrame.lua is loaded on the stubs too: nothing
+-- is drawn, only the state its end screen keys on is read (GF.restartShown: the Start over button is up).
+do
+    CompletionRouteDB, CompletionRouteCharDB = nil, nil
+    local function bootFlow()
+        local NS = {}
+        local files = {}
+        for i, f in ipairs(FILES) do files[i] = f end
+        files[#files + 1] = "UI/GuideFrame.lua"
+        for _, f in ipairs(files) do assert(loadfile("CompletionRoute/" .. f))(ADDON, NS) end
+        for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", ADDON) end
+        local G = NS.Guide
+        G.Register({ id = "f:l1", name = "Level One", type = "Leveling", minlevel = 1, maxlevel = 60, next = "f:l2", source = "CompletionRoute",
+                     text = "N One|\nN Two|" })
+        G.Register({ id = "f:l2", name = "Level Two", type = "Leveling", minlevel = 1, maxlevel = 60, source = "CompletionRoute",
+                     text = "N Three|\nN Four|" })
+        -- a route with one step now and one behind a level-20 gate
+        G.Register({ id = "f:gate", name = "Gated", type = "Leveling", minlevel = 1, maxlevel = 60, next = "f:l2", source = "CompletionRoute",
+                     text = "N Now|\nN Later|LVL|20|" })
+        -- two finished routes naming each other (the chain's depth limit)
+        G.Register({ id = "f:x", name = "X", type = "Leveling", minlevel = 1, maxlevel = 60, next = "f:y", source = "CompletionRoute", text = "N X1|" })
+        G.Register({ id = "f:y", name = "Y", type = "Leveling", minlevel = 1, maxlevel = 60, next = "f:x", source = "CompletionRoute", text = "N Y1|" })
+        G.SuggestNext = function() return nil end
+        G.Suggest = function() return nil end
+        NS.said = {}
+        NS.Print = function(_, msg) NS.said[#NS.said + 1] = tostring(msg) end
+        NS.loaded = {}
+        NS:On("GUIDE_LOADED", function(g) NS.loaded[#NS.loaded + 1] = g and g.id or "?" end)
+        return NS
+    end
+    local function saidSince(NS, n, pat)
+        for i = n + 1, #NS.said do if NS.said[i]:find(pat, 1, true) then return true end end
+        return false
+    end
+    -- the login: PLAYER_READY, then the timers it starts (queued, four rounds; see the section above)
+    local function login(NS)
+        local queue, realAfter = {}, C_Timer.After
+        C_Timer.After = function(_, fn) queue[#queue + 1] = fn end
+        local ok, err = pcall(function()
+            NS:Fire("PLAYER_READY")
+            for _ = 1, 4 do
+                local run = queue
+                queue = {}
+                for _, fn in ipairs(run) do fn() end
+            end
+        end)
+        C_Timer.After = realAfter
+        return ok, err
+    end
+    local NS = bootFlow()
+    local P, G = NS.Progress, NS.Guide
+    local GF = NS.GuideFrame
+    local function recentIds()
+        local out = {}
+        for i, r in ipairs(P.RecentList()) do out[i] = r.g.id end
+        return table.concat(out, ",")
+    end
+    local function endScreen() if not GF then return nil end pcall(GF.Update) return GF.restartShown end
+
+    -- 4a. first launch: the routes list opens at every login until a route is loaded, and nothing is loaded unasked
+    local shown = 0
+    NS.GuideMenu.Show = function() shown = shown + 1 end
+    G.SuggestNext = function() return G.registry["f:l1"] end      -- a suggestion exists: it must not be loaded
+    local ok, err = login(NS)
+    check(ok and shown == 1 and P.guide == nil, "first login: the routes list opens and no route is loaded: " .. tostring(err))
+    check(saidSince(NS, 0, "Pick a route to start"), "and the player is told to pick one")
+    check(NS.db.char.guide == nil, "nothing is saved as the character's route")
+    -- the player closes the list without picking; the next login (a /reload: a fresh addon over the same saved variables)
+    NS = bootFlow() P, G, GF = NS.Progress, NS.Guide, NS.GuideFrame
+    shown = 0
+    NS.GuideMenu.Show = function() shown = shown + 1 end
+    G.SuggestNext = function() return G.registry["f:l1"] end
+    ok, err = login(NS)
+    check(ok and shown == 1 and P.guide == nil, "second login without a pick: the list opens again, still nothing loaded: " .. tostring(err))
+    -- the player picks a route: from now on the login loads the saved route and the list stays shut
+    P.Load("f:l1")
+    NS = bootFlow() P, G, GF = NS.Progress, NS.Guide, NS.GuideFrame
+    shown = 0
+    NS.GuideMenu.Show = function() shown = shown + 1 end
+    ok, err = login(NS)
+    check(ok and shown == 0 and P.guide and P.guide.id == "f:l1", "after the first pick the login loads the saved route and opens no list: "
+        .. tostring(err or (P.guide and P.guide.id)))
+
+    -- 4b. a route finished DURING play still chains on, and GUIDE_LOADED fires once, for the route loaded
+    NS.loaded = {}
+    P.Forward()
+    local n0 = #NS.said
+    P.Forward()
+    check(P.guide.id == "f:l2" and P.current and P.current.title == "Three", "finishing a route during play loads the next one: " .. tostring(P.guide.id))
+    check(saidSince(NS, n0, "Route finished. Loading next: Level Two"), "and says so with the word route")
+    check(#NS.loaded == 1 and NS.loaded[1] == "f:l2", "GUIDE_LOADED fired once, for the route now loaded: " .. table.concat(NS.loaded, ","))
+    -- the chain walking into a route that is finished too (a login onto a finished saved route): still once, for the last
+    NS.loaded = {}
+    P.chainLoading = true P.Load("f:l1") P.chainLoading = nil
+    check(P.guide.id == "f:l2" and #NS.loaded == 1 and NS.loaded[1] == "f:l2",
+        "a chain load of a finished route goes on, GUIDE_LOADED once for the route that ends up loaded: " .. table.concat(NS.loaded, ","))
+
+    -- 4c. the player picks the finished route (the routes list, Recent, /cr load all call P.Load(id))
+    NS.loaded = {}
+    n0 = #NS.said
+    P.Load("f:l1")
+    check(P.guide.id == "f:l1" and P.current == nil, "a finished route the player picks stays loaded: " .. tostring(P.guide.id))
+    check(not saidSince(NS, n0, "Loading next"), "no jump to another route")
+    check(saidSince(NS, n0, "Route finished: Level One. Start over runs it again"), "the chat says it is finished and how to run it again")
+    check(saidSince(NS, n0, "Route: Level One (2 steps"), "the load line says Route")
+    check(#NS.loaded == 1 and NS.loaded[1] == "f:l1", "GUIDE_LOADED once, for the picked route: " .. table.concat(NS.loaded, ","))
+    check(P.VisibleDone() == #P.steps, "every step shows done (the end screen's 'Route complete' case)")
+    check(endScreen() == true, "the step window shows the end screen with Start over (GF.restartShown): " .. tostring(endScreen()))
+    check(recentIds():sub(1, 5) == "f:l1", "Recent still holds the route, on top: " .. recentIds())
+    for _ = 1, 3 do P.Refresh() end
+    check(P.guide.id == "f:l1", "refreshes (quest log, zone, bag events) do not move it on either")
+    -- clicking its Recent row is the same call
+    do
+        P.Load("f:l2")
+        NS.GuideMenu.Refresh()
+        local hit
+        for _, b in ipairs(NS.GuideMenu._test.buttons) do if b.gid == "f:l1" then hit = b break end end
+        check(hit ~= nil, "Recent row for the finished route exists")
+        if hit then hit.scripts.OnClick(hit) end
+        check(P.guide.id == "f:l1" and P.current == nil, "clicking it in Recent loads it and it stays: " .. tostring(P.guide.id))
+    end
+    -- /reload with the finished route on screen: the login holds it again
+    check(NS.db.char.held == "f:l1", "the held route is saved for the next login")
+    NS = bootFlow() P, G, GF = NS.Progress, NS.Guide, NS.GuideFrame
+    NS.GuideMenu.Show = function() end
+    login(NS)
+    check(P.guide and P.guide.id == "f:l1" and P.current == nil, "after /reload the finished route is still on screen, not the next one: "
+        .. tostring(P.guide and P.guide.id))
+    -- Start over: the route runs again, and when it runs out during play the chain takes over as usual
+    check(P.StartOver() == true and P.current and P.current.title == "One", "Start over runs it from its first step")
+    check(NS.db.char.held == nil and P.hold == nil, "a route with a step on screen is held no more")
+    P.Forward() P.Forward()
+    check(P.guide.id == "f:l2", "finished again during play: the chain moves on: " .. tostring(P.guide.id))
+
+    -- 4d. a picked route whose remaining steps wait behind a level gate: it stays, and is parked for later
+    P.Load("f:gate") P.Forward()
+    check(P.guide.id == "f:l2", "(played to its gate during play, it chains on and parks)")
+    n0 = #NS.said
+    P.Load("f:gate")
+    check(P.guide.id == "f:gate" and P.current == nil, "picked while gated: it stays loaded: " .. tostring(P.guide.id))
+    check(saidSince(NS, n0, "Gated: nothing to do at your level; 1 more step at level 20"), "the chat names the gate")
+    check(P.ParkedRecord("f:gate") and P.ParkedRecord("f:gate").level == 20, "it is still parked, so it comes back after another route")
+    check(endScreen() ~= nil, "the step window shows its end text")
+
+    -- 4e. two finished routes naming each other: the chain stops at its depth limit
+    P.Load("f:x") P.Forward()
+    P.Load("f:y") P.Forward()
+    P.chainLoading = true
+    local okC, errC = pcall(P.Load, "f:x")
+    P.chainLoading = nil
+    check(okC and (P.chainDepth or 0) == 0, "a cycle of finished routes stops, depth back to 0: " .. tostring(errC))
+    check(P.Load("f:x") and P.guide.id == "f:x" and P.current == nil, "picked, a route of that cycle simply stays")
+
+    -- 4f. a picked route with steps left is played as before
+    P.Load("f:l1") P.StartOver()
+    check(P.guide.id == "f:l1" and P.current and P.current.title == "One" and P.hold == nil, "a picked route with steps shows its next step, nothing held")
 end
 
 print(("%s: %d checks, %d failed"):format(fails == 0 and "FLOW TESTS PASSED" or "FLOW TESTS FAILED", checks, fails))

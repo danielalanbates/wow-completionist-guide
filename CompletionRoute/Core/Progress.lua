@@ -193,20 +193,41 @@ end
 -- The saved record of one route (its step total when last loaded), for the list's progress column
 function P.RecentRecord(id) local c = NS.db and NS.db.char return c and c.recent and c.recent[id] or nil end
 
-function P.Load(id)
-    local g = G.registry[id]
-    if not g then NS:Error("Unknown guide: " .. tostring(id)) return false end
-    -- the player picked this guide (the chain sets P.chainLoading): any detour back to a parked guide is over
-    if not P.chainLoading then NS.db.char.parkReturn = nil end
-    P.guide = g
-    -- Gold guides are routes, not checklists: fold one into a circuit before its steps are read
-    -- (Core/Farm.lua Circuitize). Turn it off with /cr farm circuit, or per guide with /cr farm uncircuit.
+-- The steps of guide g as a load reads them, before the access-chain prefix: a gold guide is folded into a circuit
+-- first (Core/Farm.lua Circuitize; off with /cr farm circuit, or per guide with /cr farm uncircuit), then parsed.
+-- P.Load and the import of old marks after login (Core/Account.lua A.StartImport) both read steps here, so the import
+-- maps old marks onto the same list a load would.  quiet: no chat line about the fold.
+function P.ReadSteps(g, quiet)
     if g.type == "Gold" and not g.loop and not g.noCircuit and NS.db.profile.farm and NS.db.profile.farm.circuitizeGold then
-        local ok, res, n = pcall(NS.Farm.Circuitize, g)
-        if ok and res then NS:Print(("Gold guide folded into a %d-stop circuit - just follow it, nothing to click."):format(n))
-        else g.noCircuit = true NS:Debug("circuitize " .. id .. ": " .. tostring(res or n)) end
+        local ok, res, n = pcall(NS.Farm and NS.Farm.Circuitize, g)
+        if ok and res then
+            if not quiet then NS:Print(("Gold route folded into a %d-stop circuit - just follow it, nothing to click."):format(n)) end
+        else g.noCircuit = true NS:Debug("circuitize " .. tostring(g.id) .. ": " .. tostring(res or n)) end
     end
-    P.steps = G.Steps(id)
+    return G.Steps(g.id)
+end
+
+-- Load a route.  opts (optional):
+--   picked  true = the player chose it (the routes list, Recent, /cr load, /cr switch), false = the chain walked into it.
+--           Default: picked unless P.chainLoading is set (the chain and the login set it; every player-facing caller
+--           calls P.Load(id) plain, so none of them has to pass anything).
+-- A picked route goes to the top of Recent, ends a detour back to a parked route, and is HELD: if it has nothing left
+-- to do when it loads, it stays loaded and the step window shows its end screen with Start over, instead of the chain
+-- jumping at once to another route.  A route that runs out DURING play still chains on (the hold ends the moment the
+-- route shows a step).  A held route is remembered (CompletionRouteCharDB.held), so the login holds it again.
+function P.Load(id, opts)
+    local g = G.registry[id]
+    if not g then NS:Error("Unknown route: " .. tostring(id)) return false end
+    local picked
+    if opts and opts.picked ~= nil then picked = opts.picked and true or false else picked = not P.chainLoading end
+    -- the player picked this route: any detour back to a parked route is over
+    if picked then NS.db.char.parkReturn = nil end
+    P.guide = g
+    P.hold = (picked or NS.db.char.held == id) and id or nil
+    -- which Load this is: a load nested in this one (the chain, from the refresh below) changes it
+    P.loadSeq = (P.loadSeq or 0) + 1
+    local seq = P.loadSeq
+    P.steps = P.ReadSteps(g)
     P.finishedNotice = nil
     P.altInst = nil
     P.ResolveAlts()
@@ -234,13 +255,17 @@ function P.Load(id)
     dirty = true
     P.cursor = nil
     if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
-    NS:Print("Guide: " .. (g.name or g.id) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")"
+    NS:Print("Route: " .. (g.name or g.id) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")"
         .. ((cut or 0) > 0 and (", %d left out for skipped quests"):format(cut) or ""))
     -- Recent: a route the player picked goes to the top; one the chain walked into only keeps its step total current
-    if not P.chainLoading then P.TouchRecent(id, #P.steps)
+    if picked then P.TouchRecent(id, #P.steps)
     else local rec = P.RecentRecord(id) if rec then rec.n = #P.steps end end
     P.fresh = true      -- the refresh below is the catch-up of a fresh load, not progress (see P.Refresh)
     P.Refresh()
+    -- The refresh found this route finished and the chain loaded another one: that load fired GUIDE_LOADED for the
+    -- route that is loaded now, and nothing below belongs to this one any more (so GUIDE_LOADED fires once, for the
+    -- route that ends up loaded, not again for this one on the way out).
+    if P.loadSeq ~= seq then return true end
     -- opened for the first time since quests were dropped from it: re-plan it once (the decision is saved)
     if (cut or 0) > 0 and P.guide == g and NS.Skip and not NS.Skip.HasPlan(g.id, key) then P.StartReplan(key) end
     if g.loop then
@@ -728,19 +753,20 @@ function P.ResumeParked(id)
     chainLoad(id)
     return true
 end
--- A guide ran dry: park it if a level gate still holds steps back, otherwise forget it.
-local function parkGuide(g)
+-- A guide ran dry: park it if a level gate still holds steps back, otherwise forget it.  Returns the gate and how many
+-- steps it holds.  quiet: no chat line (the caller says it its own way).
+local function parkGuide(g, quiet)
     local gate, n = P.NextGate()
     if not gate then
         if NS.db.char.parked then NS.db.char.parked[g.id] = nil end
         return nil
     end
     local set = parkedSet()
-    if not (set[g.id] and set[g.id].level == gate) then
+    if not quiet and not (set[g.id] and set[g.id].level == gate) then
         NS:Print(("%s parked: %d more step%s at level %d. It comes back when you get there."):format(g.name or g.id, n, n == 1 and "" or "s", gate))
     end
     set[g.id] = { level = gate }
-    return gate
+    return gate, n
 end
 local function fitsLevel(g) return not (g.maxlevel and U.PlayerLevel() > g.maxlevel + 0.9) end
 
@@ -793,6 +819,11 @@ function P.Refresh(force)
         P.current = newcur
         NS:Fire("STEP_CHANGED", newcur)
     end
+    -- a route with a step to show is being played: when it runs out from here on, the chain moves on (P.Load: held routes)
+    if newcur then
+        P.hold = nil
+        if NS.db.char.held ~= nil then NS.db.char.held = nil end
+    end
     NS:Fire("PROGRESS_REFRESHED")
     if not newcur and P.guide and P.guide.loop then
         -- Farm circuits never "finish": wipe the lap and start the loop again from the nearest waypoint.
@@ -811,6 +842,26 @@ function P.Refresh(force)
             if P.finishedNotice ~= P.guide.id then
                 P.finishedNotice = P.guide.id
                 NS:Print("Route finished: " .. (P.guide.name or P.guide.id) .. ". Start over runs it again; Routes has the next one.")
+            end
+            return
+        end
+        -- A route the player picked that has nothing left (P.Load): it stays loaded, and the step window shows its end
+        -- screen with Start over.  If level gates hold steps back it is parked as well, so it still comes back by
+        -- itself after the player moves on to another route.
+        if P.hold == P.guide.id then
+            if P.finishedNotice ~= P.guide.id then
+                local g = P.guide
+                P.finishedNotice = g.id
+                NS.db.char.held = g.id
+                local gate, n = parkGuide(g, true)
+                local name = g.name or g.id
+                if gate then
+                    NS:Print(("%s: nothing to do at your level; %d more step%s at level %d. Routes has others."):format(name, n, n == 1 and "" or "s", gate))
+                elseif P.VisibleDone() >= #P.steps then
+                    NS:Print("Route finished: " .. name .. ". Start over runs it again; Routes has the next one.")
+                else
+                    NS:Print("Nothing left in " .. name .. " applies to you now. Routes has others.")
+                end
             end
             return
         end
@@ -848,7 +899,7 @@ function P.Refresh(force)
         if not nxt then nxt, eta = G.SuggestNext(me.id) end
         if nxt and nxt.id ~= me.id then
             local where = eta and (" (~%dm away)"):format(math.max(1, math.floor(eta / 60 + 0.5))) or ""
-            NS:Print("Guide finished. Loading next: " .. nxt.name .. where)
+            NS:Print("Route finished. Loading next: " .. nxt.name .. where)
             chainLoad(nxt.id)
         end
     end
@@ -1045,24 +1096,26 @@ local function autoload(attempt)
     local ok, err = pcall(function()
         local id = NS.db.char.guide
         if id and G.registry[id] then
-            NS.db.char.welcomed = true
             P.chainLoading = true
             P.Load(id)
             P.chainLoading = nil
             return
         end
-        -- First launch on this character (no guide was ever loaded): do not pick a guide and open it unasked.  Show
-        -- the guide list instead, whose "Recommended" section starts open with the closest routes for your level (beta feedback,
-        -- 2026-11-11).  Once per character; a character whose saved guide no longer exists still gets a suggestion.
-        if id == nil and not NS.db.char.welcomed then
-            NS.db.char.welcomed = true
+        -- A character that has never loaded a route (none saved): no route is picked and opened unasked.  The routes
+        -- list opens instead, its "Recommended" section open on the closest routes for the level, at EVERY login until
+        -- the player loads a route (the owner, 2026-11-12: "it should bring up the main window"; until then it opened
+        -- once, and a character that closed it unpicked got a route loaded at the next login).  P.Load saves the route,
+        -- so from the first load on the login loads the saved route as before.
+        if id == nil then
             if NS.GuideMenu and NS.GuideMenu.Show then
                 NS.GuideMenu.Show()
                 NS:Print("Pick a route to start: the list is open (/cr routes opens it again).")
-                return
+            else
+                NS:Print("Pick a route to start: /cr routes")
             end
+            return
         end
-        NS.db.char.welcomed = true
+        -- the saved route is gone from this version of the data: the closest fitting one takes its place
         local s = G.SuggestNext(nil) or G.Suggest()  -- location-aware pick at login too
         if s then P.Load(s.id)
         elseif attempt < 3 then NS:After(6, function() autoload(attempt + 1) end)  -- adapters may still be importing

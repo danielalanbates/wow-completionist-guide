@@ -141,11 +141,12 @@ function A.Enabled() return A.Scope() ~= "char" end
 -- Sandbox: while a bulk sweep is loading every guide in the catalogue, progress writes must not
 -- land in the character's real record (otherwise /cr verifyall marks thousands of steps "done").
 -- Loading a guide also writes the character file: the saved guide, parked guides and where a detour returns to (the
--- end-of-guide chain runs for every guide the sweep finds finished), farm laps.  Those are kept aside as well.
+-- end-of-guide chain runs for every guide the sweep finds finished), the finished route held on screen
+-- (Core/Progress.lua P.Load), farm laps.  Those are kept aside as well.
 -- Begin / End are counted, so the store stays in place until the last sweep ends, and a logout or /reload in the middle
 -- of a sweep puts everything back before the client writes the saved variables (PLAYER_LOGOUT below).
 local SCRATCH = { "done", "skipped", "stepDone", "stepSkipped", "stepMeta" }
-local SCRATCH_CHAR = { "guide", "parked", "parkReturn", "laps" }
+local SCRATCH_CHAR = { "guide", "parked", "parkReturn", "held", "laps" }
 local function shallow(v)
     if type(v) ~= "table" then return v end
     local c = {}

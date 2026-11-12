@@ -16,7 +16,8 @@ smart arrow — while the guide content is community-driven and open.
 | Feature | CompletionRoute |
 |---|---|
 | Guide viewer with steps that auto-complete | ✅ `UI/GuideFrame.lua` + `Core/Progress.lua` (quest accept / objectives / turn-in / run-to / hearth / fly / level / item events). *Offline-tested only (2026-11-12):* talking to the NPC a step names (one step per conversation), a merchant on a repair/sell step, `L` items on every kind of step, a bought item, any of a step's `ALT` places, a chest looted at a treasure's spot, a mission's success. What completes what: [docs/GUIDE_FORMAT.md](docs/GUIDE_FORMAT.md); what stays manual: `tools/census_step_kinds.lua` |
-| Recent routes | *Offline-tested only:* the routes list opens with **Recent**: the routes this character has finished steps in, most recently used first (12 at most), each with its progress; click to load. Kept per character, survives `/reload`, parses no guide |
+| Recent routes | *Offline-tested only:* the routes list opens with **Recent**: the routes this character has finished steps in, most recently used first (12 at most), each with its progress; click to load. Kept per character, survives `/reload`, parses no guide. A finished route picked here, in the list or with `/cr load` stays loaded with its end screen and **Start over** (also after `/reload`); only a route that runs out while you play moves on to the next one |
+| First login | *Offline-tested only:* a character that has never loaded a route gets the routes list (its **Recommended** section open) at every login until it picks one; no route is loaded unasked |
 | Start over | *Offline-tested only:* a finished route shows a **Start over** button next to its end text; the step's right-click menu and the window's `...` menu offer it at any time (they ask first while steps are left). It clears the route's marks for this character and goes back to step one (`/cr reset` does the same). Circuits still lap by themselves |
 | Waypoint arrow | ✅ `UI/Arrow.lua` — an archery arrow in natural colours (`tools/gen_pointer.py`), world-coordinate bearing via HereBeDragons, distance under it |
 | Arrow turns into the quest item when you should click it | ✅ secure item button replaces the arrow (`|U|itemID` / `|ITEM|` tag; combat-safe: queued until you leave combat) |
@@ -147,7 +148,7 @@ luajit tools/vplayer.lua era --guides-file F --taxi learn       # fly only into 
 luajit -joff tools/vplayer.lua era --guides-file F --turnins    # time the QUEST_TURNED_IN handlers
 luajit tools/route_sweep.lua era     # route every guide from its own zone
 luajit -joff tools/test_step_window.lua   # step window layout rules on a widget mock (widths before heights, note under the title, one title line), card notes, menus, Start over
-luajit -joff tools/test_flow.lua          # Recent list, Start over, the completion rules of 2026-11-12 (talk, merchant, items, ALT places, treasure, mission)
+luajit -joff tools/test_flow.lua          # Recent list, Start over, the completion rules of 2026-11-12 (talk, merchant, items, ALT places, treasure, mission), finished routes picked by the player, first login
 luajit -joff tools/audit_step_text.lua    # every step of every flavor: lines needed by title, note and travel line at the default window size (estimate from character counts)
 luajit -joff tools/census_step_kinds.lua  # per guide family: which steps complete by themselves and from what, which stay manual
 luajit tools/test_bug_report.lua     # /cr bug snapshot, error hook, caps, SavedVariables reader, capture/replay round trip
