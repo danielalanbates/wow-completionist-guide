@@ -1,4 +1,90 @@
-# Status / handoff (2026-11-11 evening: everything merged into `integration`, data regenerated, rebake running)
+# Status / handoff (2026-11-11 night: one build, the public one; a full rebake is needed)
+
+## 2026-11-11 night: one build (`public-build-only`)
+
+Owner's decision ("i'm building an addon for the general public", "i should only be using the public version"): the
+build on his clients must be exactly what a player gets from a public release. Until now his machine ran a dev build
+with Questie-derived extras that never shipped. Those are gone. **Offline only: nothing here has run in a real WoW
+client.** Branch `public-build-only` (worktree `wt-public`, its own copy of the data), not merged, not pushed, not
+installed. The main checkout, the Drive copy and the five clients still hold the dev build until the steps in the
+branch report are run.
+
+**What "one build" means now.** The six TOCs list only what ships. `tools/install.sh` installs only that and stops on
+anything else. The generators write it by default. The bake covers it. The packager's gate passes on it, and a
+packaged TOC is the source TOC plus the version stamp.
+
+**Removed from the build**
+
+* `Guides/Imported_Quests_<flavor>_gaps.lua`: guides made from a Questie checkout for quests the wiki has no page for
+  (97 Era, 169 TBC, 434 MoP, 207 Retail, 97 Forever guides in the guide list).
+* The Questie-derived map points inside the wiki guides (steps that said `(location: Questie data)` or
+  `(location: Blizzard data)`). A step the wiki cannot place now names its zone, or has no location and says so.
+* `Data/Imported_Entrances.lua` (dungeon doors from Questie). A door is known once the player has walked in, imported
+  one, or the Retail journal gives it. On the Classic clients a fresh character knows none.
+* The local build of `Data/QuestDeps_<flavor>.lua` (it also read the gaps guides and the quest lines). The index is
+  built from the wiki guides only; a quest-line guide's own `PRE` tags fill in what it lacks (`Core/Skip.lua`).
+* Baked route orders for the gaps guides, and every baked order whose guide changed (see *Route orders*).
+
+**What the owner loses on his own clients** (before = the dev build in `repo/` after the WoW-Pro removal, measured
+read-only with the same scanner, label `dev-before-2026-11-11`; after = label `public-2026-11-11`; both in the
+worktree's `docs/verification.sqlite`. The evening table below still counted WoW-Pro guides, so its numbers are a
+little higher than this "before").
+
+| | era | tbc | mop | retail | forever |
+|---|---:|---:|---:|---:|---:|
+| Wiki quest guides, before -> after | 139 -> 137 | 183 -> 189 | 335 -> 336 | 811 -> 836 | 146 -> 142 |
+| Gaps guides, before -> after | 97 -> 0 | 169 -> 0 | 434 -> 0 | 207 -> 0 | 97 -> 0 |
+| Spine (leveling) entries, before -> after | 184 -> 182 | 243 -> 254 | 476 -> 475 | 1,277 -> 1,317 | 193 -> 189 |
+| Quests in a guide, before | 3,554 | 5,845 | 16,562 | 33,266 | 3,741 |
+| Quests in a guide, after | 3,302 | 5,024 | 11,155 | 32,452 | 3,489 |
+| ... of the client's quests | 4,807 | 6,160 | 17,140 | 66,552 | 6,616 |
+| Quests lost from the guides | 252 | 821 | 5,407 | 814 | 252 |
+| With a map point, before | 3,471 (97.7%) | 5,584 (95.5%) | 15,068 (91.0%) | 26,577 (79.9%) | 3,637 (97.2%) |
+| With a map point, after | 2,431 (73.6%) | 3,852 (76.7%) | 8,627 (77.3%) | 24,780 (76.4%) | 2,596 (74.4%) |
+| Zone only (no point), before | 43 (1.2%) | 50 (0.9%) | 40 (0.2%) | 3,674 (11.0%) | 59 (1.6%) |
+| Zone only (no point), after | 771 (23.3%) | 1,115 (22.2%) | 2,085 (18.7%) | 4,371 (13.5%) | 788 (22.6%) |
+| No location at all, before | 40 (1.1%) | 211 (3.6%) | 1,454 (8.8%) | 3,015 (9.1%) | 45 (1.2%) |
+| No location at all, after | 100 (3.0%) | 57 (1.1%) | 443 (4.0%) | 3,301 (10.2%) | 105 (3.0%) |
+| Wiki-guide steps with a point, before | 88.7% | 91.0% | 94.9% | 74.7% | 87.5% |
+| Wiki-guide steps with a point, after | 48.5% | 52.1% | 57.0% | 71.1% | 49.3% |
+| Achievements located (point or zone) | - | - | 84.8% -> 84.9% | 82.7% -> 82.7% | - |
+| Item-started quests with a located accept, before | 113 / 269 | 194 / 213 | 330 / 418 | 1,051 / 1,458 | 123 / 456 |
+| Item-started quests with a located accept, after | 101 / 269 | 179 / 213 | 267 / 418 | 1,034 / 1,458 | 111 / 456 |
+| Generated data installed per client, MB | 2.18 -> 1.83 | 3.21 -> 2.74 | 9.18 -> 7.42 | 31.35 -> 31.21 | 2.28 -> 1.93 |
+
+In words: a quest counts as "with a map point" when at least one of its steps has one. On the three Classic-era
+clients about one covered quest in four now has no point on any step (the arrow goes to the zone, not to the NPC), and
+about half of all wiki-guide steps have no point. MoP Classic also loses a third of its covered quests (the wiki has
+no page for them). Retail changes least, because Blizzard's own quest pins ship. Percentages are of the covered
+quests; step shares are `wiki_point_sources` (the gaps guides' own steps are not in the "before" step share).
+
+**Route orders: almost nothing is baked until the rebake.** A baked order applies only while its guide's step count
+and checksum match, and the checksum covers each step's zone and first point. Removing the fallback points changed
+nearly every wiki guide. `Data/RouteOrder_<flavor>.lua` in the worktree was rewritten by the optimizer's write-only
+mode (`optimize_routes.py --merge --current`, on a scratch copy of the result rows) and now holds only rows that still
+match a shipped guide: era 1 (was 123), tbc 0 (227), mop 0 (501), retail 4 (854), forever 2 (130). No row for a guide
+that no longer exists, no stale row. Until `tools/bake_resume.py` runs (1,640 wiki guides: era 137, tbc 189, mop 336,
+retail 836, forever 142), every guide plays in author order with the live window. The 7 kept rows were solved when
+the entrance seeds were still loaded; pass them in `--force-file` to solve them again. No bake was run here.
+
+**Code and tools**
+
+* Addon: six TOCs (two lines out of each), `Core/Instances.lua` (no seeded doors), `Core/Skip.lua` (the index
+  families), comments.
+* `tools/wiki/gen_wiki_guides.py` writes the build by default (`--no-fallback` is accepted and ignored).
+  `tools/gen_quest_deps.py` reads the wiki guides only. `tools/gen_completion_guides.py` stops on a wiki file that
+  still holds another addon's points.
+* One explicit offline comparison is kept: `gen_wiki_guides.py --measure-fallback` reads the older Questie-derived
+  files from `tools/measure/questie/` and writes only `tools/measure/out/` (`tools/measure/README.md`). It can never
+  be installed or loaded.
+* The tools that read a Questie checkout are in `archive/questie-tooling/` (README there).
+* `tools/install.sh`, `tools/validate_toc.lua` and the packager each refuse a file outside the build.
+  `tools/cost_matrix.lua` and `tools/bake_resume.py` load and bake only shipped guides.
+* `tools/coverage.py` measures the build only (new row `quest-zone`: covered quests with a zone but no point);
+  `tools/status_report.py` shows `zone only` and `no location`.
+
+@RESULTS@
+
 
 ## 2026-11-11 night: no other addon's guides
 

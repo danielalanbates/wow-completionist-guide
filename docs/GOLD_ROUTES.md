@@ -108,9 +108,8 @@ written into a guide.** What a lap is worth is measured in game (*What a lap is 
 
 Era and Forever have no Instances guides: no older content exists there. Burning Crusade has none either: *Template:Level* merges Classic, Burning Crusade and Wrath into one *Pre-Cataclysm* section, and its levels are retail-scaled, so that client's old instances cannot be told from its own. Mists gets *Pre-Cataclysm*; retail also gets *Cataclysm and Pandaria* and one group per later expansion. Only instances whose wiki page gives an entrance coordinate this client can place are listed, and a group with fewer than two is dropped.
 
-**Other projects' data.** Steps whose location came from Questie are never used for a ring or a daily point (`World._read_wiki_guides` drops them and counts them; a daily
-whose giver point came from there keeps only its quest id and the wiki's zone). `Data/Imported_Entrances.lua` is not read by the generator because that file is built from
-Questie's data; the runtime engine can still use it as a fallback for instance doors.
+**Other projects' data.** None is read. The wiki guides hold no step located from Questie since 2026-11-11 (one build); `World._read_wiki_guides` still drops and
+counts any such step as a guard. No dungeon-door table exists any more: the runtime engine learns doors and asks the Retail journal (`Core/Instances.lua`).
 
 ### How a ring gets its shape
 

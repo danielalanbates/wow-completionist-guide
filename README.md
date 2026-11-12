@@ -26,15 +26,15 @@ smart arrow — while the guide content is community-driven and open.
 | Skip quests | ✅ `Core/Skip.lua` — drop a quest from every guide; if other quests need it you are warned first, with their names, and confirming drops the whole chain. Breadcrumbs never block. The guide is rebuilt without those quests and without any quest it could then no longer offer (steps, counts and progress follow), then re-planned for travel time in the background (`Routing/Replan.lua`). `/cr unskip` brings everything back — [docs/ROUTING.md](docs/ROUTING.md#skipping-quests) |
 | Auto accept and turn-in (guide's quests only) | Built, offline-tested only: `Core/QuestAuto.lua`, off by default. Accepts and hands in only the quests of the guide's next steps, never skipped or dropped quests, never quests that cost gold, dailies the guide does not ask for, or a reward choice (unless the gear score sees a clear upgrade and you allow it). Hold Shift (or your chosen key) to do a quest giver yourself. Options > Auto quests, `/cr auto` — [docs/QUEST_AUTO.md](docs/QUEST_AUTO.md) |
 | Guide library | ✅ every guide is built by this project: generated from the Warcraft Wiki and Blizzard client data, plus hand-written starter guides in `Guides/Leveling/`. No other addon's guides are read or needed |
-| Every quest in the game, covered | ✅ generated zone guides: Classic flavors from a local **Questie** checkout, **retail from Blizzard's own quest POI client data** (`tools/gen_quest_guides_retail.py` — 379 zone guides, 17,161 quests, 56,843 steps). No subscription required.
+| Quest coverage | ✅ generated zone guides from the **Warcraft Wiki**, with **Blizzard's own quest pins** on Retail where the wiki gives no point (`tools/wiki/gen_wiki_guides.py`). A quest the wiki has no page for is not in a zone guide; Retail's live per-zone list (`Adapters/DynamicQuests.lua`) and the quest-line guides cover some of those. Numbers per client: [docs/STATUS.md](docs/STATUS.md) |
 | Gold guides | ✅ realm-independent money guides by level, on every client: gathering, mob farming and fishing **circuits** you walk with nothing to click, plus daily gold, instance runs and step-by-step methods. No prices are shipped; laps are priced in game from Auctionator if present, else vendor value — [docs/GOLD_ROUTES.md](docs/GOLD_ROUTES.md) |
 | Secondary professions | ✅ Cooking, Fishing, First Aid and Archaeology by client, with nearest trainer, a computed recipe path, skill targets that tick themselves, and live Archaeology dig-site circuits — [docs/PROFESSIONS.md](docs/PROFESSIONS.md) |
 | Guides listed by level | ✅ `Core/Recommend.lua`: a *For level N* section, *Only guides for this level* filter, *Group by level* tree, and profession guides matched to your real skill |
-| Dungeon guides | ✅ steps inside an instance route to the **entrance** (learned door + retail encounter journal), `Core/Instances.lua` |
+| Dungeon guides | ✅ steps inside an instance route to the **entrance** once it is known: a door you walked through or imported, or the Retail encounter journal (`Core/Instances.lua`). No door table ships, so a door you have not seen yet is "no route" on the Classic clients |
 | Options | ✅ `/or options` (Settings panel), `/or` commands |
 | Progress survives guide updates | Built, offline-tested only: ticks, skips and stepped-back steps are stored by a stable step key (quest + objective, or a hash of the step's words; never its line number or coordinates), so in a regenerated guide marks stay on their steps when lines are added, removed or moved. Two exceptions: a step whose quest-less text is reworded loses its mark (it is not given to another step), and among identical repeated steps (same quest and objective, or same words: 2.4-4.0% of steps) adding or removing one ahead of the others shifts their marks to a neighbouring identical step. Old progress is carried over once per character and guide; the previous release still reads its own tables after a downgrade. `/cr marks` shows how the loaded guide's progress is stored — [docs/STEP_KEYS.md](docs/STEP_KEYS.md) |
 | Beta bug reports | Built, offline-tested only: `/cr bug [note]` or the guide window's **Report** button saves a snapshot (guide, step, open steps, position, route, quest log including quests that only gate a step, profession skill, last 30 log lines, last addon Lua error; no character or realm name). `tools/ingest_beta_reports.py` loads reports into SQL and `vplayer --repro <id>` replays one offline — [docs/BETA_REPORTS.md](docs/BETA_REPORTS.md) |
-| Release packager with a data-provenance gate | 🚧 `tools/package_release.py` ([docs/RELEASE.md](docs/RELEASE.md)): one universal zip, `provenance.json` for every file, `LICENSE.txt` + `ATTRIBUTION.md`; fails on third-party guide data, personal data, secrets, symlinks and broken TOC lines. Dry run by default, never tags or publishes. Today's local data fails it (fallback wiki points, old headers, baked orders of gaps guides). |
+| Release packager with a data-provenance gate | 🚧 `tools/package_release.py` ([docs/RELEASE.md](docs/RELEASE.md)): one universal zip, `provenance.json` for every file, `LICENSE.txt` + `ATTRIBUTION.md`; fails on data derived from another addon, personal data, secrets, symlinks and broken TOC lines. Dry run by default, never tags or publishes. There is one build: the TOCs, the installer and the packager handle the same files. |
 
 Not yet: primary profession guides, talent advisor, gear finder, model viewer, guide editor UI, Zen Pilgrimage / Dreamwalk / class-hall teleports, indoor/dungeon-aware walking, per-zone "wall" data.
 
@@ -46,18 +46,17 @@ regenerable**, so nothing here depends on a subscription staying alive:
 | Source | Flavors | How |
 |---|---|---|
 | **Warcraft Wiki** (warcraft.wiki.gg, CC BY-SA 4.0) — **the source of truth** | era, tbc, mop, retail, forever | `tools/wiki/` (fetch → parse → `gen_wiki_guides.py`) writes `Guides/Imported_Wiki_<flavor>.lua`: per-zone guides with the wiki's givers, enders, chains (`PRE`), objectives and coordinates. Flavor membership is checked against each client's QuestV2. See [tools/wiki/README.md](tools/wiki/README.md) |
-| Blizzard quest POI client data (wago.tools `QuestPOIBlob`/`QuestPOIPoint`) | retail | `tools/gen_quest_guides_retail.py`. Now fills wiki gaps only: coordinates for steps the wiki has none for, plus `Imported_Quests_retail_gaps.lua` for quests the wiki lacks |
-| **Questie** database (local checkout) | era, tbc, mop | `tools/gen_quest_guides.lua`. Local-only fallback where the wiki has no coordinate, plus `Imported_Quests_<flavor>_gaps.lua` for quests the wiki lacks |
+| Blizzard client data (wago.tools DB2 exports) | all | which quests a client has (`QuestV2`); on Retail the quest map pins (`QuestPOIBlob`/`QuestPOIPoint`) for steps the wiki gives no point for, quest-line order, achievements and missions (`tools/gen_completion_guides.py`); flight paths (`tools/gen_taxi.py`) |
 | Hand-authored native guides | all | `Guides/` |
 
-Generated guide files are gitignored: the *generators* ship, the third-party-derived data does not.
+Generated guide files are gitignored (they are large and rebuilt by the generators); a release zip holds them.
 
 **Open quest database.** The same wiki and Blizzard data, as plain JSON and SQLite for any addon or tool, is published
 separately at [wow-completionist-data](https://github.com/danielalanbates/wow-completionist-data) (CC BY-SA 4.0). It covers
 quests, givers and enders, prerequisites, NPCs, objects, achievements and missions for all five clients, and every record
 names its source and a confidence for its map point. Corrections are welcome there as pull requests.
 
-**Community data only.** Completionist's Guide is built from the Warcraft Wiki and Blizzard client data. On the developer's machine a local build also fills gaps from a Questie checkout; that data never ships. No guide from any other addon, free or commercial, is read, imported or shipped.
+**Community data only, one build.** Completionist's Guide is built from the Warcraft Wiki and Blizzard client data, plus the project's own code and data. Nothing derived from Questie or from any other addon, free or commercial, is read, generated, installed or shipped: the build the developer runs is the build a release ships (since 2026-11-11). The tools that once read a local Questie checkout are in `archive/questie-tooling/`; one explicit offline comparison remains in `tools/measure/` and never touches the add-on.
 
 ## Verification — no characters required
 
@@ -126,7 +125,7 @@ CompletionRoute/            the addon (copy this folder into Interface/AddOns)
   Libs/               LibStub, CallbackHandler, HereBeDragons-2.0
 tools/                gen_taxi.py (wago.tools → Data), gen_textures.py, install.sh, test_offline.lua (luajit smoke test)
 docs/                 design, format, verification log, roadmap / pathways for the next contributor
-archive/              dead ends kept for reference
+archive/              retired tooling kept for reference (questie-tooling/: tools that read a local Questie checkout)
 ```
 
 ## Development
@@ -148,7 +147,8 @@ luajit -joff tools/test_quest_auto.lua  # auto accept / turn-in on fake gossip, 
 python3 tools/test_ingest_beta_reports.py      # beta_reports ingest on a fixture (temp database)
 python3 tools/ingest_beta_reports.py           # Daniel's /cr bug reports -> beta_reports; then:
 luajit tools/vplayer.lua --repro <report id> --check   # replay one offline; exit 1 on a DIFF (docs/BETA_REPORTS.md)
-python3 tools/gen_quest_guides_retail.py       # regenerate the retail quest guides from client data
+python3 tools/wiki/gen_wiki_guides.py          # regenerate the wiki quest guides and the spine (then gen_gold, gen_professions,
+                                               # tools/gen_completion_guides.py, tools/gen_quest_deps.py; docs/RELEASE.md)
 python3 tools/gen_taxi.py tbc 2.5.6.69110 era 1.15.9.69109 mop 5.5.4.69155 retail 12.1.0.69382
 python3 tools/package_release.py               # release dry run: assemble, provenance gate, zip sizes (writes nothing)
 python3 tools/package_release.py --write --version 2.0.0-beta1   # dist/<version>/ (gitignored; a failing build: dist/failed/); never tags or publishes

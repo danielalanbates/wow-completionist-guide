@@ -42,7 +42,7 @@ step.
 
 ## Collisions on the real guides
 
-`tools/test_progress_keys.lua` parses every guide of every flavor (generated wiki, gaps, spine, professions, gold,
+`tools/test_progress_keys.lua` parses every guide of every flavor (generated wiki, spine, professions, gold,
 achievements, storylines, missions, and native guides, read from the
 locally baked file). Keys are unique within a guide by construction (the repeat number); the test checks it, and checks
 that no two **different** texts share a hash inside a guide (which would make them count as repeats of each other).
