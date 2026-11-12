@@ -98,7 +98,9 @@ function M.UpdateScopeLabel()
             b.label:SetTextColor(0.62, 0.62, 0.62)
         end
     end
-    scopeHint:SetText("Progress counts for " .. NS.Account.ScopeDetail(cur) .. ".")
+    -- owner's wording (2026-11-12): "Includes all progress from ..." rather than "Progress counts for ..."
+    local who = (cur == "char") and ((NS.Account.me and NS.Account.me.name) or "this character") or NS.Account.ScopeDetail(cur)
+    scopeHint:SetText("Includes all progress from " .. who .. ".")
 end
 scope:SetScript("OnEnter", scopeTip)
 scope:SetScript("OnLeave", function() GameTooltip:Hide() end)
