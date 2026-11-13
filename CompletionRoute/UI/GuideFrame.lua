@@ -39,6 +39,11 @@ end
 f:SetScript("OnDragStart", dragStart)
 f:SetScript("OnDragStop", dragStop)
 f:SetFrameStrata("MEDIUM")
+-- drawn over the action bars, not behind them (owner, 2026-11-12: "it shouldn't go behind the hot keys by default"):
+-- the bars share this strata at low frame levels.  Toplevel, so a click raises it like any other window, and a game
+-- panel or bag clicked afterwards still comes in front of it.
+if f.SetFrameLevel then f:SetFrameLevel(30) end
+if f.SetToplevel then f:SetToplevel(true) end
 
 -- ---------------------------------------------------------------------------
 -- Button labels in the addon's own fonts (Core/Util.lua U.Font), so the Options "Text size" slider covers them too.
