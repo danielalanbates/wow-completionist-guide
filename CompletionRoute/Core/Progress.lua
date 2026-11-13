@@ -254,6 +254,7 @@ function P.Load(id, opts)
     NS.db.char.guide = id
     dirty = true
     P.cursor = nil
+    P.prefilled = nil   -- the refresh below ticks every step the client already reports as done (P.Prefill)
     if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
     NS:Print("Route: " .. G.DisplayName(g) .. " (" .. #P.steps .. " steps, from " .. (g.source or "?") .. ")"
         .. ((cut or 0) > 0 and (", %d left out for skipped quests"):format(cut) or ""))
@@ -296,6 +297,7 @@ function P.Rebuild(noReplan)
     local list, cut, key = P.Rebuilt(P.baseSteps)
     P.steps = list
     P.cursor = nil
+    P.prefilled = nil   -- steps a brought-back quest returns are ticked if the quest is already done
     dirty = true
     if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
     if NS.Router and NS.Router.Invalidate then NS.Router.Invalidate() end
@@ -438,6 +440,7 @@ function P.Reset()
     P.finishedNotice = nil
     dirty = true
     P.cursor = nil
+    P.prefilled = nil
     if NS.StepOrder and NS.StepOrder.Reset then NS.StepOrder.Reset() end
     if NS.Router and NS.Router.Invalidate then NS.Router.Invalidate() end
     P.Refresh()
@@ -613,6 +616,51 @@ function P.CheckStep(step)
 end
 
 -- ---------------------------------------------------------------------------
+-- Prefill: everything the client already reports as done, ticked at once
+-- ---------------------------------------------------------------------------
+-- P.Refresh auto-completes a window of the next 40 open steps, which is enough while a route is being played.  It is
+-- not enough for a route picked up part-way: a character who did the quests of its second half has those steps far
+-- beyond the window, so they stayed open (and counted as "held back by a level gate" or "not finished") until the
+-- window crawled up to them.  P.Prefill walks the WHOLE list once and ticks every step whose state is permanent and
+-- does not depend on where the player stands:
+--   * a step with a quest id whose quest is completed (accept, objective, turn-in and any other step alike; "1&2"
+--     needs both quests, "1^2" either: the list's own and/or rule)
+--   * a profession step whose skill is reached or whose recipe is known, an achievement step that is earned
+-- Travel, bag and position rules stay with the window (they are about now, not about the past).  A step the player
+-- stepped back to (Back arrow) is left alone, and so is a farm circuit.  It costs one pass of table reads, no parse.
+-- It runs on the first refresh after a load, a rebuild or Start over, and again (quests only: an achievement list
+-- has thousands of steps to ask the client about) whenever the character's completed quests change (Core/Account.lua
+-- A.questGen: a turn-in, or the client's completed list arriving after the route was loaded, which is what happens on
+-- a first login on Classic clients).
+local function stateDone(step, questsOnly)
+    local q = step.qid
+    if q and #q > 0 and anyQuestDone(q, U.IsQuestComplete) then return true end
+    if questsOnly then return false end
+    if step.skill and P.SkillMet(step.skill) then return true end
+    if step.recipe and NS.Professions and NS.Professions.KnowsSpell(step.recipe) then return true end
+    if step.ach and U.AchievementDone(step.ach, step.achCrit) then return true end
+    return false
+end
+P.StateDone = stateDone
+-- Returns how many steps it ticked.
+function P.Prefill(questsOnly)
+    if not (P.guide and P.steps) or P.guide.loop then return 0 end
+    local done, skipped, reopened = charDone(), charSkipped(), charReopened()
+    local n = 0
+    for i = 1, #P.steps do
+        local s = P.steps[i]
+        local k = s.key
+        if k and not done[k] and not skipped[k] and not reopened[k] and stateDone(s, questsOnly) then
+            done[k] = true
+            n = n + 1
+        end
+    end
+    if n > 0 then dirty = true end
+    return n
+end
+local function questGen() return (NS.Account and NS.Account.questGen) or 0 end
+
+-- ---------------------------------------------------------------------------
 -- ALT steps (every usable trainer...): keep the step pointing at the cheapest alternative for this character
 -- ---------------------------------------------------------------------------
 -- Runs when a guide loads and whenever the player's continent changes.  The same place often appears in many steps
@@ -785,6 +833,14 @@ function P.Refresh(force)
         local _, _, _, inst = U.PlayerPos()
         if inst and inst ~= P.altInst then P.ResolveAlts() end
     end
+    -- 0) after a load, and when the completed quests changed: tick every step that is already done, anywhere in the
+    --    route (P.Prefill).  That is catching up, not progress, so it does not move the route up in Recent.
+    local prefilled = false
+    if P.prefilled ~= questGen() then
+        local again = P.prefilled ~= nil
+        P.prefilled = questGen()
+        prefilled = P.Prefill(again) > 0
+    end
     -- 1) auto-complete anything already satisfied (scan a window ahead so obsolete steps vanish)
     local changed, passes, wp = false, 0, 0
     repeat
@@ -803,9 +859,9 @@ function P.Refresh(force)
         changed = changed or any
         passes = passes + 1
     until not any or passes >= 25   -- a guide picked up mid-way can have hundreds of already-done steps
-    if changed then
+    if changed or prefilled then
         NS:Fire("STEPS_AUTOCOMPLETED")
-        if not fresh and P.guide then P.TouchRecent(P.guide.id, #P.steps) end
+        if changed and not fresh and P.guide then P.TouchRecent(P.guide.id, #P.steps) end
     end
     -- 2) let optimizer order the upcoming window
     local window = NS.db.profile.routing.window or 10
