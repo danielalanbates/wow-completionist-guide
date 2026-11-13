@@ -179,6 +179,9 @@ titleHit:SetScript("OnEnter", function(self)
     if not P.guide then return end
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
     GameTooltip:SetText(G.DisplayName(P.guide), 0.24, 0.78, 1, 1, true)
+    local band = NS.Recommend and NS.Recommend.GuideLabel and NS.Recommend.GuideLabel(P.guide) or ""
+    band = band:gsub("^%[", ""):gsub("%]$", "")
+    if band ~= "" then GameTooltip:AddLine((band:find("skill") and "" or "Levels ") .. band, 0.7, 0.7, 0.7, true) end
     if GF.stepLine and GF.stepLine ~= "" then GameTooltip:AddLine(GF.stepLine, 1, 1, 1, true) end
     GameTooltip:AddLine("Drag to move the window.", 0.6, 0.6, 0.6, true)
     GameTooltip:Show()

@@ -228,7 +228,7 @@ end
 function QA.CanAccept(q, offer, w)
     if not QA.Enabled("accept") then return false, "off" end
     w = w or QA.Window()
-    if not w then return false, "no guide" end
+    if not w then return false, "no route" end
     if not q then return false, "unknown quest" end
     local why = removedWhy(q)
     if why then return false, why end
@@ -246,7 +246,7 @@ end
 function QA.CanTurnIn(q, w)
     if not QA.Enabled("turnin") then return false, "off" end
     w = w or QA.Window()
-    if not w then return false, "no guide" end
+    if not w then return false, "no route" end
     if not q then return false, "unknown quest" end
     local why = removedWhy(q)
     if why then return false, why end
@@ -425,7 +425,7 @@ function QA.OnList(evt)
     if evt == "QUEST_GREETING" then list = QA.ReadGreeting() else list = QA.ReadGossip() end
     if not list then return note(evt, nil, nil, "no quest list API on this client") end
     local w = QA.Window()
-    if not w then return note(evt, nil, nil, "no guide") end
+    if not w then return note(evt, nil, nil, "no route") end
     return onList(evt, list, guid, w)
 end
 
@@ -566,7 +566,7 @@ NS:On("PROGRESS_REFRESHED", function() stale = false end)
 local function onoff(v) return v and "|cff00ff00on|r" or "|cff888888off|r" end
 function QA.PrintStatus()
     local p = prof()
-    NS:Print(("Auto accept %s, auto turn in %s, choose reward %s. Only quests in the guide's next steps; %s"):format(
+    NS:Print(("Auto accept %s, auto turn in %s, choose reward %s. Only quests in the route's next steps; %s"):format(
         onoff(p.autoAccept), onoff(p.autoTurnin), onoff(p.autoChooseReward),
         QA.Key() == "NONE" and "no pause key." or ("hold " .. QA.KEY_LABEL[QA.Key()] .. " to do a quest giver yourself.")))
     local e = QA.last

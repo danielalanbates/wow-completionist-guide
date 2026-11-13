@@ -202,7 +202,7 @@ function A.Update()
         arrow:Show()
         setPointer()
         arrow:SetRotation(0)
-        sub:SetText("Different continent - follow the guide")
+        sub:SetText("Different continent - follow the route")
         return
     end
     local dx, dy = rec.wx - pwx, rec.wy - pwy

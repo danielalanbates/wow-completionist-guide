@@ -330,11 +330,7 @@ end
 -- the name a Recommended row shows: no level range and no chain number ("002. Zephras Isle Quests 1-5" ->
 -- "Zephras Isle Quests"); the tooltip still has the full name
 local function recName(g)
-    local n = G.DisplayName(g)
-    n = (n:gsub("^%d+%.%s+", ""))
-    n = (n:gsub("%s+%d+%s*%-%s*%d+", ""))
-    n = (n:gsub("(Quests)%s+%d+", "%1"))
-    return n
+    return G.DisplayName(g)
 end
 M.RecName = recName
 
@@ -725,7 +721,7 @@ function M.Refresh()
                 for _, line in ipairs(Rec.Describe(gg, M.ViewLevel())) do GameTooltip:AddLine(line, 1, 0.82, 0, true) end
                 if gg.zone then GameTooltip:AddLine("Zone: " .. tostring(gg.zone), 1, 1, 1) end
                 if gg.faction then GameTooltip:AddLine("Faction: " .. gg.faction, 1, 1, 1) end
-                if gg.next then GameTooltip:AddLine("Next: " .. gg.next, 0.7, 0.7, 0.7) end
+                if gg.next then GameTooltip:AddLine("Next: " .. (G.registry[gg.next] and G.DisplayName(G.registry[gg.next]) or tostring(gg.next)), 0.7, 0.7, 0.7) end
                 if NS.Account and NS.Account.me then
                     local okS, st = pcall(G.Steps, gg.id)
                     local total = okS and st and #st or 0

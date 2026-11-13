@@ -643,7 +643,7 @@ function BR.Command(rest)
         NS:Print(("%d bug report(s), newest first:"):format(#store))
         for i, r in ipairs(store) do
             if i > 10 then break end
-            NS:Print(("  %s  %s step %s%s"):format(r.id, r.guide and (r.guide.name or r.guide.id) or "no route",
+            NS:Print(("  %s  %s step %s%s"):format(r.id, r.guide and NS.Guide.DisplayName(r.guide) or "no route",
                 tostring(r.step and r.step.index or "-"), r.note and ("  \"" .. trunc(r.note, 50) .. "\"") or ""))
         end
         return

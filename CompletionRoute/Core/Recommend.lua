@@ -319,7 +319,7 @@ end
 -- Slash output (Core/Slash.lua dispatches)
 -- ---------------------------------------------------------------------------
 local function entryLine(e)
-    local bits = { e.g.name or e.g.id }
+    local bits = { G.DisplayName(e.g) }
     local label = infoFor(e.g).label
     if label ~= "" then bits[#bits + 1] = label end
     if e.g.loop then bits[#bits + 1] = "circuit" end
@@ -383,7 +383,7 @@ function R.PrintProf()
         for _, e in ipairs(entries) do
             if infoFor(e.g).prof == p.key then guide = e break end
         end
-        NS:Print(("%s %d/%d%s"):format(p.key, p.rank, p.max, guide and ("  ->  " .. (guide.g.name or guide.g.id)) or "  (no route for this skill band)"))
+        NS:Print(("%s %d/%d%s"):format(p.key, p.rank, p.max, guide and ("  ->  " .. G.DisplayName(guide.g)) or "  (no route for this skill band)"))
     end
     if partial then NS:Print("Some skills are hidden: expand every header in the Skills pane to see them all.") end
 end

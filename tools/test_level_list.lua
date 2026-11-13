@@ -270,8 +270,10 @@ do
     t("a zone route the chain places at 54-60 is not recommended at level 8", not ids["wide:placed"] and not ids["spine:t:067"])
     t("a 1-60 zone route the chain does not place is not recommended", not ids["wide:loose"])
     t("a narrow zone route that fits is recommended", ids["near:ok"] == true)
-    t("route names drop the faction tag", G.DisplayName({ name = "Zephras Isle Quests 2-9 (Horde)" }) == "Zephras Isle Quests 2-9"
-        and G.DisplayName({ name = "Elwynn Forest Quests 1-11 (Alliance)" }) == "Elwynn Forest Quests 1-11"
+    t("route names drop the faction tag", G.DisplayName({ name = "Zephras Isle Quests 2-9 (Horde)" }) == "Zephras Isle Quests"
+        and G.DisplayName({ name = "001. Elwynn Forest Quests 1-11 (Alliance)" }) == "Elwynn Forest Quests"
+        and G.DisplayName({ name = "Cooking 1-75 (Horde)" }) == "Cooking 1-75"
+        and G.DisplayName({ name = "Mob Farming 30-40: Humanoids in Desolace" }) == "Mob Farming: Humanoids in Desolace"
         and M.RecName({ name = "003. Zephras Isle Quests 2-9 (Horde)" }) == "Zephras Isle Quests"
         and M.RecName({ name = "Durotar Quests 1-8 (Horde) - Part 1/2" }) == "Durotar Quests - Part 1/2",
         M.RecName({ name = "Durotar Quests 1-8 (Horde) - Part 1/2" }))

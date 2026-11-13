@@ -308,7 +308,7 @@ function NS.RunVerify(quiet)
         if not quiet then NS:Print((pass and "|cff00ff00PASS|r" or "|cffff4040FAIL|r") .. line:sub(5)) end
     end
     local P, G, U = NS.Progress, NS.Guide, NS.Util
-    chk("guide loaded", function() return P.guide ~= nil, P.guide and P.guide.id end)
+    chk("route loaded", function() return P.guide ~= nil, P.guide and P.guide.id end)
     chk("steps parsed", function() return P.steps and #P.steps > 0, P.steps and #P.steps end)
     chk("current step", function() return P.current ~= nil, P.current and (P.current.action .. " " .. P.current.title) end)
     chk("optimizer order", function() local u = P.Upcoming(10) return #u > 0, #u .. " upcoming" end)
@@ -321,9 +321,9 @@ function NS.RunVerify(quiet)
     chk("arrow recommendation", function() local r = NS.Router.Recommendation() return r ~= nil, r and (r.mode .. ": " .. (r.text or "")) end)
     chk("arrow frame shown", function() return NS.Arrow.frame:IsShown() end)
     chk("secure button type", function() return true, tostring(NS.Arrow.button:GetAttribute("type")) end)
-    chk("guides registered", function() return #G.list > 0, #G.list end)
+    chk("routes registered", function() return #G.list > 0, #G.list end)
     chk("suggest", function() local g = G.Suggest() return g ~= nil, g and g.id end)
-    chk("native guides", function() local n = 0 for _, id in ipairs(G.list) do if G.registry[id].source == "CompletionRoute" then n = n + 1 end end return n > 0, n end)
+    chk("native routes", function() local n = 0 for _, id in ipairs(G.list) do if G.registry[id].source == "CompletionRoute" then n = n + 1 end end return n > 0, n end)
     chk("player info", function() return true, NS.player.faction .. " " .. NS.player.race .. " " .. NS.player.class .. " " .. string.format("%.2f", U.PlayerLevel()) end)
     chk("beacon targets", function() local t = {} for _, n in pairs(NS.Beacon.WantedNames()) do t[#t + 1] = n end return true, #t > 0 and table.concat(t, ", ") or "none" end)
     chk("beacon pins lib", function() return LibStub("HereBeDragons-Pins-2.0", true) ~= nil end)
@@ -363,7 +363,7 @@ function NS.RunVerifyAll(onDone, resume)
     -- character's real progress
     if NS.Account and NS.Account.me then NS.Account.BeginScratch() end
     local i, fr = (res.done or 0) + 1, CreateFrame("Frame")
-    NS:Print(("verifyall: checking %d guides%s..."):format(#ids, i > 1 and (" (resuming at %d)"):format(i) or ""))
+    NS:Print(("verifyall: checking %d routes%s..."):format(#ids, i > 1 and (" (resuming at %d)"):format(i) or ""))
     fr:SetScript("OnUpdate", function()
         local budget = debugprofilestop() + 25
         while i <= #ids and debugprofilestop() < budget do
@@ -403,7 +403,7 @@ function NS.RunVerifyAll(onDone, resume)
             NS.bulkRun = nil
             -- back to the guide that was loaded, the way a login reloads it (not as a guide the player just picked)
             if prevGuide then NS.Progress.chainLoading = true pcall(NS.Progress.Load, prevGuide) NS.Progress.chainLoading = nil end
-            NS:Print(("verifyall DONE: %d/%d guides OK, %d failed"):format(res.total - res.failed, res.total, res.failed))
+            NS:Print(("verifyall DONE: %d/%d routes OK, %d failed"):format(res.total - res.failed, res.total, res.failed))
             for k = 1, math.min(10, #res.errors) do NS:Print("  FAIL " .. res.errors[k]) end
             if onDone then pcall(onDone) end
         end
@@ -462,8 +462,8 @@ function NS.RunFeatureVerify(quiet)
             local t = {} for i, x in ipairs(c) do if i <= 6 then t[#t + 1] = x.key .. "(" .. tostring(x.steps) .. ")" end end
             return table.concat(t, ", ") end)()
     end)
-    chk("account", "per-guide progress math", function()
-        if not P.guide or not P.steps then return false, "no guide loaded" end
+    chk("account", "per-route progress math", function()
+        if not P.guide or not P.steps then return false, "no route loaded" end
         local keep
         if P.baseSteps and P.steps ~= P.baseSteps then keep = {} for _, st in ipairs(P.steps) do keep[st.key] = true end end
         local cn, cp = A.GuideProgress(P.guide.id, #P.steps, "char", keep)
@@ -517,7 +517,7 @@ function NS.RunFeatureVerify(quiet)
         end
         return false, "no circuit registered"
     end)
-    chk("farm", "imported gold guides fold into circuits", function()
+    chk("farm", "imported gold routes fold into circuits", function()
         local tried, folded, touched = 0, 0, {}
         for _, id in ipairs(NS.Guide.list) do
             local g = NS.Guide.registry[id]
@@ -528,11 +528,11 @@ function NS.RunFeatureVerify(quiet)
             end
         end
         for _, g in ipairs(touched) do pcall(F.Uncircuitize, g) end   -- leave the library as we found it
-        return tried == 0 or folded > 0, ("%d of %d sampled gold guides became circuits"):format(folded, tried)
+        return tried == 0 or folded > 0, ("%d of %d sampled gold routes became circuits"):format(folded, tried)
     end)
     chk("farm", "lap engine present", function()
         return type(P.NewLap) == "function" and type(P.StartAtNearest) == "function" and type(P.Lap) == "function",
-            ("laps recorded: %d guide(s)"):format(U.tcount(NS.db.char.laps or {}))
+            ("laps recorded: %d route(s)"):format(U.tcount(NS.db.char.laps or {}))
     end)
     chk("farm", "node recorder wired", function()
         local handlers = NS.wowHandlers and NS.wowHandlers.LOOT_OPENED
@@ -562,11 +562,11 @@ function NS.RunFeatureVerify(quiet)
                 end
             end
         end
-        return true, "no parsed dungeon guide with an instance step yet"
+        return true, "no parsed dungeon route with an instance step yet"
     end)
 
-    chk("core", "guides registered", function() return #NS.Guide.list > 0, #NS.Guide.list end)
-    chk("core", "guide loaded + routed", function()
+    chk("core", "routes registered", function() return #NS.Guide.list > 0, #NS.Guide.list end)
+    chk("core", "route loaded + routed", function()
         return P.current ~= nil, P.guide and (P.guide.id .. " -> " .. P.current.action .. " " .. P.current.title) or "none"
     end)
     chk("core", "arrow shown", function()

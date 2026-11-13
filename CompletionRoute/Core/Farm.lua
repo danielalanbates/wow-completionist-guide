@@ -216,7 +216,7 @@ end
 
 function F.Circuitize(guide, opts)
     opts = opts or {}
-    if not (guide and NS.Loop) then return nil, "no guide" end
+    if not (guide and NS.Loop) then return nil, "no route" end
     local steps = G.Steps(guide.id)
     if not steps or #steps == 0 then return nil, "no steps" end
     -- The guide already IS a ring (e.g. "path ... loop on", or one of ours): keep the author's order,
@@ -263,7 +263,7 @@ function F.Circuitize(guide, opts)
         if #pts == 0 then return nil, "no farmable stops and no zone to sweep" end
         opts.minStops = 0
     end
-    if quest > located * 0.5 then return nil, "mostly quest steps - this is a questing guide, not a farm route" end
+    if quest > located * 0.5 then return nil, "mostly quest steps - this is a questing route, not a farm route" end
     -- Most imported gold guides are ONE spot ("kill clefthooves here"). A single point is not a route,
     -- so patrol it: a ring around each stop, sized to the spread of the guide's own stops.
     if #pts < (opts.minStops or 6) then

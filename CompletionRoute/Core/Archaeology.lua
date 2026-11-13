@@ -94,7 +94,7 @@ end
 function A.BuildText()
     local map = U.PlayerPos and U.PlayerPos()
     local continent = continentOf(map)
-    if not continent then return "N Log in on a continent with dig sites|N|Your position is not known yet, or this place has no dig sites. Reload the guide once you are on a continent.|\n" end
+    if not continent then return "N Log in on a continent with dig sites|N|Your position is not known yet, or this place has no dig sites. Reload the route once you are on a continent.|\n" end
     local sites = A.ActiveSites(continent)
     local active = sites ~= nil and #sites > 0
     local note = "Use Survey until the site is empty. This list rebuilds by itself when a site is finished."

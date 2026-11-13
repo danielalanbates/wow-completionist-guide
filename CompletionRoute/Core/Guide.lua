@@ -571,6 +571,15 @@ function G.DisplayName(g)
     if not g then return "?" end
     local n = g.name or g.id or "?"
     n = (n:gsub("%s*%(%s*[Aa]lliance%s*%)", "")):gsub("%s*%(%s*[Hh]orde%s*%)", "")
+    -- no chain number and no level range in a name either (owner, 2026-11-12: "it should not say lvl ranges in the
+    -- title. maybe in a descriptor"): "002. Zephras Isle Quests 1-5" -> "Zephras Isle Quests".  The range is shown
+    -- beside the name as a descriptor (Core/Recommend.lua R.GuideLabel).  A profession's skill range stays: it is
+    -- what tells "Cooking 1-75" from "Cooking 75-150".
+    n = (n:gsub("^%d+%.%s+", ""))
+    n = (n:gsub("(Quests)%s+%d+%s*%-%s*%d+", "%1"))
+    n = (n:gsub("(Quests)%s+%d+", "%1"))
+    n = (n:gsub("^(Mob Farming)%s+%d+%s*%-%s*%d+", "%1"))
+    n = (n:gsub("^(Gold Methods)%s+%d+%s*%-%s*%d+", "%1"))
     return n
 end
 

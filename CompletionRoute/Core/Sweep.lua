@@ -63,7 +63,7 @@ function NS.RunRouteSweep(zoneFilter, resume)
             if not want or zn:lower():find(want, 1, true) or (g.name or ""):lower():find(want, 1, true) then ids[#ids + 1] = id end
         end
     end
-    if #ids == 0 then NS:Print("sweep: no guides match '" .. tostring(zoneFilter) .. "'") return end
+    if #ids == 0 then NS:Print("sweep: no routes match '" .. tostring(zoneFilter) .. "'") return end
     -- one bulk run at a time: two of them loading guides in turn would end each other's scratch store (Core/Account.lua)
     if NS.bulkRun then NS:Print("sweep: a " .. NS.bulkRun .. " is still running; wait for it to finish.") return false end
     NS.bulkRun = "sweep"
@@ -81,7 +81,7 @@ function NS.RunRouteSweep(zoneFilter, resume)
     if NS.Account and NS.Account.BeginScratch then NS.Account.BeginScratch() end
     local window = NS.db.profile.routing.window or 10
     local i, fr = (res.done or 0) + 1, CreateFrame("Frame")
-    NS:Print(("sweep: %d guides from %s%s..."):format(#ids, res.where, i > 1 and (" (resuming at %d)"):format(i) or ""))
+    NS:Print(("sweep: %d routes from %s%s..."):format(#ids, res.where, i > 1 and (" (resuming at %d)"):format(i) or ""))
     fr:SetScript("OnUpdate", function()
         local budget = debugprofilestop() + 20
         while i <= #ids and debugprofilestop() < budget do
@@ -120,7 +120,7 @@ function NS.RunRouteSweep(zoneFilter, resume)
                 end
                 if NS.GuideFrame and NS.GuideFrame.Update then
                     pcall(NS.GuideFrame.Update)
-                    if #order > 0 and NS.GuideFrame.RowsShown and NS.GuideFrame.RowsShown() == 0 then res.uiEmpty = res.uiEmpty + 1 err = (err and err .. "; " or "") .. "guide window shows no rows" end
+                    if #order > 0 and NS.GuideFrame.RowsShown and NS.GuideFrame.RowsShown() == 0 then res.uiEmpty = res.uiEmpty + 1 err = (err and err .. "; " or "") .. "route window shows no rows" end
                 end
             end
             if err then res.errors[#res.errors + 1] = id .. " :: " .. err end
@@ -135,7 +135,7 @@ function NS.RunRouteSweep(zoneFilter, resume)
             NS.bulkRun = nil
             -- back to the guide that was loaded, the way a login reloads it (not as a guide the player just picked)
             if prevGuide then P.chainLoading = true pcall(P.Load, prevGuide) P.chainLoading = nil end
-            NS:Print(("|cff00ff00sweep DONE|r %d guides: located %d/%d steps (%.1f%%), order violations %d, optimizer slower %d, no route %d, empty window %d, load fail %d"):format(
+            NS:Print(("|cff00ff00sweep DONE|r %d routes: located %d/%d steps (%.1f%%), order violations %d, optimizer slower %d, no route %d, empty window %d, load fail %d"):format(
                 res.total, res.located, res.steps, 100 * res.located / math.max(1, res.steps), res.precedence, res.slower, res.noRoute, res.uiEmpty, res.loadFail))
             for k = 1, math.min(8, #res.errors) do NS:Print("  " .. res.errors[k]) end
             if #res.errors > 8 then NS:Print(("  ... %d more in SavedVariables (CompletionRouteDB.routeSweep)"):format(#res.errors - 8)) end
