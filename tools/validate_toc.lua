@@ -55,7 +55,8 @@ for _, toc in ipairs(tocs) do
                 if why then print("FAIL " .. toc .. ": lists " .. rel .. " (" .. why .. ")"); fail = fail + 1 end
                 local f = io.open("CompletionRoute/" .. rel, "r")
                 if f then f:close()
-                elseif rel:match("^Guides/Imported_") or rel:match("^Data/RouteOrder_") or rel:match("^Data/QuestDeps_") then
+                elseif rel:match("^Guides/Imported_") or rel:match("^Data/RouteOrder_") or rel:match("^Data/QuestDeps_")
+                    or rel:match("^Data/QuestIndex_") then
                     print("skip " .. toc .. ": " .. rel .. " (baked locally, gitignored)")
                 else print("FAIL " .. toc .. ": missing file " .. rel); fail = fail + 1 end
             end
@@ -75,10 +76,11 @@ for _, toc in ipairs(tocs) do
                 if seen[f] then print("FAIL " .. toc .. ": must not load " .. f); fail = fail + 1 end
             end
         end
-        -- same rule for the quest prerequisite index (tools/gen_quest_deps.py; generated, gitignored)
+        -- same rule for the quest prerequisite index (tools/gen_quest_deps.py; generated, gitignored) and the quest
+        -- index of the routes list's quest counts (tools/gen_quest_index.lua; generated, gitignored)
         local ro = ROUTE_ORDER[toc]
         for _, fl in ipairs({ "era", "tbc", "mop", "retail", "forever" }) do
-            for _, kind in ipairs({ "RouteOrder", "QuestDeps" }) do
+            for _, kind in ipairs({ "RouteOrder", "QuestDeps", "QuestIndex" }) do
                 local f = "Data/" .. kind .. "_" .. fl .. ".lua"
                 if fl == ro and not seen[f] then print("FAIL " .. toc .. ": does not load " .. f); fail = fail + 1 end
                 if fl ~= ro and seen[f] then print("FAIL " .. toc .. ": must not load " .. f); fail = fail + 1 end
@@ -91,7 +93,10 @@ for _, toc in ipairs(tocs) do
         local order = {}
         local k = 0
         for line in bodies[toc]:gmatch("[^\n]+") do k = k + 1 order[line:gsub("\\", "/")] = k end
+        -- the quest counts (Core/QuestCounts.lua) after the guide registry and the account store, before the routes list
         for _, pair in ipairs({ { "Core/Progress.lua", "Core/Skip.lua" }, { "Routing/Router.lua", "Routing/Replan.lua" },
+                                { "Core/Guide.lua", "Core/QuestCounts.lua" }, { "Core/Account.lua", "Core/QuestCounts.lua" },
+                                { "Core/QuestCounts.lua", "UI/GuideMenu.lua" },
                                 { "Core/Util.lua", "Core/QuestAuto.lua" }, { "Core/Skip.lua", "Core/QuestAuto.lua" },
                                 { "Routing/CostModel.lua", "Routing/TravelGraph.lua" }, { "Routing/CostModel.lua", "Routing/StepOrder.lua" },
                                 { "Routing/CostModel.lua", "Routing/Replan.lua" }, { "Routing/CostModel.lua", "Routing/Router.lua" },

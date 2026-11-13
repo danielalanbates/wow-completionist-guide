@@ -515,7 +515,7 @@ def main():
         git(main_co, "worktree", "add", "-q", "-b", "wt", str(wt))
         linked = 0
         for p in sorted((main_co / pr.ADDON).rglob("Imported_*.lua")) + sorted((main_co / pr.ADDON).rglob("RouteOrder_*.lua")) \
-                + sorted((main_co / pr.ADDON).rglob("QuestDeps_*.lua")):
+                + sorted((main_co / pr.ADDON).rglob("QuestDeps_*.lua")) + sorted((main_co / pr.ADDON).rglob("QuestIndex_*.lua")):
             rel = p.relative_to(main_co / pr.ADDON)
             if not (wt / pr.ADDON / rel).exists():
                 os.symlink(p, wt / pr.ADDON / rel)

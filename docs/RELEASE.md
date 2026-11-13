@@ -107,6 +107,7 @@ also lists any never-shipped file found in `CompletionRoute/` (each one fails th
 | `Guides/Imported_Achievements_*` | wiki CC BY-SA | Blizzard Achievement/Criteria/Map, QuestPOI, WorldMapOverlay, AreaTable and DungeonEncounter tables; points from wiki quest steps (a player-contributed quest point is credited as such) and wiki NPC, object, item, glyph, race and achievement pages; each located step names its source | `tools/gen_completion_guides.py` |
 | `Guides/Imported_QuestLines_retail` | wiki CC BY-SA | Blizzard QuestLine/QuestLineXQuest order and QuestPOI pins; step text, gates and points from `Imported_Wiki_retail.lua` (player-contributed points with their note; the header repeats the provenance line); quests without a wiki page are "Quest <id>" steps | `tools/gen_completion_guides.py` |
 | `Data/QuestDeps_*` | wiki CC BY-SA | quest chains and names from the wiki guides, breadcrumb wording from the wiki pages | `tools/gen_quest_deps.py` |
+| `Data/QuestIndex_*` | wiki CC BY-SA | which quest ids each quest route names, read from the shipped route files of the same client | `tools/gen_quest_index.lua` |
 | `Data/Teleports.lua` | wiki CC BY-SA | hand-authored teleport list; ids checked against Blizzard tables, landing points from wiki coordinates or TaxiNodes, cited per entry | hand-authored, checked by `tools/check_teleports.py` |
 | `Guides/Imported_Missions_retail` | Blizzard data | GarrMission table; the travel step to each table is written in the generator | `tools/gen_completion_guides.py` |
 | `Data/Taxi_*`, `Data/MapFix_forever`, `Data/ZoneAliases` | Blizzard data | TaxiNodes/TaxiPath/TaxiPathNode, UiMapAssignment, UiMap (names edited by hand) | `gen_taxi.py`, `gen_mapfix_forever.py`, `gen_maps.py` |
@@ -170,7 +171,8 @@ The everyday workflow is the release workflow. In the checkout that holds the ge
    carries a clean commit):
    `python3 tools/wiki/gen_wiki_guides.py` (also rebuilds the spine), `python3 tools/wiki/gen_gold.py`,
    `python3 tools/wiki/gen_professions.py`, `python3 tools/gen_completion_guides.py retail mop`,
-   `python3 tools/gen_quest_deps.py`.
+   `python3 tools/gen_quest_deps.py`, and last `luajit -joff tools/gen_quest_index.lua` (the quest index of the
+   routes list; it must be made from the final route files: `docs/QUEST_COUNTS.md`).
 2. Bake the route orders: `python3 tools/bake_resume.py --jobs 4` (resumable; four batches at a time; it bakes the shipped wiki quest guides and
    rewrites `Data/RouteOrder_<flavor>.lua` with rows for current guides only; `docs/ROUTING.md` "Bake gate").
 3. Test: `luajit tools/validate_toc.lua`, the `tools/test_*.lua` harnesses, `python3 tools/test_package.py`,

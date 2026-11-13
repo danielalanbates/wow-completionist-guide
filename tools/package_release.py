@@ -25,7 +25,7 @@ into that SQLite file), --repo DIR, --out DIR, --tmp DIR.
 
 There is one build (2026-11-11): what the six TOCs list, what tools/install.sh installs, what the generators write and
 what this packager packages are the same set. What ships: the git-tracked code under CompletionRoute/ plus the locally
-generated data (gitignored Imported_*.lua, QuestDeps_*.lua and RouteOrder_*.lua), limited to what the six TOCs load
+generated data (gitignored Imported_*.lua, QuestDeps_*.lua, QuestIndex_*.lua and RouteOrder_*.lua), limited to what the six TOCs load
 (plus their XML includes, Textures/ and licence files), plus LICENSE.txt, ATTRIBUTION.md and README.md written here.
 RULES below gives every shippable path its category, licence, source and generator; the generators were read to fill
 it in. A packaged TOC is the source TOC with the version stamped in, nothing else. Files derived from another add-on's
@@ -167,6 +167,9 @@ RULES = (
     R("Data/QuestDeps_*.lua", "wiki-cc-by-sa", CC_BY_SA, "quest chains (previous/next links) and names from "
       "Imported_Wiki_<flavor>.lua, breadcrumb flags from the wording of the wiki quest pages",
       "tools/gen_quest_deps.py", "generated"),
+    R("Data/QuestIndex_*.lua", "wiki-cc-by-sa", CC_BY_SA, "which quest ids each quest route names, read from the "
+      "shipped route files of the same client (Imported_Wiki_<flavor>.lua and what is built on it)",
+      "tools/gen_quest_index.lua", "generated"),
     R("Data/Teleports.lua", "wiki-cc-by-sa", CC_BY_SA, "hand-authored teleport list: spell, item and toy ids checked "
       "against Blizzard tables (facts); each landing point from a Warcraft Wiki coordinate or a Blizzard TaxiNodes "
       "position, cited per entry", "hand-authored; checked by tools/check_teleports.py", "tracked"),

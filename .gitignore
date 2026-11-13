@@ -69,6 +69,8 @@ tools/db2/*/*.missing
 
 # quest prerequisite index for quest-level skipping (tools/gen_quest_deps.py, built on the generated guides + wiki)
 CompletionRoute/Data/QuestDeps_*.lua
+# quest index for the quest counts in the routes list (tools/gen_quest_index.lua, built on the generated guides)
+CompletionRoute/Data/QuestIndex_*.lua
 # tools/check_teleports.py: Blizzard client tables and Warcraft Wiki pages it downloads (regenerate with --fetch / --wiki)
 tools/teleports_db2
 # release builds (tools/package_release.py --write); never committed

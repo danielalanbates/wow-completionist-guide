@@ -35,11 +35,17 @@ done
 for tier in $FLAVORS; do
   [ -s "$SRC/Data/QuestDeps_$tier.lua" ] || echo "install.sh: note: Data/QuestDeps_$tier.lua missing - run tools/gen_quest_deps.py $tier (skip warnings fall back to the loaded guide)" >&2
 done
+# Quest index for the quest counts in the routes list (tools/gen_quest_index.lua, Data/QuestIndex_<flavor>.lua):
+# generated, gitignored, optional - without one the list parses every route to count its quests (slower, same numbers).
+# Re-run it whenever the route files are regenerated: an entry made from another version of a route is ignored.
+for tier in $FLAVORS; do
+  [ -s "$SRC/Data/QuestIndex_$tier.lua" ] || echo "install.sh: note: Data/QuestIndex_$tier.lua missing - run luajit -joff tools/gen_quest_index.lua $tier (the routes list then parses every route for its quest count)" >&2
+done
 # Allowlist: only the generated files that ship may be in the source folder (the same families tools/validate_toc.lua
 # lets a TOC list). Anything else generated - a file derived from another addon's data, a generator input, a retired
 # file - stops the install: it is not part of the build and must not reach a client.
 is_flavor() { case " $FLAVORS " in *" $1 "*) return 0;; esac; return 1; }
-for f in "$SRC"/Guides/Imported_* "$SRC"/Data/Imported_* "$SRC"/Data/RouteOrder_* "$SRC"/Data/QuestDeps_*; do
+for f in "$SRC"/Guides/Imported_* "$SRC"/Data/Imported_* "$SRC"/Data/RouteOrder_* "$SRC"/Data/QuestDeps_* "$SRC"/Data/QuestIndex_*; do
   [ -e "$f" ] || [ -L "$f" ] || continue
   rel="${f#"$SRC"/}"; base="$(basename "$f" .lua)"
   [ -L "$f" ] && stop "$rel is a symlink - generated data must be real files here (copy it, do not link it)"
@@ -52,7 +58,7 @@ for f in "$SRC"/Guides/Imported_* "$SRC"/Data/Imported_* "$SRC"/Data/RouteOrder_
       stop "$rel is not part of the build (replaced by Guides/Imported_QuestLines_retail.lua) - delete it";;
     Data/Imported_*)
       stop "$rel is not part of the build (no generated file belongs in Data/Imported_*; the dungeon-door table was retired on 2026-11-11) - delete it";;
-    Guides/Imported_Wiki_*.lua|Guides/Imported_Spine_*.lua|Guides/Imported_Professions_*.lua|Guides/Imported_Gold_*.lua|Guides/Imported_Achievements_*.lua|Guides/Imported_QuestLines_*.lua|Guides/Imported_Missions_*.lua|Data/RouteOrder_*.lua|Data/QuestDeps_*.lua)
+    Guides/Imported_Wiki_*.lua|Guides/Imported_Spine_*.lua|Guides/Imported_Professions_*.lua|Guides/Imported_Gold_*.lua|Guides/Imported_Achievements_*.lua|Guides/Imported_QuestLines_*.lua|Guides/Imported_Missions_*.lua|Data/RouteOrder_*.lua|Data/QuestDeps_*.lua|Data/QuestIndex_*.lua)
       is_flavor "${base##*_}" || stop "unknown generated file $rel (no client has the flavor '${base##*_}') - delete it first";;
     *) stop "unknown generated file $rel is not on the allowlist - delete it first";;
   esac
@@ -60,10 +66,10 @@ done
 # Content guard: a generated file with an allowed name must not hold another addon's data either (a leftover of the
 # dev build retired on 2026-11-11 says so in its header or step notes; the offline measurement file says MEASUREMENT
 # ONLY). The release packager's gate applies the same rule.
-BAD="$(LC_ALL=C /usr/bin/grep -l -i -E 'questie|wow-?pro|MEASUREMENT ONLY' "$SRC"/Guides/Imported_*.lua "$SRC"/Data/QuestDeps_*.lua 2>/dev/null || true)"
+BAD="$(LC_ALL=C /usr/bin/grep -l -i -E 'questie|wow-?pro|MEASUREMENT ONLY' "$SRC"/Guides/Imported_*.lua "$SRC"/Data/QuestDeps_*.lua "$SRC"/Data/QuestIndex_*.lua 2>/dev/null || true)"
 if [ -n "$BAD" ]; then
   echo "$BAD" | while read -r f; do echo "install.sh: ${f#"$SRC"/} holds or credits another addon's data (or is the offline measurement file)" >&2; done
-  stop "regenerate the files above (tools/wiki/gen_wiki_guides.py, then gen_gold, gen_professions, tools/gen_completion_guides.py, tools/gen_quest_deps.py); nothing was installed"
+  stop "regenerate the files above (tools/wiki/gen_wiki_guides.py, then gen_gold, gen_professions, tools/gen_completion_guides.py, tools/gen_quest_deps.py, tools/gen_quest_index.lua); nothing was installed"
 fi
 # A baked order for a guide of the retired dev build (ids qdb:... / qpoi:...) was computed from another addon's points:
 # such a row must not reach a client either (tools/optimize_routes.py --merge --current drops it).

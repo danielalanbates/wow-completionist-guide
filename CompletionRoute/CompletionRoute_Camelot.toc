@@ -21,6 +21,7 @@ Core\Util.lua
 Core\Conditions.lua
 Core\Guide.lua
 Core\Account.lua
+Core\QuestCounts.lua
 Core\Professions.lua
 Core\Progress.lua
 Core\Skip.lua
@@ -37,6 +38,7 @@ Data\Taxi_mop.lua
 Data\Taxi_retail.lua
 Data\RouteOrder_forever.lua
 Data\QuestDeps_forever.lua
+Data\QuestIndex_forever.lua
 Data\Transit.lua
 Data\Teleports.lua
 Data\Inns.lua
