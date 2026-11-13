@@ -49,7 +49,7 @@ GameTooltip = CreateFrame()
 
 local FILES = { "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua", "Data/Access.lua",
     "Data/Inns.lua", "Data/ZoneAliases.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua",
-    "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "UI/GuideMenu.lua" }
+    "Routing/Router.lua", "Core/Account.lua", "Core/QuestCounts.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "UI/GuideMenu.lua" }
 
 local GUIDES = {
     { id = "f:a", name = "Route A", type = "Professions", text = "N One|\nN Two|\nN Three|\nN Four|" },

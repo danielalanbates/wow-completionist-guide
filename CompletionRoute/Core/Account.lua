@@ -582,7 +582,26 @@ end
 -- a different guide covering the same content.
 -- ---------------------------------------------------------------------------
 function A.RecordQuest(qid)
-    if qid and A.me then A.me.quests[qid] = true end
+    if qid and A.me and not A.me.quests[qid] then
+        A.me.quests[qid] = true
+        A.QuestsChanged(true)
+    end
+end
+-- This character's completed quests changed (a turn-in, or the client's list arrived): the answers cached from them
+-- go, the loaded route ticks what is now done on its next refresh (Core/Progress.lua P.Prefill), and the routes list
+-- counts again (UI/GuideMenu.lua).  A.questGen is what the others compare against.
+-- one: a single quest was turned in.  The per-route "finished" answers (A.doneCache) then stay until the routes list
+-- next scans (it replaces them one by one), so the ranking that reads them does not lose every answer on each turn-in.
+A.questGen = 0
+function A.QuestsChanged(one)
+    A.questGen = A.questGen + 1
+    if one then
+        A.completedCache = {}
+        if NS.QuestCounts then NS.QuestCounts.Invalidate() end
+    else
+        A.ClearCompletionCaches()
+    end
+    NS:Fire("QUESTS_KNOWN_CHANGED")
 end
 
 -- true if some OTHER character completed the quest(s) this step is for.
@@ -646,7 +665,7 @@ function A.HarvestCompleted(quiet)
     for _, q in ipairs(list or {}) do if not A.me.quests[q] then A.me.quests[q] = true added = added + 1 end end
     A.me.questCount = 0 for _ in pairs(A.me.quests) do A.me.questCount = A.me.questCount + 1 end
     A.me.harvested = date("%Y-%m-%d %H:%M:%S")
-    A.ClearCompletionCaches()
+    if added > 0 then A.QuestsChanged() end
     if added > 0 and not quiet then NS:Print(("Synced %d completed quest(s) from the game (%d known for this character)."):format(added, A.me.questCount)) end
     return added
 end
@@ -687,6 +706,24 @@ function A.GuideCompletedBy(g)
     if not g or not NS.db or not NS.db.global.chars then return nil end
     local c = A.completedCache[g.id]
     if c ~= nil then return c ~= false and c.key or nil, c ~= false and c.name or nil end
+    -- a quest route: the character who has completed every quest it names (Core/QuestCounts.lua; read from the
+    -- generated quest index, so the route is not parsed when the index has it)
+    local QC = NS.QuestCounts
+    if QC and QC.IsQuestRoute(g, true) then
+        local function fits(ch) return not (ch.faction and g.faction and g.faction ~= "Both" and ch.faction ~= g.faction) end
+        if fits(A.me) and QC.FinishedBy(g, A.me) then
+            A.completedCache[g.id] = { key = A.key, name = A.me.name and A.DisplayName(A.me) or A.key }
+            return A.key, A.completedCache[g.id].name
+        end
+        for k, ch in pairs(NS.db.global.chars) do
+            if k ~= A.key and type(ch) == "table" and fits(ch) and QC.FinishedBy(g, ch) then
+                A.completedCache[g.id] = { key = k, name = ch.name and A.DisplayName(ch) or k }
+                return k, ch.name or k
+            end
+        end
+        A.completedCache[g.id] = false
+        return nil
+    end
     local steps = g.steps or (NS.Guide and NS.Guide.Steps(g.id))
     if not steps or #steps == 0 then A.completedCache[g.id] = false return nil end
     local qids, nq = guideQuests(steps)
@@ -715,6 +752,28 @@ function A.GuideIsComplete(g, scope)
     local cache = A.doneCache[scope]
     local hit = cache[g.id]
     if hit ~= nil then return hit end
+    -- a quest route is finished when every quest it names is done by the characters in scope (Core/QuestCounts.lua)
+    local QC = NS.QuestCounts
+    if QC then
+        local qd, qt, none = QC.Count(g, scope, true)
+        if qt and qt > 0 then
+            cache[g.id] = qd >= qt
+            return cache[g.id]
+        end
+        -- a quest route with no quest for this character (every one is for another class or race): never finished
+        if none then cache[g.id] = false return false end
+        -- a route that turns no quest in is finished by its ticks: with no tick from anyone in scope it is not, and
+        -- nothing needs parsing to say so
+        if QC.TicksOnly(g) then
+            local any = A.Started(g.id, A.me)
+            if not any and scope ~= "char" then
+                for k, ch in pairs(NS.db.global.chars) do
+                    if k ~= A.key and type(ch) == "table" and A.CharInScope(k, ch, scope) and A.Started(g.id, ch) then any = true break end
+                end
+            end
+            if not any then cache[g.id] = false return false end
+        end
+    end
     local steps = g.steps or (NS.Guide and NS.Guide.Steps(g.id))
     if not steps or #steps == 0 then cache[g.id] = false return false end
     local qids, nq = guideQuests(steps)
@@ -731,6 +790,7 @@ end
 function A.ClearCompletionCaches()
     A.completedCache = {}
     A.doneCache = {}
+    if NS.QuestCounts then NS.QuestCounts.Invalidate() end
 end
 
 function A.Characters()
@@ -760,12 +820,14 @@ NS:On("ADDON_READY", function() pcall(A.Init) end)
 NS:On("PLAYER_READY", function()
     -- Classic clients only fill GetQuestsCompleted() after QueryQuestsCompleted(); retail has neither
     if QueryQuestsCompleted then pcall(QueryQuestsCompleted) end
-    NS:After(3, function() pcall(A.HarvestCompleted, true) if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end end)
-    NS:After(20, function() pcall(A.HarvestCompleted, true) if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end end)
+    local function harvest() pcall(A.HarvestCompleted, true) if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end end
+    NS:After(3, harvest)
+    NS:After(20, harvest)
+    -- a client that still had nothing to say (a Classic client whose completed-quest cache is late): once more
+    NS:After(60, function() if A.me and (A.me.questCount or 0) == 0 then harvest() end end)
     -- every guide's old index marks, once per character (see "Every guide's old marks at once")
     NS:After(A.IMPORT_DELAY, function() pcall(A.StartImport) end)
 end)
-NS:RegisterEvent("QUEST_TURNED_IN", function(_, qid) if qid and A.me then A.me.quests[qid] = true A.completedCache = {} end end)
 NS:RegisterEvent("QUEST_TURNED_IN", function(_, qid) A.RecordQuest(qid) end)
 -- the server's completed-quest list arrived (classic): harvest it and let the loaded guide autofill
 NS:RegisterEvent("QUEST_QUERY_COMPLETE", function() pcall(A.HarvestCompleted, true) if NS.Progress and NS.Progress.guide then NS.Progress.Refresh(true) end end)
