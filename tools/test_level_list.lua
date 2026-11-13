@@ -233,13 +233,27 @@ do
     local root = T.buildTree()
     t("Recommended section is first", root.kids[1].recommended and root.kids[1].name == "Recommended", root.kids[1].name)
     local sec = root.kids[1]
-    -- what it holds: unfinished quest routes (Leveling / Quests) that fit level 8, one per zone part, at most 10,
-    -- closest first (owner's request 2026-11-12; it replaced the per-category "For level N" picks)
-    local okType, okFit, okDup, okOrder, seenPart, lastEta = true, true, true, true, {}, -1
+    -- what it holds: one pick per kind (owner's request 2026-11-12): Leveling, Nearest quests, Gold
+    local okFit, kinds = true, {}
     for _, g in ipairs(sec.guides) do
+        if (g.minlevel and 8 < g.minlevel) or (g.maxlevel and 8 > g.maxlevel) then okFit = false end
+        local k = M.recKind[g.id]
+        kinds[k or "?"] = (kinds[k or "?"] or 0) + 1
+        local cat = G.NormalizeType(g.type)
+        if k == "Leveling" then t("the Leveling pick is a leveling route", cat == "Leveling", cat)
+        elseif k == "Gold" then t("the Gold pick is a gold route", cat == "Gold", cat)
+        elseif k == "Nearest quests" then
+            t("the Nearest quests pick is a quest route, the closest one that is not the Leveling pick", (cat == "Quests" or cat == "Leveling")
+                and M.recKind[M.ClosestQuests(8)[1].id] ~= nil, cat)
+        else t("every Recommended row has a kind", false, g.id) end
+    end
+    t("Recommended routes fit the level", okFit)
+    t("Recommended is at most one row per kind", #sec.guides >= 1 and #sec.guides <= 3 and (kinds.Leveling or 0) <= 1 and (kinds.Gold or 0) <= 1 and (kinds["Nearest quests"] or 0) <= 1, #sec.guides)
+    -- the closest list behind the Nearest quests pick: quest routes only, one per zone part, closest first
+    local okType, okDup, okOrder, seenPart, lastEta = true, true, true, {}, -1
+    for _, g in ipairs(M.ClosestQuests(8)) do
         local cat = G.NormalizeType(g.type)
         if cat ~= "Leveling" and cat ~= "Quests" then okType = false end
-        if (g.minlevel and 8 < g.minlevel) or (g.maxlevel and 8 > g.maxlevel) then okFit = false end
         local k = g.part or g.id
         if seenPart[k] then okDup = false end
         seenPart[k] = true
@@ -247,11 +261,9 @@ do
         if eta < lastEta then okOrder = false end
         lastEta = eta
     end
-    t("Recommended holds quest routes only", okType)
-    t("Recommended routes fit the level", okFit)
-    t("Recommended lists a zone part once", okDup)
-    t("Recommended is closest first", okOrder)
-    t("Recommended shows at most 10", #sec.guides >= 1 and #sec.guides <= 10, #sec.guides)
+    t("the closest list holds quest routes only", okType)
+    t("the closest list has a zone part once", okDup)
+    t("the closest list is closest first", okOrder)
     t("no sub-folders in Recommended", #sec.kids == 0)
 
     local total = #G.Available()
@@ -266,7 +278,7 @@ do
     reg("near:ok", { name = "Nearby Quests 5-12", type = "Quests", minlevel = 5, maxlevel = 12 })
     R.Invalidate()
     local ids = {}
-    for _, g in ipairs(M.Recommended(8, true)) do ids[g.id] = true end
+    for _, g in ipairs(M.ClosestQuests(8, true)) do ids[g.id] = true end
     t("a zone route the chain places at 54-60 is not recommended at level 8", not ids["wide:placed"] and not ids["spine:t:067"])
     t("a 1-60 zone route the chain does not place is not recommended", not ids["wide:loose"])
     t("a narrow zone route that fits is recommended", ids["near:ok"] == true)
@@ -281,7 +293,7 @@ do
     reg("spine:t:003", { name = "003. Twin Isle Quests 2-9 (Alliance)", type = "Leveling", minlevel = 2, maxlevel = 9, part = "twin:b", zone = 1 })
     R.Invalidate()
     local twins = {}
-    for _, g in ipairs(M.Recommended(8, true)) do if M.RecName(g) == "Twin Isle Quests" then twins[#twins + 1] = g.id end end
+    for _, g in ipairs(M.ClosestQuests(8, true)) do if M.RecName(g) == "Twin Isle Quests" then twins[#twins + 1] = g.id end end
     t("one Recommended row per shown name, the chain's first part", #twins == 1 and twins[1] == "spine:t:002", table.concat(twins, ","))
     t("Recommended names drop the level range and the chain number",
         M.RecName({ name = "002. Zephras Isle Quests 1-5" }) == "Zephras Isle Quests"

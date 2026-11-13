@@ -225,7 +225,7 @@ scroll:SetScrollChild(content)
 local buttons = {}
 local ROW_H = 22      -- 20 px until the list text grew from 10 pt to 12 pt
 local expanded = {}   -- [nodePath] = true
--- "Recommended" starts open: the closest routes that fit your level
+-- "Recommended" starts open: one leveling, one nearest-quests and one gold pick for your level
 local REC_PATH = "\\Recommended"
 expanded[REC_PATH] = true
 -- "Recent" starts open too: it is what the player came back for
@@ -367,7 +367,7 @@ local function byCloseness(x, y)
 end
 
 -- { guide, ... }, closest first (each guide's g.__nextETA = its travel seconds, nil when unknown)
-function M.Recommended(level, force)
+function M.ClosestQuests(level, force)
     level = level or M.ViewLevel()
     local map = U.PlayerPos()
     local now = GetTime and GetTime() or 0
@@ -443,6 +443,39 @@ function M.Recommended(level, force)
         end
     end
     recCache.key, recCache.at, recCache.list = key, now, list
+    return list
+end
+
+-- The "Recommended" section is three picks (owner's request, 2026-11-12: "replace the recommended section with a
+-- leveling guide and a gold guide and a location quest guide. location guide should be whatever is closest"):
+--   Leveling        the next unfinished route of the leveling chain that fits the level
+--   Nearest quests  the closest quest route that fits the level (M.ClosestQuests), not the leveling pick again
+--   Gold            the best gold route for the level (Core/Recommend.lua's ranking)
+-- M.recKind[route id] is the word its row starts with.
+M.REC_KINDS = { "Leveling", "Nearest quests", "Gold" }
+M.recKind = {}
+function M.Recommended(level, force)
+    level = level or M.ViewLevel()
+    local closest = M.ClosestQuests(level, force)
+    local list, kind = {}, {}
+    local parked = P and P.ParkedWaiting
+    local lev, levAt
+    for _, e in ipairs(Rec.ForLevel(level)) do
+        if e.fit and not e.finished and e.cat == "Leveling" and not (parked and parked(e.g.id)) then
+            local ci = chainIndex(e.g)
+            if not lev or ci < levAt then lev, levAt = e.g, ci end
+        end
+    end
+    if lev then list[#list + 1] = lev kind[lev.id] = M.REC_KINDS[1] end
+    for _, g in ipairs(closest) do
+        if not lev or (g.id ~= lev.id and (g.part or g.id) ~= (lev.part or lev.id) and recName(g) ~= recName(lev)) then
+            list[#list + 1] = g kind[g.id] = M.REC_KINDS[2]
+            break
+        end
+    end
+    local gold = Rec.ForLevel(level, { category = "Gold", fitOnly = true, unfinishedOnly = true, limit = 1 })[1]
+    if gold and not kind[gold.g.id] then list[#list + 1] = gold.g kind[gold.g.id] = M.REC_KINDS[3] end
+    M.recKind = kind
     return list
 end
 -- the old name (tools and tests): the recommended routes for the level in the box
@@ -652,7 +685,8 @@ local function guideLabel(g, inNext)
     local band = inNext and "" or Rec.GuideLabel(g)
     local entry = Rec.EntryFor(M.ViewLevel(), g.id)
     local needs = (entry and entry.missing) and ("  |cffff9900needs %s|r"):format(entry.missing) or ""
-    return ("%s%s|r%s%s%s%s"):format(srcColor(g.source), inNext and recName(g) or G.DisplayName(g),
+    local kind = inNext and M.recKind[g.id]
+    return ("%s%s%s|r%s%s%s%s"):format(kind and ("|cffffd200%s:|r "):format(kind) or "", srcColor(g.source), inNext and recName(g) or G.DisplayName(g),
         band ~= "" and ("  |cff888888%s|r"):format(band) or "", needs, pctBadge(g), eta)
 end
 
