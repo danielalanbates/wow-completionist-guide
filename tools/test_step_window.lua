@@ -354,6 +354,12 @@ local cases = {
     { "Kill 10 boars (Optional)", "Kill 10 boars (Optional)" },
     { "From Deputy Willem.", "From Deputy Willem." },
     { "", "" },
+    -- 2026-11-12: a step with no point says what the wiki knows about where (tools/wiki/step_detail.py).  That is
+    -- something to do, not where a point came from: the card shows it whole
+    { "To Magistrate Henry Maleb. No exact spot on the wiki. The wiki lists Magistrate Henry Maleb at Southshore, Hillsbrad Foothills.",
+      "To Magistrate Henry Maleb. No exact spot on the wiki. The wiki lists Magistrate Henry Maleb at Southshore, Hillsbrad Foothills." },
+    { "Alterac Signet Ring (7). No exact spot on the wiki. Enter the ruins of Strahnbrad, in the Alterac Mountains to the north.",
+      "Alterac Signet Ring (7). No exact spot on the wiki. Enter the ruins of Strahnbrad, in the Alterac Mountains to the north." },
     -- a short note keeps a sentence in brackets: it may be the instruction, and it fits
     { "Kill the wolves. (Leave the alpha alone.)", "Kill the wolves. (Leave the alpha alone.)" },
 }
@@ -370,6 +376,47 @@ do
     local step = { note = "A (location: X)" }
     G.CardNote(step) step.note = "B (location: Y)"
     check(G.CardNote(step) == "B", "the cached card note follows the note")
+end
+
+-- A note with the wiki's words about where, at the least width the grip allows (240): it wraps inside the card (its
+-- width follows the window), and the window grows to hold it; at the default width the longest such note the
+-- generator can write (a 180-character note, the sentence, a 220-character detail) is not cut.
+do
+    local DETAIL = "Trade Master Kovic slain. No exact spot on the wiki. Trade Master Kovic is a named gnome found in the westernmost cave of the Cauldron in Searing Gorge alongside his minion, Clunk."
+    local LONGEST = ("note "):rep(35) .. "end. No exact spot on the wiki. " .. ("word "):rep(43) .. "end."
+    G.Register({ id = "w:detail", name = "Detail", type = "Quests", text = "C Kovic|QID|3385|QO|1|Z|1427; Searing Gorge|N|" .. DETAIL .. "|\nC Long|QID|3386|N|" .. LONGEST .. "|" })
+    P.Load("w:detail")
+    PATH_TEXT = ""
+    local oneLine = 13
+    GF.SetWidth(GF.BASE_W) GF.Update()
+    local hWide, nWide = f.height, card.note:GetStringHeight()
+    check(card.note.text == DETAIL, "the card shows the detail of a step with no point whole")
+    check(nWide > oneLine and nWide < L.noteLines * 13 + (L.noteLines - 1) * 2, "default width: the note wraps and is not cut (" .. nWide .. ")")
+    GF.SetWidth(GF.WIDTH_MIN) GF.Update()
+    check(f.width == GF.WIDTH_MIN and card.note.width == GF.WIDTH_MIN - 2 * L.side - 2 * L.pad, "least width: the note is as wide as the card allows (" .. tostring(card.note.width) .. ")")
+    check(card.note:GetStringHeight() > nWide and f.height > hWide, "least width: the note takes more lines and the window grows with it")
+    bands("detail note at the least width")
+    GF.SetWidth(GF.BASE_W) P.Forward() GF.Update()
+    check(card.note.text == LONGEST and card.note:GetStringHeight() < L.noteLines * 13 + (L.noteLines - 1) * 2,
+        "default width: the longest note the generator writes for such a step is not cut (" .. card.note:GetStringHeight() .. ")")
+    bands("longest detail note at the default width")
+    -- 2026-11-12 review: the generator keeps the whole note of such a step within 230 characters
+    -- (tools/wiki/step_detail.py NOTE_CAP).  From a window 320 wide on, such a note is never cut; at the least width
+    -- (240) the card may cut its last lines (8 lines, as for any note), and the tooltip and Details still hold all of it
+    local CAPPED = "Moonrage Whitescalp slain (5). No exact spot on the wiki. The wretched beasts can often be found just off the road, down the hill below. They wander the fields north and east of the Sepulcher, near the old Ivar Patch farm."
+    check(#CAPPED >= 220 and #CAPPED <= 230, "the sample note is as long as the generator's limit allows (" .. #CAPPED .. ")")
+    G.Register({ id = "w:capped", name = "Capped", type = "Quests", text = "C Worth|QID|421|QO|1|Z|1421; Silverpine Forest|N|" .. CAPPED .. "|" })
+    P.Load("w:capped")
+    local full = L.noteLines * 13 + (L.noteLines - 1) * 2
+    GF.SetWidth(320) GF.Update()
+    check(card.note.text == CAPPED and card.note:GetStringHeight() < full, "320 wide: a note at the generator's limit is not cut (" .. card.note:GetStringHeight() .. ")")
+    bands("capped detail note at 320")
+    GF.SetWidth(GF.WIDTH_MIN) GF.Update()
+    check(card.note:GetStringHeight() <= full, "least width: the card never shows more than its " .. L.noteLines .. " lines of a note")
+    local cardText, tail = G.CardNote(P.current)
+    check(cardText == CAPPED and (tail == nil or tail == ""), "least width: the card is given the whole note; nothing of it is moved away")
+    bands("capped detail note at the least width")
+    GF.SetWidth(GF.BASE_W) GF.Update()
 end
 
 -- ---------------------------------------------------------------------------

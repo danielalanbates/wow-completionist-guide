@@ -105,8 +105,13 @@ Where a quest's giver or ender gets coordinates, in priority order:
    Measured against the local reference (measurement only; release build; all A/T place steps on a map the reference also uses):
    median 83 / 78 / 65 / 85 yd on era / tbc / mop / forever, p90 287 / 232 / 365 / 288 yd, 8% / 5% / 9% / 8% over 500 yd or on another
    map (first pass, same script: median 96 / 81 / 67 / 113, p90 1,385 / 855 / 543 / 1,326, 22% / 14% / 10% / 20%).
-6. Otherwise the step names a zone (`|Z|` without `M`) with `N|... No coordinates on the wiki; the quest is in <zone>.|`, so the router
-   still takes the player to the zone. The zone is the one the NPC/object page names (location field, or its linked place's zone; on
+6. Otherwise the step names a zone (`|Z|` without `M`), so the router still takes the player to the zone. Its note says what the
+   wiki knows about where (`tools/wiki/step_detail.py`, 2026-11-12): `N|<note>. No exact spot on the wiki. <detail>|`, the detail being
+   where the NPC or object stands according to its own page (on the Classic clients only its place before the Cataclysm), else the
+   quest page's own directions (the Objectives sentence, or up to two sentences of Notes / Description that name a place or a
+   direction; the Objectives sentence only when it names a place other than the hand-in); at most 220 characters and the whole note
+   at most 230, whole sentences, no markup. With neither it keeps
+   `N|... No coordinates on the wiki; the quest is in <zone>.|` (no zone: `No coordinates on the wiki.`). The zone is the one the NPC/object page names (location field, or its linked place's zone; on
    the Classic clients the pre-Cataclysm place above), not the quest-log category: the category is where the quest is filed (Foreboding
    Plans under Alterac Mountains, Magistrate Henry Maleb in Southshore; In Defense of Frostwolf under the battleground, Rokhstrom in
    Orgrimmar). Among several page maps the one that agrees with the category, then with the quest's located steps, wins. With no page

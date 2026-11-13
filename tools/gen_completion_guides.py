@@ -1169,6 +1169,11 @@ def gen_questlines(fl="retail"):
         any order (Core/Guide.lua ParseLine)"""
         if " No coordinates on the wiki.|" in line:
             line = line.replace(" No coordinates on the wiki.|", f" ({why})|", 1)
+        elif why.startswith("point:") and " No exact spot on the wiki. " in line:
+            # the step now has a point (Blizzard's pin): the wiki's words about where stay (tools/wiki/step_detail.py),
+            # the sentence that says there is no exact spot goes
+            line = line.replace(" No exact spot on the wiki. ", " ", 1)
+            line = re.sub(r"\|N\|([^|]*)\|$", lambda m: f"|N|{m.group(1)} ({why})|", line, count=1)
         else:
             line = re.sub(r"\|N\|([^|]*)\|$", lambda m: f"|N|{m.group(1)} ({why})|", line, count=1)
         i = line.rfind("|N|")

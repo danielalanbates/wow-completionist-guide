@@ -1,5 +1,5 @@
 -- Step text audit: does every step of every shipped guide fit the step window at its default size?
--- Run from the repo root:  luajit -joff tools/audit_step_text.lua [flavor ...] [--top N] [--examples]
+-- Run from the repo root:  luajit -joff tools/audit_step_text.lua [flavor ...] [--top N] [--examples] [--width N]
 --
 -- Walks every guide each of the five flavor TOCs loads (tools/guide_walk.lua, the same walk as tools/test_load_all.lua),
 -- parses every step with the addon's parser, builds the three texts the window shows (UI/GuideFrame.lua):
@@ -18,10 +18,12 @@
 local W = dofile("tools/guide_walk.lua")
 
 local TOP, EXAMPLES, want = 5, false, {}
+local WIDTH_ARG
 do
     local i = 1
     while arg and arg[i] do
         if arg[i] == "--top" then TOP = tonumber(arg[i + 1]) or TOP i = i + 1
+        elseif arg[i] == "--width" then WIDTH_ARG = tonumber(arg[i + 1]) i = i + 1     -- audit another window width (the least is 240)
         elseif arg[i] == "--examples" then EXAMPLES = true
         else want[arg[i]] = true end
         i = i + 1
@@ -33,6 +35,7 @@ local src = assert(io.open("CompletionRoute/UI/GuideFrame.lua")):read("*a")
 local BASE_W = tonumber(src:match("GF%.BASE_W, GF%.BASE_H = (%d+)"))
 local Ltext = src:match("GF%.L = (%b{})")
 assert(BASE_W and Ltext, "UI/GuideFrame.lua: GF.BASE_W / GF.L not found")
+BASE_W = WIDTH_ARG or BASE_W
 local L = assert(loadstring("return " .. Ltext))()
 local cardW = BASE_W - 2 * L.side
 local WIDTH = { title = cardW - (2 * L.pad + L.icon + L.gap), note = cardW - 2 * L.pad, path = BASE_W - L.pathInset }

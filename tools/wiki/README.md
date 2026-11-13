@@ -73,7 +73,9 @@ The rules live in [docs/WIKI_DATA_SPEC.md](../../docs/WIKI_DATA_SPEC.md); the co
   area of the same step is logged in `wiki_db2_conflict` (`A_xy_contrib`, `T_xy_contrib`, `C_xy_contrib`).
   `--out DIR` writes a whole run into another folder (`tools/test_contrib_gen.py` uses it).
 * **No fallback, no gaps guides (2026-11-11).** A step with no wiki point, quest pin, contributed area or place page names its zone,
-  or has no location and says so. A quest with no wiki page is in no zone guide. Until that day a local dev build
+  or has no location and says so. Since 2026-11-12 its note adds what the wiki does say about where
+  (`step_detail.py`: the NPC's or object's place from its own page, else the quest page's directions; "No exact spot
+  on the wiki. ..."; `tools/test_step_detail.py`). A quest with no wiki page is in no zone guide. Until that day a local dev build
   filled both from Questie-derived files (`Imported_Quests_<fl>.lua`, `_gaps` guides); those never shipped and are no
   longer generated, loaded or installed. `install.sh`, the TOC validator and the packager refuse such a file.
 * **Excluded types.** World quests, callings and emissary quests are left out (time-limited). Bonus objectives get

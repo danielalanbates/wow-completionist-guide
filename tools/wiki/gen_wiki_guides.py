@@ -61,8 +61,22 @@ Step location priority (docs/WIKI_DATA_SPEC.md 3/4):
      note then says "(location: Blizzard data)" or "(location: Questie data)".)
   5. the wiki page of the place an NPC/object page with no point names first in its location field ("[[Razor Hill]],
      [[Durotar]]"), when that place is not a map itself.  Note "(location: the wiki's <place> page; ...)".  Ships.
-  6. otherwise the step names the quest's zone (|Z| without |M|, "No coordinates on the wiki; the quest is in <zone>"),
-     so the router still takes the player there; with no zone either it has no location and says so.
+  6. otherwise the step names the quest's zone (|Z| without |M|), so the router still takes the player there; with
+     no zone either it has no location.  Its note then says what the wiki does know about where
+     (tools/wiki/step_detail.py; since 2026-11-12): "<note>. No exact spot on the wiki. <detail>", the detail being, in
+     this order, (a) where the NPC or object stands, from its own page (lead sentence, else infobox location field;
+     for an item objective the page of what drops it; on era, tbc and forever only the place before the Cataclysm:
+     Places.MOVED, Places.POST_CATA, a "formerly ..." part of the field), (b) the quest page's own directions (a
+     turn-in: the Objectives sentence that names the ender and a place; an objective: at most two sentences of Notes /
+     Walkthrough / Description that name a place or a direction, else the Objectives sentence when it names a place
+     other than where the quest is handed in).  At most 220 characters and the whole note at most 230
+     (step_detail.NOTE_CAP: a detail that does not fit is shortened by whole sentences or left out), whole
+     sentences, no wiki markup and no "|".  A detail that quotes coordinates from the wiki's prose is written
+     without the "No exact spot" sentence.  Only when the wiki gives neither does the note keep the
+     old wording: "No coordinates on the wiki; the quest is in <zone>." or "No coordinates on the wiki.".  The detail
+     changes the note only: tags, keys, order and count of steps are the same with and without it, and a step with a
+     point is untouched (tools/test_step_detail.py).  Counted in gen_stats: detail_npc, detail_quest, and detail_prose
+     for the one objective step of a quest whose page lists no bullets.  --measure-fallback keeps the old notes.
 Where every step's point came from is counted per client and build in docs/verification.sqlite wiki_point_sources.
 Item-started quests (Blizzard ItemSparse.StartQuestID, tools/db2/<flavor>/ItemSparse.csv): the accept step is where the
 item is obtained.  Its point comes from the wiki item page (the {{Coords}} in its "found / fished / dropped" sentences,
@@ -93,6 +107,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import wikimaps  # noqa: E402
 import wikitext as WT  # noqa: E402
 import gen_spine  # noqa: E402
+import step_detail as SD  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 WIKI = ROOT / "tools" / "wiki" / "wiki.sqlite"
@@ -658,6 +673,7 @@ class Gen:
         self.place_rejected = Counter()     # (client, why) -> place-page points not used (place_coords)
         self.moved_seen = set()             # (client, NPC page) already counted by place_links
         self.place_zone_cache = {}
+        self.step_detail = SD.StepDetail(self)     # what a step with no point says instead (tools/wiki/step_detail.py)
 
     # ---- locations ---------------------------------------------------------------------------------
     def era_to_forever(self, mid, pts):
@@ -1221,10 +1237,25 @@ class Gen:
                     return f"M|{f[0]}|Z|{f[1]}|"
                 return f"M|{c[1]}|Z|{c[0]}; {maps.maps[c[0]]['name']}|"
 
-            def pending(head, tail, ents):
+            def pending(head, tail, ents, who=""):
                 """a step with no wiki, quest-pin or fallback point: resolved by resolve_pending once the quest's other
                 steps are known"""
-                lines.append({"head": head, "tail": tail, "ents": [e for e in ents if e.get("title")]})
+                lines.append({"head": head, "tail": tail, "ents": [e for e in ents if e.get("title")], "who": who})
+
+            def detailed(p, mid):
+                """the line of a step with no point when the wiki says more about where than the zone (the NPC's or
+                object's place, else the quest's own directions: tools/wiki/step_detail.py), else None.  The tags are
+                those of the plain zone-level line; only the note differs."""
+                if self.use_fallback:
+                    return None     # the measurement build keeps the old notes
+                gate_n, note = p["tail"].rsplit("N|", 1)
+                kind, text = self.step_detail.detail(fl, p["head"][0], p["ents"], r, mid, note, added, draenor_q, p["who"],
+                                                     len(counted), SD.room(note))
+                if not text:
+                    return None
+                st[f"detail_{kind}"] += 1
+                ztag = f"Z|{mid}; {maps.maps[mid]['name']}|" if mid is not None and mid in maps.maps else ""
+                return f"{p['head']}{ztag}{gate_n}N|{clean(SD.with_detail(note, text), 480)}|"
 
             def resolve_pending():
                 """place page, then zone, for the steps pending() kept back.  The NPC/object page names the reference
@@ -1272,7 +1303,7 @@ class Gen:
                     lead = [m for e in p["ents"] for m in self.lead_maps(e["title"], fl, added, draenor_q)] if emaps else []
                     mid = self.zone_choice(fl, emaps, zmid, refs, lead)
                     zl = zone_only(p["head"], p["tail"], mid)
-                    lines[i] = zl or f"{p['head']}{p['tail']} No coordinates on the wiki.|"
+                    lines[i] = detailed(p, mid) or zl or f"{p['head']}{p['tail']} No coordinates on the wiki.|"
                     st["steps_zone" if zl else "steps_none"] += 1
                     if zl and emaps and mid != zmid:
                         st["zone_from_npc_page"] += 1
@@ -1424,7 +1455,13 @@ class Gen:
                         lines.append(f"C {name}|QID|{qid}|{mz(contrib.tag(ar))}{gate}N|{prose}{contrib.note(ar)}|")
                         st["steps_contrib"] += 1
                     else:
-                        lines.append(f"C {name}|QID|{qid}|{gate}N|{prose}|")
+                        # no bullets, no target page: the quest's own directions, when its page gives any
+                        # (a prose cut at its 180 characters goes back to its last whole sentence first)
+                        ptext = SD.whole(prose) if len(prose) >= 180 else prose
+                        dq = None if (self.use_fallback or SD.room(ptext) < 20) else \
+                            self.step_detail.quest_directions("C", r, "", prose, limit=SD.room(ptext), fl=fl)
+                        st["detail_prose"] += 1 if dq else 0
+                        lines.append(f"C {name}|QID|{qid}|{gate}N|{clean(SD.with_detail(ptext, dq), 480) if dq else prose}|")
                         st["steps_none"] += 1
                     st["steps"] += 1
             # T (skipped for bonus objectives: they complete on their own)
@@ -1447,7 +1484,7 @@ class Gen:
                             self.conflicts.append((fl, qid, "turnin_xy", f"{c[0]}:{c[1]}", f"{pin[0]}:{pin[1]}",
                                                    r["page_title"], r["revid"], f"{yd:.0f} yd from the client quest pin"))
                 else:
-                    pending(f"T {name}|QID|{qid}|", f"{gate}N|{note}", ends)
+                    pending(f"T {name}|QID|{qid}|", f"{gate}N|{note}", ends, who)
                 st["steps"] += 1
             resolve_pending()
             # home zone: the quest-log category when it is a map, else where the steps are

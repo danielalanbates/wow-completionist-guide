@@ -98,3 +98,6 @@ data in its header. The achievement and quest-line files repeat that line when t
 
 **Nothing else.** No step takes its text or its map point from another add-on's data. A step for which the wiki, a
 quest pin (on Retail) and player contributions give no point names its zone only, or has no location and says so.
+Its note then repeats what the wiki says about where: a sentence from the NPC's, object's or quest's wiki page (the
+quest page's Objectives line, or one or two sentences of its Notes or Description that name a place or a direction;
+quest text is Blizzard's, as the quest log shows it and the wiki records it), never a whole description.
