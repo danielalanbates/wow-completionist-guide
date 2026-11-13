@@ -1,5 +1,87 @@
 # Status / handoff (2026-11-12: one build, the public one; a full rebake is needed)
 
+## 2026-11-12: steps with no map point say what the wiki knows about where (`step-details`)
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `step-details` (worktree `wt-detail`). Not
+merged, pushed or installed. The shipped guides are **not regenerated yet**: the integrator runs the commands at the
+end of this section. Owner's request: "for all the steps that are missing locations can we just add more details to
+the step? that way the user can figure it out".
+
+A quest step the wiki gives no map point for used to end "No coordinates on the wiki; the quest is in <zone>." (or
+just "No coordinates on the wiki."). It now reads `<note>. No exact spot on the wiki. <detail>` when the wiki says
+more (`tools/wiki/step_detail.py`, called from `gen_wiki_guides.py`):
+
+1. where the NPC or object stands, from its own page (lead sentence, else the infobox location field; for an item,
+   "Comes from <name>." and where that stands);
+2. else the quest page's own words: a turn-in gets the Objectives sentence that names the ender and a place; an
+   objective gets up to two sentences of Notes / Walkthrough / Description that name a place or a direction, else
+   the Objectives sentence when it names a place other than the hand-in;
+3. else the old zone wording stays.
+
+Only the note changes. Tags, keys, order and count of steps are the same, and a step with a point is byte for byte
+the same (checked for all five clients against a run with the detail switched off, which equals the shipped file).
+
+Counts per client (steps with no point; scratch build of this branch):
+
+| Client | No point | NPC / object place | Quest directions | Zone wording as before | No location as before | File size | Steps with a point (unchanged) |
+|---|---|---|---|---|---|---|---|
+| era | 4975 | 2403 | 594 | 1441 | 527 | 1355 -> 1538 KB (+183) | 4691 |
+| tbc | 7116 | 3293 | 922 | 2377 | 516 | 2098 -> 2361 KB (+262) | 7773 |
+| mop | 13962 | 5053 | 2643 | 5153 | 989 | 4360 -> 4864 KB (+503) | 18565 |
+| retail | 25638 | 7501 | 3207 | 12394 | 2400 | 11960 -> 12579 KB (+618) | 64784 |
+| forever | 5173 | 2437 | 641 | 1532 | 552 | 1431 -> 1620 KB (+189) | 5044 |
+
+(The two detail columns are the generator's own counters, taken before a handful of faction copies are written, so
+they add up to 10 to 140 fewer than the lines that changed.)
+
+**Review fixes (same day).** An independent review of the first build found these; each has a test in
+`tools/test_step_detail.py` (made-up pages, then the real era build):
+
+| Finding | Fix | Era before -> after |
+|---|---|---|
+| Classic clients were told post-Cataclysm places (Marshal Maxwell "in Blackrock Depths", Archaeologist Hollee "Ruins of Auberdine", "Speedbarge", "Darkmoon Island", "Fenris Keep" ...) | A page that says where its NPC stood earlier ("was formerly located at", "used to be found in", "Before the Cataclysm she was ... in") gives only that place; a text naming a zone or place the client does not have is not used; Alterac Valley and the Ruins of Alterac are in the Alterac Mountains | every listed name: 0 left (Maxwell: "The wiki lists Marshal Maxwell at Morgan's Vigil, Burning Steppes.") |
+| An objective step got only the Objectives sentence, which names where to hand in | Used only when it names a place besides the giver's and the ender's | 586 -> 47 (retail 2978 -> 1508; the rest name a subzone) |
+| Notes up to 411 characters; at 240 wide the card cut 437 era notes | The whole note is at most 230 characters (`NOTE_CAP`): the detail is shortened by whole sentences or left out | longest 411 -> 230; cut at 240: 437 -> 207 (119 before this branch) |
+| Quest-giver talk with no direction ("My own brother perished when ...") | A Description sentence needs a verb of going or finding and a direction or place; first person needs more (also in Notes) | first-person details 181 -> 16, all directions |
+| ":." where a list followed; fragments ("Thai on the east side of the room.") | Left out | 2 -> 0 (retail 150 -> 0) |
+| "formerly located", "was a ... located" on a client where the NPC is there | Told in the present, or "The wiki lists X at Y." | past tense 311 -> 4, "formerly" 10 -> 0 |
+| Another NPC's page ("Seer Wiserunner" -> Doomsayer Wiserunner); item source with no link word | The text must name the step's NPC in full; an item source starts "Comes from <name>." | 0 left |
+| "No exact spot on the wiki." before coordinates quoted from the wiki | Such a detail is written without that sentence | 4 -> 0 (3 details quote coordinates) |
+| A prose note cut at 180 characters, then ". No exact spot" | The prose goes back to its last whole sentence first | 14 -> 0 |
+
+The stricter rules cost details: era 3743 -> 3007 notes rewritten (the first build's 736 others were hand-in
+sentences, later places, quest-giver talk or too long).
+
+**Known and accepted.**
+* At the least window width (240) the card's 8-line cap still cuts the last lines of the longest notes (text model:
+  era 88 of 3004 detail notes, tbc 157, forever 94, mop 429, retail 409; about 2.5 times that with 10% wider text).
+  From a window 300 wide on none is cut, and at the default 460 none takes more than 5 lines. The tooltip and the
+  Details panel show every note whole. The card itself was not changed.
+* The `Z` tag of a step can name another zone than its detail (the detail is usually the right one): "To Astarii
+  Starseeker ... in Darnassus" under `Z|Searing Gorge`. The tags were out of scope here. **Follow-up for
+  `zone_choice`.** The coordinates the wiki quotes in prose (3 era steps) are shown, not used for the arrow.
+* A few details are still weak: about 3 of 16 first-person sentences on era and a similar share of the 64 on retail
+  are the quest giver's talk more than a direction; retail keeps the wiki's "formerly located" for 13 NPCs (true
+  there). An old-wording note still has no full stop before "No coordinates on the wiki" (older behaviour).
+* `/cr why` and the arrow's "no location - /cr why" line do not quote the note and are still true.
+
+**Tests** (scratch tree with the five regenerated guides and the shipped route orders, through `heavy.sh`):
+`tools/test_step_detail.py` 105 checks pass (80 without the generator); `test_step_window.lua` 333 pass (+ a note at
+the 230 limit is whole at 320 wide and capped at 8 lines at 240); `test_gen_determinism.py` (mop, retail) pass;
+`test_route_order.lua` 0 stale, 0 orphan on all five (the checksum reads action, quest, zone and point, never the
+note, and `tools/install.sh` has no note-dependent guard); `test_load_all`, `validate_toc`, `test_progress_keys`,
+`test_skip`, `test_flow`, `test_contribute`, `test_completion` pass. `test_contrib_gen.py`: 1 expected failure until
+the guides are regenerated ("byte-identical to the build's Imported_Wiki_era.lua": the generator changed).
+`test_wiki.lua` failed 8 checks on mop and retail (a detail ending `."`); the full stop now moves out of the quote
+(unit test passes), but **the five guides were not regenerated and `test_wiki.lua` was not run again after that
+last change**: free disk fell to 7.2 GB (not from this work: its scratch is 42 MB), under the 8 GB floor.
+
+**To regenerate (integrator, in `repo/` after the merge, one at a time through `heavy.sh`):**
+`python tools/wiki/gen_wiki_guides.py era`, then `tbc`, `forever`, `mop`, `retail`; then
+`python tools/gen_completion_guides.py retail mop` (the quest-line routes copy the wiki notes); then `luajit -joff tools/test_wiki.lua`, `tools/test_route_order.lua`,
+`tools/test_load_all.lua`, `tools/validate_toc.lua` and `python tools/test_contrib_gen.py`. No rebake is needed for
+this change (route orders stay valid).
+
 ## 2026-11-12: step window, routes list and options: text size, wording, scale, minimap button (`todo-ui`)
 
 Offline only. **Nothing here has run in a real WoW client.** Branch `todo-ui` (worktree `wt-ui`), on top of the
