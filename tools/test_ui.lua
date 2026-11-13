@@ -437,6 +437,14 @@ do
     prof.frame.width = nil GF.ApplySettings()
     check(f:GetWidth() == GF.BASE_W, "a profile with no width gets the default", f:GetWidth())
     check(GF.grip:GetScript("OnMouseDown") ~= nil, "the grip is there")
+    -- ... and a least HEIGHT (owner 2026-11-12: "i can't make the guide go any taller")
+    GF.FitHeight()
+    local fit = f:GetHeight()
+    check(GF.SetMinHeight(fit + 150) == fit + 150 and f:GetHeight() == fit + 150 and prof.frame.minHeight == fit + 150, "the grip's height: dragged taller, kept", f:GetHeight())
+    GF.FitHeight()
+    check(f:GetHeight() == fit + 150, "a refit keeps the dragged height", f:GetHeight())
+    check(GF.SetMinHeight(5000) == GF.HEIGHT_MAX, "the height keeps to its limit")
+    check(GF.SetMinHeight(10) == nil and prof.frame.minHeight == nil and f:GetHeight() == fit, "dragged back up: the height follows the text again", f:GetHeight())
 end
 
 -- an old profile with a scale outside the limits is brought inside them at login

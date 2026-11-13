@@ -242,9 +242,22 @@ function GF.SetScale(s)
 end
 
 -- resize grip (bottom-right): drag left to make the window narrower, right to make it wider (owner's request
--- 2026-11-12: narrower without smaller text).  Only the width changes: the text keeps its size and wraps, and the
--- height follows the text (GF.FitHeight).  The size of everything is the Options slider ("Step window scale").
+-- 2026-11-12: narrower without smaller text), and down to make it taller (owner, same day: "i can't make the guide
+-- go any taller").  The text keeps its size and wraps.  The height is never less than the text needs (GF.FitHeight);
+-- a taller one is kept as the least height, and the note may then use the extra room for more lines.  Dragged back up
+-- to what the text needs, the height follows the text again.  The size of everything is the Options slider.
 GF.WIDTH_MIN, GF.WIDTH_MAX = 240, 900
+GF.HEIGHT_MAX = 800
+-- the least height the owner dragged out (nil = follow the text); saved in the profile
+function GF.SetMinHeight(h)
+    h = tonumber(h)
+    if h then h = math.floor(math.min(GF.HEIGHT_MAX, h) + 0.5) end
+    if h and h <= math.max(GF.BASE_H, GF.fitH or 0) then h = nil end
+    local p = NS.db and NS.db.profile.frame
+    if p then p.minHeight = h end
+    if GF.FitHeight then GF.FitHeight() end
+    return h
+end
 local function clampWidth(w) return math.max(GF.WIDTH_MIN, math.min(GF.WIDTH_MAX, tonumber(w) or GF.BASE_W)) end
 -- a new width, the top-left corner kept; saved in the profile.  Returns the width set.
 function GF.SetWidth(w)
@@ -265,7 +278,8 @@ grip:SetScript("OnMouseDown", function()
     local es = (f.GetEffectiveScale and f:GetEffectiveScale()) or 1
     local cx = GetCursorPosition()
     if not (cx and es > 0) then return end
-    grip.drag = { cx = cx / es, w0 = f:GetWidth() }           -- the cursor in the window's own units
+    local _, cy = GetCursorPosition()
+    grip.drag = { cx = cx / es, cy = (cy or 0) / es, w0 = f:GetWidth(), h0 = f:GetHeight() }   -- the cursor in the window's own units
 end)
 local function gripApply()
     local d = grip.drag
@@ -275,6 +289,11 @@ local function gripApply()
     if not (cx and es > 0) then return end
     local w = math.floor(clampWidth(d.w0 + cx / es - d.cx) + 0.5)
     if w ~= d.last then d.last = w GF.SetWidth(w) end        -- only when it changed: the layout is not free
+    local _, cy = GetCursorPosition()
+    if cy and type(d.h0) == "number" then
+        local h = math.floor(d.h0 + d.cy - cy / es + 0.5)   -- the screen's y grows upward: down is taller
+        if h ~= d.lastH then d.lastH = h GF.SetMinHeight(h) end
+    end
 end
 grip:SetScript("OnMouseUp", function()
     if not grip.drag then return end
@@ -495,10 +514,13 @@ function GF.FitHeight()
     fitHeader()
     local W = f:GetWidth()
     if type(W) ~= "number" or W <= 0 then W = GF.BASE_W end
+    local pf = NS.db and NS.db.profile and NS.db.profile.frame
+    local minH = pf and tonumber(pf.minHeight)
     if not card:IsShown() then
         empty:SetWidth(math.max(160, W - 2 * (L.side + 2)))
         local eh = (empty:IsShown() and sh(empty) or 0)
-        f:SetHeight(math.max(GF.BASE_H, L.top + 6 + eh + (GF.restartShown and 30 or 0) + 14))
+        GF.fitH = L.top + 6 + eh + (GF.restartShown and 30 or 0) + 14
+        f:SetHeight(math.max(GF.BASE_H, GF.fitH, minH or 0))
         return
     end
     local cardW = math.max(160, W - 2 * L.side)
@@ -507,15 +529,28 @@ function GF.FitHeight()
     card.where:SetWidth(cardW - 2 * L.pad)
     pathText:SetWidth(math.max(120, W - L.pathInset))
     local head = math.max(L.icon, sh(card.title) + 2)
+    if card.note.SetMaxLines then card.note:SetMaxLines(L.noteLines) end
     local note = sh(card.note)
     local where = sh(card.where)
+    local foot = math.max(26, sh(pathText) + 14)
+    local function total(n) return L.top + L.pad + head + (n > 0 and (L.gap + n) or 0) + (where > 0 and (10 + where) or 0) + 8 + foot end
+    GF.fitH = total(note)
+    -- a window dragged taller than the text needs: the note may use the room for more lines than its usual cap
+    if minH and minH > GF.fitH and note > 0 and card.note.SetMaxLines then
+        local lh = note / L.noteLines                       -- at the cap a line is at most this tall
+        local more = math.floor((minH - GF.fitH) / math.max(lh, 8))
+        if more > 0 then
+            card.note:SetMaxLines(L.noteLines + more)
+            local n2 = sh(card.note)
+            if n2 > note and total(n2) <= minH then note = n2 else card.note:SetMaxLines(L.noteLines) end
+        end
+    end
     card.note:ClearAllPoints()
     card.note:SetPoint("TOPLEFT", card, "TOPLEFT", L.pad, -(L.pad + head + L.gap))
     local cardH = L.pad + head + (note > 0 and (L.gap + note) or 0) + (where > 0 and (10 + where) or 0) + 8
-    local foot = math.max(26, sh(pathText) + 14)
     card:ClearAllPoints()
     card:SetPoint("TOPLEFT", L.side, -L.top); card:SetPoint("BOTTOMRIGHT", -L.side, foot)
-    f:SetHeight(math.max(GF.BASE_H, L.top + cardH + foot))
+    f:SetHeight(math.max(GF.BASE_H, L.top + cardH + foot, minH or 0))
 end
 
 function GF.RowsShown() return (P.guide and P.current and card:IsShown()) and 1 or 0 end
@@ -780,7 +815,8 @@ function GF.ApplySettings()
     f:ClearAllPoints(); f:SetPoint(p.point or "CENTER", UIParent, p.point or "CENTER", p.x or 0, p.y or 0)
     f:SetScale(p.scale); f:SetAlpha(p.alpha or 1)
     p.width = p.width and math.floor(clampWidth(p.width) + 0.5) or nil
-    f:SetSize(p.width or GF.BASE_W, GF.BASE_H)   -- the grip's width; the height then follows the text (GF.FitHeight)
+    p.minHeight = tonumber(p.minHeight) and math.min(GF.HEIGHT_MAX, tonumber(p.minHeight)) or nil
+    f:SetSize(p.width or GF.BASE_W, GF.BASE_H)   -- the grip's width; the height is the text's or the dragged one (GF.FitHeight)
     anchorTopLeft()                   -- old profiles are anchored by their centre: re-hang from the top-left corner
 end
 function GF.Toggle() if f:IsShown() then f:Hide() else f:Show() GF.Update() end end
