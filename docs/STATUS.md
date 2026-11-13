@@ -56,8 +56,9 @@ time the routes list is opened (at most every 30 s).
 **Tests.** New `tools/test_quest_counts.lua`: 115 synthetic checks, then per client and faction the index against the
 parser on every route, the total against a plain union, the order of the real names, the scan's frames (255 checks
 with all five clients). Every other harness passes: all `tools/test_*.lua`, `validate_toc.lua`, `test_package.py`.
-`test_skip.lua` failed one timing check ("re-plan frames never take more than 2 ms": 2.3 ms) in the full run on a
-busy machine and passed alone. `tools/vplayer.lua era --limit 25`: 25 finished, 0 stalled. Not run: the full
+`test_skip.lua` is flaky on its re-plan timing checks ("never more than 2 ms": 2.1 to 2.3 ms) while the machine
+is busy (load average 80 to 120 from other jobs): it failed in 4 of 7 runs on this branch and in 1 of 3 runs of the
+unchanged master code; the re-planner is not touched here. `tools/vplayer.lua era --limit 25`: 25 finished, 0 stalled. Not run: the full
 vplayer, `test_gen_determinism.py`, `test_contrib_gen.py`, `test_step_detail.py` (none reads this code).
 
 **Integrator, after the merge, in `repo/`:** `~/Downloads/CompletionistGuide-work/heavy.sh luajit -joff
