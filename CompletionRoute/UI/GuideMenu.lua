@@ -6,8 +6,11 @@
 -- (Core/Progress.lua P.RecentList, a small saved table: no guide is parsed for it).
 -- The level box under the search field drives Core/Recommend.lua: the "Recommended" section, the "Only routes for this
 -- level" filter and the "Group by level" tree all read the same cached per-level ranking, which never parses guide steps.
+-- The numbers on the right are QUESTS (Core/QuestCounts.lua, docs/QUEST_COUNTS.md): a route shows how many of its
+-- quests are done out of how many it has, a folder the same with each quest id counted once, and the line under the
+-- scope buttons the total for this client.  Inside a folder the routes are in a natural order (M.RouteLess).
 local ADDON, NS = ...
-local U, G, P, Rec = NS.Util, NS.Guide, NS.Progress, NS.Recommend
+local U, G, P, Rec, QC = NS.Util, NS.Guide, NS.Progress, NS.Recommend, NS.QuestCounts
 local M = {}
 NS.GuideMenu = M
 
@@ -64,7 +67,10 @@ local function scopeTip(self)
         local cur = sc == NS.Account.Scope()
         GameTooltip:AddLine(("%s%s|r - %s"):format(cur and "|cff00ff00" or "|cffaaaaaa", NS.Account.ScopeLabel(sc), NS.Account.ScopeDetail(sc)), 1, 1, 1, true)
     end
-    GameTooltip:AddLine("Widens or narrows both the counts on the right and which steps are skipped as already done.", 0.6, 0.6, 0.6, true)
+    GameTooltip:AddLine("Widens or narrows the quest counts (the total, the folders, the routes) and which steps are skipped as already done.", 0.6, 0.6, 0.6, true)
+    if not QC.OthersCount() then
+        GameTooltip:AddLine("The option \"also match by quest ID across different routes\" is off: other characters' quests do not tick steps, so they are not counted here either.", 1, 0.6, 0, true)
+    end
     GameTooltip:Show()
 end
 
@@ -107,8 +113,16 @@ scope:SetScript("OnLeave", function() GameTooltip:Hide() end)
 scope:SetScript("OnMouseWheel", function(_, delta) stepScope(delta) end)
 scope:EnableMouseWheel(true)
 
+-- The total for this client, under the scope line: "Quests done: 312 of 4,268" for the characters the scope covers
+-- (owner's request, 2026-11-13: "0 completed" on a folder meant routes, and read as "you have done no quests").
+-- Everything below it sits TOTAL_H lower than it did.
+local TOTAL_H = 20
+local totalLine = f:CreateFontString(nil, "OVERLAY", U.Font("Title"))
+totalLine:SetPoint("TOPLEFT", 16, -80); totalLine:SetPoint("RIGHT", f, "RIGHT", -16, 0)
+totalLine:SetJustifyH("LEFT"); totalLine:SetWordWrap(false)
+
 local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-search:SetSize(220, 20); search:SetPoint("TOPLEFT", 18, -84); search:SetAutoFocus(false)
+search:SetSize(220, 20); search:SetPoint("TOPLEFT", 18, -84 - TOTAL_H); search:SetAutoFocus(false)
 search:SetScript("OnTextChanged", function() M.Refresh() end)
 local searchLabel = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 searchLabel:SetPoint("LEFT", search, "RIGHT", 6, 0); searchLabel:SetText("search")
@@ -138,13 +152,13 @@ function M.SetViewLevel(v)
 end
 
 local levelLabel = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
-levelLabel:SetPoint("TOPLEFT", 18, -113); levelLabel:SetText("Level")
+levelLabel:SetPoint("TOPLEFT", 18, -113 - TOTAL_H); levelLabel:SetText("Level")
 local function levelStep(delta) M.SetViewLevel(M.ViewLevel() + delta) end
 -- the button labels are in the addon's fonts (UI/GuideFrame.lua GF.ButtonFonts), so they follow the Text size option
 local levelButtons = {}
 local function smallButton(text, width, x, onClick, tip)
     local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    b:SetSize(width, 22); b:SetPoint("TOPLEFT", x, -108); b:SetText(text)
+    b:SetSize(width, 22); b:SetPoint("TOPLEFT", x, -108 - TOTAL_H); b:SetText(text)
     b.minW = width
     if NS.GuideFrame and NS.GuideFrame.ButtonFonts then NS.GuideFrame.ButtonFonts(b) end
     levelButtons[#levelButtons + 1] = b
@@ -159,7 +173,7 @@ local function smallButton(text, width, x, onClick, tip)
 end
 smallButton("-", 24, 62, function() levelStep(-1) end, "One level lower")
 local levelBox = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-levelBox:SetSize(36, 22); levelBox:SetPoint("TOPLEFT", 92, -108); levelBox:SetAutoFocus(false)
+levelBox:SetSize(36, 22); levelBox:SetPoint("TOPLEFT", 92, -108 - TOTAL_H); levelBox:SetAutoFocus(false)
 levelBox:SetMaxLetters(3)
 if levelBox.SetNumeric then levelBox:SetNumeric(true) end
 levelBox:SetScript("OnTextChanged", function(self, userInput)
@@ -178,7 +192,7 @@ levelHint:SetPoint("LEFT", current, "RIGHT", 8, 0); levelHint:SetTextColor(0.75,
 
 local function viewCheck(name, x, label, tip, getKey)
     local cb = CreateFrame("CheckButton", name, f, "UICheckButtonTemplate")
-    cb:SetSize(24, 24); cb:SetPoint("TOPLEFT", x, -133)
+    cb:SetSize(24, 24); cb:SetPoint("TOPLEFT", x, -133 - TOTAL_H)
     local fs = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
     fs:SetPoint("LEFT", cb, "RIGHT", 2, 0); fs:SetText(label)
     cb.label = fs
@@ -212,12 +226,12 @@ function M.UpdateLevelControls()
     local lw = onlyLevel.label.GetStringWidth and onlyLevel.label:GetStringWidth()
     if type(lw) == "number" then
         groupLevel:ClearAllPoints()
-        groupLevel:SetPoint("TOPLEFT", math.max(GROUP_X, math.ceil(14 + 24 + 2 + lw + 16)), -133)
+        groupLevel:SetPoint("TOPLEFT", math.max(GROUP_X, math.ceil(14 + 24 + 2 + lw + 16)), -133 - TOTAL_H)
     end
 end
 
 local scroll = CreateFrame("ScrollFrame", "CompletionRouteGuideMenuScroll", f, "UIPanelScrollFrameTemplate")
-scroll:SetPoint("TOPLEFT", 12, -162); scroll:SetPoint("BOTTOMRIGHT", -30, 12)
+scroll:SetPoint("TOPLEFT", 12, -162 - TOTAL_H); scroll:SetPoint("BOTTOMRIGHT", -30, 12)
 local content = CreateFrame("Frame", nil, scroll)
 content:SetSize(420, 10)
 scroll:SetScrollChild(content)
@@ -366,6 +380,55 @@ local function byCloseness(x, y)
     return (x.g.name or x.g.id) < (y.g.name or y.g.id)
 end
 
+-- ---------------------------------------------------------------------------
+-- The order of routes inside a folder, and of the flat search results (owner's request, 2026-11-13)
+-- ---------------------------------------------------------------------------
+-- Until now a folder was sorted by lowest level, then by the raw name as text, so "Part 10/12" came before "Part 2/12"
+-- and, once the shown names had lost their chain number, the Leveling list looked shuffled.  Now:
+--   1. routes of the leveling chain come first, in chain order (the number their id ends in)
+--   2. everything else by the name the row shows, with every number compared as a number: a zone's parts are next to
+--      each other and run Part 1, 2, 3 ... 10, 11, 12, and "Cooking 1-75" comes before "Cooking 75-150".  Two series of
+--      parts with the same shown name (a zone's both-factions route and its faction route) are not interleaved: the
+--      both-factions series first, each in part order.  Gold routes keep their level range in the name they sort by
+--      ("Mob Farming 10-15" before "Mob Farming 20-25"); the row does not show it.
+--   3. ties: lowest level, then the full name, then the id (so the order never depends on the registration order)
+-- The key is made once per route and kept (weak table), so a sort is plain string comparisons as before.
+local function natural(str)
+    return (str:lower():gsub("%d+", function(d) return #d < 8 and (("00000000"):sub(#d + 1) .. d) or d end))
+end
+local sortRecs = setmetatable({}, { __mode = "k" })
+local function sortRec(g)
+    local r = sortRecs[g]
+    if r and r.name == g.name then return r end
+    local name = tostring(g.name or g.id or "")
+    local shown
+    if g.type == "Gold" then shown = (name:gsub("%s*%(%s*[Aa]lliance%s*%)", "")):gsub("%s*%(%s*[Hh]orde%s*%)", "")
+    else shown = G.DisplayName(g) end
+    local key
+    local base, k, n, rest = shown:match("^(.-)%s*%-%s*Part%s+(%d+)%s*/%s*(%d+)(.*)$")
+    if base then
+        -- which series of parts: the both-factions one or the faction one, how many parts it has, and whose parts
+        -- they are (the route id without its part number: two zones can share a name, as the two Silvermoon Cities do)
+        local own = (name:find("%(%s*[Aa]lliance%s*%)") or name:find("%(%s*[Hh]orde%s*%)")) and 1 or 0
+        local series = tostring(g.id):match("^(.*):%d+$") or tostring(g.zone or "")
+        key = natural(base) .. " #" .. own .. natural(n) .. " " .. natural(series) .. " /" .. natural(k) .. natural(rest)
+    else
+        key = natural(shown)
+    end
+    r = { name = g.name, chain = chainIndex(g), key = key, min = tonumber(g.minlevel) or 999, full = natural(name), id = tostring(g.id) }
+    sortRecs[g] = r
+    return r
+end
+local function routeLess(a, b)
+    local x, y = sortRec(a), sortRec(b)
+    if x.chain ~= y.chain then return x.chain < y.chain end
+    if x.key ~= y.key then return x.key < y.key end
+    if x.min ~= y.min then return x.min < y.min end
+    if x.full ~= y.full then return x.full < y.full end
+    return x.id < y.id
+end
+M.RouteLess = routeLess
+
 -- { guide, ... }, closest first (each guide's g.__nextETA = its travel seconds, nil when unknown)
 function M.ClosestQuests(level, force)
     level = level or M.ViewLevel()
@@ -482,7 +545,10 @@ end
 function M.NextStepGuides(force) return M.Recommended(M.ViewLevel(), force) end
 
 -- Build tree: node = { name, path, kids = {ordered}, kidByName = {}, guides = {}, count }
-local function buildTree()
+-- sortAll (tools and tests): sort the routes of every folder.  The list itself sorts only the folders whose routes it
+-- shows (the open ones): a route's sort key is made the first time it is sorted, and making all 3,500 of Retail's at
+-- once was most of a 39 ms first frame.
+local function buildTree(sortAll)
     local root = { kids = {}, kidByName = {}, guides = {}, count = 0 }
     local level, prefs = M.ViewLevel(), listPrefs()
     local fit = prefs.onlyLevel and Rec.FitSet(level) or nil
@@ -540,49 +606,57 @@ local function buildTree()
             root.count = root.count + 1
         end
     end
-    local function sortNode(n)
+    local function sortNode(n, shown)
         table.sort(n.kids, function(a, b)
             local oa, ob = a.order or CAT_ORDER[a.name], b.order or CAT_ORDER[b.name]
             if oa or ob then return (oa or 99) < (ob or 99) end
-            -- sort "X (10-20)" style folders by their level, else alphabetically
+            -- sort "X (10-20)" style folders by their level, else by name (numbers as numbers)
             local la = tonumber(a.name:match("%((%d+)%-")) local lb = tonumber(b.name:match("%((%d+)%-"))
             if la and lb and la ~= lb then return la < lb end
+            local na, nb = natural(a.name), natural(b.name)
+            if na ~= nb then return na < nb end
             return a.name < b.name
         end)
-        if n.synthetic then for _, k in ipairs(n.kids) do sortNode(k) end return end
-        table.sort(n.guides, function(a, b)
-            if (a.minlevel or 999) ~= (b.minlevel or 999) then return (a.minlevel or 999) < (b.minlevel or 999) end
-            return (a.name or a.id) < (b.name or b.id)
-        end)
-        for _, k in ipairs(n.kids) do sortNode(k) end
+        if not n.synthetic and shown and #n.guides > 1 then table.sort(n.guides, routeLess) end
+        for _, k in ipairs(n.kids) do sortNode(k, sortAll or (shown and expanded[k.path]) and true or false) end
     end
-    sortNode(root)
+    sortNode(root, true)
     return root
 end
 
 -- ---------------------------------------------------------------------------
--- Completion counts on the right of every row.
--- Deciding whether a guide is finished means parsing its steps and comparing the quests it turns in
--- against what has been done — far too slow to do for thousands of guides inside a Refresh (the list
--- rebuilds on every keystroke). So it runs as a background scan, a slice per frame, while the menu
--- is open; rows show "..." until their guide has been scanned, and the answers are cached.
+-- The numbers on the right of every row.
+-- A route row shows its quests ("12 / 40 quests", or "completed"), a folder row the quests under it with each quest
+-- id counted once, and the line at the top the total.  The ids come from the generated quest index
+-- (Core/QuestCounts.lua), so no quest route is parsed for them.  Routes the index does not hold (gold, professions,
+-- achievements, hand-written and live routes) are still parsed once to learn whether they are finished, as before.
+-- All of it runs in the background, a slice per frame, while the menu is open:
+--   1. the route scan: every route's count and "finished" answer (rows show "..." until theirs is known)
+--   2. the tallies: one job per folder row on screen and one for the total; each adds up its routes' quests
+-- A slice stops after SCAN_MS, so neither phase can stutter however long the list is.
 -- ---------------------------------------------------------------------------
 local scanned = {}          -- [guideid] = true|false (complete for the CURRENT scope)
 local scanQueue, scanPos = nil, 1
+local scanDone = false      -- phase 1 has been through the whole list
+local scanGen = -1          -- QC.Gen() when the answers below were started; another value means they are out of date
 local scanFrame = CreateFrame("Frame")
-local PER_FRAME = 40        -- most guides per frame
--- ...and a time budget: under the client's plain Lua 5.1 forty guides cost 30-60 ms a frame (measured 2026-11-11, p95
--- 127 ms on MoP and 211 ms on Retail), a visible stutter for as long as the list scans.  A slice now stops after
--- SCAN_MS; one guide is always done, so a single huge guide can still overrun it.
+local PER_FRAME = 400       -- most guides per frame (a quest route read from the index costs microseconds)
+-- ...and a time budget: under the client's plain Lua 5.1 forty parsed guides cost 30-60 ms a frame (measured
+-- 2026-11-11, p95 127 ms on MoP and 211 ms on Retail), a visible stutter for as long as the list scans.  A slice stops
+-- after SCAN_MS; one guide is always done, so a single huge guide can still overrun it.
 local SCAN_MS = 4
 local clock = debugprofilestop or function() return os.clock() * 1000 end
 local scanDirty = false
+local tallies = {}          -- [key] = { done, total, routes = quest routes, finished = routes finished, all = routes }
+local tallyJobs, tallyQueued = {}, {}
 
 local function scopeKey() return (NS.Account and NS.Account.Scope()) or "char" end
 
 function M.RescanCompletion()
     scanned = {}
-    scanQueue, scanPos = nil, 1
+    scanQueue, scanPos, scanDone = nil, 1, false
+    tallies, tallyJobs, tallyQueued = {}, {}, {}
+    scanGen = QC.Gen()
     scanFrame:Show()
 end
 
@@ -591,6 +665,7 @@ local function scanSlice()
     if not scanQueue then scanQueue, scanPos = G.Available(), 1 end
     local sk = scopeKey()
     local active = P.guide and P.guide.id
+    local dc = NS.Account.doneCache and NS.Account.doneCache[sk]
     local t0 = clock()
     for _ = 1, PER_FRAME do
         local g = scanQueue[scanPos]
@@ -598,6 +673,8 @@ local function scanSlice()
         scanPos = scanPos + 1
         if scanned[g.id] == nil then
             local hadSteps = g.steps ~= nil
+            -- an answer kept from before the last turn-in (Core/Account.lua A.QuestsChanged) is asked again
+            if dc then dc[g.id] = nil end
             local ok, res = pcall(NS.Account.GuideIsComplete, g, sk)
             scanned[g.id] = ok and res or false
             -- do not hold on to step tables we only parsed to answer this question
@@ -609,33 +686,106 @@ local function scanSlice()
     return false
 end
 
+-- A tally for one list of routes, asked for by a row: the stored answer, or nil while its job is waiting or running.
+-- listFn() gives the routes (called once, when the job is made).
+local function wantTally(key, listFn)
+    local t = tallies[key]
+    if t then return t end
+    if not tallyQueued[key] then
+        tallyQueued[key] = true
+        tallyJobs[#tallyJobs + 1] = { key = key, list = listFn(), pos = 1, finished = 0 }
+        scanFrame:Show()
+    end
+    return nil
+end
+-- Work on the waiting tallies until SCAN_MS are spent.  Returns true when none is left.
+local function tallySlice()
+    local t0 = clock()
+    while true do
+        local job = tallyJobs[1]
+        if not job then return true end
+        job.tally = job.tally or QC.Tally(scopeKey())
+        local list, tally = job.list, job.tally
+        while true do
+            local g = list[job.pos]
+            if not g then break end
+            job.pos = job.pos + 1
+            QC.TallyAdd(tally, g)
+            if scanned[g.id] then job.finished = job.finished + 1 end
+            if clock() - t0 >= SCAN_MS then return false end
+        end
+        tallies[job.key] = { done = tally.done, total = tally.total, routes = tally.routes, finished = job.finished, all = #list }
+        table.remove(tallyJobs, 1)
+        tallyQueued[job.key] = nil
+        scanDirty = true
+    end
+end
+
+-- One frame of background work.  Returns true when nothing is left to do.
+local function scanStep()
+    if not scanDone then
+        if scanSlice() then
+            scanDone = true
+            scanDirty = true
+            Rec.Invalidate()   -- finished guides rank last, and the ranking reads the answers this scan just produced
+        end
+        return false
+    end
+    return tallySlice()
+end
+
 scanFrame:SetScript("OnUpdate", function(self)
     if not f:IsShown() then self:Hide() return end
-    local finished = scanSlice()
+    local finished = scanStep()
     if scanDirty then
         scanDirty = false
         NS:Throttle("guidemenu-scan", 0.25, function() if f:IsShown() then M.Refresh() end end)
     end
-    if finished then
-        self:Hide()
-        Rec.Invalidate()   -- finished guides rank last, and the ranking reads the answers this scan just produced
-    end
+    if finished then self:Hide() end
 end)
 scanFrame:Hide()
 
--- how many guides under this node are finished, and how many are still unscanned
-local function nodeCompletion(node)
-    local done, total, pending = 0, 0, 0
+-- every route under a node, sub-folders included
+local function nodeRoutes(node)
+    local out = {}
     local function walk(n)
-        for _, g in ipairs(n.guides) do
-            total = total + 1
-            local v = scanned[g.id]
-            if v == nil then pending = pending + 1 elseif v then done = done + 1 end
-        end
+        for _, g in ipairs(n.guides) do out[#out + 1] = g end
         for _, k in ipairs(n.kids) do walk(k) end
     end
     walk(node)
-    return done, total, pending
+    return out
+end
+-- What names a node's tally: its path and size, the level filter when one shapes the tree, and for the two made-up
+-- sections on top (Recent, Recommended) the routes themselves, since those lists change while the path does not.
+local function nodeKey(node, cfg)
+    if node.synthetic then
+        local ids = {}
+        for i, g in ipairs(node.guides) do ids[i] = g.id end
+        return node.path .. "|" .. table.concat(ids, ",")
+    end
+    return node.path .. "|" .. node.count .. "|" .. cfg
+end
+-- The right-hand text of a folder row: its quests, each id once.  A folder with no quest routes (gold, professions)
+-- says how many of its routes are finished, or nothing: never "0 completed".
+local function nodeRight(node, cfg)
+    local t = wantTally(nodeKey(node, cfg), function() return nodeRoutes(node) end)
+    if not t then return "|cff666666...|r" end
+    if t.total > 0 then
+        local color = (t.done >= t.total and "00ff00") or (t.done > 0 and "ffd200") or "999999"
+        return ("|cff%s%s / %s quests|r"):format(color, QC.Fmt(t.done), QC.Fmt(t.total))
+    end
+    if t.finished > 0 then
+        return ("|cff%s%d route%s done|r"):format(t.finished >= t.all and "00ff00" or "ffd200", t.finished, t.finished == 1 and "" or "s")
+    end
+    return ""
+end
+-- The line at the top: every quest of every route this character can see, each id once
+local function totalText()
+    local list = G.Available()
+    local t = wantTally("\\ALL|" .. #list, function() return list end)
+    if not t then return "Quests done: |cff888888counting...|r" end
+    if t.total == 0 then return "|cff888888No quest routes for this character.|r" end
+    return ("Quests done: |cffffd200%s|r of %s"):format(QC.Fmt(t.done), QC.Fmt(t.total))
 end
 
 -- steps of a parsed guide as this character sees it (rebuilt without skipped quests, Core/Skip.lua), and the author
@@ -656,8 +806,14 @@ local function pctBadge(g)
         return laps > 0 and ("  |cffffd200%d lap%s|r"):format(laps, laps == 1 and "" or "s") or "  |cff6ac9ffcircuit|r"
     end
     if not (NS.Account and NS.Account.me) then return "" end
-    local _, who = NS.Account.GuideCompletedBy(g)
-    if who then return ("  |cff00ff00(%s)|r"):format(who) end
+    -- who finished it: asked only when that costs no parse (the route is parsed already, or the scan has read its quests)
+    -- A route without quests is asked only when the scan found it finished: otherwise the answer could need a parse,
+    -- in the redraw, for every row of the folder.
+    local _, qt = QC.Peek(g, scopeKey())
+    if g.steps or (qt and qt > 0) or scanned[g.id] == true then
+        local _, who = NS.Account.GuideCompletedBy(g)
+        if who then return ("  |cff00ff00(%s)|r"):format(who) end
+    end
     if not g.steps then return "" end
     -- a guide rebuilt without skipped quests (Core/Skip.lua) counts only the steps it still has
     local total, keep = viewOf(g)
@@ -715,17 +871,21 @@ local function searchRows(filter)
             if hay:find(filter, 1, true) then rows[#rows + 1] = { kind = "guide", depth = 0, guide = g } end
         end
     end
-    table.sort(rows, function(a, b)
-        if (a.guide.minlevel or 999) ~= (b.guide.minlevel or 999) then return (a.guide.minlevel or 999) < (b.guide.minlevel or 999) end
-        return (a.guide.name or a.guide.id) < (b.guide.name or b.guide.id)
-    end)
+    table.sort(rows, function(a, b) return routeLess(a.guide, b.guide) end)
     return rows
 end
 
 function M.Refresh()
+    -- the stored answers were cleared since the numbers on screen were made: count again (rows show "..." meanwhile)
+    if scanGen ~= QC.Gen() and f:IsShown() then M.RescanCompletion() end
     local filter = (search:GetText() or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
     local rows = filter ~= "" and searchRows(filter) or visibleRows()
     local y, n = 0, 0
+    local sk = scopeKey()
+    -- part of a folder tally's name: the level, when the level filter or the level bands shape the tree
+    local prefs = listPrefs()
+    local cfg = (prefs.onlyLevel or prefs.groupByLevel) and tostring(M.ViewLevel()) or ""
+    totalLine:SetText(totalText())
     for _, row in ipairs(rows) do
         n = n + 1
         local b = buttons[n]
@@ -735,7 +895,7 @@ function M.Refresh()
             b.text = b:CreateFontString(nil, "OVERLAY", U.Font("Small"))
             b.text:SetPoint("LEFT", 4, 0); b.text:SetJustifyH("LEFT")
             b.text:SetWordWrap(false)   -- a long name plus its band and "needs" tags must not wrap onto the next 20 px row
-            -- right-hand completion column: "12 completed" on a category, a tick or % on a guide
+            -- right-hand column: "312 / 1,040 quests" on a folder, "12 / 40 quests" or "completed" on a route
             b.right = b:CreateFontString(nil, "OVERLAY", U.Font("Small"))
             b.right:SetPoint("RIGHT", -6, 0); b.right:SetJustifyH("RIGHT")
             b.hl = b:CreateTexture(nil, "HIGHLIGHT"); b.hl:SetAllPoints(); b.hl:SetColorTexture(1, 1, 1, 0.1)
@@ -761,11 +921,18 @@ function M.Refresh()
                     local total = okS and st and #st or 0
                     local keep
                     if total > 0 then total, keep = viewOf(gg) end
+                    -- quests first (what the row shows), then the steps ticked in the route itself
+                    local qd, qt = QC.Count(gg, scopeKey(), true)
+                    if qt and qt > 0 then
+                        GameTooltip:AddLine(("Quests done: %s of %s"):format(QC.Fmt(qd), QC.Fmt(qt)), 1, 0.82, 0)
+                    end
                     if total > 0 then
                         local cn, cp = NS.Account.GuideProgress(gg.id, total, "char", keep)
                         local an, ap = NS.Account.GuideProgress(gg.id, total, "account", keep)
-                        GameTooltip:AddLine(("This character: %d/%d (%d%%)"):format(cn, total, cp), 1, 0.82, 0)
-                        GameTooltip:AddLine(("Whole account: %d/%d (%d%%)"):format(an, total, ap), 0.25, 0.78, 1)
+                        GameTooltip:AddLine(("Steps ticked, this character: %d/%d (%d%%)"):format(cn, total, cp), 1, 0.82, 0)
+                        GameTooltip:AddLine(("Steps ticked, whole account: %d/%d (%d%%)"):format(an, total, ap), 0.25, 0.78, 1)
+                    end
+                    if total > 0 or (qt and qt > 0) then
                         GameTooltip:AddLine("Counting: " .. NS.Account.ScopeLabel() .. " (" .. NS.Account.ScopeDetail() .. ")", 0.6, 0.6, 0.6, true)
                     end
                 end
@@ -788,15 +955,7 @@ function M.Refresh()
             else
                 b.text:SetText(("%s%s |cffffffff%s|r  |cff666666(%d)|r"):format(mark, tex(FOLDER_ICON, 14), row.node.name, row.node.count))
             end
-            local cdone, ctotal, cpending = nodeCompletion(row.node)
-            if cpending > 0 and cdone == 0 then
-                b.right:SetText("|cff666666...|r")
-            elseif cdone == 0 then
-                b.right:SetText("|cff6666660 completed|r")
-            else
-                b.right:SetText(("|cff%s%d completed|r%s"):format(cdone >= ctotal and "00ff00" or "ffd200",
-                    cdone, cpending > 0 and " |cff666666+|r" or ""))
-            end
+            b.right:SetText(nodeRight(row.node, cfg))
         else
             local g = row.guide
             b.nodePath, b.gid = nil, g.id
@@ -804,7 +963,12 @@ function M.Refresh()
             local prefix = filter ~= "" and (tex(catStyle(normCat(g.type)).icon, 14) .. " ") or ""
             b.text:SetText(prefix .. guideLabel(g, row.inNext) .. (P.guide and P.guide.id == g.id and "  |cff00ff00(active)|r" or ""))
             local v = scanned[g.id]
+            -- quests done out of the route's quests; nil until the scan has read them, 0 of 0 for a route without quests
+            local qd, qt = QC.Peek(g, sk)
             if g.loop then b.right:SetText((g.farm and g.farm.nodes) and ("|cff6ac9ff%d stops|r"):format(g.farm.nodes) or "|cff6ac9ffloop|r")
+            elseif qt and qt > 0 then
+                if qd >= qt then b.right:SetText("|cff00ff00completed|r")
+                else b.right:SetText(("|cff%s%s / %s quests|r"):format(qd > 0 and "ffd200" or "999999", QC.Fmt(qd), QC.Fmt(qt))) end
             elseif v == nil then b.right:SetText("|cff666666...|r")
             elseif v then b.right:SetText("|cff00ff00completed|r")
             else
@@ -829,17 +993,52 @@ function M.Refresh()
     local total = #G.Available()
     title:SetText(total == 0 and "Routes (none registered)" or ("Routes (%d)"):format(total))
 end
+local lastHarvest = -1e9
 local function openMenu()
     M.UpdateScopeLabel()
     M.UpdateLevelControls()
+    -- Ask the client for its completed quests again, at most every 30 s: on Classic clients the list can arrive some
+    -- time after login with no event to announce it, and the numbers below must not be older than what the client knows.
+    local now = GetTime and GetTime() or 0
+    -- Not once the client has handed over a list this session: QUEST_TURNED_IN keeps it current from then on.
+    if NS.Account and NS.Account.me and not NS.Account.clientListSeen and now - lastHarvest >= 30 then
+        lastHarvest = now
+        pcall(NS.Account.HarvestCompleted, true)
+    end
+    -- quests were completed (or the client's completed list arrived) since the numbers were made: count again
+    if scanGen ~= QC.Gen() then M.RescanCompletion() end
+    scanDone = false   -- routes registered since the last pass get their answer; the others are skipped at once
     M.Refresh()
     f:Show()
-    scanFrame:Show()   -- fills in the completion column in the background
+    scanFrame:Show()   -- fills in the right-hand column in the background
 end
+-- a route registered after the scan went through the list (a live route, an import): the next frames give it its answer
+NS:On("GUIDE_REGISTERED", function()
+    scanDone = false
+    if f:IsShown() then scanFrame:Show() end
+end)
+-- The completed quests changed while the list is open (a turn-in; on Classic clients the completed list arriving late
+-- after login): the numbers are counted again.  Closed, the list counts again when it is next opened.
+NS:On("QUESTS_KNOWN_CHANGED", function()
+    if not f:IsShown() then return end
+    NS:Throttle("guidemenu-quests", 1, function()
+        if f:IsShown() and scanGen ~= QC.Gen() then M.RescanCompletion() M.Refresh() end
+    end)
+end)
+-- The stored answers were cleared with no quest changing (Core/Account.lua A.ClearCompletionCaches: the old-marks
+-- import ending, an options check box): the open list counts again.
+NS:On("COMPLETION_CACHES_CLEARED", function()
+    if not f:IsShown() then return end
+    NS:Throttle("guidemenu-cleared", 0.5, function()
+        if f:IsShown() and scanGen ~= QC.Gen() then M.RescanCompletion() M.Refresh() end
+    end)
+end)
 function M.Toggle() if f:IsShown() then f:Hide() else openMenu() end end
 function M.Show() openMenu() end
 -- exposed for tools/test_offline.lua (headless tree checks); not used in-game
-M._test = { buildTree = buildTree, guidePath = guidePath, visibleRows = visibleRows, searchRows = searchRows, expanded = expanded,
-            nodeCompletion = nodeCompletion, scanSlice = scanSlice, scanned = function() return scanned end,
+M._test = { buildTree = function() return buildTree(true) end, buildTreeLazy = buildTree, guidePath = guidePath, visibleRows = visibleRows, searchRows = searchRows, expanded = expanded,
+            scanSlice = scanSlice, scanStep = scanStep, scanned = function() return scanned end,
+            tallies = function() return tallies end, nodeRight = nodeRight, totalText = totalText, totalLine = totalLine,
+            sortRec = sortRec, natural = natural, sortKeys = function() local n = 0 for _ in pairs(sortRecs) do n = n + 1 end return n end,
             prefs = listPrefs, levelBox = levelBox, onlyLevel = onlyLevel, groupLevel = groupLevel, REC_PATH = REC_PATH,
-            RECENT_PATH = RECENT_PATH, savedPct = savedPct, title = title, buttons = buttons }
+            RECENT_PATH = RECENT_PATH, savedPct = savedPct, title = title, buttons = buttons, frame = f }

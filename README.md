@@ -17,6 +17,7 @@ smart arrow — while the guide content is community-driven and open.
 |---|---|
 | Guide viewer with steps that auto-complete | ✅ `UI/GuideFrame.lua` + `Core/Progress.lua` (quest accept / objectives / turn-in / run-to / hearth / fly / level / item events). *Offline-tested only (2026-11-12):* talking to the NPC a step names (one step per conversation), a merchant on a repair/sell step, `L` items on every kind of step, a bought item, any of a step's `ALT` places, a chest looted at a treasure's spot, a mission's success. What completes what: [docs/GUIDE_FORMAT.md](docs/GUIDE_FORMAT.md); what stays manual: `tools/census_step_kinds.lua` |
 | Recent routes | *Offline-tested only:* the routes list opens with **Recent**: the routes this character has finished steps in, most recently used first (12 at most), each with its progress; click to load. Kept per character, survives `/reload`, parses no guide. A finished route picked here, in the list or with `/cr load` stays loaded with its end screen and **Start over** (also after `/reload`); only a route that runs out while you play moves on to the next one |
+| Quest counts in the routes list | *Offline-tested only (2026-11-13):* the top of the routes list says **Quests done: 312 of 4,268** for the chosen scope (Character / Server / Game type / Account); every folder shows `312 / 1,040 quests` (each quest once) and every quest route `12 / 40 quests` or `completed`, also for routes never opened. Read from a small generated index (`Data/QuestIndex_<flavor>.lua`), so no quest route is parsed for it; the numbers are counted again when a quest is turned in or the client's completed list arrives late. Routes in a folder are in a natural order: the leveling chain in chain order, a zone's parts 1, 2 ... 10, 11, 12, professions by skill range. Opening a route ticks every step whose quest is already completed, anywhere in it, and starts at the first open step — [docs/QUEST_COUNTS.md](docs/QUEST_COUNTS.md) |
 | First login | *Offline-tested only:* a character that has never loaded a route gets the routes list (its **Recommended** section open) at every login until it picks one; no route is loaded unasked |
 | Start over | *Offline-tested only:* a finished route shows a **Start over** button next to its end text; the step's right-click menu and the window's `...` menu offer it at any time (they ask first while steps are left). It clears the route's marks for this character and goes back to step one (`/cr reset` does the same). Circuits still lap by themselves |
 | Waypoint arrow | ✅ `UI/Arrow.lua` — an archery arrow in natural colours (`tools/gen_pointer.py`), world-coordinate bearing via HereBeDragons, distance under it |
@@ -158,6 +159,8 @@ luajit -joff tools/test_flow.lua          # Recent list, Start over, the complet
 luajit -joff tools/audit_step_text.lua    # every step of every flavor: lines needed by title, note and travel line at the default window size (estimate from character counts)
 luajit -joff tools/census_step_kinds.lua  # per guide family: which steps complete by themselves and from what, which stay manual
 luajit tools/test_bug_report.lua     # /cr bug snapshot, error hook, caps, SavedVariables reader, capture/replay round trip
+luajit -joff tools/test_quest_counts.lua    # quest counts, list order and prefill; index vs parser on every route of all five flavors, scan cost
+luajit -joff tools/gen_quest_index.lua      # Data/QuestIndex_<flavor>.lua: re-run after any route file is regenerated (--check: is it current? install.sh and the packager run it and stop when it is not)
 luajit -joff tools/test_progress_keys.lua   # stable step keys: regenerated guides keep marks, migration, downgrade, collisions + cost on all five flavors
 luajit -joff tools/test_mark_import.lua     # old marks of every guide converted once after login: same result as a load, sweep pause, cost on all five flavors
 luajit -joff tools/test_quest_auto.lua  # auto accept / turn-in on fake gossip, old-gossip and greeting clients, all five flavors
@@ -165,7 +168,8 @@ python3 tools/test_ingest_beta_reports.py      # beta_reports ingest on a fixtur
 python3 tools/ingest_beta_reports.py           # Daniel's /cr bug reports -> beta_reports; then:
 luajit tools/vplayer.lua --repro <report id> --check   # replay one offline; exit 1 on a DIFF (docs/BETA_REPORTS.md)
 python3 tools/wiki/gen_wiki_guides.py          # regenerate the wiki quest guides and the spine (then gen_gold, gen_professions,
-                                               # tools/gen_completion_guides.py, tools/gen_quest_deps.py; docs/RELEASE.md)
+                                               # tools/gen_completion_guides.py, tools/gen_quest_deps.py,
+                                               # luajit -joff tools/gen_quest_index.lua; docs/RELEASE.md)
 python3 tools/gen_taxi.py tbc 2.5.6.69110 era 1.15.9.69109 mop 5.5.4.69155 retail 12.1.0.69382
 python3 tools/package_release.py               # release dry run: assemble, provenance gate, zip sizes (writes nothing)
 python3 tools/package_release.py --write --version 2.0.0-beta1   # dist/<version>/ (gitignored; a failing build: dist/failed/); never tags or publishes

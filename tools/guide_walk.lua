@@ -76,6 +76,7 @@ local function familyOf(rel)
 end
 
 local WANT = { ["Core/Init.lua"] = true, ["Core/Util.lua"] = true, ["Core/Conditions.lua"] = true, ["Core/Guide.lua"] = true,
+               ["Core/QuestCounts.lua"] = true,     -- tools/gen_quest_index.lua: which quests a route names
                ["Data/ZoneAliases.lua"] = true }
 
 -- Returns the flavor's NS (after the walk), the files that were missing, and load errors.

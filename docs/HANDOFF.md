@@ -42,7 +42,7 @@ separate GitHub repo** (see section 5, phase 4).
 
 | What | Where |
 |---|---|
-| Main work clone (branch `master`) | `~/Downloads/CompletionistGuide-work/repo`. It holds the gitignored generated data (`CompletionRoute/Guides/Imported_{Wiki,Spine,Gold,Professions,Achievements,QuestLines,Missions}_*`, `CompletionRoute/Data/{RouteOrder,QuestDeps}_*`, `tools/db2`, `tools/wiki/cache`, `tools/wiki/wiki.sqlite`, `docs/verification.sqlite`). No other generated file belongs under `CompletionRoute/`. |
+| Main work clone (branch `master`) | `~/Downloads/CompletionistGuide-work/repo`. It holds the gitignored generated data (`CompletionRoute/Guides/Imported_{Wiki,Spine,Gold,Professions,Achievements,QuestLines,Missions}_*`, `CompletionRoute/Data/{RouteOrder,QuestDeps,QuestIndex}_*`, `tools/db2`, `tools/wiki/cache`, `tools/wiki/wiki.sqlite`, `docs/verification.sqlite`). No other generated file belongs under `CompletionRoute/`. |
 | Offline measurement inputs | `tools/measure/questie/` (gitignored): the older Questie-derived `Imported_Quests_<flavor>.lua` files, read only by `gen_wiki_guides.py --measure-fallback` (`tools/measure/README.md`). |
 | Feature worktrees | `~/Downloads/CompletionistGuide-work/wt-skip` (`quest-skip`), `wt-graph` (`routing-graph`), `wt-bug` (`beta-bug-report`), `wt-pkg` (`release-packager`). Their generated-data paths are **symlinks into repo/**, so never write through them. `git worktree list` shows them. |
 | Python venv (OR-Tools) | `~/Downloads/CompletionistGuide-work/venv` |

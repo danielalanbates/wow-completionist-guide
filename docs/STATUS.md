@@ -1,4 +1,127 @@
-# Status / handoff (2026-11-12: one build, the public one; a full rebake is needed)
+# Status / handoff (2026-11-13: one build, the public one; a full rebake is needed)
+
+## 2026-11-13: quest counts in the routes list, natural order, prefill (`quest-counts`)
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `quest-counts` (worktree `wt-counts`), cut from
+master. Not merged, pushed or installed. Owner's request: "the guide 'parts' need to be organized numerically in the
+ordering of the quests window. and when it says '0 completed', that's really confusing to the user, who probably has
+done a lot of quests. what the addon means is 0 routes completed. but there are over 1000 quests. we should be
+tracking them all and listing how many the user has actually done. each guide should have a number of quests and
+prefill what step the user should be on based on whether or not they've completed it". Full description:
+`docs/QUEST_COUNTS.md`.
+
+**1. Order.** Inside every folder and in the search results: the leveling chain in chain order, everything else by
+the shown name with numbers compared as numbers (Part 1, 2 ... 10, 11, 12; `Cooking 1-75` before `75-150`), gold
+routes by the level range in their full name. Two series of parts with one shown name are not interleaved (found on
+the real Retail data: two zones are both called Silvermoon City). Checked on the real route names of all five
+clients for an Alliance and a Horde character.
+
+**2. Quest counts.** The folder text "N completed" (routes) is gone. A quest route shows `12 / 40 quests` or
+`completed`, a folder `312 / 1,040 quests` (each quest id once), and a new line under the scope buttons
+`Quests done: 312 of 4,268`. Gold, profession, achievement and mission routes keep their text; a folder without
+quest routes shows `3 routes done` or nothing. What counts, how quests in several routes and hidden tracking ids
+are handled: `docs/QUEST_COUNTS.md` section 2. One behaviour change to know: a quest route is now finished when
+every quest it turns in is done by the characters in scope (before: when one character had turned in every quest it
+turns in).
+
+New generated file: `Data/QuestIndex_<flavor>.lua` (`tools/gen_quest_index.lua`, Lua, about 6 s for all five; era
+30 KB, tbc 44, forever 33, mop 94, retail 403). Wired into the six TOCs, `tools/install.sh` (note when missing,
+allowlist, content guard), `tools/package_release.py` (rule, wiki CC BY-SA), `tools/validate_toc.lua`, `.gitignore`,
+`tools/test_load_all.lua`, `tools/test_package.py`. New module `Core/QuestCounts.lua` (all six TOCs, after
+`Core/Account.lua`).
+
+Cost, measured under `luajit -joff` (not the client's Lua), a character with a third of the quests done:
+
+| Client (Alliance) | Routes | Quest routes | Quests counted | Scan with the index | Same scan with no index (as before) |
+|---|---|---|---|---|---|
+| era | 344 | 193 | 1,945 | 2 frames, 3 ms | 138 ms, longest frame 7 ms |
+| tbc | 450 | 263 | 3,122 | 3 frames, 4 ms | 224 ms, longest 10 ms |
+| forever | 355 | 199 | 2,019 | 2 frames, 3 ms | 145 ms, longest 8 ms |
+| mop | 809 | 470 | 7,022 | 4 frames, 8 ms | 688 ms, longest 25 ms |
+| retail | 3,506 | 2,971 | 21,347 | 14 frames, 37 ms, longest 4.0 ms | 3,441 ms, longest 68 ms |
+
+(One run, after the review fixes, load average about 10. The figures move with the machine's load: an earlier run
+under heavy load gave Retail 17 frames, 67 ms, longest 7 ms.)
+
+The scan no longer parses any quest route, and no longer parses a route without turn-ins that nobody has a tick in
+(2 to 4 routes are still parsed per client: gold or profession routes that turn a quest in). Folder tallies and the
+total: 1 to 7 more frames, none over 4.1 ms. The row label no longer parses a route to ask who finished it (it did,
+for every row drawn).
+
+**3. Prefill.** `P.Prefill` (Core/Progress.lua) ticks every step whose quest is completed, anywhere in the route,
+on load, on a rebuild, on Start over, and whenever the completed quests change (a turn-in, the client's list
+arriving after the route was loaded). Where it did not hold before: steps further than 40 open steps ahead; a
+completed quest's step behind a level gate or an unmet `PRE` (it parked the route as "N more steps at level X");
+a route loaded before the completed list arrived; steps returned by `/cr unskip`. Table: `docs/QUEST_COUNTS.md`
+section 5. Also: the completed quests are asked for once more 60 s after login when the client had none, and each
+time the routes list is opened (at most every 30 s).
+
+**Tests.** New `tools/test_quest_counts.lua`: 115 synthetic checks, then per client and faction the index against the
+parser on every route, the total against a plain union, the order of the real names, the scan's frames (255 checks
+with all five clients). Every other harness passes: all `tools/test_*.lua`, `validate_toc.lua`, `test_package.py`.
+`test_skip.lua` is flaky on its re-plan timing checks ("never more than 2 ms": 2.1 to 2.3 ms) while the machine
+is busy (load average 80 to 120 from other jobs): it failed in 4 of 7 runs on this branch and in 1 of 3 runs of the
+unchanged master code; the re-planner is not touched here. `tools/vplayer.lua era --limit 25`: 25 finished, 0 stalled. Not run: the full
+vplayer, `test_gen_determinism.py`, `test_contrib_gen.py`, `test_step_detail.py` (none reads this code).
+
+**Review fixes (same day, second commit set).** Two independent reviewers reported nine findings; all confirmed.
+* *Opening a folder of routes without quests parsed every row in one redraw* (Retail Achievements: 880 ms, 203
+  routes, steps kept, about 100 MB after two categories). Fixed: the row asks "who finished it" only for a quest
+  route or a route the scan found finished; `A.GuideCompletedBy` answers a tick-only route nobody has a tick in
+  without parsing, and lets go of steps it parsed. Measured after: Achievements 9 ms, 0 routes parsed, 0 routes
+  holding steps after opening four categories.
+* *A stale index was not seen when a regenerated route kept its text length.* `tools/install.sh` and
+  `tools/package_release.py` now run `gen_quest_index.lua --check` and stop (new gate rule `stale-quest-index`;
+  both need `luajit`). The index has a format version (`v = 2`); another version is ignored as a whole. No
+  checksum at run time: hashing every route text in plain Lua costs more than the index saves.
+* *Retail routes holding quests with no turn-in step could never read `completed`.* Measured: 88 routes, 346 quests
+  (0 on the other four clients). A route's quests are now the quests it turns in. Retail's count for an Alliance
+  character went from 21,648 to 21,347; the other clients' numbers did not move. **The index must be regenerated.**
+* *Row went blank when the stored answers were cleared with the list open and no event* (end of the old-marks
+  import, options check boxes). `A.ClearCompletionCaches` now fires `COMPLETION_CACHES_CLEARED`, the list counts
+  again, and a redraw notices an out-of-date scan by itself.
+* *A row said `completed` in a wider scope for a route that opened with open steps* when "also match by quest ID
+  across different routes" was off. Other characters' quests now count only while that option is on, as they tick
+  steps; the scope tooltip says so when it is off; the option's check box clears the stored answers. This is a
+  judgement call: see item 7 below.
+* *First open of the list was a 39 ms frame on Retail.* Routes are sorted, and their sort keys made, only in folders
+  that are open: 15 ms. The cost moved to the first opening of a large category (item 5 below).
+* *The completed quests were asked of the client on every open* (3 to 6 ms with 44,000 ids). Now only until the
+  client has handed over a non-empty list this session; a harvest that adds nothing no longer recounts the saved
+  quests.
+* *Docs:* cost figures refreshed and marked as one run; what is outside the 4 ms budget is stated
+  (`docs/QUEST_COUNTS.md` section 3).
+Tests: `tools/test_quest_counts.lua` 275 checks (each fix has one; the new ones fail with the fix taken out),
+`tools/test_package.py` builds its fixture's index and checks the new gate (a same-length quest swap fails it).
+All 25 `tools/test_*.lua`, `validate_toc.lua` and `test_package.py` pass (one run each, load average about 10).
+
+**Integrator, after the merge, in `repo/`:** `~/Downloads/CompletionistGuide-work/heavy.sh luajit -joff
+tools/gen_quest_index.lua`, then `luajit -joff tools/test_quest_counts.lua`, then install. Run the generator again
+after any generator that rewrites a route file (so after the `step-details` regeneration too): `tools/install.sh`
+and the packager now refuse a stale index. An index made before the review fixes (format 1) is ignored by the
+add-on as a whole, so the list would fall back to parsing every route until it is regenerated.
+
+**Not done / open.**
+* The row does not say which step a never-opened route would start at: that needs the route parsed.
+* A quest that a `/cr skip` only strands inside one route (not dropped itself) is still counted.
+* Travel, hearth and note steps in front of already-completed quests are not ticked by the prefill (no client fact
+  says they are done); the generated quest routes have none, the two hand-written starter routes have four.
+* `Core/Recommend.lua` is unchanged: it still reads the "finished" answers the list's scan leaves.
+
+**Most needs the owner's eyes in game.**
+1. The new total line and the 20 px everything below it moved down: does it fit at every text size, is it readable?
+2. The right-hand column: `12 / 40 quests` next to long route names (the label is cut where the count begins).
+3. A real character's numbers against the quest log's own count, on Classic Era or TBC especially: do they appear
+   within a few seconds of the first login, and do they move on a turn-in with the list open?
+4. Opening a route part-way done: is the first step shown really the first open one, and is the jump instant?
+5. Retail: the list opening with no hitch, and opening a large category (Storylines, Quests). The scan holds its
+   4 ms a frame offline (14 frames), but the redraw is outside that budget: about 15 ms for the first open, up to
+   70 ms the first time a large category with all its folders is opened, 6 to 30 ms for each later redraw of
+   thousands of rows (no row virtualisation). All under `luajit -joff`; the client's Lua is slower.
+6. Retail: do the 88 routes with auto-accepted area tasks (Azj-Kahet Part 2/5 for one) now reach `completed`?
+7. With "also match by quest ID across different routes" off, the Server / Game type / Account buttons no longer
+   change the quest counts (only this character's quests count). Is that what you want, or should the counts
+   follow the scope alone and the tooltip explain the difference?
 
 ## 2026-11-12: steps with no map point say what the wiki knows about where (`step-details`)
 

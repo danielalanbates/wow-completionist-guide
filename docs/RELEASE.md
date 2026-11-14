@@ -107,6 +107,7 @@ also lists any never-shipped file found in `CompletionRoute/` (each one fails th
 | `Guides/Imported_Achievements_*` | wiki CC BY-SA | Blizzard Achievement/Criteria/Map, QuestPOI, WorldMapOverlay, AreaTable and DungeonEncounter tables; points from wiki quest steps (a player-contributed quest point is credited as such) and wiki NPC, object, item, glyph, race and achievement pages; each located step names its source | `tools/gen_completion_guides.py` |
 | `Guides/Imported_QuestLines_retail` | wiki CC BY-SA | Blizzard QuestLine/QuestLineXQuest order and QuestPOI pins; step text, gates and points from `Imported_Wiki_retail.lua` (player-contributed points with their note; the header repeats the provenance line); quests without a wiki page are "Quest <id>" steps | `tools/gen_completion_guides.py` |
 | `Data/QuestDeps_*` | wiki CC BY-SA | quest chains and names from the wiki guides, breadcrumb wording from the wiki pages | `tools/gen_quest_deps.py` |
+| `Data/QuestIndex_*` | wiki CC BY-SA | which quest ids each quest route turns in, read from the shipped route files of the same client | `tools/gen_quest_index.lua` |
 | `Data/Teleports.lua` | wiki CC BY-SA | hand-authored teleport list; ids checked against Blizzard tables, landing points from wiki coordinates or TaxiNodes, cited per entry | hand-authored, checked by `tools/check_teleports.py` |
 | `Guides/Imported_Missions_retail` | Blizzard data | GarrMission table; the travel step to each table is written in the generator | `tools/gen_completion_guides.py` |
 | `Data/Taxi_*`, `Data/MapFix_forever`, `Data/ZoneAliases` | Blizzard data | TaxiNodes/TaxiPath/TaxiPathNode, UiMapAssignment, UiMap (names edited by hand) | `gen_taxi.py`, `gen_mapfix_forever.py`, `gen_maps.py` |
@@ -140,6 +141,7 @@ The gate fails the build on any of these. `tools/test_package.py` plants one bad
 | `personal-data` | an e-mail address other than help@batesai.org; a `/Users/<name>`, `/home/<name>`, `C:\Users\<name>` or `/Volumes/<name>` path; a WoW account or character name from `WTF/Account`; a `--personal-term`, in a file's content or its name (reports name the kind, never the term: a term in a file name is printed as `[personal term]` in `gate.txt`, `provenance.json` and the `--db` rows) |
 | `secret` | private key block; AWS key id; GitHub, GitLab, Slack, Google, Stripe, Telegram, npm or Hugging Face token; `sk-` (OpenAI, Anthropic, OpenRouter), Cerebras `csk-`, Groq `gsk_` or xAI `xai-` key; JWT; a credential assignment such as `password = "..."`, `api_key=...` or `OPENAI_API_KEY=...` (unquoted values count when they look like a key: 16+ characters with letters and digits) |
 | `symlink` | a packaged file or one of its folders is a symlink (exception: `--allow-checkout-links`) |
+| `stale-quest-index` | a packaged `Data/QuestIndex_<flavor>.lua` is not what `tools/gen_quest_index.lua` makes from the packaged route files (the packager runs `--check` over the staged files; needs `luajit`). Fix: `luajit -joff tools/gen_quest_index.lua` |
 | `toc-missing-file` | a packaged TOC (or an XML it includes) lists a file that is not in that client's package; a TOC is missing or not stamped |
 | `missing-notice` | LICENSE lacks the PolyForm name, the 10% rider, "All rights reserved", help@batesai.org or batesai.org; a library ships without its licence file |
 
@@ -170,7 +172,8 @@ The everyday workflow is the release workflow. In the checkout that holds the ge
    carries a clean commit):
    `python3 tools/wiki/gen_wiki_guides.py` (also rebuilds the spine), `python3 tools/wiki/gen_gold.py`,
    `python3 tools/wiki/gen_professions.py`, `python3 tools/gen_completion_guides.py retail mop`,
-   `python3 tools/gen_quest_deps.py`.
+   `python3 tools/gen_quest_deps.py`, and last `luajit -joff tools/gen_quest_index.lua` (the quest index of the
+   routes list; it must be made from the final route files: `docs/QUEST_COUNTS.md`).
 2. Bake the route orders: `python3 tools/bake_resume.py --jobs 4` (resumable; four batches at a time; it bakes the shipped wiki quest guides and
    rewrites `Data/RouteOrder_<flavor>.lua` with rows for current guides only; `docs/ROUTING.md` "Bake gate").
 3. Test: `luajit tools/validate_toc.lua`, the `tools/test_*.lua` harnesses, `python3 tools/test_package.py`,

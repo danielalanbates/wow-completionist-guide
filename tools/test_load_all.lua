@@ -78,7 +78,7 @@ for _, fl in ipairs(FLAVORS) do
     for _, rel in ipairs(files) do
         if rel:match("^Libs/") then
             loaded = loaded + 1 -- third-party libs need a real client env; not our code under test
-        elseif (rel:match("^Guides/Imported_") or rel:match("^Data/RouteOrder_") or rel:match("^Data/QuestDeps_")) and not io.open("CompletionRoute/" .. rel, "r") then
+        elseif (rel:match("^Guides/Imported_") or rel:match("^Data/RouteOrder_") or rel:match("^Data/QuestDeps_") or rel:match("^Data/QuestIndex_")) and not io.open("CompletionRoute/" .. rel, "r") then
             loaded = loaded + 1 -- baked locally, gitignored; absent in CI checkouts
         elseif rel:match("%.lua$") then
             local chunk, err = loadfile("CompletionRoute/" .. rel)

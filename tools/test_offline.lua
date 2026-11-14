@@ -12,7 +12,7 @@ local function load(path)
     end
     local fn = assert(loadfile("CompletionRoute/" .. path)) fn(ADDON, NS)
 end
-for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Sweep.lua" }) do load(f) end
+for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", "Data/Taxi_tbc.lua", "Data/Transit.lua", "Data/Access.lua", "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua", "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Core/Account.lua", "Core/QuestCounts.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Sweep.lua" }) do load(f) end
 -- fake ADDON_LOADED
 CompletionRouteDB, CompletionRouteCharDB = nil, nil
 for _, h in ipairs(NS.wowHandlers.ADDON_LOADED) do h("ADDON_LOADED", "CompletionRoute") end
@@ -198,11 +198,16 @@ do
     assert(sc["t:menu:open"] == false, "an unfinished guide scanned as complete")
     local events = T.buildTree().kidByName["Events"]
     assert(events, "no Events category")
-    local d, tot, pending = T.nodeCompletion(events)
-    assert(pending == 0, "scan left rows unresolved: " .. pending)
-    assert(d >= 1 and tot >= 2, ("Events roll-up wrong: %d/%d"):format(d, tot))
+    -- the folder row counts quests, each id once (tools/test_quest_counts.lua has the full checks): the tally is a
+    -- background job, asked for by the row and finished by the scan's next frames
+    assert(T.nodeRight(events, "") == "|cff666666...|r", "a folder row shows '...' until its tally is ready")
+    guard = 0
+    repeat guard = guard + 1 until T.scanStep() or guard > 500
+    local right = T.nodeRight(events, "")
+    assert(right:find("1 / 2 quests", 1, true), "Events roll-up wrong: " .. right)
+    assert(not right:find("completed"), "a folder row must not say 'N completed': " .. right)
 end
-print("guide menu OK: four-way scope selector, per-guide scan, category completion counts")
+print("guide menu OK: four-way scope selector, per-guide scan, folder quest counts")
 
 -- 7) account-wide progression
 NS.Account.Init()
