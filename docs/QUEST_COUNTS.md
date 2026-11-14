@@ -20,8 +20,13 @@ count; the numbers are counted again when the scope changes.
 
 ## 2. What counts as a quest
 
-* **A route's quests** are the quest ids its steps name in a `QID` tag, each id once. Accept, objective and turn-in
-  steps all count, so a quest the route only accepts is still one of its quests.
+* **A route's quests** are the quests it turns in (the `QID` of its turn-in steps), each id once. A quest the route
+  only accepts or works on, with no turn-in step, is not counted. Era, TBC, Forever and MoP have no such quest. Retail
+  has 346 in 88 routes (for example 24 of the 40 quests named in `wiki:retail:2255:Both:2`, Azj-Kahet Part 2/5):
+  auto-accepted area tasks such as "Dropping Eaves: ..." and "Requisitions: ...", many of them weekly, which the
+  client may not keep as completed. Counting them would leave those routes and their folders short of full for
+  ever. The cost: a one-time quest that completes by itself, with no turn-in step in the route, is not counted
+  either. Its steps are still ticked by the prefill when the client says it is done.
 * **Left out:** steps marked optional (`|O|`); steps for another faction, class or race (`FACTION`, `C`, `R` tags), so
   a both-factions route shows an Alliance character only the quests an Alliance character can take; quests this
   character dropped with `/cr skip` (a quest that a drop only strands inside one route is still counted).
@@ -30,16 +35,18 @@ count; the numbers are counted again when the scope changes.
   route may hold one trainer quest. Neither adds to a folder or to the total.
 * **Done** means completed by a character in scope: this character's completed quests (read from the client by
   `Account.HarvestCompleted`, plus every `QUEST_TURNED_IN`), and in the wider scopes the saved lists of the other
-  characters the scope covers. The scope alone decides this; the option "also match by quest ID across different
-  routes" only affects which steps are ticked.
+  characters the scope covers. The other characters count only while the option "also match by quest ID across
+  different routes" is on (it is by default), exactly as their quests tick steps: with it off, a wider scope shows
+  this character's quests only, the scope tooltip says so, and a row never reads `completed` for a route that then
+  opens with quest steps left. (First built otherwise; changed in review. The owner may prefer the other way.)
 * **A quest in several routes** counts in each of those routes, and once in a folder and in the total. A leveling
   chain entry and the zone route it is made from share every quest, so the Leveling folder and the Quests folder each
   count them, and the total counts them once.
 * **Hidden and tracking quest ids.** The client's completed list holds thousands of ids no route names. They are
   never counted: the total is "quests of the routes", not "ids the client has flagged".
-* **A quest route is finished** when every one of its quests is done by the characters in scope. Before this change
-  it was finished when one character had turned in every quest it turns in; the difference is a quest the route
-  accepts but has no turn-in step for (about 800 on Retail), and two characters who each did half.
+* **A quest route is finished** when every quest it turns in is done by the characters in scope. Before this change
+  it was finished when one character had turned in every one of them; the difference is two characters who each
+  did half.
 
 ## 3. Where the numbers come from, and what they cost
 
@@ -56,30 +63,46 @@ its own: it reads its zone route's.
 * No quest route is parsed for its count. The first line is decoded once per route and kept.
 * A route that turns no quest in is finished by its ticks alone, so one nobody in scope has a tick in is known to be
   unfinished without parsing it. Before, the list parsed every route once per session to learn that.
-* The length in front is the staleness check. If the route files are regenerated and the index is not, the lengths
-  differ, the entries are ignored and the list falls back to parsing those routes (`QC.Groups`, the same function the
-  generator uses): slower, same numbers. Routes the index does not hold (live and hand-made routes, gold or
+* The length in front is the add-on's own staleness check. If the route files are regenerated and the index is not,
+  the lengths differ, the entries are ignored and the list falls back to parsing those routes (`QC.Groups`, the same
+  function the generator uses): slower, same numbers. **It cannot see a change that keeps the length** (one quest id
+  swapped for another of the same width), so `tools/install.sh` and `tools/package_release.py` both run
+  `gen_quest_index.lua --check` and stop on a stale index (gate rule `stale-quest-index`). An index of another format
+  version (`v`, now 2) is ignored as a whole. Routes the index does not hold (live and hand-made routes, gold or
   profession routes that turn a quest in) are parsed as before.
-* Everything runs in the background while the list is open, in slices of at most 4 ms a frame
-  (`SCAN_MS`): first every route's count and "finished" answer, then one tally per folder row on screen and one for
-  the total. Rows read stored answers only.
+* The counting runs in the background while the list is open, in slices of at most 4 ms a frame (`SCAN_MS`): first
+  every route's count and "finished" answer, then one tally per folder row on screen and one for the total. Rows
+  read stored answers only, and a redraw parses no route.
+* **Not inside that budget:** the redraw itself (`GuideMenu.Refresh`). It draws every row of every open folder (no
+  row virtualisation; older than this branch) and runs every 0.25 s while the scan is going. Measured on Retail under
+  `luajit -joff`: 10 ms with every folder closed, 6 to 30 ms with whole categories and all their folders open (200 to
+  3,500 rows), and up to 70 ms the first time a large category is opened, when its routes get their sort keys. The
+  first open of the list is one frame of about 15 ms (it was 39 ms before sort keys were made per open folder).
+  The client's Lua is slower. These are for the owner to judge in game.
 
 Measured offline under `luajit -joff` (the interpreter; the client's Lua 5.1 is slower per operation, the 4 ms slice
 limit is the same), a character with a third of the quests done:
 
 | Client | Routes seen | Quest routes | Quests counted | Scan with the index | Scan without it (as before) |
 |---|---|---|---|---|---|
-| era (Alliance) | 344 | 193 | 1,945 | 2 frames, 4 ms | 276 ms, longest frame 11 ms |
-| tbc (Alliance) | 450 | 263 | 3,122 | 3 frames, 8 ms | 449 ms, longest frame 11 ms |
-| forever (Alliance) | 355 | 199 | 2,019 | 2 frames, 4 ms | 199 ms, longest frame 12 ms |
-| mop (Alliance) | 809 | 470 | 7,022 | 5 frames, 15 ms | 797 ms, longest frame 24 ms |
-| retail (Alliance) | 3,506 | 2,971 | 21,648 | 17 frames, 67 ms, longest 7 ms | 4,132 ms, longest frame 149 ms |
+| era (Alliance) | 344 | 193 | 1,945 | 2 frames, 3 ms | 138 ms, longest frame 7 ms |
+| tbc (Alliance) | 450 | 263 | 3,122 | 3 frames, 4 ms | 224 ms, longest frame 10 ms |
+| forever (Alliance) | 355 | 199 | 2,019 | 2 frames, 3 ms | 145 ms, longest frame 8 ms |
+| mop (Alliance) | 809 | 470 | 7,022 | 4 frames, 8 ms | 688 ms, longest frame 25 ms |
+| retail (Alliance) | 3,506 | 2,971 | 21,347 | 14 frames, 37 ms, longest 4.0 ms | 3,441 ms, longest frame 68 ms |
 
-The folder tallies and the total took 1 to 7 more frames, none over 4.1 ms. "Quests counted" is what one Alliance
-character can take; the index holds 3,302 (era), 5,024 (tbc), 3,489 (forever), 10,562 (mop) and 28,710 (retail)
-quest ids for both factions.
+The folder tallies and the total took 1 to 4 more frames, none over 4.1 ms. These are one run of
+`tools/test_quest_counts.lua` (the last one of the review fixes, load average about 10); they move with the machine's
+load: an earlier run under heavy load gave Retail 17 frames, 67 ms, longest 7 ms. "Quests counted" is what one
+Alliance character can take; the index holds 3,302 (era), 5,024 (tbc), 3,489 (forever), 10,562 (mop) and 28,396
+(retail) quest ids for both factions.
 
-Index sizes: era 30 KB, tbc 44 KB, forever 33 KB, mop 94 KB, retail 403 KB.
+Index sizes: era 30 KB, tbc 44 KB, forever 33 KB, mop 94 KB, retail 401 KB.
+
+The completed quests are asked of the client at login (3 s, 20 s, and at 60 s when it had none) and, while the client
+has not yet handed over a non-empty list this session, each time the list is opened (at most every 30 s). After
+that `QUEST_TURNED_IN` keeps them current, and opening the list asks nothing (with a Retail-sized list of 44,000 ids
+one ask cost 3 to 5 ms).
 
 ## 4. The order of the list
 
@@ -124,4 +147,5 @@ step the route would start at: that needs the route parsed, which the list avoid
 Run `luajit -joff tools/gen_quest_index.lua` (about 6 s for all five clients) **after any generator that rewrites a
 route file** (`gen_wiki_guides.py`, `gen_gold.py`, `gen_professions.py`, `gen_completion_guides.py`). The bake does
 not change route text and needs no re-run. `luajit -joff tools/gen_quest_index.lua --check` says whether the files
-there are current; `tools/test_quest_counts.lua` fails on a stale or missing entry.
+there are current; `tools/test_quest_counts.lua` fails on a stale or missing entry, and `tools/install.sh` and
+`tools/package_release.py` run the check themselves and refuse a stale index (both need `luajit` on the PATH).

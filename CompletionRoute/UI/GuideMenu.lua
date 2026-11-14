@@ -68,6 +68,9 @@ local function scopeTip(self)
         GameTooltip:AddLine(("%s%s|r - %s"):format(cur and "|cff00ff00" or "|cffaaaaaa", NS.Account.ScopeLabel(sc), NS.Account.ScopeDetail(sc)), 1, 1, 1, true)
     end
     GameTooltip:AddLine("Widens or narrows the quest counts (the total, the folders, the routes) and which steps are skipped as already done.", 0.6, 0.6, 0.6, true)
+    if not QC.OthersCount() then
+        GameTooltip:AddLine("The option \"also match by quest ID across different routes\" is off: other characters' quests do not tick steps, so they are not counted here either.", 1, 0.6, 0, true)
+    end
     GameTooltip:Show()
 end
 
@@ -542,7 +545,10 @@ end
 function M.NextStepGuides(force) return M.Recommended(M.ViewLevel(), force) end
 
 -- Build tree: node = { name, path, kids = {ordered}, kidByName = {}, guides = {}, count }
-local function buildTree()
+-- sortAll (tools and tests): sort the routes of every folder.  The list itself sorts only the folders whose routes it
+-- shows (the open ones): a route's sort key is made the first time it is sorted, and making all 3,500 of Retail's at
+-- once was most of a 39 ms first frame.
+local function buildTree(sortAll)
     local root = { kids = {}, kidByName = {}, guides = {}, count = 0 }
     local level, prefs = M.ViewLevel(), listPrefs()
     local fit = prefs.onlyLevel and Rec.FitSet(level) or nil
@@ -600,7 +606,7 @@ local function buildTree()
             root.count = root.count + 1
         end
     end
-    local function sortNode(n)
+    local function sortNode(n, shown)
         table.sort(n.kids, function(a, b)
             local oa, ob = a.order or CAT_ORDER[a.name], b.order or CAT_ORDER[b.name]
             if oa or ob then return (oa or 99) < (ob or 99) end
@@ -611,11 +617,10 @@ local function buildTree()
             if na ~= nb then return na < nb end
             return a.name < b.name
         end)
-        if n.synthetic then for _, k in ipairs(n.kids) do sortNode(k) end return end
-        table.sort(n.guides, routeLess)
-        for _, k in ipairs(n.kids) do sortNode(k) end
+        if not n.synthetic and shown and #n.guides > 1 then table.sort(n.guides, routeLess) end
+        for _, k in ipairs(n.kids) do sortNode(k, sortAll or (shown and expanded[k.path]) and true or false) end
     end
-    sortNode(root)
+    sortNode(root, true)
     return root
 end
 
@@ -802,7 +807,10 @@ local function pctBadge(g)
     end
     if not (NS.Account and NS.Account.me) then return "" end
     -- who finished it: asked only when that costs no parse (the route is parsed already, or the scan has read its quests)
-    if g.steps or QC.Peek(g, scopeKey()) ~= nil then
+    -- A route without quests is asked only when the scan found it finished: otherwise the answer could need a parse,
+    -- in the redraw, for every row of the folder.
+    local _, qt = QC.Peek(g, scopeKey())
+    if g.steps or (qt and qt > 0) or scanned[g.id] == true then
         local _, who = NS.Account.GuideCompletedBy(g)
         if who then return ("  |cff00ff00(%s)|r"):format(who) end
     end
@@ -868,6 +876,8 @@ local function searchRows(filter)
 end
 
 function M.Refresh()
+    -- the stored answers were cleared since the numbers on screen were made: count again (rows show "..." meanwhile)
+    if scanGen ~= QC.Gen() and f:IsShown() then M.RescanCompletion() end
     local filter = (search:GetText() or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
     local rows = filter ~= "" and searchRows(filter) or visibleRows()
     local y, n = 0, 0
@@ -990,7 +1000,8 @@ local function openMenu()
     -- Ask the client for its completed quests again, at most every 30 s: on Classic clients the list can arrive some
     -- time after login with no event to announce it, and the numbers below must not be older than what the client knows.
     local now = GetTime and GetTime() or 0
-    if NS.Account and NS.Account.me and now - lastHarvest >= 30 then
+    -- Not once the client has handed over a list this session: QUEST_TURNED_IN keeps it current from then on.
+    if NS.Account and NS.Account.me and not NS.Account.clientListSeen and now - lastHarvest >= 30 then
         lastHarvest = now
         pcall(NS.Account.HarvestCompleted, true)
     end
@@ -1014,12 +1025,20 @@ NS:On("QUESTS_KNOWN_CHANGED", function()
         if f:IsShown() and scanGen ~= QC.Gen() then M.RescanCompletion() M.Refresh() end
     end)
 end)
+-- The stored answers were cleared with no quest changing (Core/Account.lua A.ClearCompletionCaches: the old-marks
+-- import ending, an options check box): the open list counts again.
+NS:On("COMPLETION_CACHES_CLEARED", function()
+    if not f:IsShown() then return end
+    NS:Throttle("guidemenu-cleared", 0.5, function()
+        if f:IsShown() and scanGen ~= QC.Gen() then M.RescanCompletion() M.Refresh() end
+    end)
+end)
 function M.Toggle() if f:IsShown() then f:Hide() else openMenu() end end
 function M.Show() openMenu() end
 -- exposed for tools/test_offline.lua (headless tree checks); not used in-game
-M._test = { buildTree = buildTree, guidePath = guidePath, visibleRows = visibleRows, searchRows = searchRows, expanded = expanded,
+M._test = { buildTree = function() return buildTree(true) end, buildTreeLazy = buildTree, guidePath = guidePath, visibleRows = visibleRows, searchRows = searchRows, expanded = expanded,
             scanSlice = scanSlice, scanStep = scanStep, scanned = function() return scanned end,
             tallies = function() return tallies end, nodeRight = nodeRight, totalText = totalText, totalLine = totalLine,
-            sortRec = sortRec, natural = natural,
+            sortRec = sortRec, natural = natural, sortKeys = function() local n = 0 for _ in pairs(sortRecs) do n = n + 1 end return n end,
             prefs = listPrefs, levelBox = levelBox, onlyLevel = onlyLevel, groupLevel = groupLevel, REC_PATH = REC_PATH,
             RECENT_PATH = RECENT_PATH, savedPct = savedPct, title = title, buttons = buttons, frame = f }

@@ -160,7 +160,7 @@ luajit -joff tools/audit_step_text.lua    # every step of every flavor: lines ne
 luajit -joff tools/census_step_kinds.lua  # per guide family: which steps complete by themselves and from what, which stay manual
 luajit tools/test_bug_report.lua     # /cr bug snapshot, error hook, caps, SavedVariables reader, capture/replay round trip
 luajit -joff tools/test_quest_counts.lua    # quest counts, list order and prefill; index vs parser on every route of all five flavors, scan cost
-luajit -joff tools/gen_quest_index.lua      # Data/QuestIndex_<flavor>.lua: re-run after any route file is regenerated (--check: is it current?)
+luajit -joff tools/gen_quest_index.lua      # Data/QuestIndex_<flavor>.lua: re-run after any route file is regenerated (--check: is it current? install.sh and the packager run it and stop when it is not)
 luajit -joff tools/test_progress_keys.lua   # stable step keys: regenerated guides keep marks, migration, downgrade, collisions + cost on all five flavors
 luajit -joff tools/test_mark_import.lua     # old marks of every guide converted once after login: same result as a load, sweep pause, cost on all five flavors
 luajit -joff tools/test_quest_auto.lua  # auto accept / turn-in on fake gossip, old-gossip and greeting clients, all five flavors

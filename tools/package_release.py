@@ -167,7 +167,7 @@ RULES = (
     R("Data/QuestDeps_*.lua", "wiki-cc-by-sa", CC_BY_SA, "quest chains (previous/next links) and names from "
       "Imported_Wiki_<flavor>.lua, breadcrumb flags from the wording of the wiki quest pages",
       "tools/gen_quest_deps.py", "generated"),
-    R("Data/QuestIndex_*.lua", "wiki-cc-by-sa", CC_BY_SA, "which quest ids each quest route names, read from the "
+    R("Data/QuestIndex_*.lua", "wiki-cc-by-sa", CC_BY_SA, "which quest ids each quest route turns in, read from the "
       "shipped route files of the same client (Imported_Wiki_<flavor>.lua and what is built on it)",
       "tools/gen_quest_index.lua", "generated"),
     R("Data/Teleports.lua", "wiki-cc-by-sa", CC_BY_SA, "hand-authored teleport list: spell, item and toy ids checked "
@@ -753,6 +753,29 @@ def assemble(opts):
             res.warnings.append(f"{rel}: {len(orphan)} baked order row(s) name a guide that is in no file here "
                                 f"(stale bake: the client ignores them; rebake with tools/bake_resume.py), first "
                                 f"{orphan[0].decode('utf-8', 'replace')}")
+
+    # ---- gate: the quest index is the one made from the route files packaged with it ----------------------------------
+    # Data/QuestIndex_<flavor>.lua tells the routes list which quests each route has. The add-on can only see that an
+    # entry is out of date when the route's text changed length; a route regenerated with one quest id swapped for
+    # another of the same width would ship wrong counts. So the generator is run in check mode over the staged files.
+    idx = sorted(rel for rel in res.files if match("Data/QuestIndex_*.lua", rel))
+    if idx:
+        flavors = [rel[len("Data/QuestIndex_"):-len(".lua")] for rel in idx]
+        luajit = shutil.which("luajit")
+        if not luajit:
+            res.fail("stale-quest-index", idx[0], "luajit is not installed, so tools/gen_quest_index.lua --check could "
+                     "not confirm the quest index matches the route files")
+        else:
+            p = subprocess.run([luajit, "-joff", str(TOOLS / "gen_quest_index.lua"), "--check", *flavors],
+                               cwd=str(Path(opts.stage)), capture_output=True, text=True)
+            stale = [ln.split()[1].rstrip(":") for ln in p.stdout.splitlines() if ln.startswith("STALE ")]
+            for path in stale:
+                res.fail("stale-quest-index", path[len(ADDON) + 1:] if path.startswith(ADDON + "/") else path,
+                         "was not made from the route files packaged with it; run luajit -joff "
+                         "tools/gen_quest_index.lua after the route files are regenerated (docs/QUEST_COUNTS.md)")
+            if p.returncode != 0 and not stale:
+                res.fail("stale-quest-index", idx[0], "tools/gen_quest_index.lua --check did not run to the end: "
+                         + (p.stderr.strip() or p.stdout.strip())[-300:])
 
     # ---- files written by the packager ----------------------------------------------------------------------------
     lic = repo / "LICENSE"

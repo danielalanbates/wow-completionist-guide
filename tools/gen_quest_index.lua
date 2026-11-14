@@ -15,6 +15,7 @@
 --         --out DIR writes there instead.  --check writes nothing: it compares what it would write with the file
 --         that is there and exits 1 when they differ (the first line, which holds the date, is not compared).
 --
+-- The ids are the quests a route turns in (a quest it only accepts or works on is not counted, docs/QUEST_COUNTS.md).
 -- One line per QUEST ROUTE (a route that turns a quest in, other than gold and profession routes, whose text is its
 -- own: a leveling chain entry reads its zone route's line):
 --   ["route id"]="<text length>|<quest ids for everyone>|<n>:<quest ids for restriction n>|..."
@@ -25,7 +26,10 @@
 -- conds[n] is a restriction, "faction<TAB>class list<TAB>race list" as the steps' FACTION, C and R tags spell them.
 -- The ids are worked out by Core/QuestCounts.lua QC.Groups, the function the addon itself uses for a route this file
 -- does not list, so the two cannot disagree (tools/test_quest_counts.lua compares them on every route of every client).
-local W = dofile("tools/guide_walk.lua")
+-- guide_walk.lua is next to this file; the route files are read from CompletionRoute/ under the current folder (the
+-- release packager runs --check inside its staging folder, tools/package_release.py)
+local HERE = (arg and arg[0] or ""):match("^(.*)/[^/]*$") or "tools"
+local W = dofile(HERE .. "/guide_walk.lua")
 
 local want, outDir, check = {}, "CompletionRoute/Data", false
 do
@@ -72,7 +76,7 @@ local function generate(fl)
         end
         routes[#routes + 1] = { id = g.id, line = table.concat(parts, "|") }
     end
-    local _, missing, errors = W.Walk(fl, function(s, g, _, NS)
+    local walked, missing, errors = W.Walk(fl, function(s, g, _, NS)
         if cur == g then curSteps[#curSteps + 1] = s end
     end, function(g, _, NS, reused)
         NSref = NS
@@ -85,7 +89,7 @@ local function generate(fl)
     local out = {}
     local function w(str) out[#out + 1] = str end
     w(("-- Completionist's Guide :: QuestIndex_%s.lua - GENERATED %s by tools/gen_quest_index.lua"):format(fl.name, os.date("%Y-%m-%d")))
-    w("-- The quest ids each quest route names, for the quest counts in the routes list (Core/QuestCounts.lua).  Made from")
+    w("-- The quest ids each quest route turns in, for the quest counts in the routes list (Core/QuestCounts.lua).  Made from")
     w(("-- the route files this client loads: Imported_Wiki_%s.lua and what is built on it (Warcraft Wiki,"):format(fl.name))
     w("-- https://warcraft.wiki.gg, CC BY-SA 4.0, see Guides/WIKI_DATA_LICENSE.md; quest membership: Blizzard client data).")
     w("-- r: [\"route id\"]=\"<route text length>|<ids for everyone>|<n>:<ids for conds[n]>|...\"; conds[n]:")
@@ -93,7 +97,7 @@ local function generate(fl)
     w("-- Generated, gitignored.  Re-run after the route files change.")
     w("local _, NS = ...")
     w(("if (NS.dataFlavor or NS.flavor) ~= %q then return end"):format(fl.name))
-    w(("NS.QuestIndex = { flavor = %q, v = 1, routes = %d, quests = %d, noquest = %d,"):format(fl.name, #routes - plain, nQuests, plain))
+    w(("NS.QuestIndex = { flavor = %q, v = %d, routes = %d, quests = %d, noquest = %d,"):format(fl.name, walked.QuestCounts.INDEX_V, #routes - plain, nQuests, plain))
     w("conds = {")
     for _, sig in ipairs(conds) do w(("%q,"):format(sig)) end
     w("},")

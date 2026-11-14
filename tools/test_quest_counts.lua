@@ -151,7 +151,7 @@ do
         "A One|QID|101|M|40,40" .. Z,
         "C One|QID|101|QO|1|M|41,41" .. Z,
         "T One|QID|101|M|40,40" .. Z,
-        "A Two|QID|102|M|42,42" .. Z,                         -- accepted here, no turn-in in this route: still its quest
+        "A Two|QID|102|M|42,42" .. Z,                         -- accepted here, never turned in by this route: not counted
         "A Side|QID|103|O|M|42,42" .. Z,                      -- optional: not counted
         "T Side|QID|103|O|M|42,42" .. Z,
         "A Horde only|QID|104|FACTION|Horde|M|43,43" .. Z,
@@ -169,11 +169,11 @@ do
     local groups = QC.Groups(G.Steps("q:mix"))
     check(groups.quest == true, "a route that turns a quest in is a quest route")
     local list = QC.Resolve(groups)
-    check(sameSet(list, { 101, 102, 106, 107, 108, 109 }), "route quests for an Alliance human warrior: accept-only kept, optional / other faction / other class left out",
+    check(sameSet(list, { 101, 106, 107, 108, 109 }), "route quests for an Alliance human warrior: the quests it turns in; accept-only, optional / other faction / other class left out",
         table.concat(list, ","))
     local qs, isQuest = QC.Quests(G.registry["q:mix"], true)
     check(isQuest and sameSet(qs, list), "QC.Quests reads the same from the parsed steps")
-    check(#qs == 6, "each quest id once")
+    check(#qs == 5, "each quest id once")
 
     -- a route with objective steps that name quests but no turn-in (an achievement list) is not a quest route
     reg({ id = "q:ach", name = "Some Achievements", type = "Achievements", text = "C Crit one|QID|201|ACH|6;1|\nC Crit two|QID|202|ACH|6;2|" })
@@ -191,32 +191,58 @@ do
     A.me.quests = { [101] = true, [107] = true, [999999] = true }      -- 999999: a hidden tracking quest no route names
     A.ClearCompletionCaches()
     d, t = QC.Count(G.registry["q:mix"], "char", true)
-    check(d == 2 and t == 6, "this character: 2 of 6", d .. "/" .. t)
+    check(d == 2 and t == 5, "this character: 2 of 5", d .. "/" .. t)
     NS.db.global.chars["Alt-Test"] = { name = "Alt", realm = A.me.realm, flavor = NS.flavor, gametype = A.GameType(), faction = "Alliance",
-        quests = { [102] = true, [101] = true } }
+        quests = { [108] = true, [101] = true, [102] = true } }
     NS.db.global.chars["Far-Elsewhere"] = { name = "Far", realm = "Elsewhere", flavor = "retail", gametype = "retail", faction = "Horde",
         quests = { [106] = true, [104] = true } }
     A.ClearCompletionCaches()
     d, t = QC.Count(G.registry["q:mix"], "char", true)
-    check(d == 2 and t == 6, "character scope ignores the other characters", d .. "/" .. t)
+    check(d == 2 and t == 5, "character scope ignores the other characters", d .. "/" .. t)
     d, t = QC.Count(G.registry["q:mix"], "realm", true)
-    check(d == 3 and t == 6, "server scope adds the alt on this server, each quest once", d .. "/" .. t)
+    check(d == 3 and t == 5, "server scope adds the alt on this server, each quest once", d .. "/" .. t)
     d, t = QC.Count(G.registry["q:mix"], "flavor", true)
-    check(d == 3 and t == 6, "game type scope leaves out a character of another game type", d .. "/" .. t)
+    check(d == 3 and t == 5, "game type scope leaves out a character of another game type", d .. "/" .. t)
     d, t = QC.Count(G.registry["q:mix"], "account", true)
-    check(d == 4 and t == 6, "account scope adds every character (a quest outside this character's list still does not count)", d .. "/" .. t)
+    check(d == 4 and t == 5, "account scope adds every character (a quest outside this character's list still does not count)", d .. "/" .. t)
+    -- the option "also match by quest ID across different routes" off: other characters' quests tick no step
+    -- (A.OtherDidQuest), so they are not counted either (review finding: a row said "completed" for a route that
+    -- then opened with open steps)
+    NS.db.profile.accountQuests = false
+    A.ClearCompletionCaches()
+    d, t = QC.Count(G.registry["q:mix"], "account", true)
+    check(d == 2 and t == 5, "accountQuests off: a wider scope counts this character's quests only", d .. "/" .. t)
+    do
+        local alt = NS.db.global.chars["Alt-Test"]
+        local keepQ = alt.quests
+        alt.quests = { [101] = true, [106] = true, [107] = true, [108] = true, [109] = true }
+        A.ClearCompletionCaches()
+        check(A.GuideIsComplete(G.registry["q:mix"], "account") == false, "accountQuests off: an alt's quests do not finish the route in a wider scope")
+        NS.db.profile.accountQuests = true
+        A.ClearCompletionCaches()
+        check(A.GuideIsComplete(G.registry["q:mix"], "account") == true, "accountQuests on: they do")
+        alt.quests = keepQ
+    end
+    NS.db.profile.accountQuests = true
+    A.ClearCompletionCaches()
     check(A.GuideIsComplete(G.registry["q:mix"], "char") == false, "a part-done quest route is not finished")
 
     -- a tally counts each quest id once across routes; hidden ids and non-quest routes add nothing
     local tally = QC.Tally("char")
     for _, id in ipairs({ "q:mix", "q:b", "q:ach", "q:prof", "q:gold" }) do QC.Count(G.registry[id], "char", true) QC.TallyAdd(tally, G.registry[id]) end
-    check(tally.total == 7 and tally.done == 2 and tally.routes == 2, "tally: 7 quests in two quest routes (101 is in both), 2 done",
+    check(tally.total == 6 and tally.done == 2 and tally.routes == 2, "tally: 6 quests in two quest routes (101 is in both), 2 done",
         tally.done .. "/" .. tally.total .. " in " .. tally.routes)
 
     -- finished: every quest done by the characters in scope
     A.me.quests = { [101] = true, [102] = true, [106] = true, [107] = true, [108] = true, [109] = true }
     A.ClearCompletionCaches()
-    check(A.GuideIsComplete(G.registry["q:mix"], "char") == true, "all six done: finished")
+    check(A.GuideIsComplete(G.registry["q:mix"], "char") == true, "all done: finished")
+    -- a quest the route only accepts (102: no turn-in step) does not keep it open (review finding: 88 Retail routes
+    -- hold such quests, most of them repeatable area tasks the client does not keep as completed)
+    A.me.quests[102] = nil
+    A.ClearCompletionCaches()
+    check(A.GuideIsComplete(G.registry["q:mix"], "char") == true and A.GuideCompletedBy(G.registry["q:mix"]) == A.key,
+        "a quest with no turn-in step is not needed for 'completed'")
     local key = A.GuideCompletedBy(G.registry["q:mix"])
     check(key == A.key, "... and credited to this character")
     A.me.quests[109] = nil
@@ -230,7 +256,7 @@ do
     S.version = S.version + 1
     A.ClearCompletionCaches()
     d, t = QC.Count(G.registry["q:mix"], "char", true)
-    check(d == 5 and t == 5, "a dropped quest is not counted", d .. "/" .. t)
+    check(d == 4 and t == 4, "a dropped quest is not counted", d .. "/" .. t)
     S.Store(true).roots[109] = nil
     S.version = S.version + 1
     A.ClearCompletionCaches()
@@ -242,7 +268,7 @@ do
     local NS2 = harness("era", { who = { "Horde", "MAGE", "Orc" } })
     NS2.Guide.Register({ id = "q:mix", name = "Mix", type = "Quests", text = G.registry["q:mix"].text })
     local l2 = NS2.QuestCounts.Quests(NS2.Guide.registry["q:mix"], true)
-    check(sameSet(l2, { 101, 102, 104, 105, 107, 108, 109 }), "the same route for a Horde orc mage", table.concat(l2, ","))
+    check(sameSet(l2, { 101, 104, 105, 107, 108, 109 }), "the same route for a Horde orc mage", table.concat(l2, ","))
 end
 
 -- ===========================================================================
@@ -256,7 +282,10 @@ do
     G.Register({ id = "i:spine", name = "001. Indexed Quests 1-5", type = "Leveling", source = "test", part = "i:a", text = function() return text end })
     G.Register({ id = "i:stale", name = "Stale Quests 1-5", type = "Quests", source = "test", text = text .. "\nA New|QID|110|\nT New|QID|110|" })
     G.Register({ id = "i:none", name = "Unlisted Quests", type = "Quests", source = "test", text = "A X|QID|120|\nT X|QID|120|" })
-    NS.QuestIndex = { flavor = "era", v = 1, conds = { "Horde\t\t", "\tWarrior\t" }, r = {
+    -- an index of another format version is ignored as a whole
+    NS.QuestIndex = { flavor = "era", v = 1, conds = {}, r = { ["i:a"] = #text .. "|101,555" } }
+    check(QC.Quests(G.registry["i:a"]) == nil, "an index of another format version is not used")
+    NS.QuestIndex = { flavor = "era", v = QC.INDEX_V, conds = { "Horde\t\t", "\tWarrior\t" }, r = {
         ["i:a"] = #text .. "|101|1:104|2:105,101",
         ["i:stale"] = #text .. "|101|1:104|2:105",
     } }
@@ -283,6 +312,58 @@ do
 end
 
 -- ===========================================================================
+-- 2b. A folder of routes without quests is drawn without parsing them (review finding: expanding Achievements on
+--     Retail parsed 203 routes in one redraw, 880 ms, and kept their steps)
+-- ===========================================================================
+do
+    local NS = harness("era")
+    local G, QC, A, M = NS.Guide, NS.QuestCounts, NS.Account, NS.GuideMenu
+    local T = M._test
+    local idx = { flavor = "era", v = QC.INDEX_V, conds = {}, r = {} }
+    for i = 1, 30 do
+        local text = ("C Crit one|ACH|%d;1|\nC Crit two|ACH|%d;2|"):format(600 + i, 600 + i)
+        G.Register({ id = "ach:" .. i, name = "Feat " .. i, type = "Achievements", zone = "Feats", source = "test", text = text })
+        idx.r["ach:" .. i] = tostring(#text)
+    end
+    NS.QuestIndex = idx
+    A.me.quests = { [1] = true }
+    A.ClearCompletionCaches()
+    local parses, steps0 = 0, G.Steps
+    G.Steps = function(id) parses = parses + 1 return steps0(id) end
+    M.Show()
+    expandAll(NS)
+    settle(NS)
+    local held = 0
+    for i = 1, 30 do if G.registry["ach:" .. i].steps then held = held + 1 end end
+    check(parses == 0 and held == 0, "scan and redraw of an open folder of 30 tick-only routes: nothing parsed, no steps kept", parses .. " parsed, " .. held .. " held")
+    for i = 1, 30 do A.GuideCompletedBy(G.registry["ach:" .. i]) end
+    check(parses == 0, "'who finished it' of a tick-only route nobody has a tick in needs no parse", parses)
+    -- an alt ticked every step of one of them: that one is parsed to answer, and its steps are let go again
+    local keys = {}
+    for k in pairs(G.KeySet(steps0("ach:7"))) do keys[k] = true end
+    G.registry["ach:7"].steps = nil
+    NS.db.global.chars["Alt-Test"] = { name = "Alt", realm = A.me.realm, flavor = NS.flavor, gametype = A.GameType(), faction = "Alliance",
+        quests = {}, stepDone = { ["ach:7"] = keys } }
+    A.ClearCompletionCaches()
+    parses = 0
+    local who = A.GuideCompletedBy(G.registry["ach:7"])
+    check(who == "Alt-Test" and parses == 1 and G.registry["ach:7"].steps == nil, "a tick-only route an alt finished: credited, parsed once, steps released",
+        tostring(who) .. " " .. parses)
+    A.GuideCompletedBy(G.registry["ach:7"])
+    check(parses == 1, "... and the answer is kept", parses)
+    -- in Account scope the row then reads completed; the other 29 are still not parsed by the redraw
+    A.SetScope("account") M.RescanCompletion()
+    parses = 0
+    settle(NS)
+    check(rightOf(NS, "ach:7") == "completed" and parses <= 2, "the finished one reads completed; the redraw parses no other row", tostring(rightOf(NS, "ach:7")) .. " " .. parses)
+    held = 0
+    for i = 1, 30 do if G.registry["ach:" .. i].steps then held = held + 1 end end
+    check(held == 0, "no steps kept after the redraw", held)
+    A.SetScope("char")
+    G.Steps = steps0
+end
+
+-- ===========================================================================
 -- 3. The order of routes in a folder
 -- ===========================================================================
 do
@@ -304,6 +385,19 @@ do
     reg({ name = "Kun-Lai Quests 85-90 (Alliance) - Part 2/2", type = "Quests", zone = "Kun-Lai" })
     reg({ name = "Kun-Lai Quests 85-90 (Alliance) - Part 1/2", type = "Quests", zone = "Kun-Lai" })
     reg({ name = "Kun-Lai Quests 80-90", type = "Quests", zone = "Kun-Lai", minlevel = 80 })
+    -- the list sorts only the folders whose routes it shows (review finding: making every route's sort key on the
+    -- first open was most of a 39 ms frame on Retail); a closed folder costs no key
+    do
+        T.expanded["\\Quests"], T.expanded["\\Quests\\Kun-Lai"] = nil, nil
+        local lazy = T.buildTreeLazy()
+        check(T.sortKeys() == 0, "closed folders: no sort key is made", T.sortKeys())
+        T.expanded["\\Quests"], T.expanded["\\Quests\\Kun-Lai"] = true, true
+        lazy = T.buildTreeLazy()
+        local lf = lazy.kidByName["Quests"].kidByName["Kun-Lai"]
+        check(T.sortKeys() == #lf.guides and lf.guides[1].name == "Kun-Lai Quests 80-90" and lf.guides[2].name:find("Part 1/12", 1, true),
+            "an open folder is sorted, and only its routes get keys", T.sortKeys() .. " " .. lf.guides[1].name)
+        T.expanded["\\Quests"], T.expanded["\\Quests\\Kun-Lai"] = nil, nil
+    end
     local tree = T.buildTree()
     local folder = tree.kidByName["Quests"].kidByName["Kun-Lai"]
     local got = {}
@@ -429,12 +523,47 @@ do
     check(rightOf(NS, "m:z1") == "34 / 40 quests", "a turn-in while the list was closed shows when it is opened", rightOf(NS, "m:z1"))
 
     -- the client learns of completed quests with no event at all (a late cache): opening the list asks it again
+    -- ...but only while the client has not handed over a list this session (review finding: 4 to 6 ms on every open
+    -- with a Retail-sized list); after that QUEST_TURNED_IN keeps the quests current
     for q = 1035, 1036 do W.done[q] = true end
     local t0 = GetTime()
     GetTime = function() return t0 + 100 end
+    local asked, get0 = 0, C_QuestLog.GetAllCompletedQuestIDs
+    C_QuestLog.GetAllCompletedQuestIDs = function() asked = asked + 1 return get0() end
+    check(A.clientListSeen == true, "the client's list was seen this session")
+    M.Show()
+    check(asked == 0, "the client gave its list already: opening the list does not ask again", asked)
+    A.clientListSeen = nil          -- as on a client whose list had not arrived
+    GetTime = function() return t0 + 200 end
     M.Show()
     settle(NS)
-    check(rightOf(NS, "m:z1") == "36 / 40 quests", "opening the list asks the client for its completed quests again", rightOf(NS, "m:z1"))
+    check(asked == 1 and rightOf(NS, "m:z1") == "36 / 40 quests", "opening the list asks the client for its completed quests again", rightOf(NS, "m:z1"))
+    C_QuestLog.GetAllCompletedQuestIDs = get0
+    -- the saved count follows without a recount
+    do
+        local n = 0 for _ in pairs(A.me.quests) do n = n + 1 end
+        check(A.me.questCount == n, "the saved quest count is right after a harvest", A.me.questCount .. " vs " .. n)
+        fire(NS, "QUEST_TURNED_IN", 987001)
+        check(A.me.questCount == n + 1, "... and after a turn-in", A.me.questCount)
+        local pairs0, walked = pairs, 0
+        pairs = function(t) if t == A.me.quests then walked = walked + 1 end return pairs0(t) end
+        A.HarvestCompleted(true)
+        pairs = pairs0
+        check(walked == 0 and A.me.questCount == n + 1, "a harvest that adds nothing does not walk the saved quests again", walked)
+        A.me.quests[987001] = nil
+        A.me.questCount = n
+    end
+
+    -- the stored answers are cleared with no quest changing while the list is open (the old-marks import ending, an
+    -- options check box): the rows are counted again (review finding: the row went blank until the list was reopened)
+    T.frame.IsShown = function() return true end
+    settle(NS)
+    local before = rightOf(NS, "m:z1")
+    A.ClearCompletionCaches()
+    settle(NS)
+    check(before == "36 / 40 quests" and rightOf(NS, "m:z1") == before, "caches cleared with the list open: the row keeps its count", tostring(rightOf(NS, "m:z1")))
+    check(rightOf(NS, nil, "\\Quests") ~= nil and not rightOf(NS, nil, "\\Quests"):find("%.%.%."), "... and the folder row", tostring(rightOf(NS, nil, "\\Quests")))
+    T.frame.IsShown = function() return false end
     A.me.quests[1035], A.me.quests[1036], W.done[1035], W.done[1036] = nil, nil, nil, nil
     A.ClearCompletionCaches() M.RescanCompletion()
     settle(NS)

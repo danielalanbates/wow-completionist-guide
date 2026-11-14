@@ -41,6 +41,17 @@ done
 for tier in $FLAVORS; do
   [ -s "$SRC/Data/QuestIndex_$tier.lua" ] || echo "install.sh: note: Data/QuestIndex_$tier.lua missing - run luajit -joff tools/gen_quest_index.lua $tier (the routes list then parses every route for its quest count)" >&2
 done
+# ...and it must be the one made from the route files installed with it. The add-on only notices an out-of-date entry
+# when the route's text changed length, so a route regenerated with one quest id swapped for another would install
+# wrong counts. --check re-derives the index and compares (about 6 s for all five).
+HAVE=""
+for tier in $FLAVORS; do [ -s "$SRC/Data/QuestIndex_$tier.lua" ] && HAVE="$HAVE $tier"; done
+if [ -n "$HAVE" ]; then
+  command -v luajit >/dev/null 2>&1 || stop "luajit not found: cannot check that Data/QuestIndex_*.lua matches the route files (install luajit, or delete the index files to install without them)"
+  # shellcheck disable=SC2086
+  (cd "$SRC/.." && luajit -joff tools/gen_quest_index.lua --check $HAVE) >&2 \
+    || stop "the quest index is out of date - run luajit -joff tools/gen_quest_index.lua; nothing was installed"
+fi
 # Allowlist: only the generated files that ship may be in the source folder (the same families tools/validate_toc.lua
 # lets a TOC list). Anything else generated - a file derived from another addon's data, a generator input, a retired
 # file - stops the install: it is not part of the build and must not reach a client.

@@ -73,6 +73,16 @@ def append(path, text):
         fh.write(text)
 
 
+def make_index(repo, *flavors):
+    subprocess.run(["luajit", "-joff", str(ROOT / "tools" / "gen_quest_index.lua"), *flavors], cwd=str(repo), check=True,
+                   capture_output=True, text=True)
+
+
+def as_route(gid, steps):
+    """step lines as a route a client can load (a bare step line is not Lua)"""
+    return 'NS.Guide.Register({ id="%s", name="T", type="Quests", text=[==[%s]==] })\n' % (gid, steps)
+
+
 def make_base(tmp):
     """the fixture checkout: tracked code + LICENSE + .gitignore, stand-ins for generated data, one commit"""
     base = tmp / "base"
@@ -97,8 +107,11 @@ def make_base(tmp):
                         text = "-- test stand-in: Sources: Warcraft Wiki only.\n" + text
                     (addon / rel).write_text(text, encoding="utf-8")
     # one shipped wiki guide with its baked order row
-    append(addon / "Guides" / "Imported_Wiki_era.lua", 'R({ id="wiki:era:1429:Both", name="Test", type="Quests", text=[==[\n]==] })\n')
+    append(addon / "Guides" / "Imported_Wiki_era.lua", 'NS.Guide.Register({ id="wiki:era:1429:Both", name="Test", type="Quests", '
+           'text=[==[A One|QID|11|\nT One|QID|11|\nA Two|QID|12|\nT Two|QID|12|\n]==] })\n')
     append(addon / "Data" / "RouteOrder_era.lua", 'O["wiki:era:1429:Both"] = { n = 2, sum = 1, o = "2,1" }\n')
+    # the quest index made from those stand-in route files, as the release gate re-derives it (stale-quest-index)
+    make_index(base)
     git(base, "init", "-q")
     git(base, "add", "-A")
     git(base, "commit", "-qm", "fixture")
@@ -362,7 +375,8 @@ def main():
         (d / pr.ADDON / "Guides" / "Imported_Wiki_retail.lua").write_text(
             "-- Steps whose note says \"(location: Blizzard quest POI, ...)\" take their map point from the client's quest "
             "pins, not from the wiki: Blizzard QuestPOIBlob + QuestPOIPoint tables via wago.tools, build wow 12.1.5.70783 "
-            "(client data, facts only).\n" + STAND_IN["wiki-cc-by-sa"] + poi_step, encoding="utf-8")
+            "(client data, facts only).\n" + STAND_IN["wiki-cc-by-sa"] + as_route("t:poi", poi_step), encoding="utf-8")
+        make_index(d, "retail")     # the route file changed: its index is made again, as a release would
         code, res, _, _ = env.run(d)
         check(code == 0 and not has(res, "no-provenance", "Guides/Imported_Wiki_retail.lua"),
               "quest-pin steps pass when the header names the tables and the build")
@@ -397,7 +411,8 @@ def main():
         d = env.scenario()
         for rel, step in ((wiki_tbc, contrib_step), ("Guides/Imported_Achievements_retail.lua", ach_step),
                           ("Guides/Imported_QuestLines_retail.lua", contrib_step)):
-            plant_contrib(rel, sha, step)(d, d / pr.ADDON)
+            plant_contrib(rel, sha, as_route("t:" + rel, step))(d, d / pr.ADDON)
+        make_index(d, "tbc", "retail")
         code, res, _, _ = env.run(d)
         check(code == 0 and not has(res, "no-provenance"),
               "contributed steps pass when the header names the data repository and a full commit"
@@ -553,12 +568,32 @@ def main():
             git(d, "add", "-A"); git(d, "commit", "-qm", "plant")
         expect_fail(env, "LICENSE without the rider", "missing-notice", "LICENSE.txt", plant_licence)
 
+        # the quest index must be the one made from the packaged route files. A route regenerated with one quest id
+        # swapped for another of the same width keeps its text length, which is all the add-on can compare.
+        def swap_quest(d, a):
+            f = a / "Guides" / "Imported_Wiki_era.lua"
+            before = f.read_text(encoding="utf-8")
+            after = before.replace("QID|11|", "QID|13|")
+            assert after != before and len(after) == len(before)
+            f.write_text(after, encoding="utf-8")
+        expect_fail(env, "route regenerated (same text length) without its quest index", "stale-quest-index",
+                    "Data/QuestIndex_era.lua", swap_quest)
+
         print("data root")
         d = env.scenario()
         append(d / pr.ADDON / "Guides" / "Imported_Wiki_era.lua", "T a|QID|9|N|x (location: Questie data)|\n")
         over = tmp / "release-data"
         (over / "Guides").mkdir(parents=True)
         (over / "Guides" / "Imported_Wiki_era.lua").write_text(STAND_IN["wiki-cc-by-sa"])
+        code, res, man, _ = env.run(d, "--data-root", str(over))
+        check(code == 1 and has(res, "stale-quest-index", "Data/QuestIndex_era.lua"),
+              "a quest index made from other route files than the packaged ones fails the gate (stale-quest-index)")
+        # the index made from the route files that are packaged: it comes from the data root too
+        sc = env.scenario()
+        shutil.copyfile(over / "Guides" / "Imported_Wiki_era.lua", sc / pr.ADDON / "Guides" / "Imported_Wiki_era.lua")
+        make_index(sc, "era")
+        (over / "Data").mkdir()
+        shutil.copyfile(sc / pr.ADDON / "Data" / "QuestIndex_era.lua", over / "Data" / "QuestIndex_era.lua")
         code, res, man, _ = env.run(d, "--data-root", str(over))
         rec = next(r for r in man["files"] if r["path"].endswith("Guides/Imported_Wiki_era.lua"))
         check(code == 0 and rec["via"] == "--data-root", "--data-root wins over the checkout's generated file")
@@ -589,7 +624,8 @@ def main():
         print("dirty flag covers the packager and its templates")
         d = env.scenario()
         (d / "tools" / "release").mkdir(parents=True)
-        shutil.copyfile(TOOLS / "package_release.py", d / "tools" / "package_release.py")
+        for f in ("package_release.py", "gen_quest_index.lua", "guide_walk.lua"):     # the gate runs the index check
+            shutil.copyfile(TOOLS / f, d / "tools" / f)
         for f in ("ATTRIBUTION.md", "README.md"):
             shutil.copyfile(TOOLS / "release" / f, d / "tools" / "release" / f)
         git(d, "add", "-A"); git(d, "commit", "-qm", "packager")

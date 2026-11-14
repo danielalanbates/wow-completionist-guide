@@ -6,14 +6,20 @@
 -- on a route, "312 / 1,040 quests" on a folder, "Quests done: 312 of 4,268" at the top.
 --
 -- What counts (docs/QUEST_COUNTS.md):
---   * A route's quests are the quest ids its steps name in a QID tag (accept, objective and turn-in steps alike), each
---     id once.  Steps marked optional (|O|) are left out, and so are steps this character can never take (a FACTION, C
---     or R tag for another faction, class or race).  A quest this character dropped (/cr skip) is left out too.
+--   * A route's quests are the quests it TURNS IN (the QID of its turn-in steps), each id once.  A quest the route only
+--     accepts or works on, with no turn-in step, is not counted: on Retail 88 routes hold 346 such quests (auto-accepted
+--     area tasks, many of them weekly), which the client may never keep as completed, so a route holding one could
+--     never read "completed".  The other four clients have none.  Steps marked optional (|O|) are left out, and so
+--     are steps this character can never take (a FACTION, C or R tag for another faction, class or race).  A quest
+--     this character dropped (/cr skip) is left out too.
 --   * Only QUEST ROUTES are counted: routes that turn at least one quest in, other than gold and profession routes.
 --     An achievement list names quests as criteria (many are hidden tracking flags) and a profession route may hold one
 --     trainer quest; those keep their own right-hand text and add nothing to a folder or to the total.
 --   * A quest is done when a character in scope has completed it: this character's completed quests
 --     (Core/Account.lua, harvested from the client), plus, in the wider scopes, the other characters' saved lists.
+--     The other characters count only while the option "also match by quest ID across different routes"
+--     (profile.accountQuests, on by default) is on, exactly as their quests tick steps (A.OtherDidQuest): a row that
+--     reads "completed" is then always a route that opens with no quest step left.
 --   * A folder and the total count each quest id once, however many routes list it (a leveling chain entry and the
 --     zone route it is made from share every quest).  Quest ids no route names (the client's hidden tracking quests)
 --     are never counted, done or not.
@@ -29,6 +35,9 @@ local QC = {}
 NS.QuestCounts = QC
 
 local TURNIN = { T = true, t = true }
+-- The index format this file reads (NS.QuestIndex.v).  2: only quests the route turns in.  An index of another
+-- version is ignored as a whole (every route is then read from its steps), so old numbers cannot survive a rule change.
+QC.INDEX_V = 2
 
 -- ---------------------------------------------------------------------------
 -- From parsed steps (the generator and the fallback)
@@ -43,12 +52,15 @@ QC.SigOf = sigOf
 -- { quest = the route turns a quest in, sigs = { "", sig, ... } sorted, by = { [sig] = { quest id, ... } } }
 -- A quest some step offers to everyone is listed under "" only; otherwise under every restriction it is offered with.
 function QC.Groups(steps)
-    local sigsOf, order, quest = {}, {}, false
+    local sigsOf, order, quest, turned = {}, {}, false, {}
     for i = 1, #steps do
         local s = steps[i]
         local q = s.qid
         if q and #q > 0 and not s.optional and (s.index or 1) > 0 then
-            if TURNIN[s.action] then quest = true end
+            if TURNIN[s.action] then
+                quest = true
+                for k = 1, #q do turned[q[k]] = true end
+            end
             local sig = sigOf(s)
             for k = 1, #q do
                 local id = q[k]
@@ -65,8 +77,11 @@ function QC.Groups(steps)
         l[#l + 1] = id
     end
     for _, id in ipairs(order) do
-        local t = sigsOf[id]
-        if t[""] then add("", id) else for sig in pairs(t) do add(sig, id) end end
+        -- only the quests the route turns in (see the top of this file)
+        if turned[id] then
+            local t = sigsOf[id]
+            if t[""] then add("", id) else for sig in pairs(t) do add(sig, id) end end
+        end
     end
     table.sort(sigs)
     return { quest = quest, sigs = sigs, by = by }
@@ -111,7 +126,8 @@ end
 -- nothing (current) to say about the route.
 local function fromIndex(src)
     local QI = NS.QuestIndex
-    local e = QI and QI.r and QI.r[src.id]
+    if not QI or QI.v ~= QC.INDEX_V then return nil end
+    local e = QI.r and QI.r[src.id]
     if not e then return nil end
     local text = src.text
     if type(text) ~= "string" then return nil end
@@ -217,13 +233,20 @@ local tablesOf = {}             -- [scope] = { completed-quest table of every ch
 function QC.Invalidate() gen = gen + 1 counts = {} tablesOf = {} end
 function QC.Gen() return gen end
 
+-- Do the other characters' completed quests count in the wider scopes?  Only while they also tick steps
+-- (profile.accountQuests, Core/Account.lua A.OtherDidQuest); the option's check box clears the stored answers.
+function QC.OthersCount()
+    local p = NS.db and NS.db.profile
+    return not p or p.accountQuests ~= false
+end
 local function questTables(scope)
     local A = NS.Account
+    local others = QC.OthersCount()
     local t = tablesOf[scope]
-    if t and t.me == (A.me and A.me.quests) then return t end
-    t = { me = A.me and A.me.quests }
+    if t and t.me == (A.me and A.me.quests) and t.others == others then return t end
+    t = { me = A.me and A.me.quests, others = others }
     if t.me then t[1] = t.me end
-    if scope ~= "char" and NS.db and NS.db.global and NS.db.global.chars then
+    if scope ~= "char" and others and NS.db and NS.db.global and NS.db.global.chars then
         for k, c in pairs(NS.db.global.chars) do
             if k ~= A.key and type(c) == "table" and type(c.quests) == "table" and A.CharInScope(k, c, scope) then t[#t + 1] = c.quests end
         end
