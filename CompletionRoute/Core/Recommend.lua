@@ -252,6 +252,33 @@ function R.ForLevel(level, opts)
     return out
 end
 
+-- The dungeon route for this level (owner, 2026-11-16: the routes list's Dungeons section; tools/wiki/gen_dungeons.py):
+-- among the dungeon routes that fit the level, this character's faction can take and nobody in scope has finished, a
+-- 5-player dungeon before a raid, then the one whose level range is centred nearest the level, then the lower one.
+-- Registration fields only (no route is parsed), worked out once per level with the ranked list it comes from.
+function R.NextDungeon(level)
+    local c = ranked(clampLevel(level))
+    if c.nextDungeon == nil then
+        local lv, best, bestKey = clampLevel(level), false, nil
+        for _, e in ipairs(c.list) do
+            if e.cat == "Dungeons" and e.fit and not e.finished then
+                local inf = infoFor(e.g)
+                local mid = ((inf.min or lv) + (inf.max or inf.min or lv)) / 2
+                local key = { e.g.instance == "Raid" and 1 or 0, math.abs(mid - lv), inf.min or 0, tostring(e.g.id) }
+                local better = not bestKey
+                if bestKey then
+                    for i = 1, 4 do
+                        if key[i] ~= bestKey[i] then better = key[i] < bestKey[i] break end
+                    end
+                end
+                if better then best, bestKey = e.g, key end
+            end
+        end
+        c.nextDungeon = best
+    end
+    return c.nextDungeon or nil
+end
+
 -- [guide id] = true for everything that fits this level.  Shared table: read only.
 function R.FitSet(level) return ranked(clampLevel(level)).fit end
 function R.EntryFor(level, id) return ranked(clampLevel(level)).byId[id] end

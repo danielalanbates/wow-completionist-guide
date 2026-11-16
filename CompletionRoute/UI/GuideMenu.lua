@@ -415,6 +415,9 @@ local function sortRec(g)
     else
         key = natural(shown)
     end
+    -- dungeon and raid routes by the instance's level, lowest first (owner, 2026-11-16: "a dungeons section"); the
+    -- name only breaks a tie
+    if g.type == "Dungeons" then key = natural(("%03d %03d "):format(tonumber(g.minlevel) or 999, tonumber(g.maxlevel) or 999)) .. key end
     r = { name = g.name, chain = chainIndex(g), key = key, min = tonumber(g.minlevel) or 999, full = natural(name), id = tostring(g.id) }
     sortRecs[g] = r
     return r
@@ -594,8 +597,12 @@ local function buildTree(sortAll)
                 path = path .. "\\" .. seg
                 local kid = node.kidByName[seg]
                 if not kid then
+                    -- a route may say where its folder goes among its category's folders (the Dungeons section: by
+                    -- expansion, dungeons before raids; tools/wiki/gen_dungeons.py folderOrder)
+                    local ord = order and order[i]
+                    if not ord and not grouped and i == #segs and tonumber(g.folderOrder) then ord = tonumber(g.folderOrder) end
                     kid = { name = seg, path = path, kids = {}, kidByName = {}, guides = {}, count = 0,
-                            order = order and order[i], styleKey = grouped and (i == 1 and "Band" or seg) or nil }
+                            order = ord, styleKey = grouped and (i == 1 and "Band" or seg) or nil }
                     node.kidByName[seg] = kid
                     node.kids[#node.kids + 1] = kid
                 end
@@ -842,8 +849,11 @@ local function guideLabel(g, inNext)
     local entry = Rec.EntryFor(M.ViewLevel(), g.id)
     local needs = (entry and entry.missing) and ("  |cffff9900needs %s|r"):format(entry.missing) or ""
     local kind = inNext and M.recKind[g.id]
-    return ("%s%s%s|r%s%s%s%s"):format(kind and ("|cffffd200%s:|r "):format(kind) or "", srcColor(g.source), inNext and recName(g) or G.DisplayName(g),
-        band ~= "" and ("  |cff888888%s|r"):format(band) or "", needs, pctBadge(g), eta)
+    -- the dungeon for the level in the box (Core/Recommend.lua R.NextDungeon: registration fields only, cached per level)
+    local nd = (not inNext and g.type == "Dungeons" and Rec.NextDungeon) and Rec.NextDungeon(M.ViewLevel()) or nil
+    local nextTag = (nd and nd.id == g.id) and "  |cff7ddf8fnext for your level|r" or ""
+    return ("%s%s%s|r%s%s%s%s%s"):format(kind and ("|cffffd200%s:|r "):format(kind) or "", srcColor(g.source), inNext and recName(g) or G.DisplayName(g),
+        band ~= "" and ("  |cff888888%s|r"):format(band) or "", needs, nextTag, pctBadge(g), eta)
 end
 
 -- Flatten visible tree into rows: { kind = "node"|"guide", depth, node|guide }
@@ -1041,4 +1051,4 @@ M._test = { buildTree = function() return buildTree(true) end, buildTreeLazy = b
             tallies = function() return tallies end, nodeRight = nodeRight, totalText = totalText, totalLine = totalLine,
             sortRec = sortRec, natural = natural, sortKeys = function() local n = 0 for _ in pairs(sortRecs) do n = n + 1 end return n end,
             prefs = listPrefs, levelBox = levelBox, onlyLevel = onlyLevel, groupLevel = groupLevel, REC_PATH = REC_PATH,
-            RECENT_PATH = RECENT_PATH, savedPct = savedPct, title = title, buttons = buttons, frame = f }
+            RECENT_PATH = RECENT_PATH, savedPct = savedPct, title = title, buttons = buttons, frame = f, guideLabel = guideLabel }
