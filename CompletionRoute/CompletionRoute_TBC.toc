@@ -66,6 +66,7 @@ Guides\Imported_Wiki_tbc.lua
 Guides\Imported_Spine_tbc.lua
 Guides\Imported_Professions_tbc.lua
 Guides\Imported_Gold_tbc.lua
+Guides\Imported_Dungeons_tbc.lua
 Guides\Guides.xml
 Core\Sweep.lua
 Core\Slash.lua
