@@ -1,4 +1,73 @@
-# Status / handoff (2026-11-13: one build, the public one; a full rebake is needed)
+# Status / handoff (2026-11-18: Dungeons section built, reviewed and fixed)
+
+## 2026-11-18: Dungeons section with lead-up chains, entrance and inside steps (`dungeons`)
+
+Offline only. **Nothing here has run in a real WoW client.** Branch `dungeons`. Owner's request: "We need a dungeons
+section that includes all the quests leading up to the dungeon". Full description: `docs/DUNGEONS.md`.
+
+**1. What it builds.** `tools/wiki/gen_dungeons.py` writes `Guides/Imported_Dungeons_<flavor>.lua` (wired into all six
+TOCs, `tools/install.sh`, `tools/package_release.py`, `tools/validate_toc.lua`, `.gitignore`, `tools/guide_walk.lua`,
+`tools/vplayer.lua`) and charts `docs/verification.sqlite` table `dungeon_routes`. Each route covers one dungeon or raid
+(per faction when the quests differ), in five parts:
+1. **Lead-up**: every prerequisite quest chain (`PRE` closure) and attunement / key quest needed before entering;
+2. **Pick-ups**: outside accepts of the instance's quests;
+3. **Entrance**: `D Enter <instance>` at the entrance (`{{Coords}}` on the wiki instance page, else the Blizzard `Map`
+   Corpse position, else the outdoor zone);
+4. **Inside**: objective steps and inside accepts/turn-ins in chain order;
+5. **Turn-ins**: outside turn-ins and follow-up quests unlocked by the run.
+
+**2. Routes list and recommendation.** `UI/GuideMenu.lua` groups the **Dungeons** category by expansion (`folderOrder`),
+dungeons before raids, ordered by level range with the range shown (`[15-28]`) and quest counts from
+`Data/QuestIndex_<flavor>.lua`. `Core/Recommend.lua` `R.NextDungeon` marks the closest-fitting unfinished 5-player
+dungeon for the viewed level with `next for your level` without parsing any route.
+
+**3. Coverage (`docs/verification.sqlite` table `dungeon_routes`).**
+
+| Client | Instances | Routes (dungeon / raid) | Instance quests | Lead-up | Follow-up | Steps | Steps without a point | Door with a point | Unordered | Not routed |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| era | 27 | 46 (36 / 10) | 560 | 369 | 68 | 3,276 | 1,432 | 45 of 46 | 0 | 0 |
+| tbc | 50 | 76 (58 / 18) | 735 | 682 | 118 | 4,901 | 3,087 | 70 of 76 | 0 | 0 |
+| forever | 31 | 54 (44 / 10) | 633 | 413 | 78 | 3,648 | 1,591 | 47 of 54 | 0 | 0 |
+| mop | 94 | 144 (113 / 31) | 793 | 1,206 | 79 | 6,540 | 3,420 | 125 of 144 | 0 | 3 |
+| retail | 181 | 279 (209 / 70) | 1,388 | 9,871 | 310 | 42,319 | 8,393 | 148 of 279 | 0 | 7 |
+
+**4. Review fixes (2026-11-18).** Independent review found six issues; all fixed and covered in `tools/test_dungeons.lua`:
+* *Missing `Infobox instance` pages in the raw wiki cache* (`Hellfire Citadel (alternate universe)`, `Operation:
+  Floodgate`, `Operation: Mechagon`, `Uldaman: Legacy of Tyr`, `Windrunner Spire`): fetched all 336 `Infobox instance`
+  pages via `tools/wiki/fetch_wiki.py --templates "Infobox instance"` (added to `DEFAULT_TEMPLATES`), indexed via
+  `page_templates` (generation time 60 s -> 14 s). Retail instances routed: 176 -> 181 (270 -> 279 routes); Forever:
+  29 -> 31 (50 -> 54 routes, 0 unrouted).
+* *Outdoor zone name collisions on Retail* (`Zul'Aman` in Midnight, `City of Threads` in Azj-Kahet, `Eye of Azshara`):
+  Rule 1 no longer pulls Midnight level-80+ outdoor zone quests into the Cataclysm `Zul'Aman` dungeon route (170 -> 3
+  instance quests) or outdoor subzone quests into `City of Threads`.
+* *Multi-pass false exits on in-dungeon companion chains* (`The Deadmines`, `Blackrock Caverns`, `Shadowfang Keep`,
+  `Halls of Origination`, `Stormstout Brewery`, `Pit of Saron`): `make_giver_inside` now reads the step line's own
+  `|M|...|Z|` map (including micro-dungeon maps matching the instance name) and companion NPCs whose `Npcbox` location
+  is `Various` on a page linking to the instance; passes with no inside steps no longer emit a redundant `D Enter` step,
+  and pass numbering beyond 4 is distinct (`0` duplicate lines across all five clients).
+* *Suramar `PRE` cycle pulling 123 lead-up quests into `bridge` (`The Arcway`, `The Nighthold`)*: an `"any one of"`
+  (`;`) prerequisite waits for `bridge` only when all of its alternatives in the route need the run (`unordered_quests`:
+  490 -> 0).
+* *Entrance coordinates and `The Great Sea`*: `inst.entrance` reads `{{Coords}}` / `{{co}}` from the wiki instance
+  page's `loc` field and lead section in addition to `Map.Corpse`, resolves `Blackrock Mountain` to Burning Steppes /
+  Searing Gorge instead of `2668; The Great Sea` (6 -> 0 Great Sea doors; Retail doors with a point 123 -> 148), and
+  falls back to `loc_zone` before `ui` when no coordinate is known so `vplayer` and Classic clients route to the
+  outdoor zone (MoP `Mogu'shan Palace` stall fixed: 0 stalls).
+* *`D Enter` completion and prefill (`Core/Progress.lua`)*: `P.Prefill` ticks a `D Enter` step when every quest step of
+  its pass is already completed (so a finished dungeon route opens as finished), and `P.CheckStep` completes `D` when
+  `IsInInstance()` is true.
+
+**5. Tests.** `tools/test_dungeons.lua` 47 checks pass across all five clients; `tools/test_quest_counts.lua`,
+`tools/test_load_all.lua`, `tools/validate_toc.lua`, `tools/test_package.py`, `tools/test_gen_determinism.py` pass;
+`tools/vplayer.lua --type Dungeons` finishes every dungeon route on `era` (46/46), `tbc` (76/76), `forever` (54/54),
+`mop` (144/144) and `retail` (279/279) with 0 stalls.
+
+**6. Needs the owner's eyes in game.**
+1. The **Dungeons** category in the Routes window: expansion folders, level ordering, quest counts (`3 / 9 quests`), and
+   the green `next for your level` tag.
+2. Opening a partially or fully completed dungeon route: prefill jumps to the first open quest (or the finished screen
+   when all quests are done).
+3. Walking into an instance (or teleporting in via Dungeon Finder): the `Enter <instance>` step auto-completes.
 
 ## 2026-11-13: quest counts in the routes list, natural order, prefill (`quest-counts`)
 
