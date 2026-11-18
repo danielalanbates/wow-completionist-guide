@@ -119,6 +119,35 @@ do
     local band
     for _, k in ipairs(groot.kids) do if k.name == "20-29" then band = k end end
     t("grouped by level, the band of the level holds a Dungeons category", band and band.kidByName["Dungeons"] ~= nil)
+    -- Prefill and CheckStep on D Enter steps: a pass whose quests are still open keeps its Enter step open; once every
+    -- quest of that pass is done, Prefill ticks its Enter step so a completed route opens as finished; entering the
+    -- instance (IsInInstance) completes the Enter step
+    G.Register({ id = "d:prefill", name = "Prefill Dungeon", type = "Dungeons", folder = "Classic Dungeons", folderOrder = 0,
+                 instance = "Dungeon", minlevel = 15, maxlevel = 25, source = "CompletionRoute",
+                 text = "A Lead|QID|901|M|40,40|Z|1429; Elwynn Forest|\n"
+                     .. "T Lead|QID|901|M|40,40|Z|1429; Elwynn Forest|\n"
+                     .. "A Boss 1|QID|902|M|40,40|Z|1429; Elwynn Forest|\n"
+                     .. "D Enter Prefill Dungeon|M|41,41|Z|1429; Elwynn Forest|\n"
+                     .. "C Boss 1|QID|902|QO|1|M|42,42|Z|1429; Elwynn Forest|\n"
+                     .. "T Boss 1|QID|902|M|40,40|Z|1429; Elwynn Forest|\n" })
+    local P = NS.Progress
+    COMPLETED_QUESTS = { 901 }
+    NS.Account.HarvestCompleted(true)
+    P.Load("d:prefill")
+    t("with an inside quest still open, Prefill leaves the Enter step open", P.current and P.current.qid and P.current.qid[1] == 902,
+      P.current and P.current.title)
+    P.MarkDone(P.current)
+    t("after accepting the outside quest, the current step is Enter", P.current and P.current.action == "D", P.current and P.current.action)
+    IsInInstance = function() return true, "party" end
+    P.Refresh()
+    IsInInstance = nil
+    t("entering the instance (IsInInstance) completes the Enter step", P.current and P.current.action == "C", P.current and P.current.action)
+    COMPLETED_QUESTS = { 901, 902 }
+    NS.Account.HarvestCompleted(true)
+    P.Reset()
+    t("when every quest of a dungeon route is completed, Prefill ticks the Enter step too and the route is finished",
+      P.current == nil and #P.Pending() == 0, P.current and P.current.title)
+    COMPLETED_QUESTS = {}
     print(("synthetic: %d passed, %d failed"):format(passed, failed))
 end
 
@@ -201,8 +230,15 @@ for _, fl in ipairs(W.FLAVORS) do
             if g.faction and g.faction ~= "Alliance" and g.faction ~= "Horde" then note("faction", id, g.faction) end
             local firstA, lastC, firstT, turned = {}, {}, {}, {}
             local firstD, quests = nil, 0
+            local seenD, dIdxs = {}, {}
             for i, s in ipairs(steps) do
-                if s.action == "D" then firstD = firstD or i end
+                if s.action == "D" then
+                    firstD = firstD or i
+                    dIdxs[#dIdxs + 1] = i
+                    if seenD[s.title] then note("duplicate Enter step title", id, s.title) end
+                    seenD[s.title] = true
+                    if s.zoneName == "The Great Sea" then note("Enter step on The Great Sea", id, s.title) end
+                end
                 if s.qid and #s.qid > 0 then
                     local q = s.qid[1]
                     if not wikiSig[s.action .. ":" .. table.concat(s.qid, "+") .. ":" .. tostring(s.qo or "")] then
@@ -252,9 +288,34 @@ for _, fl in ipairs(W.FLAVORS) do
             local lastObj = 0
             for q, ci in pairs(lastC) do if ci > lastObj then lastObj = ci end end
             if firstD and lastObj > 0 and lastObj < firstD then note("no objective after the Enter step", id, "") end
+            -- every Enter step must have at least one quest step before the next Enter step (no empty pass)
+            for di, at in ipairs(dIdxs) do
+                local stop = dIdxs[di + 1] and (dIdxs[di + 1] - 1) or #steps
+                local hasIn = false
+                for k = at + 1, stop do
+                    if steps[k].qid and #steps[k].qid > 0 then hasIn = true break end
+                end
+                if not hasIn then note("Enter pass with no quest step", id, steps[at].title) end
+            end
         end
         for kind, b in pairs(bad) do t(fl.name .. ": " .. kind, false, b.n .. " route(s), first " .. b.first) end
         t(fl.name .. ": every check passed on every route", next(bad) == nil)
+        if fl.name == "mop" or fl.name == "retail" then
+            for _, rid in ipairs({ "dungeon:" .. fl.name .. ":deadmines:Alliance", "dungeon:" .. fl.name .. ":blackrock-caverns",
+                                   "dungeon:" .. fl.name .. ":shadowfang-keep:Alliance", "dungeon:" .. fl.name .. ":shadowfang-keep:Horde" }) do
+                local r = routes[rid]
+                local nd = 0
+                for _, s in ipairs(r and r.steps or {}) do if s.action == "D" then nd = nd + 1 end end
+                t(fl.name .. ": " .. rid .. " runs in one pass", nd == 1, nd)
+            end
+        end
+        if fl.name == "retail" then
+            t("retail: Hellfire Citadel and Operation: Floodgate have routes",
+              routes["dungeon:retail:hellfire-citadel:Alliance"] ~= nil and routes["dungeon:retail:operation-floodgate"] ~= nil)
+            local za = routes["dungeon:retail:zul-aman:Alliance"]
+            t("retail: Zul'Aman dungeon route is not polluted by the Midnight outdoor zone quests",
+              za and #za.steps < 100, za and #za.steps)
+        end
         if cycles > 0 then print(("%s: %d accept(s) whose PRE chain runs into a loop in the wiki data (not failed)"):format(fl.name, cycles)) end
         print(("%s: %d dungeon routes, %d checks passed, %d failed"):format(fl.name, #order, passed - p0, failed - f0))
         collectgarbage()

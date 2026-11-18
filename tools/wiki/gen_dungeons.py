@@ -83,7 +83,7 @@ EXPANSIONS = ["Classic", "Burning Crusade", "Wrath of the Lich King", "Cataclysm
               "Midnight", "The Last Titan"]
 # which wiki page twin a client reads first (the base page is always the last resort)
 PAGE_PREF = {"era": ["(Classic)"], "forever": ["(Classic)"], "tbc": ["(BC Classic)", "(Burning Crusade)", "(Classic)"],
-             "mop": [], "retail": []}
+             "mop": ["(Burning Crusade)"], "retail": []}
 SUFFIX = re.compile(r"\s*\((instance|raid|dungeon|Classic|BC Classic|Burning Crusade|Season of Discovery|pet battle|"
                     r"Timewalking|scenario|delve|alternate universe)\)\s*$", re.I)
 NEVER_PAGES = re.compile(r"\((Season of Discovery|pet battle|Timewalking|scenario|delve)\)\s*$", re.I)
@@ -161,8 +161,8 @@ def lua_str(s):
 class Instances:
     """the instance catalog of one client: wiki instance pages matched to the client's Blizzard instance maps"""
 
-    def __init__(self, fl, maps, raw, retail_map):
-        self.fl, self.maps = fl, maps
+    def __init__(self, fl, maps, raw_pages, retail_map, atlas=None):
+        self.fl, self.maps, self.atlas = fl, maps, atlas
         fmap = db2_fetch.rows(fl, "Map")
         self.map_rows = {int(r["ID"]): r for r in fmap if r.get("InstanceType") in ("1", "2")}
         self.by_name = defaultdict(set)              # normalised name -> map ids (this client's instance maps)
@@ -187,18 +187,12 @@ class Instances:
                 self.ui_of[m["inst"]].append(uid)
         self.pages = {}
         self.lfg = None
-        self.load_pages(raw)
+        self.load_pages(raw_pages)
 
-    def load_pages(self, raw):
-        groups = defaultdict(dict)                     # base -> {page title: (named fields)}
-        for title, text in raw.execute("select title, wikitext from pages where wikitext like '%{{Infobox instance%' "
-                                       "order by title"):
-            if NEVER_PAGES.search(title):
-                continue
-            for _s, _e, _nm, inner in WT.find_templates(text, re.compile(r"infobox instance", re.I)):
-                _pos, named = WT.split_params(inner)
-                groups[base_title(title)][title] = (named, text)
-                break
+    def load_pages(self, raw_pages):
+        groups = defaultdict(dict)                     # base -> {page title: (named fields, text)}
+        for title, named, text in raw_pages:
+            groups[base_title(title)][title] = (named, text)
         pref = PAGE_PREF[self.fl]
         for base in sorted(groups):
             pages = groups[base]
@@ -209,7 +203,10 @@ class Instances:
                     break
             if not pick:
                 plain_pages = [t for t in pages if not re.search(r"\((Classic|BC Classic|Burning Crusade)\)$", t)]
-                pick = sorted(plain_pages or pages)[0]
+                cands = plain_pages or list(pages)
+                # prefer a dungeon/raid page over an umbrella hub page whose type is blank (Auchindoun on Draenor vs Outland)
+                typed = [t for t in cands if (pages[t][0].get("type") or "").strip()]
+                pick = sorted(typed or cands)[0]
             named, text = pages[pick]
             self.pages[base] = {"base": base, "page": pick, "f": named, "text": text,
                                 "name": plain(named.get("name") or "") or base}
@@ -323,39 +320,69 @@ class Instances:
 
     def entrance(self, d):
         """(uiMap, x, y, source) of the door on the client's zone map, or None"""
-        r = self.retail_map.get(d["map"])
-        if not r:
-            return None
-        try:
-            wx, wy, cont = float(r["Corpse_0"]), float(r["Corpse_1"]), int(r["CorpseMapID"])
-        except (KeyError, ValueError):
-            return None
-        if cont < 0 or (wx == 0 and wy == 0):
-            return None
         locs = [nm for nm in link_titles(d["loc"])]
+        if any(norm(nm) == "blackrockmountain" for nm in locs):
+            locs += ["Burning Steppes", "Searing Gorge"]
         prefer = None
+        also_prefer = []
         loc_maps = set()
         for nm in locs:
             mid = self.maps.resolve(nm)
-            if mid and self.maps.maps[mid]["type"] == 3:
+            if mid and self.maps.maps[mid]["type"] == 3 and self.maps.maps[mid]["name"] != "The Great Sea":
                 loc_maps.add(mid)
-                prefer = prefer or self.maps.maps[mid]["name"]
-        hit = self.maps.from_world(cont, wx, wy, prefer_name=prefer)
-        if not hit:
-            return None
-        uid, x, y = hit
-        m = self.maps.maps.get(uid)
-        if not m or m["type"] != 3:
-            return None
-        if self.fl in CLASSIC_POINT_CHECK and loc_maps and uid not in loc_maps:
-            return None             # the current game's door is not in the zone the Classic page names
-        return uid, x, y, "Blizzard Map table"
+                mname = self.maps.maps[mid]["name"]
+                if not prefer:
+                    prefer = mname
+                elif mname not in also_prefer:
+                    also_prefer.append(mname)
+        page_classic = "(Classic)" in d["page"]
+        # 1. explicit {{Coords}} / {{co}} in the wiki infobox's loc= field
+        if self.atlas:
+            for cx, cy, czone, _s, _e in WT.coords(d["loc"]):
+                z = czone or (locs[-1] if locs else "")
+                hit = self.atlas.place(z, cx, cy, self.fl, page_classic=page_classic) if z else None
+                if hit:
+                    uid, px, py = hit
+                    m = self.maps.maps.get(uid)
+                    if m and m["type"] == 3 and m["name"] != "The Great Sea":
+                        if self.fl not in CLASSIC_POINT_CHECK or not loc_maps or uid in loc_maps:
+                            return uid, px, py, "wiki"
+        # 2. Blizzard Map table Corpse position (where a ghost returns to the instance)
+        r = self.retail_map.get(d["map"])
+        if r:
+            try:
+                wx, wy, cont = float(r["Corpse_0"]), float(r["Corpse_1"]), int(r["CorpseMapID"])
+            except (KeyError, ValueError):
+                wx, wy, cont = 0.0, 0.0, -1
+            if cont >= 0 and not (wx == 0 and wy == 0):
+                hit = self.maps.from_world(cont, wx, wy, prefer_name=prefer, also_prefer=also_prefer)
+                if hit:
+                    uid, x, y = hit
+                    m = self.maps.maps.get(uid)
+                    if m and m["type"] == 3 and m["name"] != "The Great Sea":
+                        if self.fl not in CLASSIC_POINT_CHECK or not loc_maps or uid in loc_maps:
+                            return uid, x, y, "blizzard"
+        # 3. {{Coords}} / {{co}} in the lead section of the wiki instance page matching one of the infobox's outdoor zones
+        if self.atlas and loc_maps:
+            lead_txt = WT.sections(d["text"]).get("", "")
+            for cx, cy, czone, _s, _e in WT.coords(lead_txt):
+                z = czone or (locs[-1] if locs else "")
+                hit = self.atlas.place(z, cx, cy, self.fl, page_classic=page_classic) if z else None
+                if hit:
+                    uid, px, py = hit
+                    m = self.maps.maps.get(uid)
+                    if m and m["type"] == 3 and uid in loc_maps and m["name"] != "The Great Sea":
+                        return uid, px, py, "wiki"
+        return None
 
     def loc_zone(self, d):
         """the zone map the infobox location names (last link that is a zone on this client), or None"""
-        for nm in reversed(link_titles(d["loc"])):
+        locs = list(link_titles(d["loc"]))
+        if any(norm(nm) == "blackrockmountain" for nm in locs):
+            locs.append("Burning Steppes")
+        for nm in reversed(locs):
             mid = self.maps.resolve(nm)
-            if mid and self.maps.maps[mid]["type"] == 3:
+            if mid and self.maps.maps[mid]["type"] == 3 and self.maps.maps[mid]["name"] != "The Great Sea":
                 return mid
         return None
 
@@ -392,6 +419,23 @@ class Gen:
         self.db = sqlite3.connect(f"file:{WIKI}?mode=ro", uri=True)
         self.db.row_factory = sqlite3.Row
         self.raw = sqlite3.connect(f"file:{RAW}?mode=ro", uri=True)
+        self.raw_pages = []
+        raw_rows = self.raw.execute(
+            "select p.title, p.wikitext from pages p join page_templates pt using(pageid) "
+            "where pt.template='Infobox instance' order by p.title"
+        ).fetchall()
+        if not raw_rows:
+            raw_rows = self.raw.execute(
+                "select title, wikitext from pages where wikitext like '%{{Infobox instance%' order by title"
+            ).fetchall()
+        ib_re = re.compile(r"infobox instance", re.I)
+        for title, text in raw_rows:
+            if NEVER_PAGES.search(title):
+                continue
+            for _s, _e, _nm, inner in WT.find_templates(text, ib_re):
+                _pos, named = WT.split_params(inner)
+                self.raw_pages.append((title, named, text))
+                break
         self.atlas = wikimaps.Atlas()
         self.retail_map = {int(r["ID"]): r for r in db2_fetch.rows("retail", "Map")}
         self.npc_zone = {r["title"]: r["zone"] for r in self.db.execute("select title, zone from npcs") if r["zone"]}
@@ -412,6 +456,7 @@ class Gen:
         self.report = []
         self.inst_names = None          # the running client's instance names (Gen.run sets it)
         self.tpl = None                 # Template:Level instance ranges (template_level), read on first use
+        self._npc_inst_cache = {}
 
     def template_level(self, d):
         """(low, high) from the wiki's Template:Level instance entries (retail ranges), for the infobox's
@@ -462,7 +507,7 @@ class Gen:
         if wl is None:
             print(f"skip {fl}: Guides/Imported_Wiki_{fl}.lua missing (run tools/wiki/gen_wiki_guides.py first)")
             return None
-        inst = Instances(fl, maps, self.raw, self.retail_map)
+        inst = Instances(fl, maps, self.raw_pages, self.retail_map, self.atlas)
         cat = inst.build()
         self.inst_names = inst.names
         chosen = {}
@@ -474,6 +519,10 @@ class Gen:
         for base, d in cat.items():
             for u in d["ui"]:
                 ui_inst.setdefault(u, base)
+        # outdoor zone maps (type 3, on a continent map rather than an instance map) that share a name with an instance
+        # (Retail: Zul'Aman in Midnight vs the Cataclysm dungeon; City of Threads subzone in Azj-Kahet; Eye of Azshara)
+        outdoor_zone_names = {norm(m["name"]) for m in maps.maps.values()
+                              if m["type"] == 3 and m["inst"] not in inst.map_rows}
 
         # ---- which quests belong to which instance -----------------------------------------------------------
         owner, how = {}, {}
@@ -482,15 +531,29 @@ class Gen:
         for qid, r in sorted(chosen.items()):
             c = base_title(r["category"] or r["zone"] or "")
             b = inst.names.get(norm(c))
+            ak = re.match(r"\s*(\d+)\.", r["added_patch"] or "")
+            q_exp = int(ak.group(1)) - 1 if ak else None
             if b:
-                owner[qid], how[qid] = b, "category"
-                continue
+                if norm(c) in outdoor_zone_names:
+                    # the category name is also an outdoor zone on this client: keep only quests of the instance's own
+                    # expansion that do not place their objectives on the outdoor continent map
+                    if q_exp is not None and q_exp != cat[b]["expansion"]:
+                        b = None
+                    else:
+                        c_lines = [ln for ln in wl[qid] if ln.startswith("C ")]
+                        on_inst = any(zone_of(ln) in ui_inst for ln in wl[qid])
+                        on_out = any("|M|" in ln and zone_of(ln) not in ui_inst and
+                                     maps.maps.get(zone_of(ln) or 0, {}).get("inst") not in inst.map_rows
+                                     for ln in c_lines)
+                        if on_out and not on_inst:
+                            b = None
+                if b:
+                    owner[qid], how[qid] = b, "category"
+                    continue
             if norm(c) in inst.excluded and norm(c) not in inst.names:
                 excluded_q[inst.excluded[norm(c)]].append(qid)
             # rules 2 and 3 only for a quest of the instance's own expansion: a quest that goes back into an old instance
             # years later (a covenant memory of Stratholme) belongs to its own storyline, not to the instance's route
-            ak = re.match(r"\s*(\d+)\.", r["added_patch"] or "")
-            q_exp = int(ak.group(1)) - 1 if ak else None
             for ln in wl[qid]:
                 if ln.startswith("C "):
                     z = zone_of(ln)
@@ -511,7 +574,7 @@ class Gen:
                 zs.add(inst.names.get(norm(base_title(z)), "-"))
             if len(zs) == 1 and "-" not in zs and (q_exp is None or q_exp == cat[next(iter(zs))]["expansion"]):
                 owner[qid], how[qid] = zs.pop(), "objectives"
-            elif c and inst.is_instance_name(c):
+            elif c and inst.is_instance_name(c) and norm(c) not in outdoor_zone_names:
                 unmatched_cats[c] += 1
         by_inst = defaultdict(list)
         for qid, b in owner.items():
@@ -599,11 +662,84 @@ class Gen:
                 done.add(q)
             return out
 
-        def giver_inside(q, which, base, d):
-            r = chosen[q]
-            t = self.page(r["start_npc"] if which == "A" else r["end_npc"])
-            z = self.npc_zone.get(t) if t else None
-            return z is not None and inst.names.get(norm(base_title(z))) == base
+        def is_inst_ui(z, d):
+            if z is None:
+                return False
+            if z in d["ui"]:
+                return True
+            m = maps.maps.get(z)
+            if not m:
+                return False
+            return m["inst"] == d["map"] or (m["type"] in (4, 5, 6) and norm(m["name"]) in (norm(d["name"]), norm(d["base"])))
+
+        def npc_in_inst(t, base):
+            if not t:
+                return False
+            z = self.npc_zone.get(t)
+            if z is not None and inst.names.get(norm(base_title(z))) == base:
+                return True
+            key = (t, base)
+            if key not in self._npc_inst_cache:
+                row = self.raw.execute("select wikitext from pages where title=?", (t,)).fetchone()
+                ok = False
+                if row and row[0]:
+                    wt = row[0]
+                    if any(norm(base_title(lt)) == norm(base) for lt in link_titles(wt)):
+                        for _s, _e, _nm, inner in WT.find_templates(wt, re.compile(r"npcbox", re.I)):
+                            _pos, named = WT.split_params(inner)
+                            loc = (named.get("location") or "").lower()
+                            if "various" in loc or any(norm(base_title(lt)) == norm(base) for lt in link_titles(loc)):
+                                ok = True
+                            break
+                self._npc_inst_cache[key] = ok
+            return self._npc_inst_cache[key]
+
+        def make_giver_inside(base, d, L, dq_set):
+            inside_npcs = set()
+            for q in dq_set:
+                for which, col in (("A", "start_npc"), ("T", "end_npc")):
+                    t = self.page(chosen[q][col])
+                    if t and any("|M|" in ln and is_inst_ui(zone_of(ln), d)
+                                 for ln in L.get(q, ()) if ln.startswith(which + " ")):
+                        inside_npcs.add(t)
+            # in-dungeon boss-by-boss chains (q1 in dq -> q2 in dq) handed off by a companion NPC whose Npcbox
+            # location is "Various" and whose page links to the instance (e.g. Ivar Bloodfang in Shadowfang Keep,
+            # Slinky Sharpshiv in Deadmines, Brann in Halls of Origination, Chen in Stormstout Brewery)
+            chain_T, chain_A = set(), set()
+            for q2 in dq_set:
+                for q1 in pre_of(L.get(q2, ()))[0]:
+                    if q1 in dq_set:
+                        t1 = self.page(chosen[q1]["end_npc"])
+                        t2 = self.page(chosen[q2]["start_npc"])
+                        if t1 and (t1 in inside_npcs or npc_in_inst(t1, base)):
+                            chain_T.add(q1)
+                        if t2 and (t2 in inside_npcs or npc_in_inst(t2, base)):
+                            chain_A.add(q2)
+
+            def giver_inside(q, which):
+                if (which == "T" and q in chain_T) or (which == "A" and q in chain_A):
+                    return True
+                alines = [ln for ln in L.get(q, ()) if ln.startswith(which + " ")]
+                for ln in alines:
+                    if "|M|" in ln:
+                        return is_inst_ui(zone_of(ln), d)
+                r = chosen[q]
+                t = self.page(r["start_npc"] if which == "A" else r["end_npc"])
+                if t:
+                    if t in inside_npcs or npc_in_inst(t, base):
+                        return True
+                    if self.npc_zone.get(t) is not None:
+                        return False
+                # no NPC named (automatic in-dungeon turn-in or auto-accepted chain step), or an unplaced NPC
+                has_inside_c = any(not ("|M|" in ln and not is_inst_ui(zone_of(ln), d))
+                                   for ln in L.get(q, ()) if ln.startswith("C "))
+                if not t and has_inside_c:
+                    if which == "T":
+                        return True
+                    if which == "A" and any(p in dq_set for p in pre_of(L.get(q, ()))[0]):
+                        return True
+                return False
+            return giver_inside
 
         routes, rows = [], []
         st = Counter()
@@ -617,23 +753,31 @@ class Gen:
             ui = d["ui"][0] if d["ui"] else None
             per = {}
             for F in ("Alliance", "Horde"):
+                L = wlf[F]
                 dq = [q for q in qs if ok_for(q, F)]
                 if not dq:
                     continue
-                att = sorted(q for q in attune.get(base, ()) if ok_for(q, F))
-                lead = closure(dq + att, F, set(dq)) | set(att)
-                lead -= set(dq)
+                dq_set = set(dq)
+                att = sorted((q for q in attune.get(base, ()) if ok_for(q, F)), key=lambda q: q)
+                lead = closure(dq + att, F, dq_set) | set(att)
+                lead -= dq_set
                 # a prerequisite that itself needs an instance quest first (Uldaman: "Passing Word of a Threat" needs
-                # "Prospect of Faith") is done between two runs, not before the first
+                # "Prospect of Faith") is done between two runs, not before the first; an "any one of" prerequisite is
+                # met as soon as one of its alternatives in lead is done
                 bridge, grew = set(), True
                 while grew:
                     grew = False
                     for q in lead - bridge:
-                        if any(p in dq or p in bridge for p in pre_of(wlf[F][q])[0]):
+                        pre, all_of = pre_of(L[q])
+                        pre = [p for p in pre if p in lead or p in dq_set]
+                        if not pre:
+                            continue
+                        if (any(p in dq_set or p in bridge for p in pre) if all_of else
+                                all(p in dq_set or p in bridge for p in pre)):
                             bridge.add(q)
                             grew = True
-                follow = sorted(q for q in chosen if q not in dq and q not in lead and ok_for(q, F)
-                                and any(p in dq for p in pre_of(wlf[F][q])[0]))
+                follow = sorted(q for q in chosen if q not in dq_set and q not in lead and ok_for(q, F)
+                                and any(p in dq_set for p in pre_of(L[q])[0]))
                 per[F] = (dq, sorted(lead - bridge), sorted(bridge), follow)
             if not per:
                 continue
@@ -642,8 +786,9 @@ class Gen:
                 per = {"Both": per["Alliance"]}
             for F, (dq, lead, bridge, follow) in per.items():
                 L = wlf["Alliance" if F == "Both" else F]
+                gi = make_giver_inside(base, d, L, set(dq))
                 lines, info = self.route_lines(fl, base, d, dq, lead, bridge, follow, L, chosen, ent, loc_zone, ui, maps,
-                                               lambda q, w: giver_inside(q, w, base, d), lambda qs: topo(qs, L), how)
+                                               gi, lambda qs: topo(qs, L), how)
                 lvls = [level(q) for q in dq if level(q)]
                 reqs = [chosen[q]["levelreq"] or level(q) for q in dq if (chosen[q]["levelreq"] or level(q))]
                 mn = min(reqs) if reqs else None
@@ -663,6 +808,7 @@ class Gen:
                     mx = mn
                 routes.append(dict(base=base, d=d, F=F, lines=lines, info=info, minlevel=mn, maxlevel=mx,
                                    zone=(ent[0] if ent else loc_zone or ui), dq=dq, lead=lead + bridge, follow=follow,
+                                   ent_src=(ent[3] if ent else ("instance-map" if d["ui"] else "zone")),
                                    how={q: how[q] for q in dq}))
         # quests with an instance category this client has no instance page or map for
         for c, n in sorted(unmatched_cats.items()):
@@ -718,21 +864,22 @@ class Gen:
             return ln
 
         def door(npass):
-            word = PASS_WORDS[min(npass, len(PASS_WORDS) - 1)] if npass else ""
+            word = (PASS_WORDS[npass] if npass < len(PASS_WORDS) else f" (run {npass + 1})") if npass else ""
             title = f"Enter {name}{word}"
             loc_words = plain(d["loc"])
             if ent:
                 zname = maps.maps[ent[0]]["name"]
+                where_src = (f"Warcraft Wiki, {d['page']}" if ent[3] == "wiki" else
+                             "Blizzard Map table, where a ghost returns to the instance")
                 return (f"D {title}|M|{ent[1]:.1f},{ent[2]:.1f}|Z|{ent[0]}; {zname}|N|The entrance to {name}"
-                        f"{(' (' + loc_words + ')') if loc_words else ''}. (location: Blizzard Map table, where a ghost "
-                        f"returns to the instance)|")
+                        f"{(' (' + loc_words + ')') if loc_words else ''}. (location: {where_src})|")
+            if loc_zone:
+                return (f"D {title}|Z|{loc_zone}; {maps.maps[loc_zone]['name']}|N|No exact spot for the entrance on the "
+                        f"wiki.{(' The wiki lists it at ' + loc_words + '.') if loc_words else ''}|")
             if ui:
                 return (f"D {title}|Z|{ui}; {maps.maps[ui]['name']}|N|No exact spot for the entrance on the wiki."
                         f"{(' The wiki lists it at ' + loc_words + '.') if loc_words else ''} The arrow shows the "
                         f"entrance once you have walked in once.|")
-            if loc_zone:
-                return (f"D {title}|Z|{loc_zone}; {maps.maps[loc_zone]['name']}|N|No exact spot for the entrance on the "
-                        f"wiki.{(' The wiki lists it at ' + loc_words + '.') if loc_words else ''}|")
             return f"D {title}|N|No location for the entrance on the wiki.{(' The wiki lists it at ' + loc_words + '.') if loc_words else ''}|"
 
         def acts(q, a):
@@ -770,14 +917,13 @@ class Gen:
                             if not (z and maps.maps.get(z, {}).get("inst") == d["map"]):
                                 outside_c.append(ln)
             lines.extend(outside_c)
-            lines.append(door(npass))
-            inside_done, cdone = set(), set()
+            inside_done, cdone, inside_buf = set(), set(), []
             progress = True
             while progress:
                 progress = False
                 for q in remaining:
                     if q not in accepted and inside_giver(q, "A") and pre_ok(q, done | inside_done):
-                        lines.extend(fix_inside(ln) for ln in acts(q, "A"))
+                        inside_buf.extend(fix_inside(ln) for ln in acts(q, "A"))
                         accepted.append(q)
                         progress = True
                     if q in accepted and q not in cdone:
@@ -785,11 +931,15 @@ class Gen:
                         for ln in acts(q, "C"):
                             if ln in outside_c:
                                 continue
-                            lines.append(fix_inside(ln))
+                            inside_buf.append(fix_inside(ln))
                         if inside_giver(q, "T"):
-                            lines.extend(fix_inside(ln) for ln in acts(q, "T"))
+                            inside_buf.extend(fix_inside(ln) for ln in acts(q, "T"))
                             inside_done.add(q)
                         progress = True
+            if npass == 0 or inside_buf:
+                lines.append(door(npass))
+                lines.extend(inside_buf)
+                npass += 1
             for q in accepted:
                 if q not in inside_done:
                     lines.extend(acts(q, "T"))
@@ -810,7 +960,6 @@ class Gen:
                 info["stuck_quests"] += len(remaining)
                 break
             remaining = [q for q in remaining if q not in done]
-            npass += 1
         info["passes"] = npass
         for q in bridges:
             if q not in done:           # a prerequisite whose own prerequisite never came: as written, at the end
@@ -838,8 +987,8 @@ class Gen:
             f"-- Every quest step is a line of Imported_Wiki_{fl}.lua: quest data derived from Warcraft Wiki,",
             "-- https://warcraft.wiki.gg, by its contributors, licensed under CC BY-SA 4.0",
             "-- (https://creativecommons.org/licenses/by-sa/4.0/). This data file is shared under the same licence;",
-            "-- see Guides/WIKI_DATA_LICENSE.md. Instances from the wiki's instance pages; which instances a client has and",
-            "-- their entrances (Map Corpse position) from Blizzard client tables Map / JournalInstance via wago.tools (facts).",
+            "-- see Guides/WIKI_DATA_LICENSE.md. Instances and entrances from the wiki's instance pages; which instances a",
+            "-- client has and fallback entrances (Map Corpse position) from Blizzard client tables Map / JournalInstance via wago.tools (facts).",
             "local _, NS = ...", gate, "local R = NS.Guide.Register", ""]
         if routes:
             # Imported_Wiki's provenance lines (Blizzard quest pins, player contributions) apply to the lines copied here
@@ -873,7 +1022,7 @@ class Gen:
             info = rt["info"]
             rows.append((fl, d["name"], d["kind"], d["map"], exp, F, gid, "route", "", len(rt["dq"]), len(rt["lead"]),
                          len(rt["follow"]), info["steps"], info["no_point"],
-                         "blizzard" if "|M|" in next((ln for ln in rt["lines"] if ln.startswith("D ")), "") else
+                         rt.get("ent_src", "blizzard") if "|M|" in next((ln for ln in rt["lines"] if ln.startswith("D ")), "") else
                          ("instance-map" if d["ui"] else "zone"), rt["minlevel"], rt["maxlevel"], info["passes"],
                          d["page"], info["stuck_quests"]))
         # instances with quests a client cannot route: none of them can be picked up (no route was made)

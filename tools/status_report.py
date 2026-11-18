@@ -178,6 +178,13 @@ def first_count(cons, tables, fl):
     return None
 
 
+def dungeon_guides(con, fl):
+    if not has_table(con, "dungeon_routes"):
+        return None
+    r = one(con, "select count(*) from dungeon_routes where flavor = ? and status = 'route'", (fl,))
+    return r[0] if r and r[0] else None
+
+
 def show(v):
     return "-" if v is None else str(v)
 
@@ -209,6 +216,7 @@ def rows():
             "violations": show(violations(verif, fl)),
             "gold": show(first_count((verif, wiki), ("gold_guides", "gold_routes"), fl)),
             "prof": show(first_count((verif, wiki), ("profession_guides", "prof_guides"), fl)),
+            "dungeons": show(dungeon_guides(verif, fl)),
         })
     return out
 

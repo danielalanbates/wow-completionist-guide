@@ -148,7 +148,7 @@ RULES = (
       "of Imported_Wiki_<flavor>.lua (Warcraft Wiki; its Blizzard quest pin and player contribution lines keep their "
       "notes and the header repeats their provenance lines); instances from the wiki's instance pages; which instances "
       "a client has, raid or dungeon, expansion and level range from Blizzard Map, JournalInstance and LFGDungeons "
-      "tables, the entrance from the Map table's Corpse position (facts)", "tools/wiki/gen_dungeons.py", "generated"),
+      "tables, the entrance from the wiki instance page or the Map table's Corpse position (facts)", "tools/wiki/gen_dungeons.py", "generated"),
     R("Guides/Imported_Spine_*.lua", "wiki-cc-by-sa", CC_BY_SA, "the wiki zone guides chained by level band and the "
       "wiki's quest chains (retail: also Blizzard QuestLine/Campaign order, facts); each entry points at a wiki guide "
       "and copies no step text", "tools/wiki/gen_spine.py (run by gen_wiki_guides.py)", "generated"),
