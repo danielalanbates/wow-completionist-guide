@@ -25,6 +25,11 @@ done
 for f in Imported_Achievements_mop Imported_Achievements_retail Imported_QuestLines_retail Imported_Missions_retail; do
   [ -s "$SRC/Guides/$f.lua" ] || echo "install.sh: note: Guides/$f.lua missing - run tools/gen_completion_guides.py to add it" >&2
 done
+# Dungeon and raid routes (tools/wiki/gen_dungeons.py, Guides/Imported_Dungeons_<flavor>.lua; built on
+# Imported_Wiki_<flavor>.lua): generated, gitignored - only a note: without one the routes list has no Dungeons section.
+for tier in $FLAVORS; do
+  [ -s "$SRC/Guides/Imported_Dungeons_$tier.lua" ] || echo "install.sh: note: Guides/Imported_Dungeons_$tier.lua missing - run tools/wiki/gen_dungeons.py $tier, then luajit -joff tools/gen_quest_index.lua (no Dungeons section without it)" >&2
+done
 # Baked route orders (tools/bake_resume.py, Data/RouteOrder_<flavor>.lua): generated, gitignored, optional -
 # without one a guide keeps its author order.
 for tier in $FLAVORS; do
@@ -69,7 +74,7 @@ for f in "$SRC"/Guides/Imported_* "$SRC"/Data/Imported_* "$SRC"/Data/RouteOrder_
       stop "$rel is not part of the build (replaced by Guides/Imported_QuestLines_retail.lua) - delete it";;
     Data/Imported_*)
       stop "$rel is not part of the build (no generated file belongs in Data/Imported_*; the dungeon-door table was retired on 2026-11-11) - delete it";;
-    Guides/Imported_Wiki_*.lua|Guides/Imported_Spine_*.lua|Guides/Imported_Professions_*.lua|Guides/Imported_Gold_*.lua|Guides/Imported_Achievements_*.lua|Guides/Imported_QuestLines_*.lua|Guides/Imported_Missions_*.lua|Data/RouteOrder_*.lua|Data/QuestDeps_*.lua|Data/QuestIndex_*.lua)
+    Guides/Imported_Wiki_*.lua|Guides/Imported_Spine_*.lua|Guides/Imported_Dungeons_*.lua|Guides/Imported_Professions_*.lua|Guides/Imported_Gold_*.lua|Guides/Imported_Achievements_*.lua|Guides/Imported_QuestLines_*.lua|Guides/Imported_Missions_*.lua|Data/RouteOrder_*.lua|Data/QuestDeps_*.lua|Data/QuestIndex_*.lua)
       is_flavor "${base##*_}" || stop "unknown generated file $rel (no client has the flavor '${base##*_}') - delete it first";;
     *) stop "unknown generated file $rel is not on the allowlist - delete it first";;
   esac
@@ -80,7 +85,7 @@ done
 BAD="$(LC_ALL=C /usr/bin/grep -l -i -E 'questie|wow-?pro|MEASUREMENT ONLY' "$SRC"/Guides/Imported_*.lua "$SRC"/Data/QuestDeps_*.lua "$SRC"/Data/QuestIndex_*.lua 2>/dev/null || true)"
 if [ -n "$BAD" ]; then
   echo "$BAD" | while read -r f; do echo "install.sh: ${f#"$SRC"/} holds or credits another addon's data (or is the offline measurement file)" >&2; done
-  stop "regenerate the files above (tools/wiki/gen_wiki_guides.py, then gen_gold, gen_professions, tools/gen_completion_guides.py, tools/gen_quest_deps.py, tools/gen_quest_index.lua); nothing was installed"
+  stop "regenerate the files above (tools/wiki/gen_wiki_guides.py, then gen_dungeons, gen_gold, gen_professions, tools/gen_completion_guides.py, tools/gen_quest_deps.py, tools/gen_quest_index.lua); nothing was installed"
 fi
 # A baked order for a guide of the retired dev build (ids qdb:... / qpoi:...) was computed from another addon's points:
 # such a row must not reach a client either (tools/optimize_routes.py --merge --current drops it).

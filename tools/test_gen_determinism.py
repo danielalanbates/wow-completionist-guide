@@ -8,7 +8,8 @@
     python3 tools/test_gen_determinism.py [mop retail]        (default: mop retail; about 3 minutes)
 
 Runs tools/wiki/gen_wiki_guides.py twice with different PYTHONHASHSEED values into two temp folders (--out: nothing in
-the checkout is written) and compares the guide files, the spine files and the spine sidecars.
+the checkout is written) and compares the guide files, the spine files and the spine sidecars; then the same for
+tools/wiki/gen_dungeons.py (the dungeon and raid routes, built on the checkout's own wiki guide files).
 
 Why it matters: a baked route order is tied to its guide by a checksum over the steps in order
 (Core/Guide.lua G.RouteChecksum).  Until 2026-11-12 tools/wiki/gen_spine.py broke rank ties by object address and
@@ -56,6 +57,25 @@ def main():
                 same = a == b
                 bad += 0 if same else 1
                 print(("ok   " if same else "FAIL ") + name + ("" if same else ": differs between two hash seeds"))
+        # the dungeon and raid routes (tools/wiki/gen_dungeons.py), built on the checkout's Imported_Wiki_<flavor>.lua
+        if all(os.path.exists(os.path.join(ROOT, "CompletionRoute", "Guides", "Imported_Wiki_%s.lua" % fl)) for fl in flavors):
+            douts = []
+            for seed in SEEDS:
+                out = os.path.join(work, "dungeons" + seed)
+                p = subprocess.run([sys.executable, "tools/wiki/gen_dungeons.py"] + flavors + ["--out", out], cwd=ROOT,
+                                   env=dict(os.environ, PYTHONHASHSEED=seed), capture_output=True, text=True)
+                if p.returncode != 0:
+                    print("FAIL gen_dungeons exit %d with PYTHONHASHSEED=%s: %s" % (p.returncode, seed, (p.stderr or p.stdout)[-600:]))
+                    return 1
+                douts.append(out)
+            for fl in flavors:
+                name = "Imported_Dungeons_%s.lua" % fl
+                a, b = (open(os.path.join(o, name), "rb").read() for o in douts)
+                same = a == b
+                bad += 0 if same else 1
+                print(("ok   " if same else "FAIL ") + name + ("" if same else ": differs between two hash seeds"))
+        else:
+            print("skip Imported_Dungeons_*: the checkout has no Imported_Wiki file for every flavor asked")
     finally:
         shutil.rmtree(work, ignore_errors=True)
     print("ALL GENERATOR DETERMINISM TESTS PASSED" if not bad else "%d file(s) differ" % bad)

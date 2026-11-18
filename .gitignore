@@ -14,6 +14,7 @@ CREDENTIALS*
 # generated guide data (Warcraft Wiki CC BY-SA and Blizzard client data; regenerate with tools/wiki/gen_*.py and
 # tools/gen_completion_guides.py) - never commit. Nothing generated belongs in Data/Imported_*: a file there is a
 # leftover that tools/install.sh refuses.
+# (includes Guides/Imported_Dungeons_<flavor>.lua, the dungeon and raid routes of tools/wiki/gen_dungeons.py)
 CompletionRoute/Guides/Imported_*.lua
 CompletionRoute/Data/Imported_*.lua
 # offline measurement only, never part of the build (tools/measure/README.md)

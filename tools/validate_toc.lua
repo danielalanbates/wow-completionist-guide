@@ -19,7 +19,7 @@ local ROUTE_ORDER = { ["CompletionRoute.toc"] = "retail", ["CompletionRoute_Mist
 -- for the TOC's own flavor only.  Any other Guides/Imported_* line, and every Data/Imported_* line, names a file that
 -- never ships (data derived from another addon, generator input, a retired file): a TOC must not list it.
 local SHIPPED_GUIDES = { Wiki = true, Spine = true, Gold = true, Professions = true, Achievements = true, QuestLines = true,
-    Missions = true }
+    Missions = true, Dungeons = true }
 local function neverShips(rel, flavor)
     if rel:match("^Data/Imported_") then return "no Data/Imported_* file ships" end
     local kind, rest = rel:match("^Guides/Imported_(%a+)_(.+)%.lua$")
@@ -85,6 +85,9 @@ for _, toc in ipairs(tocs) do
                 if fl == ro and not seen[f] then print("FAIL " .. toc .. ": does not load " .. f); fail = fail + 1 end
                 if fl ~= ro and seen[f] then print("FAIL " .. toc .. ": must not load " .. f); fail = fail + 1 end
             end
+            -- the dungeon and raid routes (tools/wiki/gen_dungeons.py; generated, gitignored): every client its own
+            local f = "Guides/Imported_Dungeons_" .. fl .. ".lua"
+            if fl == ro and not seen[f] then print("FAIL " .. toc .. ": does not load " .. f); fail = fail + 1 end
         end
         -- quest-level skipping: the module comes after Progress (it rebuilds P.steps), the re-planner after the Router;
         -- auto accept / turn-in (Core/QuestAuto.lua) after Util (read at load) and after Skip, whose drops it obeys
@@ -97,6 +100,8 @@ for _, toc in ipairs(tocs) do
         for _, pair in ipairs({ { "Core/Progress.lua", "Core/Skip.lua" }, { "Routing/Router.lua", "Routing/Replan.lua" },
                                 { "Core/Guide.lua", "Core/QuestCounts.lua" }, { "Core/Account.lua", "Core/QuestCounts.lua" },
                                 { "Core/QuestCounts.lua", "UI/GuideMenu.lua" },
+                                -- the dungeon routes register after the guide registry (Core/Guide.lua) like every route file
+                                { "Core/Guide.lua", "Guides/Imported_Dungeons_" .. ro .. ".lua" },
                                 { "Core/Util.lua", "Core/QuestAuto.lua" }, { "Core/Skip.lua", "Core/QuestAuto.lua" },
                                 { "Routing/CostModel.lua", "Routing/TravelGraph.lua" }, { "Routing/CostModel.lua", "Routing/StepOrder.lua" },
                                 { "Routing/CostModel.lua", "Routing/Replan.lua" }, { "Routing/CostModel.lua", "Routing/Router.lua" },

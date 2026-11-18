@@ -194,6 +194,10 @@ def main():
         ql = [r for r in man["files"] if r["path"].endswith("/Guides/Imported_QuestLines_retail.lua")]
         check(len(ql) == 1 and ql[0]["category"] == "wiki-cc-by-sa" and "QuestLine" in ql[0]["source"],
               "the quest-line storylines (wiki + Blizzard data) ship as wiki CC BY-SA data")
+        dg = [r for r in man["files"] if r["path"].endswith("/Guides/Imported_Dungeons_era.lua")]
+        check(len(dg) == 1 and dg[0]["category"] == "wiki-cc-by-sa" and "gen_dungeons" in dg[0]["generator"]
+              and dg[0].get("clients") == ["era"],
+              "the dungeon and raid routes (tools/wiki/gen_dungeons.py) ship as wiki CC BY-SA data, the era file to era only")
         check(res.files["Data/RouteOrder_era.lua"].get("order_rows") == 1, "a baked order row for a shipped guide passes")
         check(any("WoW account name" in w and "1 character name" in w for w in res.warnings),
               "account and character names under WTF/Account are checked")
@@ -339,6 +343,9 @@ def main():
         expect_fail(env, "Questie fallback line in wiki data", "interop-derived", "Guides/Imported_Wiki_era.lua",
                     lambda d, a: append(a / "Guides" / "Imported_Wiki_era.lua",
                                         "T Foo|QID|5|M|1,1|Z|1; X|N|To Foo. (location: Questie data)|\n"))
+        expect_fail(env, "Questie-credited point in the dungeon routes", "interop-derived", "Guides/Imported_Dungeons_tbc.lua",
+                    lambda d, a: append(a / "Guides" / "Imported_Dungeons_tbc.lua",
+                                        "T Foo|QID|5|M|1,1|Z|1; X|N|To Foo. (location: Questie data)|\n"))
         expect_fail(env, "Questie-credited point in the quest-line storylines", "interop-derived",
                     "Guides/Imported_QuestLines_retail.lua",
                     lambda d, a: append(a / "Guides" / "Imported_QuestLines_retail.lua",
@@ -367,6 +374,9 @@ def main():
         poi_step = "T Foo|QID|5|M|50.0,50.0|Z|1; X|N|To Foo. (location: Blizzard quest POI, the turn-in area)|\n"
         expect_fail(env, "quest-pin step in a wiki file without the QuestPOI header", "no-provenance",
                     "Guides/Imported_Wiki_retail.lua", lambda d, a: append(a / "Guides" / "Imported_Wiki_retail.lua", poi_step))
+        # the dungeon routes copy those step lines (tools/wiki/gen_dungeons.py): the same rule holds for their file
+        expect_fail(env, "quest-pin step in the dungeon routes without the QuestPOI header", "no-provenance",
+                    "Guides/Imported_Dungeons_retail.lua", lambda d, a: append(a / "Guides" / "Imported_Dungeons_retail.lua", poi_step))
         expect_fail(env, "quest-pin header with an unknown build", "no-provenance", "Guides/Imported_Wiki_retail.lua",
                     lambda d, a: (a / "Guides" / "Imported_Wiki_retail.lua").write_text(
                         "-- Steps ... Blizzard QuestPOIBlob + QuestPOIPoint tables via wago.tools, build unknown (client data).\n"

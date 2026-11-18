@@ -565,6 +565,7 @@ function P.CheckStep(step)
     elseif a == "F" or a == "b" or a == "J" or a == "H" or a == "D" then
         if step.coords then if nearCoords(step, 60) then return true end
         elseif step.zone and inZone(step) then return true end
+        if a == "D" and IsInInstance and IsInInstance() == true then return true end
     elseif a == "L" then
         if step.minlevel and U.PlayerLevel() >= step.minlevel then return true end
     elseif a == "U" then
@@ -653,6 +654,28 @@ function P.Prefill(questsOnly)
         if k and not done[k] and not skipped[k] and not reopened[k] and stateDone(s, questsOnly) then
             done[k] = true
             n = n + 1
+        end
+    end
+    -- a dungeon "D Enter <instance>" step whose pass has every quest step already done is done too, so a route whose
+    -- quests are all completed opens as finished (not stranded on its Enter step)
+    for i = 1, #P.steps do
+        local s = P.steps[i]
+        local k = s.key
+        if k and s.action == "D" and not done[k] and not skipped[k] and not reopened[k] then
+            local hasQ, allDone = false, true
+            for j = i + 1, #P.steps do
+                local s2 = P.steps[j]
+                if s2.action == "D" then break end
+                if s2.qid and #s2.qid > 0 and (not s2.faction or Cond.FactionMatch(s2.faction))
+                    and (not s2.class or Cond.ClassMatch(s2.class)) and (not s2.race or Cond.RaceMatch(s2.race)) then
+                    hasQ = true
+                    if not P.IsDone(s2) then allDone = false break end
+                end
+            end
+            if hasQ and allDone then
+                done[k] = true
+                n = n + 1
+            end
         end
     end
     if n > 0 then dirty = true end

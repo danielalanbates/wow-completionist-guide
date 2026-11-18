@@ -38,8 +38,9 @@ DEFAULT_DB = os.path.join(HERE, "cache", "wiki_raw.sqlite")
 
 # Questbox = quests, Npcbox = NPCs (location {{Coords}}), Itembox = item infobox,
 # Elinks-object = the wiki has no Objectbox; game-object pages are marked by this
-# external-links template, Achievementtip = achievement infobox ({{#data:Achievementtip}}).
-DEFAULT_TEMPLATES = ["Questbox", "Npcbox", "Itembox", "Elinks-object", "Achievementtip"]
+# external-links template, Achievementtip = achievement infobox ({{#data:Achievementtip}}),
+# Infobox instance = dungeon and raid pages (tools/wiki/gen_dungeons.py).
+DEFAULT_TEMPLATES = ["Questbox", "Npcbox", "Itembox", "Elinks-object", "Achievementtip", "Infobox instance"]
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS pages(

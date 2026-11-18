@@ -61,6 +61,7 @@ end
 local FAMILY = {
     { "^Guides/Imported_Wiki_",         "wiki quest guides" },
     { "^Guides/Imported_Spine_",        "spine (leveling path)" },
+    { "^Guides/Imported_Dungeons_",     "dungeon routes" },
     { "^Guides/Imported_Gold_",         "gold" },
     { "^Guides/Imported_Professions_",  "professions" },
     { "^Guides/Imported_Achievements_", "achievements" },
