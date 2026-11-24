@@ -183,7 +183,7 @@ The everyday workflow is the release workflow. In the checkout that holds the ge
 5. To publish, the only extra step is the version:
    `python3 tools/package_release.py --write --version 2.0.0-beta1 --db docs/verification.sqlite`, then load-test the
    result (`cd dist/2.0.0-beta1 && luajit <repo>/tools/test_load_all.lua`). Tag and publish by hand, and only after
-   Daniel's beta passes (`.github/workflows/release.yml` only runs `tools/test_package.py` on demand).
+   Daniel's beta passes (the project uses no GitHub compute: the old workflows are in `archive/github-actions/`, and `sh tools/check_all.sh` runs the same checks locally, including `tools/test_package.py`).
 
 There is no release-only data variant, no release rebake and no `--data-root` step any more. `--data-root` still
 exists for packaging generated data from another folder.
