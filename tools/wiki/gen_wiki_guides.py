@@ -630,6 +630,18 @@ class Gen:
             zone, classic = wikimaps.mark_classic(marks, r["title"], r["zone"], r["x"], r["y"]) if r["x"] is not None else (r["zone"], None)
             self.history_marked += classic is not None
             self.npc_pts[r["title"]].append((zone, r["x"], r["y"], r["source"], r["badge"], classic if classic is not None else r["classic"]))
+        # points recovered from the page's last revision before patch 4.0.3 (fetch_coord_history.py --recover): pages
+        # rewritten for Cataclysm or later that lost their Classic-map coordinate.  They are "(Classic)" rows with
+        # source "hist:<revid>:<where>", so only the Classic clients rank them first, after the page's own Classic rows
+        self.history_added = 0
+        for title, pts in wikimaps.history_points().items():
+            have = {(wikimaps.norm(wikimaps.base_zone(p[0])), round(p[1], 1), round(p[2], 1)) for p in self.npc_pts.get(title, [])}
+            for zone, x, y, src, revid in pts:
+                if (wikimaps.norm(wikimaps.base_zone(zone)), round(x, 1), round(y, 1)) in have:
+                    continue
+                self.npc_pts[title].append((wikimaps.base_zone(zone) + " (Classic)", x, y, f"hist:{revid}:{src}", 0, 1))
+                self.history_added += 1
+        self.hist_used = {}                 # (page, client, home zone) -> revid when page_points chose recovered rows
         self.npc_classic = {r["title"]: r["page_classic"] for r in self.db.execute("select title, page_classic from npcs")}
         self.items = {r["title"]: (r["item_id"], json.loads(r["sources_json"] or "[]"))
                       for r in self.db.execute("select * from items")}
@@ -760,6 +772,9 @@ class Gen:
         section of the page (portals, quests, rewards, notes, inhabitants) is something else at that place, not the
         place, and a coordinate written for another game (foreign) is never used."""
         pts = self.page_rows(title)
+        if fl not in CLASSICISH:
+            # a pre-4.0.3 revision describes the world before the Cataclysm: MoP Classic and Retail are after it
+            pts = [p for p in pts if not str(p[3]).startswith("hist:")]
         if own_only:
             pts = [p for p in pts if p[3] in ("location", "npclocations", "lead") and not self.foreign(p[0], fl)]
         if not pts:
@@ -783,6 +798,11 @@ class Gen:
             if badge:
                 s += 0 if badge <= e else 3
                 s += (e - badge) * 0.05 if badge <= e else 0
+            if str(src).startswith("hist:"):
+                src = str(src).split(":", 2)[2]
+                s += 0.6        # after the page's own rows of the same kind (a Classic-tagged row today wins)
+                if src == "zonemap":
+                    src = "lead"
             s += {"location": 0, "npclocations": 0.2, "lead": 0.5}.get(src, 1.0)
             if home_name and wikimaps.norm(re.sub(r"\s*\([^()]*\)$", "", zone)) == wikimaps.norm(home_name):
                 s -= 0.5
@@ -790,6 +810,12 @@ class Gen:
         ranked = sorted(pts, key=score)
         best = ranked[0]
         group = [p for p in ranked if p[0] == best[0] and p[5] == best[5]]
+        hist = str(best[3]).startswith("hist:")
+        group = [p for p in group if str(p[3]).startswith("hist:") == hist]
+        if hist:
+            self.hist_used[(title, fl, home_name)] = int(str(best[3]).split(":")[1])
+        else:
+            self.hist_used.pop((title, fl, home_name), None)
         return [(p[0], p[1], p[2]) for p in group], self.exact(fl, best[5], best[4])
 
     @staticmethod
@@ -1134,7 +1160,17 @@ class Gen:
             page_exact = self.exact(fl, classic_q, 0) or (
                 fl == "mop" and (r["variant"] or "").lower() in VARIANT_FOR and "mop" in VARIANT_FOR[(r["variant"] or "").lower()])
 
-            def versioned(c, ex, act, qo=None):
+            def versioned(c, ex, act, qo=None, e=None):
+                """a point taken from a page's pre-4.0.3 revision (e = the entity_coords answer) says so:
+                "(location: wiki revision <revid>)"."""
+                v = versioned0(c, ex, act, qo)
+                rev = self.hist_used.get((e[2], fl, home_name)) if (e and v[2] == "wiki" and not e[4]) else None
+                if rev:
+                    st["steps_history"] += 1
+                    return (v[0], v[1] + f" (location: wiki revision {rev})", v[2])
+                return v
+
+            def versioned0(c, ex, act, qo=None):
                 """the build keeps every wiki point.  --measure-fallback: a wiki point written for another version (the
                 wiki is retail-first) that the reference file puts more than 300 yd away is recorded and replaced"""
                 if ex or not fb:
@@ -1203,10 +1239,10 @@ class Gen:
                             # an item page: the point is where the item is found or dropped; say which page gave it
                             if not item_point_ok(c, act, qo):
                                 continue
-                            v = versioned((c[0], c[1]), c[3], act, qo)
+                            v = versioned((c[0], c[1]), c[3], act, qo, c)
                             return (v[0], v[1] + f" (point: the wiki's {clean(c[2], 60)} page)", v[2]) if v[2] == "wiki" else v
                         if c:
-                            return versioned((c[0], c[1]), c[3], act, qo)
+                            return versioned((c[0], c[1]), c[3], act, qo, c)
                 if poi:
                     # the turn-in pin is the ender's area; it stands for the giver only when the wiki names the same NPC
                     same = {e.get("title") for e in starts if e.get("title")} == {e.get("title") for e in ends if e.get("title")}
@@ -1343,7 +1379,7 @@ class Gen:
                     if e and not item_point_ok(e, "A"):
                         e = None    # --measure-fallback: far from the reference point for the accept
                     if e:
-                        c, suf, src = versioned((e[0], e[1]), e[3], "A")
+                        c, suf, src = versioned((e[0], e[1]), e[3], "A", None, e)
                         item, also = item or page, None
                         if src == "wiki":
                             suf += f" (point: the wiki's {clean(e[2], 60)} page)"
@@ -1404,7 +1440,7 @@ class Gen:
                     if e and self.resolve_title(b["target_title"])[0] in self.items and not item_point_ok(e, "C", qo):
                         e = None    # --measure-fallback: an item's drop point far from the reference objective point
                     if e:
-                        cc = versioned((e[0], e[1]), e[3], "C", qo)
+                        cc = versioned((e[0], e[1]), e[3], "C", qo, e)
                 if not cc and poi and use_qo:
                     pin = poi.get(qid, qo - 1)
                     if pin:
@@ -1666,7 +1702,8 @@ def main(argv=None):
     if not measure:
         print(f"player contributions: {cdir}" if cdir else "player contributions: none read (no contributions folder)")
     print(f"{len(g.rows)} wiki quest rows, {len({r['id'] for r in g.rows})} ids; "
-          f"{g.history_marked} NPC coordinates read as Classic-map numbers (pre-4.0.3 page history)")
+          f"{g.history_marked} NPC coordinates read as Classic-map numbers (pre-4.0.3 page history), "
+          f"{g.history_added} recovered from pre-4.0.3 revisions")
     unread = []
     for fl in flavors:
         st = g.run(fl)
@@ -1675,7 +1712,7 @@ def main(argv=None):
               f"steps {st['steps']}: wiki coords {st['steps_wiki']} ({100*st['steps_wiki']/s:.1f}%), client quest POI "
               f"{st['steps_poi']}, player contributions {st['steps_contrib']}, wiki place page {st['steps_place']}, "
               + (f"reference file {st['steps_fallback']} ({100*st['steps_fallback']/s:.1f}%), " if measure else "")
-              + f"zone only {st['steps_zone']}, none {st['steps_none']} "
+              + f"(of the wiki coords: pre-4.0.3 revision {st['steps_history']}), zone only {st['steps_zone']}, none {st['steps_none']} "
               f"({100*st['steps_none']/s:.1f}%); DB2-only gap {st['db2_only_gap']}; {st['file_kb']} KB")
         g.point_sources(fl, st)
         print(f"       zone guides {st['zone_guides']} -> {st['guides']} guides after splitting (gen_spine.MAX_STEPS)")
