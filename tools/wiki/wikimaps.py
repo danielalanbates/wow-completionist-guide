@@ -81,6 +81,27 @@ def history_marks(path=None):
         con.close()
 
 
+def history_points(path=None):
+    """{page title: [(zone, x, y, source, revid)]} recovered from the page's last revision before patch 4.0.3
+    (tools/wiki/fetch_coord_history.py --recover, table history_points): Classic-map numbers of pages rewritten for
+    Cataclysm or later.  Empty when not fetched."""
+    import sqlite3
+    p = Path(path) if path else HISTORY_DB
+    if not p.exists():
+        return {}
+    con = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
+    out = {}
+    try:
+        for t, z, x, y, s, r in con.execute("select title, zone, x, y, source, revid from history_points "
+                                            "order by title, rowid"):
+            out.setdefault(t, []).append((z, x, y, s, r))
+    except sqlite3.Error:
+        return {}
+    finally:
+        con.close()
+    return out
+
+
 def mark_classic(marks, title, zone, x, y):
     """(zone, classic) for one npc_coords row: a pre-4.0.3 coordinate becomes a '(Classic)' point"""
     if marks and (title, zone, round(x, 2), round(y, 2)) in marks:

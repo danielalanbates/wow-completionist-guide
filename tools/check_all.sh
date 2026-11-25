@@ -18,5 +18,6 @@ step luajit tools/test_load_all.lua
 step luajit tools/test_offline.lua
 step python3 tools/test_package.py
 step python3 tools/test_contrib_gen.py
+step python3 tools/test_history_points.py
 [ "$fail" = 0 ] && echo "\nall checks passed" || echo "\nsome checks FAILED"
 exit "$fail"
