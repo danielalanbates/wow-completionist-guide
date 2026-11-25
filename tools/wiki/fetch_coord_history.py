@@ -7,6 +7,7 @@
 
     nice -n 10 python3 tools/wiki/fetch_coord_history.py [--zone "Blasted Lands" ...] [--changed-zones] [--max-requests N]
     nice -n 10 python3 tools/wiki/fetch_coord_history.py --recover [--max-requests N] [--recheck]
+    nice -n 10 python3 tools/wiki/fetch_coord_history.py --prejuly [--max-requests N] [--recheck]
 
 Patch 4.0.3 (2010-11-23) redrew the zone maps.  Warcraft Wiki is retail-first and its coordinates are read as retail-map
 numbers, but a page whose coordinate already stood, number for number, in its last revision before that date was
@@ -120,9 +121,9 @@ def old_points(title, text):
     return out
 
 
-def old_revision(title):
-    """(revid, timestamp, text) of the last revision before 4.0.3, or (None, None, '')"""
-    d = W.api(action="query", prop="revisions", titles=title, rvlimit=1, rvstart=REDRAW, rvdir="older",
+def old_revision(title, before=REDRAW):
+    """(revid, timestamp, text) of the last revision before `before` (default 4.0.3), or (None, None, '')"""
+    d = W.api(action="query", prop="revisions", titles=title, rvlimit=1, rvstart=before, rvdir="older",
               rvprop="content|timestamp|ids", rvslots="main", redirects=1)
     pages = d.get("query", {}).get("pages", [])
     revs = pages[0].get("revisions") if pages else None
@@ -203,6 +204,42 @@ def recover(a):
           f"points -> {OUT}")
 
 
+def prejuly(a):
+    """--prejuly: every cited revision dated on or after wikimaps.PREJULY (history_pages with points, coord_history
+    marks) is checked against the page's last revision before that date (Cataclysm beta risk); wikimaps applies
+    prefer_prejuly when reading."""
+    db = sqlite3.connect(OUT)
+    db.execute("create table if not exists prejuly_pages(title text primary key, revid int, rev_time text, points int, "
+               "checked text)")
+    db.execute("create table if not exists prejuly_points(title text, zone text, x real, y real, source text, "
+               "primary key (title, zone, x, y))")
+    want = {t for (t,) in db.execute("select title from history_pages where points > 0 and rev_time >= ?",
+                                     (wikimaps.PREJULY,))}
+    want |= {t for (t,) in db.execute("select title from coord_history where pre_cata = 1 and pre_time >= ?",
+                                      (wikimaps.PREJULY,))}
+    done = {t for (t,) in db.execute("select title from prejuly_pages")} if not a.recheck else set()
+    todo = sorted(want - done)
+    print(f"{len(want)} pages cite a revision dated on or after {wikimaps.PREJULY}, {len(todo)} to ask", flush=True)
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    n = 0
+    for t in todo:
+        if a.max_requests is not None and n >= a.max_requests:
+            print("stopped at --max-requests; re-run to continue (answers are cached)")
+            break
+        revid, ts, text = old_revision(t, wikimaps.PREJULY)
+        n += 1
+        pts = old_points(t, text) if text else []
+        db.execute("delete from prejuly_points where title = ?", (t,))
+        for z, x, y, s in pts:
+            db.execute("insert or replace into prejuly_points values (?,?,?,?,?)", (t, z, x, y, s))
+        db.execute("insert or replace into prejuly_pages values (?,?,?,?,?)", (t, revid, ts, len(pts), now))
+        if n % 50 == 0:
+            db.commit()
+            print(f"  {n}/{len(todo)} pages", flush=True)
+    db.commit()
+    print(f"{n} pages asked -> {OUT}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--zone", action="append", default=None, help="zone name (repeatable; default Blasted Lands)")
@@ -212,7 +249,11 @@ def main():
                     "have none today (history_points)")
     ap.add_argument("--recheck", action="store_true", help="--recover: ask pages already in history_pages again "
                     "(answers still come from the cache)")
+    ap.add_argument("--prejuly", action="store_true", help="check every cited revision dated on or after 2010-07-01 "
+                    "against the page's last revision before it (Cataclysm beta rule, wikimaps.prefer_prejuly)")
     a = ap.parse_args()
+    if a.prejuly:
+        return prejuly(a)
     if a.recover:
         return recover(a)
     zones = changed_zones() if a.changed_zones else (a.zone or ["Blasted Lands"])

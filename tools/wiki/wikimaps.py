@@ -52,6 +52,11 @@ EXTRA_ALIASES = {
 RE_SUFFIX = re.compile(r"\s*\((classic|forever|burning crusade|season of discovery|zone|alternate universe|"
                        r"bc classic|wrath classic|cata classic|mop classic)\)\s*$", re.I)
 HISTORY_DB = ROOT / "tools" / "wiki" / "cache" / "coord_history.sqlite"
+# Cataclysm beta rule (2026-11-25, branch history-points-complete): the Cataclysm beta ran from 2010-07, and some wiki
+# editors wrote beta-map coordinates onto live pages before patch 4.0.3.  A cited pre-4.0.3 revision dated on or after
+# PREJULY is checked against the page's last revision before PREJULY (fetch_coord_history.py --prejuly, tables
+# prejuly_pages / prejuly_points); prefer_prejuly() says which numbers win.
+PREJULY = "2010-07-01T00:00:00Z"
 
 
 def norm(s):
@@ -61,6 +66,50 @@ def norm(s):
 def base_zone(name):
     """a wiki zone name without its version suffix: 'Blasted Lands (Classic)' -> 'Blasted Lands'"""
     return RE_SUFFIX.sub("", (name or "").strip())
+
+
+def _zkey(zone):
+    return norm(base_zone(zone))
+
+
+def prefer_prejuly(post, pre):
+    """The Cataclysm beta rule.  post = rows [(zone, x, y, ...)] from a revision dated on or after PREJULY, pre = rows
+    from the page's last revision before PREJULY (None = not checked).  Per zone: when the pre-July revision has points
+    in that zone and they differ (to 0.1) from the later ones, the pre-July rows replace them; a zone the pre-July
+    revision has no point in keeps the later rows (nothing older to prefer); a zone only the pre-July revision has is
+    not added (it was removed before 4.0.3).  Returns (rows, replaced zone keys)."""
+    if pre is None:
+        return list(post), set()
+    by_pre = {}
+    for r in pre:
+        by_pre.setdefault(_zkey(r[0]), []).append(r)
+    by_post = {}
+    for r in post:
+        by_post.setdefault(_zkey(r[0]), []).append(r)
+    out, replaced = [], set()
+    for z, rows in by_post.items():
+        old = by_pre.get(z)
+        if old and {(round(r[1], 1), round(r[2], 1)) for r in old} != {(round(r[1], 1), round(r[2], 1)) for r in rows}:
+            out.extend(old)
+            replaced.add(z)
+        else:
+            out.extend(rows)
+    return out, replaced
+
+
+def prejuly_points(con):
+    """{title: (revid, rev_time, [(zone, x, y, source)])} of the pages checked before PREJULY; {} without the tables"""
+    import sqlite3
+    out = {}
+    try:
+        for t, r, ts in con.execute("select title, revid, rev_time from prejuly_pages"):
+            out[t] = (r, ts, [])
+        for t, z, x, y, s in con.execute("select title, zone, x, y, source from prejuly_points order by title, rowid"):
+            if t in out:
+                out[t][2].append((z, x, y, s))
+    except sqlite3.Error:
+        return {}
+    return out
 
 
 def history_marks(path=None):
@@ -73,8 +122,17 @@ def history_marks(path=None):
         return set()
     con = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
     try:
-        return {(t, z, round(x, 2), round(y, 2)) for t, z, x, y in
-                con.execute("select title, zone, x, y from coord_history where pre_cata = 1")}
+        pj = prejuly_points(con)
+        out = set()
+        for t, z, x, y, ts in con.execute("select title, zone, x, y, pre_time from coord_history where pre_cata = 1"):
+            if (ts or "") >= PREJULY and t in pj:
+                old = [p for p in pj[t][2] if _zkey(p[0]) == _zkey(z)]
+                # Cataclysm beta rule: a coordinate first seen after PREJULY whose zone had other numbers before is not
+                # trusted as a Classic-map number (it keeps the normal retail conversion)
+                if old and (round(x, 1), round(y, 1)) not in {(round(p[1], 1), round(p[2], 1)) for p in old}:
+                    continue
+            out.add((t, z, round(x, 2), round(y, 2)))
+        return out
     except sqlite3.Error:
         return set()
     finally:
@@ -92,13 +150,22 @@ def history_points(path=None):
     con = sqlite3.connect(f"file:{p}?mode=ro", uri=True)
     out = {}
     try:
+        try:
+            times = dict(con.execute("select title, rev_time from history_pages"))
+        except sqlite3.Error:
+            times = {}
         for t, z, x, y, s, r in con.execute("select title, zone, x, y, source, revid from history_points "
                                             "order by title, rowid"):
             out.setdefault(t, []).append((z, x, y, s, r))
+        pj = prejuly_points(con)
     except sqlite3.Error:
         return {}
     finally:
         con.close()
+    for t, rows in out.items():     # Cataclysm beta rule, see prefer_prejuly
+        if (times.get(t) or "") >= PREJULY and t in pj:
+            r0, _ts, pre = pj[t]
+            out[t], _rep = prefer_prejuly(rows, [(z, x, y, s, r0) for z, x, y, s in pre])
     return out
 
 
