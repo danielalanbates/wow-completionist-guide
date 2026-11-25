@@ -2,6 +2,12 @@
 
 Read this first, then `docs/STATUS.md` (newest section on top), `docs/IDEAS.md` and `docs/FINISH_PLAN.md`.
 
+**Current state 2026-11-25:** master a5a92df includes PR #31 (Classic points recovered from pre-4.0.3 wiki revisions,
+history fetch only 1,130/~3,300 pages done). Installed in all five clients; not rebaked. Work clone lives in Drive at
+`My Drive/Code/_work/CompletionistGuide-work/repo` (nothing under ~ outside Drive). **Next:** finish
+`tools/wiki/fetch_coord_history.py --recover`; refresh wiki cache Questbox/Npcbox -> regen -> rebake (+ verification.sqlite
+chart rows); Forever-only quest ids. See `docs/STATUS.md` top section.
+
 **2026-11-11 night: there is one build.** The owner runs exactly what a public release ships. Sections 3 to 5 below
 were written before that: where they say dev build, fallback points, `--no-fallback`, `--wiki-only`, `--shippable`,
 `_gaps` guides, `Imported_Entrances` or a release rebake, read `docs/RELEASE.md` instead. The generators' default

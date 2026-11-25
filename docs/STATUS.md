@@ -1,4 +1,21 @@
-# Status / handoff (2026-11-24: Retail dungeon doors from Blizzard's Encounter Journal; no GitHub compute)
+# Status / handoff (2026-11-25: recovered pre-4.0.3 Classic quest points merged; no GitHub compute)
+
+## 2026-11-25: Classic quest points from pre-4.0.3 wiki revisions (`classic-history-points`, PR #31, merged a5a92df)
+
+Offline only. **Nothing here has run in a real WoW client.**
+
+* `tools/wiki/fetch_coord_history.py --recover` asks each Classic quest/NPC page for its last revision before 4.0.3
+  and keeps those coordinates for Era/TBC/Forever (MoP/Retail untouched, byte-identical). Short zone names
+  ("Azuremyst", "Elwynn") map to the Classic zone; a recovered row on a map the client lacks is dropped before ranking.
+* Fetch is **partial**: 1,130 of ~3,300 candidate pages asked. Map-point coverage Era 48.5 -> 49.5%, TBC 52.2 -> 53.1%,
+  Forever 49.4 -> 50.3%. Points changed: 124 / 212 / 124 (Era / TBC / Forever); TBC guides 189 -> 188.
+* check_all.sh green (incl. new `tools/test_history_points.py`); vplayer 0 stalls/errors. Quest index regenerated.
+* Installed into all five clients (none running). Not rebaked; `docs/verification.sqlite` chart rows not added.
+  No GitHub release (held for owner beta).
+* Risk: 101 of the 145 cited Nov-2010 revisions are unchecked for Cataclysm-beta coordinates (12 of 12 checked matched).
+* Next: finish `fetch_coord_history.py --recover` (skips pages already asked) -> regen -> rebake; refresh wiki cache
+  Questbox/Npcbox; Forever-only quest ids.
+
 
 ## 2026-11-24: Retail dungeon doors from Blizzard's Encounter Journal door pins (`dungeon-doors`)
 
