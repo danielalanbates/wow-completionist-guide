@@ -64,6 +64,21 @@ with tempfile.TemporaryDirectory() as td:
     check(hp == {"A": [("Duskwood", 33.4, 76.3, "location", 2539800)]}, "wikimaps.history_points reads the table")
     check(wikimaps.history_points(Path(td) / "missing.sqlite") == {}, "a missing table file reads as empty")
 
+import gen_wiki_guides as G  # noqa: E402
+
+g = G.Gen.__new__(G.Gen)
+g.atlas = wikimaps.Atlas()
+check(g.hist_zone("Azuremyst") == "Azuremyst Isle" and g.hist_zone("Elwynn") == "Elwynn Forest",
+      "an old revision's short zone name becomes the one Classic map it starts")
+check(g.hist_zone("Duskwood") == "Duskwood", "a full zone name is kept")
+g.clean_pts = {"Aurelon": [("Azuremyst Isle", 79.7, 48.3, "npclocations", 0, 0),
+                           ("Nowhere Land (Classic)", 10.0, 10.0, "hist:1:location", 0, 1)]}
+g.hist_used = {}
+pts, _ex = g.page_points("Aurelon", "tbc", "Azuremyst Isle")
+check(pts == [("Azuremyst Isle", 79.7, 48.3)], "a recovered row on a map the client lacks does not hide the page's own row")
+pts, _ex = g.page_points("Aurelon", "mop", "Azuremyst Isle")
+check(all(p[0] != "Nowhere Land (Classic)" for p in pts), "MoP never takes a recovered row")
+
 RE_REV = re.compile(r"\(location: wiki revision (\d+)\)")
 for fl in ("era", "tbc", "forever", "mop", "retail"):
     f = ROOT / "CompletionRoute" / "Guides" / f"Imported_Wiki_{fl}.lua"

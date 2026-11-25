@@ -637,6 +637,7 @@ class Gen:
         for title, pts in wikimaps.history_points().items():
             have = {(wikimaps.norm(wikimaps.base_zone(p[0])), round(p[1], 1), round(p[2], 1)) for p in self.npc_pts.get(title, [])}
             for zone, x, y, src, revid in pts:
+                zone = self.hist_zone(wikimaps.base_zone(zone))
                 if (wikimaps.norm(wikimaps.base_zone(zone)), round(x, 1), round(y, 1)) in have:
                     continue
                 self.npc_pts[title].append((wikimaps.base_zone(zone) + " (Classic)", x, y, f"hist:{revid}:{src}", 0, 1))
@@ -737,6 +738,21 @@ class Gen:
         same = [p for p in placed if p[0] == mid][:4]
         return mid, ";".join(fmt_xy(p[1], p[2]) for p in same)
 
+    def hist_zone(self, zone):
+        """an old revision's short zone name ("Azuremyst", "Elwynn") as the one Classic map name it starts"""
+        sets = [self.atlas.sets[f] for f in CLASSICISH if f in self.atlas.sets]
+        if any(s.resolve(zone + " (Classic)") is not None for s in sets):
+            return zone
+        n = wikimaps.norm(zone)
+        names = {k for s in sets for k in s.by_norm if k.startswith(n) and k != n}
+        if len(names) == 1:
+            k = names.pop()
+            for s in sets:
+                for m in s.by_norm.get(k, ()):
+                    if m in s.maps and s.maps[m].get("name"):
+                        return s.maps[m]["name"]
+        return zone
+
     def page_rows(self, title):
         """the page's coordinate rows, with a subzone row that its own parent-zone row contradicts (same expansion badge,
         same page version; wikimaps.Atlas.subzone_conflict) moved onto the parent row's point.  The row stays, under the
@@ -775,6 +791,10 @@ class Gen:
         if fl not in CLASSICISH:
             # a pre-4.0.3 revision describes the world before the Cataclysm: MoP Classic and Retail are after it
             pts = [p for p in pts if not str(p[3]).startswith("hist:")]
+        else:
+            # a recovered row on a map this client lacks (Outland on Era, a subzone name) must not outrank and then
+            # hide a usable row of the page's own (Aurelon: "Azuremyst" on the old revision)
+            pts = [p for p in pts if not str(p[3]).startswith("hist:") or self.atlas.sets[fl].resolve(p[0]) is not None]
         if own_only:
             pts = [p for p in pts if p[3] in ("location", "npclocations", "lead") and not self.foreign(p[0], fl)]
         if not pts:
