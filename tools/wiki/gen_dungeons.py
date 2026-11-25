@@ -21,6 +21,8 @@ Inputs (read only):
                                                   key) and their client-version twins ("(Classic)", "(BC Classic)")
   tools/db2/<fl>/Map.csv, JournalInstance.csv     Blizzard instance maps per client (which instances a client has, raid
                                                   or dungeon, expansion); fetched by tools/wiki/db2_fetch.py when absent
+  tools/db2/retail/JournalInstanceEntrance.csv    Retail only: the Encounter Journal's door pin of each instance, in world
+                                                  coordinates (the door itself)
   tools/db2/retail/Map.csv                        the Corpse position of each instance map: where a ghost is sent back
                                                   to, the instance entrance, in world coordinates
   tools/maps_<fl>.lua                             uiMaps (tools/wiki/wikimaps.py): the entrance on the client's zone map,
@@ -44,8 +46,9 @@ A route, in order (docs/DUNGEONS.md 2):
      attunement and key quests (a quest named "Attunement to <instance>", "Entry Into <instance>", "The Key to
      <instance>", or the key item the instance infobox names), each with all its steps, prerequisites first;
   2. pick-ups: the accept steps of the instance quests whose giver stands outside;
-  3. the door: "D Enter <instance>" at the entrance (Blizzard Map Corpse position converted to the client's zone map;
-     on a Classic client only when it lies in the zone the wiki infobox names), else the instance's own map (the add-on
+  3. the door: "D Enter <instance>" at the entrance (the wiki infobox's {{Coords}}, else on Retail the Encounter
+     Journal door pin, else the Blizzard Map Corpse position converted to the client's zone map; on a Classic client
+     only when it lies in the zone the wiki infobox names), else the instance's own map (the add-on
      routes to a door it has learned, Core/Instances.lua), else the zone the infobox names, with the wiki's words;
   4. inside: the objective steps, and the accepts / turn-ins of quests whose giver or ender stands inside, in chain
      order.  A step with no point gets the instance's own map, or on a client without one the entrance point;
@@ -181,6 +184,23 @@ class Instances:
                 except (KeyError, ValueError):
                     pass
         self.retail_map = retail_map
+        # Blizzard's own door pins (JournalInstanceEntrance: the Encounter Journal's entrance marker in world
+        # coordinates, joined to the instance map through this client's JournalInstance). Only Retail has the table;
+        # on the other clients both reads return nothing.
+        ji_map = {}
+        for r in db2_fetch.rows(fl, "JournalInstance"):
+            try:
+                ji_map[r["ID"]] = int(r["MapID"])
+            except (KeyError, ValueError):
+                pass
+        self.journal_doors = defaultdict(list)         # instance map id -> [(world x, world y, continent), ...]
+        for r in sorted(db2_fetch.rows(fl, "JournalInstanceEntrance"), key=lambda r: (r.get("Faction") != "-1", int(r["ID"]))):
+            try:
+                mid, wx, wy, cont = ji_map[r["JournalInstanceID"]], float(r["Position_0"]), float(r["Position_1"]), int(r["MapID"])
+            except (KeyError, ValueError):
+                continue
+            if not (wx == 0 and wy == 0):
+                self.journal_doors[mid].append((wx, wy, cont))
         self.ui_of = defaultdict(list)                 # instance map id -> this client's uiMaps of it
         for uid, m in maps.maps.items():
             if m["type"] in (4, 5, 6) and m["inst"] in self.map_rows:
@@ -347,7 +367,23 @@ class Instances:
                     if m and m["type"] == 3 and m["name"] != "The Great Sea":
                         if self.fl not in CLASSIC_POINT_CHECK or not loc_maps or uid in loc_maps:
                             return uid, px, py, "wiki"
-        # 2. Blizzard Map table Corpse position (where a ghost returns to the instance)
+        # 2. Blizzard's Encounter Journal door pin (JournalInstanceEntrance; Retail only): the door itself. With several
+        #    doors, the first one that lands on a zone the infobox names. A pin that lands on another zone ranks after
+        #    a Corpse position on a named zone (Ruins of Ahn'Qiraj: the pin converts onto Uldum, the Corpse onto
+        #    Silithus, the infobox says Silithus), and before one anywhere else.
+        fallback_door = None
+        for wx, wy, cont in self.journal_doors.get(d["map"], ()):
+            hit = self.maps.from_world(cont, wx, wy, prefer_name=prefer, also_prefer=also_prefer)
+            if hit:
+                uid, x, y = hit
+                m = self.maps.maps.get(uid)
+                if m and m["type"] == 3 and m["name"] != "The Great Sea":
+                    if not loc_maps or uid in loc_maps:
+                        return uid, x, y, "journal"
+                    fallback_door = fallback_door or (uid, x, y, "journal")
+        if self.fl in CLASSIC_POINT_CHECK:
+            fallback_door = None
+        # 3. Blizzard Map table Corpse position (where a ghost returns to the instance)
         r = self.retail_map.get(d["map"])
         if r:
             try:
@@ -361,8 +397,10 @@ class Instances:
                     m = self.maps.maps.get(uid)
                     if m and m["type"] == 3 and m["name"] != "The Great Sea":
                         if self.fl not in CLASSIC_POINT_CHECK or not loc_maps or uid in loc_maps:
+                            if loc_maps and uid not in loc_maps and fallback_door:
+                                return fallback_door        # both off the named zones: the door pin, not the ghost
                             return uid, x, y, "blizzard"
-        # 3. {{Coords}} / {{co}} in the lead section of the wiki instance page matching one of the infobox's outdoor zones
+        # 4. {{Coords}} / {{co}} in the lead section of the wiki instance page matching one of the infobox's outdoor zones
         if self.atlas and loc_maps:
             lead_txt = WT.sections(d["text"]).get("", "")
             for cx, cy, czone, _s, _e in WT.coords(lead_txt):
@@ -373,6 +411,8 @@ class Instances:
                     m = self.maps.maps.get(uid)
                     if m and m["type"] == 3 and uid in loc_maps and m["name"] != "The Great Sea":
                         return uid, px, py, "wiki"
+        if fallback_door:
+            return fallback_door
         return None
 
     def loc_zone(self, d):
@@ -870,6 +910,7 @@ class Gen:
             if ent:
                 zname = maps.maps[ent[0]]["name"]
                 where_src = (f"Warcraft Wiki, {d['page']}" if ent[3] == "wiki" else
+                             "Blizzard Encounter Journal entrance" if ent[3] == "journal" else
                              "Blizzard Map table, where a ghost returns to the instance")
                 return (f"D {title}|M|{ent[1]:.1f},{ent[2]:.1f}|Z|{ent[0]}; {zname}|N|The entrance to {name}"
                         f"{(' (' + loc_words + ')') if loc_words else ''}. (location: {where_src})|")
@@ -988,7 +1029,7 @@ class Gen:
             "-- https://warcraft.wiki.gg, by its contributors, licensed under CC BY-SA 4.0",
             "-- (https://creativecommons.org/licenses/by-sa/4.0/). This data file is shared under the same licence;",
             "-- see Guides/WIKI_DATA_LICENSE.md. Instances and entrances from the wiki's instance pages; which instances a",
-            "-- client has and fallback entrances (Map Corpse position) from Blizzard client tables Map / JournalInstance via wago.tools (facts).",
+            "-- client has and entrances (Encounter Journal door pins, Map Corpse position) from Blizzard client tables Map / JournalInstance / JournalInstanceEntrance via wago.tools (facts).",
             "local _, NS = ...", gate, "local R = NS.Guide.Register", ""]
         if routes:
             # Imported_Wiki's provenance lines (Blizzard quest pins, player contributions) apply to the lines copied here

@@ -1,4 +1,37 @@
-# Status / handoff (2026-11-18: Dungeons section built, reviewed and fixed)
+# Status / handoff (2026-11-24: Retail dungeon doors from Blizzard's Encounter Journal; no GitHub compute)
+
+## 2026-11-24: Retail dungeon doors from Blizzard's Encounter Journal door pins (`dungeon-doors`)
+
+Offline only. **Nothing here has run in a real WoW client.**
+
+* `tools/wiki/gen_dungeons.py` reads Retail's `JournalInstanceEntrance` (the Encounter Journal's door marker, world
+  coordinates, joined to the instance map through `JournalInstance`). Order of entrance sources: wiki infobox
+  `{{Coords}}`, then the door pin when it lands on a zone the infobox names, then `Map.Corpse` (a ghost's return
+  point), then wiki lead-section `{{Coords}}`, then a door pin on another zone. Steps say "location: Blizzard
+  Encounter Journal entrance".
+* Retail routes with a door point: **148 -> 249 of 279**; steps without a point 8,393 -> 8,257. Era, TBC, Forever and
+  MoP Classic files change only in the header line (their builds have no such table: wago.tools answers HTTP 400).
+* Check against the old points: 92 routes changed source, median 0.2 map units apart, 90% within 1.2. The largest
+  moves are instances with several doors or a graveyard away from the gate (Temple of Ahn'Qiraj 12.6, Gundrak 9.5,
+  Maraudon 8.5, Gate of the Setting Sun 8.2). Ruins of Ahn'Qiraj's pin converts onto Uldum's map (it lies just past
+  the Silithus map edge); the old point was the Silithus graveyard.
+* Tests: `tools/test_dungeons.lua` 47 + 2 new Retail checks pass (at least 240 doors with a point; Ruins of
+  Ahn'Qiraj uses the door pin); `luajit tools/vplayer.lua retail --type Dungeons`: 279/279 finished, 0 stalls.
+
+## 2026-11-24: no GitHub compute (PR #29 here, PR #3 in wow-completionist-data)
+
+The owner's standing rule is no GitHub compute, but CI ran on every push and PR since August. Both repositories'
+workflows are archived in `archive/github-actions/`. Here, `sh tools/check_all.sh` runs the same checks locally
+(luacheck errors, `validate_toc`, `test_load_all`, `test_offline`, `test_package`, `test_contrib_gen`). In the data
+repository, `python3 tools/process_issues.py [--apply]` merges Location contribution issues on the maintainer's
+machine (one commit per issue, report posted, issue closed).
+
+Also measured on 2026-11-24: **every quest that has a wiki page is already in a guide** on all five clients. The
+client quest ids no guide covers (era 1,505, TBC 1,136, Forever 3,127, MoP 5,985, Retail 34,100) are, apart from
+the wiki pages skipped by a rule (Season of Discovery, removed, other game version), ids with no wiki page at all.
+Forever has 1,811 ids the Era client does not (1,727 of them 90000+); the wiki has pages for 190. The coverage
+gap is location (Era steps: 43% zone only), not missing quests.
+
 
 ## 2026-11-18: Dungeons section with lead-up chains, entrance and inside steps (`dungeons`)
 

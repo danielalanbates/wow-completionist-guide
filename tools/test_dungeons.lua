@@ -315,6 +315,26 @@ for _, fl in ipairs(W.FLAVORS) do
             local za = routes["dungeon:retail:zul-aman:Alliance"]
             t("retail: Zul'Aman dungeon route is not polluted by the Midnight outdoor zone quests",
               za and #za.steps < 100, za and #za.steps)
+            -- Blizzard's Encounter Journal door pins (JournalInstanceEntrance): 249 of 279 Retail routes have a door
+            -- with a point on 2026-11-24 (148 before). Fewer than 240 means the pins stopped being read.
+            local withPoint, total = 0, 0
+            for _, rid in ipairs(order) do
+                local r = routes[rid]
+                for _, s in ipairs(r and r.steps or {}) do
+                    if s.action == "D" then
+                        total = total + 1
+                        if s.coords and s.coords[1] then withPoint = withPoint + 1 end
+                        break
+                    end
+                end
+            end
+            t("retail: at least 240 dungeon routes have a door with a point (Encounter Journal door pins)",
+              withPoint >= 240, withPoint .. " of " .. total)
+            local aq = routes["dungeon:retail:ruins-of-ahn-qiraj"] or routes["dungeon:retail:ruins-of-ahn-qiraj:Alliance"]
+            local aqDoor
+            for _, s in ipairs(aq and aq.steps or {}) do if s.action == "D" then aqDoor = s break end end
+            t("retail: Ruins of Ahn'Qiraj door is Blizzard's door pin, not the graveyard",
+              aqDoor and aqDoor.note and aqDoor.note:find("Encounter Journal", 1, true) ~= nil, aqDoor and aqDoor.note)
         end
         if cycles > 0 then print(("%s: %d accept(s) whose PRE chain runs into a loop in the wiki data (not failed)"):format(fl.name, cycles)) end
         print(("%s: %d dungeon routes, %d checks passed, %d failed"):format(fl.name, #order, passed - p0, failed - f0))
