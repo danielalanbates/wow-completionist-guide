@@ -57,8 +57,13 @@ Culling of Stratholme quest).
 | which instances | wiki pages with `{{Infobox instance}}` (`tools/wiki/cache/wiki_raw.sqlite`, `fetch_wiki.py --templates "Infobox instance"`), the client's twin first (`(Classic)` on era/Forever, `(BC Classic)` / `(Burning Crusade)` on TBC, `(Burning Crusade)` on MoP); scenarios, delves, Season of Discovery and pet battle pages are left out |
 | client has it, raid or dungeon, expansion | Blizzard `Map` (InstanceType 1/2, ExpansionID) and `JournalInstance` of the client (and MoP / Retail journal names) via `tools/wiki/db2_fetch.py` |
 | level range | the client's `LFGDungeons` (normal difficulty, lowest minimum); Retail without one: the wiki's `Template:Level`; else the quests' levels; else the infobox |
-| entrance point | `{{Coords}}` / `{{co}}` in the wiki infobox's `loc` field; else Retail `Map.Corpse_0/1` + `CorpseMapID` (the spot a ghost is sent back to: the instance portal) converted to the client's zone map (on era, TBC and Forever only when it lands in the zone the Classic page's `loc` names; Blackrock Mountain resolves to Burning Steppes / Searing Gorge, never `The Great Sea`); else `{{Coords}}` in the wiki page's lead section matching the infobox zone |
+| entrance point | `{{Coords}}` / `{{co}}` in the wiki infobox's `loc` field; else (Retail only, added 2026-11-24) Blizzard's Encounter Journal door pin `JournalInstanceEntrance.Position_0/1` + `MapID`, joined to the instance through `JournalInstance`, when it lands in a zone the infobox names; else Retail `Map.Corpse_0/1` + `CorpseMapID` (the spot a ghost is sent back to: the instance portal) converted to the client's zone map (on era, TBC and Forever only when it lands in the zone the Classic page's `loc` names; Blackrock Mountain resolves to Burning Steppes / Searing Gorge, never `The Great Sea`); else `{{Coords}}` in the wiki page's lead section matching the infobox zone; else the door pin on another zone (Ruins of Ahn'Qiraj: the pin converts onto Uldum's map, just past the Silithus map edge) |
 | no point | the instance's own map (Retail / MoP / TBC: the add-on learns or asks the journal for the door), else the infobox zone, with the wiki's location words in the note |
+
+The door pins agree with the Corpse points where both exist (92 routes changed source: median 0.2 map units apart,
+90% within 1.2; the largest are instances with several doors or a graveyard away from the gate: Temple of Ahn'Qiraj
+12.6, Gundrak 9.5, Maraudon 8.5, Gate of the Setting Sun 8.2). MoP Classic, TBC, Era and Forever have no
+`JournalInstanceEntrance` table (wago.tools answers 400 for their builds).
 
 The Corpse point is the portal itself, which can lie underground (The Deadmines: 38.2,77.5 in Westfall, the tunnel
 under Moonbrook); the step's note names the place from the infobox ("Moonbrook, Westfall").
@@ -71,7 +76,7 @@ under Moonbrook); the step's note names the place from the infobox ("Moonbrook, 
 | tbc | 50 | 76 (58 / 18) | 735 | 682 | 118 | 4,901 | 3,087 | 70 of 76 | 0 |
 | forever | 31 | 54 (44 / 10) | 633 | 413 | 78 | 3,648 | 1,591 | 47 of 54 | 0 |
 | mop | 94 | 144 (113 / 31) | 793 | 1,206 | 79 | 6,540 | 3,420 | 125 of 144 | 3 |
-| retail | 181 | 279 (209 / 70) | 1,388 | 9,871 | 310 | 42,319 | 8,393 | 148 of 279 | 7 |
+| retail | 181 | 279 (209 / 70) | 1,388 | 9,871 | 310 | 42,319 | 8,257 | 249 of 279 (148 before the door pins, 2026-11-24) | 7 |
 
 Counts are per route (a quest in an Alliance and a Horde route counts twice). Steps without a point are mostly the
 zone routes' own gaps carried over (lead-up and turn-in steps; `step_detail.py` notes). File sizes: era 0.6 MB, TBC
@@ -104,7 +109,10 @@ the live window, like the quest-line routes.
 
 ## 7. Pathways
 
-* An entrance table from Blizzard `AreaTrigger` near the Corpse point would give a surface door instead of the portal.
+* Retail door pins are in (2026-11-24). The 30 Retail routes still without a door point: 28 on the instance's own map,
+  2 on a zone; most are Midnight instances the journal does not pin yet (re-fetch when the build moves).
+* An entrance table from Blizzard `AreaTrigger` near the Corpse point would give a surface door instead of the portal
+  on the Classic clients (no journal pins there).
 * Retail lead-ups are long where dungeon quests close a campaign; a "lead-up from the last campaign chapter" option
   could cut them, at the cost of the owner's "all the quests leading up".
 * Bake dungeon routes (`cost_matrix.lua` loads only the wiki zone routes).
