@@ -1,5 +1,23 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
+## 2026-11-25 late night: review of wiki-refresh-forever (PR #33, merged, installed)
+
+Offline only. **Nothing here has run in a real WoW client.**
+* Sources: the diff reads only warcraft.wiki.gg (cached, 1.2 s spacing) and Blizzard DB2; no other addon's data.
+* 150 changed steps sampled (30 per flavor, quest or giver page re-fetched in the refresh, `verify/sample_refresh.py`
+  in the work folder): quest names 150/150 match the wiki, every point traced to the
+  quest page, the NPC page, a named place page or a Classic-map conversion of one (Gadgetzan, Cenarion Hold, Fray
+  Island, Uzzek); Baron Sablemane resolves through Sabellian. 0 wrong points found.
+* Found and fixed: `refresh_changed.py` listed only edits/creations, so renamed pages were missed. It now also reads the
+  move log (`rctype=edit|new|log`, target title in namespace 0) and has `--titles-file` (no refresh_log row). The 115
+  moves since 2026-11-07 were re-fetched (3 requests): 2 pages changed (More Valuable Than Gold (world quest), Scarlet
+  Banner (Silverpine Forest)). Test `tools/test_refresh_changed.py`, now in check_all.sh.
+* Reparsed, regenerated all, forever_unmapped rewritten (same 1,469), rebake: 0 to do on all five; check_all green.
+* Forever quest pins (26 POI steps, Westfall/Elwynn/Stormwind Forever-only chain) look geographically right but are
+  unchecked in game; "Destruction in Deadmines" accept/turn-in at Westfall 38.7,83.7 is the POI turn-in area, which
+  may be the dungeon end rather than Alba Fairmoon's spot.
+* Next: beta feedback from the owner; the 1,467 unnamed Forever ids wait for wiki pages or player contributions;
+  Retail vplayer was not run.
 ## 2026-11-25 night: wiki cache refresh + Forever-only quest ids (`wiki-refresh-forever`)
 
 Offline only. **Nothing here has run in a real WoW client.** Not installed; no release.
