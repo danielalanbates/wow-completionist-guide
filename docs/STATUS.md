@@ -1,4 +1,24 @@
-# Status / handoff (2026-11-25: recovered pre-4.0.3 Classic quest points merged; no GitHub compute)
+# Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
+
+## 2026-11-25 evening: history points complete (`history-points-complete`)
+
+Offline only. **Nothing here has run in a real WoW client.**
+
+* `fetch_coord_history.py --recover` finished: 3,458 pages asked (all 3,204 candidates), 1,288 pages / 1,804 points recovered.
+* Cataclysm beta rule (`wikimaps.prefer_prejuly`, `PREJULY = 2010-07-01`, `fetch_coord_history.py --prejuly`, tables
+  `prejuly_pages` / `prejuly_points`): every cited revision dated on or after 2010-07-01 (1,196 pages) was checked against
+  the page's last revision before that date. Per zone, differing pre-July numbers win; a zone with no pre-July point keeps
+  the later numbers. Result: 1,140 identical, 3 pages replaced, 33 had no pre-July point (kept); 764 Classic marks, none dropped.
+  Tests in `tools/test_history_points.py`.
+* Regenerated wiki guides + spine, dungeons, gold, professions, missions/achievements, QuestDeps, QuestIndex (5 flavors).
+* Map-point coverage (`docs/verification.sqlite` step_points, labels before-complete-2026-11-25 / after-complete-2026-11-25):
+  Wiki Era 49.5 -> 52.3%, TBC 53.1 -> 55.2%, Forever 50.3 -> 53.0%, MoP 57.0 -> 57.0% (18,358 -> 18,346), Retail unchanged.
+  Dungeons Era 55.3 -> 57.2%, TBC 35.5 -> 38.2%, Forever 55.6 -> 57.2%.
+* Rebake: 506 stale guides baked and gated, 0 failed (`bake_resume.py --jobs 3`). Rows file seeded from the old job dir into
+  `_work/CompletionistGuide-work/tmp/routeopt` (CR_TMP).
+* `tools/test_contrib_gen.py` fixture: quest 52 objective 1 gained a recovered point, so case C:52:1 moved to C:15:1.
+* check_all.sh green; vplayer Era/TBC/Forever/MoP 0 stalls, 0 errors. Not installed; no release.
+
 
 ## 2026-11-25: Classic quest points from pre-4.0.3 wiki revisions (`classic-history-points`, PR #31, merged a5a92df)
 
