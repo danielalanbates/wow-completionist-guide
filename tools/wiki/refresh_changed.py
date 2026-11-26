@@ -10,7 +10,7 @@
     python3 tools/wiki/refresh_changed.py --dry-run                   # count changed titles only
 
 Source: https://warcraft.wiki.gg (CC BY-SA 4.0). Step 1 lists main-namespace edits/creations with
-list=recentchanges (the wiki keeps 90 days). Step 2 asks each changed title, 50 per request, for its current
+list=recentchanges (the wiki keeps 90 days), plus the new title of each page moved in that window. Step 2 asks each changed title, 50 per request, for its current
 revision and which of the templates it embeds. A cached page of a refreshed template is replaced when its revid
 changed; a page that newly embeds the template is added; a page that no longer does keeps its row (the parser
 decides). Polite: one request at a time, >= 1.2 s apart, maxlag=5, generic UA (fetch_wiki.Client).
@@ -38,11 +38,18 @@ def since_for(db, template):
 def changed_titles(cli, since, until):
     titles, cont = {}, {}
     while True:
-        p = {"action": "query", "list": "recentchanges", "rcnamespace": "0", "rctype": "edit|new",
-             "rcprop": "title|timestamp", "rclimit": "500", "rcdir": "older", "rcstart": until, "rcend": since}
+        p = {"action": "query", "list": "recentchanges", "rcnamespace": "0", "rctype": "edit|new|log",
+             "rcprop": "title|timestamp|loginfo", "rclimit": "500", "rcdir": "older", "rcstart": until, "rcend": since}
         p.update(cont)
         d = cli.get(p)
         for rc in d.get("query", {}).get("recentchanges", []):
+            if rc.get("type") == "log":
+                # a renamed page keeps its pageid under a new title and makes no edit entry: fetch the target title
+                lp = rc.get("logparams") or {}
+                tgt = lp.get("target_title")
+                if rc.get("logtype") == "move" and tgt and lp.get("target_ns") == 0:
+                    titles.setdefault(tgt, rc["timestamp"])
+                continue
             titles.setdefault(rc["title"], rc["timestamp"])
         cont = d.get("continue") or {}
         if not cont:
@@ -57,6 +64,8 @@ def main():
     ap.add_argument("--since", help="ISO timestamp; default: each template's last fetch/refresh")
     ap.add_argument("--min-interval", type=float, default=1.2)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--titles-file", help="re-fetch these titles (one per line) instead of listing changes; "
+                    "writes no refresh_log row, so the next normal run's window is unchanged")
     a = ap.parse_args()
     db = open_db(a.db)
     db.execute(LOG)
@@ -68,7 +77,10 @@ def main():
     until = now()
     cli = Client(a.min_interval)
     print(f"changes {since} .. {until} ({', '.join(temps)})", flush=True)
-    ch = changed_titles(cli, since, until)
+    if a.titles_file:
+        ch = {t.strip(): until for t in open(a.titles_file, encoding="utf-8") if t.strip()}
+    else:
+        ch = changed_titles(cli, since, until)
     print(f"changed main-namespace titles: {len(ch)}", flush=True)
     if a.dry_run:
         return 0
@@ -119,7 +131,7 @@ def main():
         db.commit()
         if (i // 50) % 20 == 0:
             print(f"  {i + len(chunk)}/{len(titles)} titles; updated {upd} added {add}", flush=True)
-    for t in temps:
+    for t in temps if not a.titles_file else []:
         db.execute("INSERT INTO refresh_log(template, since, until, changed_titles, updated, added, at) "
                    "VALUES(?,?,?,?,?,?,?)", (t, sinces[t], until, len(ch), upd[t], add[t], now()))
     db.commit()
