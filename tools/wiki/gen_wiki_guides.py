@@ -47,7 +47,7 @@ Step location priority (docs/WIKI_DATA_SPEC.md 3/4):
   2. the linked NPC / object / place page ({{Npcbox}} location, {{Npclocations}} row for the client's expansion,
      lead sentence); an item objective follows the item page's drop sources to a page with coordinates.  A coordinate
      that already stood on its page before patch 4.0.3 is a Classic-map number (tools/wiki/fetch_coord_history.py).
-  3. retail only: the client's own quest pin (QuestPOIBlob/QuestPOIPoint): the turn-in area for T (and for A when the
+  3. retail and forever: the client's own quest pin (QuestPOIBlob/QuestPOIPoint): the turn-in area for T (and for A when the
      wiki names the same NPC for both), the objective area for C.  Note "(location: Blizzard quest POI, ...)".  Ships.
   4. a place players contributed (class Contributions): the merged area of the step's key, "A:<quest>" for an accept,
      "T:<quest>" for a turn-in, "C:<quest>:<objective>" for an objective (the number of the step's |QO| tag, 0 for a
@@ -319,7 +319,7 @@ class QuestPOI:
     """the client's own quest map pins (retail QuestPOIBlob + QuestPOIPoint, Blizzard data via wago.tools): the turn-in
     area (ObjectiveIndex -1) and each objective's area (ObjectiveIndex n-1 for QO n; index 32 is the client's "next
     waypoint" hint, not an objective).  Shippable client facts.  Era, TBC and MoP Classic carry no quest pins (MoP's table holds only
-    Archaeology dig sites), so this is retail only."""
+    Archaeology dig sites), so this is retail and WoW Forever (its own pins for Forever-only quests)."""
 
     def __init__(self, fl, maps):
         self.q = defaultdict(dict)
@@ -1104,7 +1104,7 @@ class Gen:
     def run(self, fl):
         maps = self.atlas.sets[fl]
         fb = Fallback(fl, self.era_to_forever if fl == "forever" else None) if self.use_fallback else None
-        poi = QuestPOI(fl, maps) if fl == "retail" else None
+        poi = QuestPOI(fl, maps) if fl in ("retail", "forever") else None
         contrib = Contributions(self.contrib_dir, fl, maps) if self.contrib_dir else None
         if contrib is not None and not contrib.areas:
             self.contrib_seen[fl], contrib = contrib, None      # no areas file, one that cannot be read, nothing usable

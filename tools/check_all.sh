@@ -20,5 +20,6 @@ step python3 tools/test_package.py
 step python3 tools/test_contrib_gen.py
 step python3 tools/test_history_points.py
 step python3 tools/test_tmp_default.py
+step python3 tools/test_refresh_changed.py
 [ "$fail" = 0 ] && echo "\nall checks passed" || echo "\nsome checks FAILED"
 exit "$fail"

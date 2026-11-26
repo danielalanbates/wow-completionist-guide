@@ -9,6 +9,7 @@ another addon's data: there is one build, and what this pipeline writes by defau
 ```
 nice -n 10 python3 tools/wiki/fetch_wiki.py        # 1. infobox pages -> cache/wiki_raw.sqlite (~51 min, resumable)
 nice -n 10 python3 tools/wiki/parse_wiki.py        # 2. -> wiki.sqlite
+nice -n 10 python3 tools/wiki/refresh_changed.py   # 1b. later: re-fetch only Questbox/Npcbox pages edited since the last run, then 2
 nice -n 10 python3 tools/wiki/fetch_titles.py      # 3. pages quests link to that step 1 missed (items, objects,
 nice -n 10 python3 tools/wiki/parse_wiki.py        #    subzones, redirects); run 3+2 again for item drop sources.
                                                    #    --db2-names also tries quest-starting items, criteria items and

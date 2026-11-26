@@ -1,5 +1,52 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
+## 2026-11-25 late night: review of wiki-refresh-forever (PR #33, merged, installed)
+
+Offline only. **Nothing here has run in a real WoW client.**
+* Sources: the diff reads only warcraft.wiki.gg (cached, 1.2 s spacing) and Blizzard DB2; no other addon's data.
+* 150 changed steps sampled (30 per flavor, quest or giver page re-fetched in the refresh, `verify/sample_refresh.py`
+  in the work folder): quest names 150/150 match the wiki, every point traced to the
+  quest page, the NPC page, a named place page or a Classic-map conversion of one (Gadgetzan, Cenarion Hold, Fray
+  Island, Uzzek); Baron Sablemane resolves through Sabellian. 0 wrong points found.
+* Found and fixed: `refresh_changed.py` listed only edits/creations, so renamed pages were missed. It now also reads the
+  move log (`rctype=edit|new|log`, target title in namespace 0) and has `--titles-file` (no refresh_log row). The 115
+  moves since 2026-11-07 were re-fetched (3 requests): 2 pages changed (More Valuable Than Gold (world quest), Scarlet
+  Banner (Silverpine Forest)). Test `tools/test_refresh_changed.py`, now in check_all.sh.
+* Reparsed, regenerated all, forever_unmapped rewritten (same 1,469), rebake: 0 to do on all five; check_all green.
+* Forever quest pins (26 POI steps, Westfall/Elwynn/Stormwind Forever-only chain) look geographically right but are
+  unchecked in game; "Destruction in Deadmines" accept/turn-in at Westfall 38.7,83.7 is the POI turn-in area, which
+  may be the dungeon end rather than Alba Fairmoon's spot.
+* Next: beta feedback from the owner; the 1,467 unnamed Forever ids wait for wiki pages or player contributions;
+  Retail vplayer was not run.
+## 2026-11-25 night: wiki cache refresh + Forever-only quest ids (`wiki-refresh-forever`)
+
+Offline only. **Nothing here has run in a real WoW client.** Not installed; no release.
+
+* `tools/wiki/refresh_changed.py` (new): incremental cache refresh. `list=recentchanges` since each template's last
+  fetch (Questbox 11-07, Npcbox 11-07/11-11) found 10,229 changed main-namespace titles; each was asked (50 per
+  request, 238 requests, 1.2 s apart) for its current revision and templates. Questbox: 966 pages updated, 174 new;
+  Npcbox: 1,539 updated, 161 new. Runs are logged in `wiki_raw.sqlite` `refresh_log`, so the next run starts where
+  this one ended. Reparsed into `wiki.sqlite`.
+* WoW Forever now uses the Forever client's own quest pins (QuestPOIBlob/QuestPOIPoint, build wowf 1.60.1.70790) the
+  way Retail does: 25 Forever steps gained a pin point.
+* Forever-only quest ids (1,811 in Forever's QuestV2 but not Era's): the wiki now has pages for **344** (was 190);
+  **342 are in a Forever guide**; the other 2 (Cult Ambush 92480, The Rusty Gadget 93173) are marked removed from beta on
+  the wiki and stay skipped. The 1,467 ids without a wiki page cannot become steps: the client tables carry no quest
+  names (QuestV2 holds only a bit flag; quest names come from the server). Forever's QuestPOIBlob (57 rows),
+  QuestLineXQuest (22) and quest Criteria give a map/line/criterion for 28 of them. All 1,469 are listed with their
+  reason in `docs/verification.sqlite` `forever_unmapped` (`tools/forever_unmapped.py`, summary row in
+  `forever_only_summary`): 1,439 no page and no client data, 28 no page with client data but no name, 2 wiki-skipped.
+* Regenerated everything (wiki + spine, dungeons, gold, professions, achievements/questlines, QuestDeps, QuestIndex).
+  step_points labels before-refresh-2026-11-25 / after-refresh-2026-11-25: Wiki steps with a point Era 5,056 -> 5,067,
+  TBC 8,225 -> 8,239, Forever 5,415 -> 5,637 (steps 10,217 -> 10,709), MoP 18,346 -> 18,352, Retail 64,781 -> 64,776.
+  Forever Dungeons 3,276 -> 3,058 steps: Zul'Gurub's Alliance and Horde routes merged into one (its quests no longer differ
+  by faction on the refreshed pages).
+* Rebake: 312 stale guides baked and gated, 0 failed, 19 min (`bake_resume.py --jobs 3`, CR_TMP=<work>/tmp); dry run
+  afterwards 0 to do on all five. check_all.sh green. vplayer: Era 183, TBC 265, Forever 199, MoP 567 guides, 0 stalls,
+  0 errors (Retail not run, as before).
+* Not done: install into the clients, Drive canonical sync, merge. The 1,467 Forever ids with no wiki page stay
+  unguided until the wiki (or player contributions) names them.
+
 ## 2026-11-25 evening: history points complete (`history-points-complete`)
 
 Offline only. **Nothing here has run in a real WoW client.**
