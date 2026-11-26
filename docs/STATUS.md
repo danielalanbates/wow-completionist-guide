@@ -1,5 +1,29 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
+## 2026-11-25 night: wiki cache refresh + Forever-only quest ids (`wiki-refresh-forever`)
+
+Offline only. **Nothing here has run in a real WoW client.** Not installed; no release.
+
+* `tools/wiki/refresh_changed.py` (new): incremental cache refresh. `list=recentchanges` since each template's last
+  fetch (Questbox 11-07, Npcbox 11-07/11-11) found 10,229 changed main-namespace titles; each was asked (50 per
+  request, 238 requests, 1.2 s apart) for its current revision and templates. Questbox: 966 pages updated, 174 new;
+  Npcbox: 1,539 updated, 161 new. Runs are logged in `wiki_raw.sqlite` `refresh_log`, so the next run starts where
+  this one ended. Reparsed into `wiki.sqlite`.
+* WoW Forever now uses the Forever client's own quest pins (QuestPOIBlob/QuestPOIPoint, build wowf 1.60.1.70790) the
+  way Retail does: 25 Forever steps gained a pin point.
+* Forever-only quest ids (1,811 in Forever's QuestV2 but not Era's): the wiki now has pages for **344** (was 190);
+  **342 are in a Forever guide**; the other 2 (Cult Ambush 92480, The Rusty Gadget 93173) are marked removed from beta on
+  the wiki and stay skipped. The 1,467 ids without a wiki page cannot become steps: the client tables carry no quest
+  names (QuestV2 holds only a bit flag; quest names come from the server). Forever's QuestPOIBlob (57 rows),
+  QuestLineXQuest (22) and quest Criteria give a map/line/criterion for 28 of them. All 1,469 are listed with their
+  reason in `docs/verification.sqlite` `forever_unmapped` (`tools/forever_unmapped.py`, summary row in
+  `forever_only_summary`): 1,439 no page and no client data, 28 no page with client data but no name, 2 wiki-skipped.
+* Regenerated everything (wiki + spine, dungeons, gold, professions, achievements/questlines, QuestDeps, QuestIndex).
+  step_points labels before-refresh-2026-11-25 / after-refresh-2026-11-25: Wiki steps with a point Era 5,056 -> 5,067,
+  TBC 8,225 -> 8,239, Forever 5,415 -> 5,637 (steps 10,217 -> 10,709), MoP 18,346 -> 18,352, Retail 64,781 -> 64,776.
+  Forever Dungeons 3,276 -> 3,058 steps: Zul'Gurub's Alliance and Horde routes merged into one (its quests no longer differ
+  by faction on the refreshed pages).
+
 ## 2026-11-25 evening: history points complete (`history-points-complete`)
 
 Offline only. **Nothing here has run in a real WoW client.**

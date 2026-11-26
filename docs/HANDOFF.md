@@ -2,6 +2,7 @@
 
 Read this first, then `docs/STATUS.md` (newest section on top), `docs/IDEAS.md` and `docs/FINISH_PLAN.md`.
 
+**2026-11-25 night:** branch wiki-refresh-forever: incremental wiki refresh (`tools/wiki/refresh_changed.py`), Forever quest pins, Forever-only ids charted in `forever_unmapped` (docs/STATUS.md top).
 **2026-11-25 evening:** branch history-points-complete finished the history fetch, added the Cataclysm beta rule, regenerated and rebaked (docs/STATUS.md top). Not merged or installed.
 **Earlier 2026-11-25:** master a5a92df includes PR #31 (Classic points recovered from pre-4.0.3 wiki revisions,
 history fetch only 1,130/~3,300 pages done). Installed in all five clients; not rebaked. Work clone lives in Drive at
