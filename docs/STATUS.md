@@ -4,6 +4,17 @@
 
 Offline only. **Nothing here has run in a real WoW client.**
 
+**Review (2026-11-25 night):** no Zygor/Questie/WoW-Pro/Wowhead data in the diff. 90 changed steps (30 each Era/TBC/Forever)
+checked against the cited wiki revision: 88 match the revision's points; the 2 Forever "misses" (Grimand Elmore, Mathias
+Shaw, Stormwind) are the intended Era->Forever Stormwind remap (uniform scale ~0.77), and every cited revision predates
+4.0.3. MoP/Retail changes are intended: pre-4.0.3 numbers that sat unmarked on current pages (Quae 60.0,53.0, Shards of
+Myzrael 66.0,30.0) are now marked Classic and converted onto the Cataclysm map (Quae -> 54.6,54.5). Dungeons: Forever lost two
+false instances (Ruins of Lordaeron, Excavation Site: Wetlands, which held Tirisfal/warlock quests); cause is the 13:12 wiki
+cache refresh (no Infobox instance page), not this branch. bake_resume --dry-run: 0 to do on all five. check_all green
+(test_contrib_gen's mtime snapshot failed once on Drive, passed on the rerun with no file changed). vplayer: Era 183, TBC 264,
+Forever 191, MoP 566 guides, 0 stalls; 2 MoP exploration achievement guides hit the CPU-time cap once and finish identically
+with --guidecap 600. Optimizer job folder now defaults to `<work>/tmp` beside the clone (`tools/test_tmp_default.py`).
+
 * `fetch_coord_history.py --recover` finished: 3,458 pages asked (all 3,204 candidates), 1,288 pages / 1,804 points recovered.
 * Cataclysm beta rule (`wikimaps.prefer_prejuly`, `PREJULY = 2010-07-01`, `fetch_coord_history.py --prejuly`, tables
   `prejuly_pages` / `prejuly_points`): every cited revision dated on or after 2010-07-01 (1,196 pages) was checked against
