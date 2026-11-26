@@ -23,6 +23,11 @@ Offline only. **Nothing here has run in a real WoW client.** Not installed; no r
   TBC 8,225 -> 8,239, Forever 5,415 -> 5,637 (steps 10,217 -> 10,709), MoP 18,346 -> 18,352, Retail 64,781 -> 64,776.
   Forever Dungeons 3,276 -> 3,058 steps: Zul'Gurub's Alliance and Horde routes merged into one (its quests no longer differ
   by faction on the refreshed pages).
+* Rebake: 312 stale guides baked and gated, 0 failed, 19 min (`bake_resume.py --jobs 3`, CR_TMP=<work>/tmp); dry run
+  afterwards 0 to do on all five. check_all.sh green. vplayer: Era 183, TBC 265, Forever 199, MoP 567 guides, 0 stalls,
+  0 errors (Retail not run, as before).
+* Not done: install into the clients, Drive canonical sync, merge. The 1,467 Forever ids with no wiki page stay
+  unguided until the wiki (or player contributions) names them.
 
 ## 2026-11-25 evening: history points complete (`history-points-complete`)
 
