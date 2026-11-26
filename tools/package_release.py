@@ -184,6 +184,8 @@ RULES = (
       "generated"),
     R("Data/Taxi_*.lua", "blizzard-client-data", BLIZZARD, "Blizzard TaxiNodes, TaxiPath and TaxiPathNode tables",
       "tools/gen_taxi.py", "tracked"),
+    R("Data/Doors_retail.lua", "blizzard-client-data", BLIZZARD, "Blizzard JournalInstanceEntrance, JournalInstance "
+      "and Map tables (instance door points)", "tools/gen_doors.py", "tracked"),
     R("Data/MapFix_forever.lua", "blizzard-client-data", BLIZZARD, "Blizzard UiMapAssignment table (era and Forever)",
       "tools/gen_mapfix_forever.py", "tracked"),
     R("Data/ZoneAliases.lua", "blizzard-client-data", BLIZZARD, "Blizzard UiMap ids; English names edited by hand",

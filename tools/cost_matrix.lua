@@ -53,7 +53,7 @@ outPath = outPath or ((os.getenv("CR_TMP") or (((arg and arg[0] or "tools/cost_m
 local TOC = { era = 11507, tbc = 20506, mop = 50504, retail = 120100, forever = 16001 }
 local TAXI = { era = "Data/Taxi_era.lua", tbc = "Data/Taxi_tbc.lua", mop = "Data/Taxi_mop.lua", retail = "Data/Taxi_retail.lua",
                forever = "Data/Taxi_forever.lua" }
-local EXTRA = { forever = "Data/MapFix_forever.lua" }
+local EXTRA = { forever = "Data/MapFix_forever.lua", retail = "Data/Doors_retail.lua" }   -- retail: shipped instance doors
 
 STUB_MAPS = dofile("tools/maps_" .. flavor .. ".lua")
 local ADDON, NS = "CompletionRoute", {}

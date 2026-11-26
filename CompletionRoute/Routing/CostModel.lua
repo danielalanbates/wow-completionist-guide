@@ -205,6 +205,13 @@ local function zoneCentre(s)
     if s._zwx then return s._zwx, s._zwy, s._zwinst end
     local HBD = NS.HBD
     if not (HBD and s.zone) then return nil end
+    -- a zone that is a dungeon/raid/pocket map the player is not standing in: its door, as for a step with a point
+    -- (Router.EntranceFor); not cached, since inside the instance the map's own centre is the answer
+    local Rt = NS.Router
+    if Rt and Rt.EntranceFor then
+        local ex, ey, ei = Rt.EntranceFor(s)
+        if ex then return ex, ey, ei end
+    end
     local wx, wy, inst = HBD:GetWorldCoordinatesFromZone(0.5, 0.5, s.zone)
     if wx then s._zwx, s._zwy, s._zwinst = wx, wy, inst end
     return wx, wy, inst

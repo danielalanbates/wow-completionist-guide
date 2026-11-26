@@ -62,8 +62,18 @@ function I.Learn()
 end
 
 -- Retail's own answer, when the client has one (no data of ours involved)
+-- the shipped door (Data/Doors_retail.lua, Blizzard JournalInstanceEntrance / Map corpse point) of an instance uiMap
+local function shipped(mapID)
+    local t = NS.DoorData and NS.DoorData[NS.dataFlavor or NS.flavor]
+    return t and t[mapID]
+end
+I.Shipped = shipped
+
 function I.FromJournal(mapID)
     if not (C_EncounterJournal and C_EncounterJournal.GetDungeonEntrancesForMap) then return nil end
+    -- a parent map can hold several instances' pins: take the one for THIS instance when the shipped table knows it
+    local sd = shipped(mapID)
+    local want = sd and sd[4] ~= 0 and sd[4] or nil
     local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
     local parent = info and info.parentMapID
     -- the entrance pins live on the OUTDOOR map, so ask the parent chain
@@ -72,7 +82,7 @@ function I.FromJournal(mapID)
         local ok, list = pcall(C_EncounterJournal.GetDungeonEntrancesForMap, parent)
         if ok and type(list) == "table" then
             for _, e in ipairs(list) do
-                if e.position and (e.journalInstanceID or e.name) then
+                if e.position and (e.journalInstanceID or e.name) and (not want or e.journalInstanceID == want) then
                     local x, y = e.position:GetXY()
                     if x then return { map = parent, x = x, y = y, name = e.name, src = "journal" }, e end
                 end
@@ -98,9 +108,14 @@ function I.Entrance(mapID)
             if d then d["map:" .. mapID] = j end
         end
     end
-    -- No door table ships: a door nobody has learned, shared or been given by the journal is unknown, and the step
-    -- inside is then "no route" until the player walks in once.
-    if not rec then return nil end
+    -- A door nobody has learned, shared or been given by the live journal falls back to Data/Doors_retail.lua (Retail
+    -- only; an instance with neither stays "no route" until the player walks in once).
+    if not rec then
+        -- last: Blizzard's own door point shipped with the addon (world coordinates already)
+        local sd = shipped(mapID)
+        if not sd then return nil end
+        return sd[2], sd[3], sd[1], { wx = sd[2], wy = sd[3], inst = sd[1], src = sd[5], name = "entrance" }
+    end
     local wx, wy, inst = U.World(rec.map, rec.x, rec.y)
     if not wx then return nil end
     return wx, wy, inst, rec

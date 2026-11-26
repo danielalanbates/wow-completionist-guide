@@ -11,6 +11,7 @@ local REQUIRE = {
         "Guides/Imported_Wiki_forever.lua" },
         forbid = { "Guides/Imported_Wiki_era.lua" } },
 }
+REQUIRE["CompletionRoute.toc"] = { iface = "120100", files = { "Data/Taxi_retail.lua", "Data/Doors_retail.lua" } }
 REQUIRE["CompletionRoute_Camelot.toc"] = REQUIRE["CompletionRoute_Forever.toc"]
 -- every flavor loads its own baked route order (tools/optimize_routes.py; generated, gitignored) and no other
 local ROUTE_ORDER = { ["CompletionRoute.toc"] = "retail", ["CompletionRoute_Mists.toc"] = "mop", ["CompletionRoute_TBC.toc"] = "tbc",
