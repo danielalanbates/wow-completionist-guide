@@ -48,7 +48,7 @@ for i = 2, #arg do
     elseif a == "--verify" then nverify = tonumber(arg[i + 1]) end
 end
 prefixes = prefixes or { "wiki:" }   -- the quest guides that ship and get a baked order: the wiki zone guides
-outPath = outPath or ((os.getenv("CR_TMP") or ((os.getenv("HOME") or ".") .. "/.claude/jobs/ff3c728a/tmp")) .. "/costmx/" .. flavor .. ".jsonl")
+outPath = outPath or ((os.getenv("CR_TMP") or (((arg and arg[0] or "tools/cost_matrix.lua"):match("^(.*)/[^/]*$") or ".") .. "/../../tmp")) .. "/costmx/" .. flavor .. ".jsonl")
 
 local TOC = { era = 11507, tbc = 20506, mop = 50504, retail = 120100, forever = 16001 }
 local TAXI = { era = "Data/Taxi_era.lua", tbc = "Data/Taxi_tbc.lua", mop = "Data/Taxi_mop.lua", retail = "Data/Taxi_retail.lua",

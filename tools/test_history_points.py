@@ -64,6 +64,45 @@ with tempfile.TemporaryDirectory() as td:
     check(hp == {"A": [("Duskwood", 33.4, 76.3, "location", 2539800)]}, "wikimaps.history_points reads the table")
     check(wikimaps.history_points(Path(td) / "missing.sqlite") == {}, "a missing table file reads as empty")
 
+# Cataclysm beta rule: a revision dated on or after 2010-07-01 is checked against the last one before it
+post = [("Duskwood", 33.4, 76.3, "location", 9), ("Elwynn Forest", 40.0, 60.0, "lead", 9)]
+rows, rep = wikimaps.prefer_prejuly(post, [("Duskwood", 30.0, 70.0, "location", 1)])
+check(("Duskwood", 30.0, 70.0, "location", 1) in rows and ("Duskwood", 33.4, 76.3, "location", 9) not in rows
+      and rep == {"duskwood"}, "pre-July numbers in the same zone replace different later ones")
+check(("Elwynn Forest", 40.0, 60.0, "lead", 9) in rows, "a zone with no pre-July point keeps the later rows")
+rows, rep = wikimaps.prefer_prejuly(post, [("Duskwood (Classic)", 33.44, 76.3, "lead", 1)])
+check(rows == post and not rep, "the same numbers (to 0.1) keep the cited revision")
+check(wikimaps.prefer_prejuly(post, [("Westfall", 1.0, 1.0, "x", 1)])[0] == post, "a zone only before July is not added")
+check(wikimaps.prefer_prejuly(post, None)[0] == post, "an unchecked page is unchanged")
+with tempfile.TemporaryDirectory() as td:
+    p = Path(td) / "h.sqlite"
+    db = sqlite3.connect(p)
+    db.execute("create table history_points(title text, zone text, x real, y real, source text, revid int, rev_time text, checked text)")
+    db.execute("create table history_pages(title text, revid int, rev_time text, points int, checked text)")
+    db.execute("create table coord_history(title text, zone text, x real, y real, pre_cata int, pre_revid int, pre_time text, checked text)")
+    db.execute("create table prejuly_pages(title text, revid int, rev_time text, points int, checked text)")
+    db.execute("create table prejuly_points(title text, zone text, x real, y real, source text)")
+    db.executemany("insert into history_points values (?,?,?,?,?,?,?,?)", [
+        ("Late", "Duskwood", 50.0, 50.0, "location", 20, "2010-10-01T00:00:00Z", ""),
+        ("Early", "Duskwood", 50.0, 50.0, "location", 21, "2010-03-01T00:00:00Z", "")])
+    db.executemany("insert into history_pages values (?,?,?,?,?)", [
+        ("Late", 20, "2010-10-01T00:00:00Z", 1, ""), ("Early", 21, "2010-03-01T00:00:00Z", 1, "")])
+    db.executemany("insert into coord_history values (?,?,?,?,?,?,?,?)", [
+        ("Late", "Duskwood", 60.0, 60.0, 1, 20, "2010-10-01T00:00:00Z", ""),
+        ("Kept", "Duskwood", 61.0, 61.0, 1, 22, "2010-10-01T00:00:00Z", "")])
+    db.executemany("insert into prejuly_pages values (?,?,?,?,?)", [("Late", 10, "2010-05-01T00:00:00Z", 1, ""),
+                                                                    ("Kept", 11, "2010-05-01T00:00:00Z", 1, "")])
+    db.executemany("insert into prejuly_points values (?,?,?,?,?)", [("Late", "Duskwood", 45.0, 45.0, "location"),
+                                                                     ("Kept", "Duskwood", 61.0, 61.0, "location")])
+    db.commit()
+    db.close()
+    hp = wikimaps.history_points(p)
+    check(hp["Late"] == [("Duskwood", 45.0, 45.0, "location", 10)], "history_points takes the pre-July revision and cites its revid")
+    check(hp["Early"] == [("Duskwood", 50.0, 50.0, "location", 21)], "a revision before July is not rechecked")
+    mk = wikimaps.history_marks(p)
+    check(("Late", "Duskwood", 60.0, 60.0) not in mk, "a post-July Classic mark that differs from the pre-July numbers is dropped")
+    check(("Kept", "Duskwood", 61.0, 61.0) in mk, "a mark the pre-July revision confirms is kept")
+
 import gen_wiki_guides as G  # noqa: E402
 
 g = G.Gen.__new__(G.Gen)

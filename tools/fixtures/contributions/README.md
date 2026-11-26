@@ -16,7 +16,7 @@ Each key tests one rule of `tools/wiki/gen_wiki_guides.py` (class `Contributions
 | `T:60`, `C:7:1` | Kobold Candles turn-in, Kobold Camp Cleanup objective (wiki points) | far from the wiki point: the wiki point stays, a conflict row is logged |
 | `T:54` | Report to Goldshire, turn-in (wiki point) | an area on another map than the wiki point is not compared |
 | `C:45:0` | Discover Rolf's Fate, objective written without `QO` | the add-on's key 0 |
-| `C:52:1` | Protect the Frontier, objective 1 (no wiki point) | two areas give two points |
+| `C:15:1` | Investigate Echo Ridge, objective 1 (no wiki point; Protect the Frontier objective 1 gained a pre-4.0.3 point on 2026-11-25) | two areas give two points |
 | `C:52:2` | Protect the Frontier, objective 2 (no wiki point) | five areas out of order, one on another map: the three heaviest on one map |
 | `C:3904:1`, `T:37` | Milly's Harvest objective, Find the Lost Guards turn-in | `single` areas are never used |
 | `T:46` | | a position off the map is dropped |

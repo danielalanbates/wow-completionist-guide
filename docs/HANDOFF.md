@@ -2,7 +2,8 @@
 
 Read this first, then `docs/STATUS.md` (newest section on top), `docs/IDEAS.md` and `docs/FINISH_PLAN.md`.
 
-**Current state 2026-11-25:** master a5a92df includes PR #31 (Classic points recovered from pre-4.0.3 wiki revisions,
+**2026-11-25 evening:** branch history-points-complete finished the history fetch, added the Cataclysm beta rule, regenerated and rebaked (docs/STATUS.md top). Not merged or installed.
+**Earlier 2026-11-25:** master a5a92df includes PR #31 (Classic points recovered from pre-4.0.3 wiki revisions,
 history fetch only 1,130/~3,300 pages done). Installed in all five clients; not rebaked. Work clone lives in Drive at
 `My Drive/Code/_work/CompletionistGuide-work/repo` (nothing under ~ outside Drive). **Next:** finish
 `tools/wiki/fetch_coord_history.py --recover`; refresh wiki cache Questbox/Npcbox -> regen -> rebake (+ verification.sqlite
@@ -52,7 +53,7 @@ separate GitHub repo** (see section 5, phase 4).
 | Offline measurement inputs | `tools/measure/questie/` (gitignored): the older Questie-derived `Imported_Quests_<flavor>.lua` files, read only by `gen_wiki_guides.py --measure-fallback` (`tools/measure/README.md`). |
 | Feature worktrees | `~/Downloads/CompletionistGuide-work/wt-skip` (`quest-skip`), `wt-graph` (`routing-graph`), `wt-bug` (`beta-bug-report`), `wt-pkg` (`release-packager`). Their generated-data paths are **symlinks into repo/**, so never write through them. `git worktree list` shows them. |
 | Python venv (OR-Tools) | `~/Downloads/CompletionistGuide-work/venv` |
-| Optimizer job directory | `~/.claude/jobs/ff3c728a/tmp` (hardcoded as `TMP` in `tools/optimize_routes.py` and `tools/cost_matrix.lua`; `CR_TMP` overrides it in `tools/bake_resume.py`). Result rows: `routeopt/<flavor>.jsonl`. |
+| Optimizer job directory | `<work>/tmp` beside the clone (`TMP_DEFAULT` in `tools/optimize_routes.py`, also `tools/collect_routes.py` and `tools/cost_matrix.lua`; env `CR_TMP` overrides it). Was `~/.claude/jobs/ff3c728a/tmp` until 2026-11-25. Result rows: `routeopt/<flavor>.jsonl`. |
 | Canonical copy | Google Drive → My Drive/Code/Completionist's Guide (has the generated data too). Sync with plain `cp` or `rsync` **without `--delete`**: on 2026-11-07 `rsync --delete` wiped the gitignored generated files and they had to be restored from the game folders. |
 | Game clients | `/Volumes/x10/Video Games/Mac/World of Warcraft/{_classic_era_,_anniversary_,_classic_,_retail_,_forever_}`. `tools/install.sh <dir>` installs the build: the whole `CompletionRoute` folder, file for file what the release zip holds (about 45 MB per client; a client loads only what its own TOC lists). A generated file that is not part of the build stops it. |
 

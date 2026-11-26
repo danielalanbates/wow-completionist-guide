@@ -198,7 +198,7 @@ def part1(tmp):
     atlas = gw.wikimaps.Atlas()
     maps = atlas.sets["era"]
     c = gw.Contributions(FIXTURE, "era", maps)
-    check(set(c.areas) == {"A:46", "A:45", "A:5805", "A:60", "A:9999999", "C:45:0", "C:52:1", "C:52:2", "C:60:1", "C:7:1",
+    check(set(c.areas) == {"A:46", "A:45", "A:5805", "A:60", "A:9999999", "C:45:0", "C:15:1", "C:52:2", "C:60:1", "C:7:1",
                            "T:54", "T:60", "T:6181"}, "only keys with a usable area are kept", sorted(c.areas))
     check(dict(c.skipped) == {"single": 2, "unknown map": 2, "malformed": 1, "not a quest step": 10},
           "single areas, unknown maps, a position off the map and a non-quest key are counted and not used", dict(c.skipped))
@@ -209,7 +209,7 @@ def part1(tmp):
     one = c.points("A:46")
     check(c.tag(one) == (1429, "74.0,72.4") and c.note(one) == " (location: player contributions, 3 players)",
           "accept: the heaviest area, one point, the note names the source and the players", (c.tag(one), c.note(one)))
-    two = c.points("C:52:1", gw.CONTRIB_POINTS)
+    two = c.points("C:15:1", gw.CONTRIB_POINTS)
     check(c.tag(two) == (1429, "70.2,77.4;76.6,80.2") and c.note(two) == " (location: player contributions, 1 player, 2 areas)",
           "an objective with two areas gets two points", (c.tag(two), c.note(two)))
     three = c.points("C:52:2", gw.CONTRIB_POINTS)
@@ -439,7 +439,7 @@ def part2(tmp, cdir, sha):
     drift = "the wiki data changed: pick another quest for this case (tools/fixtures/contributions/README.md)"
     pre = {
         "A:46": find(b, "A", 46), "A:45": find(b, "A", 45), "A:176": find(b, "A", 176), "A:5805": find(b, "A", 5805),
-        "C:45:0": find(b, "C", 45, 0), "C:52:1": find(b, "C", 52, 1), "C:52:2": find(b, "C", 52, 2),
+        "C:45:0": find(b, "C", 45, 0), "C:15:1": find(b, "C", 15, 1), "C:52:2": find(b, "C", 52, 2),
         "C:3904:1": find(b, "C", 3904, 1), "T:37": find(b, "T", 37), "T:6181": find(b, "T", 6181),
         "A:60": find(b, "A", 60), "T:60": find(b, "T", 60), "C:60:1": find(b, "C", 60, 1), "C:7:1": find(b, "C", 7, 1),
         "T:54": find(b, "T", 54),
@@ -447,7 +447,7 @@ def part2(tmp, cdir, sha):
     ok = check(all(pre.values()), "every fixture quest step is in the Classic Era guides", [k for k, v in pre.items() if not v])
     if not ok:
         return base
-    nopoint = ["A:46", "A:45", "A:176", "A:5805", "C:45:0", "C:52:1", "C:52:2", "C:3904:1", "T:37"]
+    nopoint = ["A:46", "A:45", "A:176", "A:5805", "C:45:0", "C:15:1", "C:52:2", "C:3904:1", "T:37"]
     check(all("|M|" not in pre[k] for k in nopoint), "precondition: these steps have no wiki point", drift)
     check("the wiki's Sentinel Hill page" in pre["T:6181"], "precondition: A Swift Message's turn-in comes from a wiki place page", drift)
     wikipt = ["A:60", "T:60", "C:60:1", "C:7:1", "T:54"]
@@ -472,7 +472,7 @@ def part2(tmp, cdir, sha):
     ln = new_line("C:45:0")
     check(ln is not None and "|QO|" not in ln and "|M|79.0,56.4|Z|1429; Elwynn Forest|" in ln and NOTE in ln,
           "an objective step without |QO| takes the area of key C:<quest>:0", ln)
-    ln = new_line("C:52:1")
+    ln = new_line("C:15:1")
     check(ln is not None and "|QO|1|" in ln and "|M|70.2,77.4;76.6,80.2|Z|1429; Elwynn Forest|" in ln
           and ln.endswith("(location: player contributions, 1 player, 2 areas)|"), "an objective with two areas gets two points", ln)
     ln = new_line("C:52:2")
@@ -491,7 +491,7 @@ def part2(tmp, cdir, sha):
 
     # --- nothing else changed ---
     strip_pre = re.compile(r"\|PRE\|[\d;]+\|")
-    fixture_quests = {46, 45, 5805, 52, 6181}
+    fixture_quests = {46, 45, 5805, 52, 15, 6181}
     diff = (Counter(strip_pre.sub("|", ln) for ln in b) - Counter(strip_pre.sub("|", ln) for ln in n)) + \
            (Counter(strip_pre.sub("|", ln) for ln in n) - Counter(strip_pre.sub("|", ln) for ln in b))
     other = sorted({quest_of(ln) for ln in diff} - fixture_quests)
@@ -555,7 +555,7 @@ def part2(tmp, cdir, sha):
         check(len(got) == 7 and not bad, "every contributed step, parsed by Core/Guide.lua and keyed by Core/Contribute.lua "
               "KeyFor, has the key, map and points of the areas it was given", bad or len(got))
     found = cov.scan(with_dir / "Imported_Wiki_era.lua", build=True)
-    check(found["quest-contrib"] == {46: 1, 45: 2, 5805: 1, 52: 2, 6181: 1} and all(found["quest"][q] for q in found["quest-contrib"]),
+    check(found["quest-contrib"] == {46: 1, 45: 2, 5805: 1, 52: 1, 15: 1, 6181: 1} and all(found["quest"][q] for q in found["quest-contrib"]),
           "tools/coverage.py counts those quests as located and their contributed steps", found["quest-contrib"])
     check((with_dir / "Imported_Spine_era.lua").exists() and (with_dir / "parts_era.json").exists(),
           "the spine and its sidecar were written into the temp folder too")
