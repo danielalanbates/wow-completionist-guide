@@ -101,3 +101,10 @@ quest pin (on Retail) and player contributions give no point names its zone only
 Its note then repeats what the wiki says about where: a sentence from the NPC's, object's or quest's wiki page (the
 quest page's Objectives line, or one or two sentences of its Notes or Description that name a place or a direction;
 quest text is Blizzard's, as the quest log shows it and the wiki records it), never a whole description.
+
+## Emulator spawn points
+
+Some quest steps in the wiki files carry a note "(location: <repository> spawn of npc|object <id>)". Their map point
+is the world position of that NPC or object in an open emulator world database (cmangos classic-db / tbc-db,
+TrinityCore TDB; GPL), converted onto the client's map. Only ids and coordinates, which are facts, are taken; no text
+from those databases is included. Sources and commits: `CREDITS.md` and `docs/EMU_DATA.md` in the project repository.

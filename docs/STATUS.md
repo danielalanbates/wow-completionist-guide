@@ -1,6 +1,26 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
 
+## 2026-11-27: emulator spawn points, last rung (`emu-spawn-points`)
+
+* New rung after wiki / quest pins / subzones: `tools/emu/emu_points.py` places A/T/C steps still without a point at
+  the giver's, ender's or objective target's spawn in an open GPL emulator DB (cmangos classic-db @64adf9f6 Era+Forever,
+  tbc-db @816863c7 TBC, TrinityCore TDB442.26081 / TDB1210.26091 MoP+Retail), converted with the client's UiMap
+  rectangles; map must match the step zone. Note names the repo; every value + commit in verification.sqlite
+  `emu_points`. Compact sqlite in tools/db2/emu (gitignored; `tools/emu/fetch_emu.sh`). Docs: docs/EMU_DATA.md, CREDITS.md.
+* Zone-only / none Wiki steps (step_points `before-/after-emu-2026-11-27`, before = clean CR_NO_EMU=1 regen):
+  era 3,191/810 -> 1,689/603; tbc 5,015/738 -> 2,616/605; forever 3,534/918 -> 2,032/707; mop 10,567/1,374 ->
+  6,560/1,090; retail 20,984/3,121 -> 18,908/2,867. Points: era 58.6->76.3%, tbc 61.6->78.5%, forever 58.5->74.4%,
+  mop 63.1->76.4%, retail 73.3->75.9%. Dungeons zone-only: era 679->318, tbc 2,338->1,622, mop 2,915->1,991,
+  retail 7,309->6,518 (forever Zul'Gurub faction guides merge: identical once placed).
+* Review: `tools/emu/trace_emu.py` 25 random emu steps per file (Wiki+Dungeons, 5 flavors, seed 1127): 250/250 =
+  source row links the entity to the quest/role, a spawn converts to |M| within 0.15, map is the step zone. No
+  forbidden sources. test_contrib_gen adjusted (emu is below contributions; wiki_point_sources gains `emu`).
+* Retail gap stays: modern NPCs have no open spawn data; item/event objectives have no target row (loot tables =
+  follow-up). Rebake 989 guides, 0 failed, dry run 0 to do. check_all green.
+* vplayer (CR_TMP vp_emu_*): era 182, tbc 265, forever 199, mop 566, retail Dungeons 271 (--guidecap 600 --taxi all):
+  0 stalls, 0 errors. Full Retail run not repeated.
+
 ## 2026-11-27: PR #40 reviewed; bake_resume CR_TMP fix (`bake-tmp-default`, PR #41)
 
 * Review: no forbidden sources in the #40 diff. 201 random shared-overlay steps (Wiki era/tbc/mop/retail 30 each,

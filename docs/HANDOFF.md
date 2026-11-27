@@ -2,6 +2,7 @@
 
 Read this first, then `docs/STATUS.md` (newest section on top), `docs/IDEAS.md` and `docs/FINISH_PLAN.md`.
 
+**2026-11-27 (3):** emu-spawn-points merged: GPL emulator spawns (cmangos/TrinityCore) fill zone-only/no-point steps; zone-only era -47%, tbc -48%, forever -43%, mop -38%, retail -10% (docs/STATUS.md top). Next: loot-table objectives, Midnight doors.
 **2026-11-27 (2):** PR #40 reviewed 201/201 traces ok; PR #41 bake_resume CR_TMP fix merged, installed, synced. mop vplayer: Exploration - Eastern Kingdoms hits the 90 s cap (timing edge). Next: Midnight doors, Retail full vplayer.
 **2026-11-27:** shared-overlays merged: subzones only in shared overlays get small-rectangle centres; zone-only tbc -2.4%, mop -3.2% (5% goal missed; docs/STATUS.md top). Next: Midnight doors, Retail full vplayer.
 **2026-11-26 late (3):** dungeon-subzones reviewed (150/150 traces ok); Jergosh Classic place fixed (jergosh-classic-page), rebaked, installed, synced. Next: shared overlays (Honor Hold), Midnight doors.
