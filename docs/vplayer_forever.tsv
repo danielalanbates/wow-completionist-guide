@@ -1,151 +1,160 @@
 flavor	guide	name	type	faction	zone	zone_name	steps	simulated	auto	manual	stalls	forced	laps	yards	seconds	no_route	finished	manual_reason	error
-forever	wiki:forever:1416:Alliance	Alterac Mountains Quests 24-38 (Alliance)	Quests	Alliance	1416	Alterac Mountains	17	15	15	0	0	0	0	13673	2418	0	1		
-forever	wiki:forever:1416:Both	Alterac Mountains Quests 80	Quests	Both	1416	Alterac Mountains	2	1	1	0	0	0	0	1192	106	0	1		
+forever	wiki:forever:1416:Alliance	Alterac Mountains Quests 24-40 (Alliance)	Quests	Alliance	1416	Alterac Mountains	23	19	19	0	0	0	0	14180	2487	0	1		
+forever	wiki:forever:1416:Both	Alterac Mountains Quests 58-60	Quests	Both	1416	Alterac Mountains	15	11	11	0	0	0	0	3450	1810	0	1		
 forever	wiki:forever:1416:Horde	Alterac Mountains Quests 24-34 (Horde)	Quests	Horde	1416	Alterac Mountains	13	11	11	0	0	0	0	5106	912	0	1		
 forever	wiki:forever:1417:Alliance	Arathi Highlands Quests 10-60 (Alliance)	Quests	Alliance	1417	Arathi Highlands	79	73	73	0	0	0	0	9726	29919	16	1		
 forever	wiki:forever:1417:Both	Arathi Highlands Quests 32-41	Quests	Both	1417	Arathi Highlands	40	39	39	0	0	0	0	44691	4109	0	1		
 forever	wiki:forever:1417:Horde	Arathi Highlands Quests 20-59 (Horde)	Quests	Horde	1417	Arathi Highlands	113	106	106	0	0	0	0	25942	32988	16	1		
-forever	wiki:forever:1440:Alliance	Ashenvale Quests 14-30 (Alliance)	Quests	Alliance	1440	Ashenvale	131	120	120	0	0	0	0	81320	12750	0	1		
+forever	wiki:forever:1440:Alliance	Ashenvale Quests 14-31 (Alliance)	Quests	Alliance	1440	Ashenvale	139	124	124	0	0	0	0	103848	14406	0	1		
 forever	wiki:forever:1440:Both	Ashenvale Quests 7-25	Quests	Both	1440	Ashenvale	15	15	15	0	0	0	0	6728	1128	0	1		
 forever	wiki:forever:1440:Horde	Ashenvale Quests 7-30 (Horde)	Quests	Horde	1440	Ashenvale	59	56	56	0	0	0	0	37741	5254	0	1		
 forever	wiki:forever:1447:Both	Azshara Quests 45-60	Quests	Both	1447	Azshara	91	57	57	0	0	0	0	41298	8089	0	1		
-forever	wiki:forever:1447:Horde	Azshara Quests 45-52 (Horde)	Quests	Horde	1447	Azshara	27	25	25	0	0	0	0	11210	2602	0	1		
+forever	wiki:forever:1447:Horde	Azshara Quests 45-52 (Horde)	Quests	Horde	1447	Azshara	30	28	28	0	0	0	0	14860	3644	0	1		
 forever	wiki:forever:1418:Alliance	Badlands Quests 30-44 (Alliance)	Quests	Alliance	1418	Badlands	87	81	81	0	0	0	0	40580	4001	0	1		
 forever	wiki:forever:1418:Both	Badlands Quests 30-47	Quests	Both	1418	Badlands	62	51	51	0	0	0	0	42483	4532	0	1		
-forever	wiki:forever:1418:Horde	Badlands Quests 30-59 (Horde)	Quests	Horde	1418	Badlands	92	84	84	0	0	0	0	67329	7569	0	1		
+forever	wiki:forever:1418:Horde	Badlands Quests 30-59 (Horde)	Quests	Horde	1418	Badlands	89	82	82	0	0	0	0	67329	7569	0	1		
 forever	wiki:forever:1419:Alliance	Blasted Lands Quests 40-55 (Alliance)	Quests	Alliance	1419	Blasted Lands	18	17	17	0	0	0	0	28538	3703	0	1		
 forever	wiki:forever:1419:Both	Blasted Lands Quests 45-60	Quests	Both	1419	Blasted Lands	94	70	70	0	0	0	0	20973	4120	0	1		
 forever	wiki:forever:1428:Alliance	Burning Steppes Quests 48-59 (Alliance)	Quests	Alliance	1428	Burning Steppes	50	45	45	0	0	0	0	19182	1497	0	1		
-forever	wiki:forever:1428:Both	Burning Steppes Quests 48-60	Quests	Both	1428	Burning Steppes	135	120	120	0	0	0	0	111350	18055	0	1		
+forever	wiki:forever:1428:Both	Burning Steppes Quests 48-60	Quests	Both	1428	Burning Steppes	176	146	146	0	0	0	0	160064	24366	0	1		
 forever	wiki:forever:1428:Horde	Burning Steppes Quests 48-58 (Horde)	Quests	Horde	1428	Burning Steppes	19	18	18	0	0	0	0	7572	845	0	1		
-forever	wiki:forever:1439:Alliance	Darkshore Quests 7-21 (Alliance)	Quests	Alliance	1439	Darkshore	181	171	171	0	0	0	0	70833	12854	0	1		
+forever	wiki:forever:1439:Alliance	Darkshore Quests 7-21 (Alliance)	Quests	Alliance	1439	Darkshore	184	173	173	0	0	0	0	84836	14271	0	1		
 forever	wiki:forever:1439:Both	Darkshore Quests 54-57	Quests	Both	1439	Darkshore	10	4	4	0	0	0	0	0	0	0	1		
-forever	wiki:forever:1457:Alliance	Darnassus Quests 1-55 (Alliance)	Quests	Alliance	1457	Darnassus	129	85	85	0	0	0	0	122291	12422	0	1		
+forever	wiki:forever:1457:Alliance	Darnassus Quests 1-55 (Alliance)	Quests	Alliance	1457	Darnassus	124	82	82	0	0	0	0	114761	10557	0	1		
 forever	wiki:forever:1457:Both	Darnassus Quests 50-52	Quests	Both	1457	Darnassus	29	16	16	0	0	0	0	3249	1140	0	1		
 forever	wiki:forever:1457:Horde	Darnassus Quests (Horde)	Quests	Horde	1457	Darnassus	2	2	2	0	0	0	0	0	1578	0	1		
 forever	wiki:forever:1443:Alliance	Desolace Quests 30-40 (Alliance)	Quests	Alliance	1443	Desolace	41	39	39	0	0	0	0	23733	7183	0	1		
-forever	wiki:forever:1443:Both	Desolace Quests 10-48	Quests	Both	1443	Desolace	101	83	83	0	0	0	0	60246	10956	0	1		
+forever	wiki:forever:1443:Both	Desolace Quests 30-48	Quests	Both	1443	Desolace	101	93	93	0	0	0	0	55276	10051	0	1		
 forever	wiki:forever:1443:Horde	Desolace Quests 25-40 (Horde)	Quests	Horde	1443	Desolace	59	56	56	0	0	0	0	27804	6276	0	1		
-forever	wiki:forever:1426:Alliance	Dun Morogh Quests 1-15 (Alliance)	Quests	Alliance	1426	Dun Morogh	199	128	128	0	0	0	0	53350	8915	0	1		
+forever	wiki:forever:1426:Alliance:1	Dun Morogh Quests 1-8 (Alliance) - Part 1/2	Quests	Alliance	1426	Dun Morogh	117	78	78	0	0	0	0	20283	3581	0	1		
+forever	wiki:forever:1426:Alliance:2	Dun Morogh Quests 1-16 (Alliance) - Part 2/2	Quests	Alliance	1426	Dun Morogh	101	67	67	0	0	0	0	35852	6063	0	1		
 forever	wiki:forever:1426:Both	Dun Morogh Quests 22-30	Quests	Both	1426	Dun Morogh	17	9	9	0	0	0	0	7015	807	0	1		
 forever	wiki:forever:1411:Both	Durotar Quests 7-11	Quests	Both	1411	Durotar	6	6	6	0	0	0	0	1102	175	0	1		
-forever	wiki:forever:1411:Horde:1	Durotar Quests 1-8 (Horde) - Part 1/2	Quests	Horde	1411	Durotar	120	71	71	0	0	0	0	18196	4048	0	1		
-forever	wiki:forever:1411:Horde:2	Durotar Quests 4-60 (Horde) - Part 2/2	Quests	Horde	1411	Durotar	126	98	98	0	0	0	0	127298	13443	0	1		
-forever	wiki:forever:1431:Alliance	Duskwood Quests 17-30 (Alliance)	Quests	Alliance	1431	Duskwood	174	160	160	0	0	0	0	68993	8064	0	1		
+forever	wiki:forever:1411:Horde:1	Durotar Quests 1-8 (Horde) - Part 1/2	Quests	Horde	1411	Durotar	120	71	71	0	0	0	0	18045	4009	0	1		
+forever	wiki:forever:1411:Horde:2	Durotar Quests 4-60 (Horde) - Part 2/2	Quests	Horde	1411	Durotar	142	112	112	0	0	0	0	130094	13896	0	1		
+forever	wiki:forever:1431:Alliance	Duskwood Quests 15-30 (Alliance)	Quests	Alliance	1431	Duskwood	176	161	161	0	0	0	0	74166	8577	0	1		
 forever	wiki:forever:1431:Both	Duskwood Quests 1-60	Quests	Both	1431	Duskwood	14	14	14	0	0	0	0	654	117	0	1		
 forever	wiki:forever:1431:Horde	Duskwood Quests 37-42 (Horde)	Quests	Horde	1431	Duskwood	11	11	11	0	0	0	0	6674	1163	0	1		
-forever	wiki:forever:1445:Alliance	Dustwallow Marsh Quests 25-60 (Alliance)	Quests	Alliance	1445	Dustwallow Marsh	20	20	20	0	0	0	0	23412	4647	0	1		
+forever	wiki:forever:1445:Alliance	Dustwallow Marsh Quests 25-53 (Alliance)	Quests	Alliance	1445	Dustwallow Marsh	50	46	46	0	0	0	0	23786	5828	0	1		
 forever	wiki:forever:1445:Both	Dustwallow Marsh Quests 30-40	Quests	Both	1445	Dustwallow Marsh	58	21	21	0	0	0	0	26000	4534	0	1		
-forever	wiki:forever:1445:Horde	Dustwallow Marsh Quests 30-60 (Horde)	Quests	Horde	1445	Dustwallow Marsh	44	40	40	0	0	0	0	35718	7417	0	1		
-forever	wiki:forever:1423:Alliance	Eastern Plaguelands Quests 53-60 (Alliance)	Quests	Alliance	1423	Eastern Plaguelands	23	20	20	0	0	0	0	3012	6571	0	1		
-forever	wiki:forever:1423:Both:1	Eastern Plaguelands Quests 45-60 - Part 1/2	Quests	Both	1423	Eastern Plaguelands	202	185	185	0	0	0	0	88488	12915	0	1		
-forever	wiki:forever:1423:Both:2	Eastern Plaguelands Quests 45-60 - Part 2/2	Quests	Both	1423	Eastern Plaguelands	123	96	96	0	0	0	0	28687	4697	0	1		
-forever	wiki:forever:1423:Horde	Eastern Plaguelands Quests 54-60 (Horde)	Quests	Horde	1423	Eastern Plaguelands	41	37	37	0	0	0	0	16597	1385	0	1		
-forever	wiki:forever:1429:Alliance	Elwynn Forest Quests 1-11 (Alliance)	Quests	Alliance	1429	Elwynn Forest	176	135	135	0	0	0	0	39821	6602	0	1		
+forever	wiki:forever:1445:Horde	Dustwallow Marsh Quests 30-53 (Horde)	Quests	Horde	1445	Dustwallow Marsh	41	37	37	0	0	0	0	39884	5941	0	1		
+forever	wiki:forever:1423:Alliance	Eastern Plaguelands Quests 55-60 (Alliance)	Quests	Alliance	1423	Eastern Plaguelands	9	8	8	0	0	0	0	0	0	0	1		
+forever	wiki:forever:1423:Both:1	Eastern Plaguelands Quests 45-60 - Part 1/2	Quests	Both	1423	Eastern Plaguelands	203	182	182	0	0	0	0	99207	16522	0	1		
+forever	wiki:forever:1423:Both:2	Eastern Plaguelands Quests 45-60 - Part 2/2	Quests	Both	1423	Eastern Plaguelands	131	99	99	0	0	0	0	28687	4697	0	1		
+forever	wiki:forever:1423:Horde	Eastern Plaguelands Quests 53-60 (Horde)	Quests	Horde	1423	Eastern Plaguelands	46	40	40	0	0	0	0	15512	2612	0	1		
+forever	wiki:forever:1429:Alliance	Elwynn Forest Quests 1-10 (Alliance)	Quests	Alliance	1429	Elwynn Forest	181	138	138	0	0	0	0	43547	7129	0	1		
 forever	wiki:forever:1429:Both	Elwynn Forest Quests 1	Quests	Both	1429	Elwynn Forest	13	13	13	0	0	0	0	705	2185	0	1		
 forever	wiki:forever:1448:Alliance	Felwood Quests 48-55 (Alliance)	Quests	Alliance	1448	Felwood	21	21	21	0	0	0	0	30158	2707	0	1		
 forever	wiki:forever:1448:Both	Felwood Quests 45-60	Quests	Both	1448	Felwood	96	62	62	0	0	0	0	48215	4181	0	1		
 forever	wiki:forever:1448:Horde	Felwood Quests 45-59 (Horde)	Quests	Horde	1448	Felwood	19	18	18	0	0	0	0	38393	3028	0	1		
-forever	wiki:forever:1444:Alliance	Feralas Quests 23-48 (Alliance)	Quests	Alliance	1444	Feralas	123	113	113	0	0	0	0	185683	16686	0	1		
-forever	wiki:forever:1444:Both	Feralas Quests 45-60	Quests	Both	1444	Feralas	75	55	55	0	0	0	0	27226	7355	0	1		
-forever	wiki:forever:1444:Horde	Feralas Quests 30-52 (Horde)	Quests	Horde	1444	Feralas	97	93	93	0	0	0	0	110284	10309	0	1		
-forever	wiki:forever:1424:Alliance	Hillsbrad Foothills Quests 25-60 (Alliance)	Quests	Alliance	1424	Hillsbrad Foothills	110	100	100	0	0	0	0	47804	9655	0	1		
-forever	wiki:forever:1424:Both	Hillsbrad Foothills Quests 20-52	Quests	Both	1424	Hillsbrad Foothills	21	7	7	0	0	0	0	0	1431	0	1		
+forever	wiki:forever:1444:Alliance	Feralas Quests 23-48 (Alliance)	Quests	Alliance	1444	Feralas	123	113	113	0	0	0	0	185808	16697	0	1		
+forever	wiki:forever:1444:Both	Feralas Quests 45-60	Quests	Both	1444	Feralas	81	61	61	0	0	0	0	27226	7355	0	1		
+forever	wiki:forever:1444:Horde	Feralas Quests 30-52 (Horde)	Quests	Horde	1444	Feralas	97	93	93	0	0	0	0	110410	10319	0	1		
+forever	wiki:forever:1424:Alliance	Hillsbrad Foothills Quests 25-60 (Alliance)	Quests	Alliance	1424	Hillsbrad Foothills	107	97	97	0	0	0	0	45794	9166	0	1		
+forever	wiki:forever:1424:Both	Hillsbrad Foothills Quests 24-52	Quests	Both	1424	Hillsbrad Foothills	10	0	0	0	0	0	0	0	0	0	1		
 forever	wiki:forever:1424:Horde	Hillsbrad Foothills Quests 17-36 (Horde)	Quests	Horde	1424	Hillsbrad Foothills	188	171	171	0	0	0	0	55696	12472	0	1		
-forever	wiki:forever:1455:Alliance:1	Ironforge Quests 1-40 (Alliance) - Part 1/3	Quests	Alliance	1455	Ironforge	146	71	71	0	0	0	0	50524	6673	0	1		
-forever	wiki:forever:1455:Alliance:2	Ironforge Quests 12-52 (Alliance) - Part 2/3	Quests	Alliance	1455	Ironforge	112	108	108	0	0	0	0	36084	11356	0	1		
-forever	wiki:forever:1455:Alliance:3	Ironforge Quests 1-60 (Alliance) - Part 3/3	Quests	Alliance	1455	Ironforge	173	130	130	0	0	0	0	54673	7909	0	1		
+forever	wiki:forever:1455:Alliance:1	Ironforge Quests 1-40 (Alliance) - Part 1/3	Quests	Alliance	1455	Ironforge	146	71	71	0	0	0	0	50535	6675	0	1		
+forever	wiki:forever:1455:Alliance:2	Ironforge Quests 12-60 (Alliance) - Part 2/3	Quests	Alliance	1455	Ironforge	168	146	146	0	0	0	0	52907	13457	0	1		
+forever	wiki:forever:1455:Alliance:3	Ironforge Quests 1-60 (Alliance) - Part 3/3	Quests	Alliance	1455	Ironforge	125	99	99	0	0	0	0	48466	4885	0	1		
 forever	wiki:forever:1455:Both	Ironforge Quests 10-52	Quests	Both	1455	Ironforge	16	14	14	0	0	0	0	8784	1225	0	1		
 forever	wiki:forever:1455:Horde	Ironforge Quests 49-59 (Horde)	Quests	Horde	1455	Ironforge	7	6	6	0	0	0	0	13253	1394	0	1		
-forever	wiki:forever:1432:Alliance	Loch Modan Quests 7-19 (Alliance)	Quests	Alliance	1432	Loch Modan	94	88	88	0	0	0	0	52407	4936	0	1		
+forever	wiki:forever:1432:Alliance	Loch Modan Quests 7-19 (Alliance)	Quests	Alliance	1432	Loch Modan	96	90	90	0	0	0	0	52430	4976	0	1		
 forever	wiki:forever:1432:Both	Loch Modan Quests 10-20	Quests	Both	1432	Loch Modan	2	2	2	0	0	0	0	465	83	0	1		
 forever	wiki:forever:1450:Alliance	Moonglade Quests 20 (Alliance)	Quests	Alliance	1450	Moonglade	2	0	0	0	0	0	0	0	0	0	1		
-forever	wiki:forever:1450:Both	Moonglade Quests 10-60	Quests	Both	1450	Moonglade	27	19	19	0	0	0	0	57689	3210	0	1		
+forever	wiki:forever:1450:Both	Moonglade Quests 10-60	Quests	Both	1450	Moonglade	44	19	19	0	0	0	0	57689	3210	0	1		
 forever	wiki:forever:1450:Horde	Moonglade Quests 20 (Horde)	Quests	Horde	1450	Moonglade	2	0	0	0	0	0	0	0	0	0	1		
-forever	wiki:forever:2482:Both	Mount Hyjal Quests 50-54	Quests	Both	2482	Mount Hyjal	5	5	5	0	0	0	0	26085	1880	0	1		
+forever	wiki:forever:2482:Alliance	Mount Hyjal Quests 54-56 (Alliance)	Quests	Alliance	2482	Mount Hyjal	6	6	6	0	0	0	0	0	0	0	1		
+forever	wiki:forever:2482:Both	Mount Hyjal Quests 50-60	Quests	Both	2482	Mount Hyjal	71	47	47	0	0	0	0	32732	2553	0	1		
+forever	wiki:forever:2482:Horde	Mount Hyjal Quests 54-57 (Horde)	Quests	Horde	2482	Mount Hyjal	7	7	7	0	0	0	0	0	0	0	1		
 forever	wiki:forever:1412:Both	Mulgore Quests 1-12	Quests	Both	1412	Mulgore	2	2	2	0	0	0	0	352	63	0	1		
 forever	wiki:forever:1412:Horde	Mulgore Quests 1-10 (Horde)	Quests	Horde	1412	Mulgore	153	91	91	0	0	0	0	29257	5100	0	1		
 forever	wiki:forever:1454:Alliance	Orgrimmar Quests (Alliance)	Quests	Alliance	1454	Orgrimmar	2	2	2	0	0	0	0	8722	578	0	1		
 forever	wiki:forever:1454:Both	Orgrimmar Quests 50-52	Quests	Both	1454	Orgrimmar	15	4	4	0	0	0	0	270	30	0	1		
-forever	wiki:forever:1454:Horde:1	Orgrimmar Quests 5-40 (Horde) - Part 1/2	Quests	Horde	1454	Orgrimmar	159	109	109	0	0	0	0	59735	14110	0	1		
-forever	wiki:forever:1454:Horde:2	Orgrimmar Quests 1-60 (Horde) - Part 2/2	Quests	Horde	1454	Orgrimmar	190	148	148	0	0	0	0	76252	10907	0	1		
-forever	wiki:forever:1433:Alliance	Redridge Mountains Quests 11-26 (Alliance)	Quests	Alliance	1433	Redridge Mountains	113	105	105	0	0	0	0	56638	6515	0	1		
+forever	wiki:forever:1454:Horde:1	Orgrimmar Quests 5-41 (Horde) - Part 1/2	Quests	Horde	1454	Orgrimmar	141	92	92	0	0	0	0	54118	14120	0	1		
+forever	wiki:forever:1454:Horde:2	Orgrimmar Quests 1-60 (Horde) - Part 2/2	Quests	Horde	1454	Orgrimmar	223	176	176	0	0	0	0	142934	13480	0	1		
+forever	wiki:forever:1433:Alliance	Redridge Mountains Quests 10-26 (Alliance)	Quests	Alliance	1433	Redridge Mountains	116	108	108	0	0	0	0	55434	6356	0	1		
 forever	wiki:forever:1433:Both	Redridge Mountains Quests 1-5	Quests	Both	1433	Redridge Mountains	3	3	3	0	0	0	0	0	0	0	1		
-forever	wiki:forever:1427:Alliance	Searing Gorge Quests 40-50 (Alliance)	Quests	Alliance	1427	Searing Gorge	21	18	18	0	0	0	0	9485	962	0	1		
-forever	wiki:forever:1427:Both	Searing Gorge Quests 40-50	Quests	Both	1427	Searing Gorge	73	71	71	0	0	0	0	36071	6354	0	1		
+forever	wiki:forever:2548:Alliance	Riverglades Quests 36-47 (Alliance)	Quests	Alliance	2548	Riverglades	36	36	36	0	0	0	0	19502	2060	0	1		
+forever	wiki:forever:2548:Both	Riverglades Quests 36-40	Quests	Both	2548	Riverglades	7	7	7	0	0	0	0	0	0	0	1		
+forever	wiki:forever:2548:Horde	Riverglades Quests 36-42 (Horde)	Quests	Horde	2548	Riverglades	25	25	25	0	0	0	0	524	94	0	1		
+forever	wiki:forever:1427:Alliance	Searing Gorge Quests 40-50 (Alliance)	Quests	Alliance	1427	Searing Gorge	28	27	27	0	0	0	0	15490	1532	0	1		
+forever	wiki:forever:1427:Both	Searing Gorge Quests 40-50	Quests	Both	1427	Searing Gorge	73	70	70	0	0	0	0	39078	6464	0	1		
+forever	wiki:forever:2652:Both	Shen'dralas Quests 35-43	Quests	Both	2652	Shen'dralas	32	31	31	0	0	0	0	6096	1089	0	1		
 forever	wiki:forever:1451:Alliance	Silithus Quests 1-60 (Alliance)	Quests	Alliance	1451	Silithus	12	12	12	0	0	0	0	3579	1984	0	1		
-forever	wiki:forever:1451:Both:1	Silithus Quests 54-60 - Part 1/2	Quests	Both	1451	Silithus	219	80	80	0	0	0	0	106236	6640	0	1		
-forever	wiki:forever:1451:Both:2	Silithus Quests 58-60 - Part 2/2	Quests	Both	1451	Silithus	178	127	127	0	0	0	0	109205	9088	0	1		
+forever	wiki:forever:1451:Both:1	Silithus Quests 54-60 - Part 1/2	Quests	Both	1451	Silithus	221	81	81	0	0	0	0	106491	6493	0	1		
+forever	wiki:forever:1451:Both:2	Silithus Quests 58-60 - Part 2/2	Quests	Both	1451	Silithus	180	128	128	0	0	0	0	109205	9088	0	1		
 forever	wiki:forever:1451:Horde	Silithus Quests 54-55 (Horde)	Quests	Horde	1451	Silithus	7	7	7	0	0	0	0	20606	1102	0	1		
-forever	wiki:forever:1421:Alliance	Silverpine Forest Quests 24-33 (Alliance)	Quests	Alliance	1421	Silverpine Forest	5	5	5	0	0	0	0	793	142	0	1		
+forever	wiki:forever:1421:Alliance	Silverpine Forest Quests 20-23 (Alliance)	Quests	Alliance	1421	Silverpine Forest	12	5	5	0	0	0	0	793	142	0	1		
 forever	wiki:forever:1421:Both	Silverpine Forest Quests 60	Quests	Both	1421	Silverpine Forest	5	4	4	0	0	0	0	326	1465	0	1		
-forever	wiki:forever:1421:Horde	Silverpine Forest Quests 9-22 (Horde)	Quests	Horde	1421	Silverpine Forest	147	111	111	0	0	0	0	29273	5258	0	1		
+forever	wiki:forever:1421:Horde	Silverpine Forest Quests 9-22 (Horde)	Quests	Horde	1421	Silverpine Forest	151	115	115	0	0	0	0	31607	5386	0	1		
 forever	wiki:forever:1442:Alliance	Stonetalon Mountains Quests 17-28 (Alliance)	Quests	Alliance	1442	Stonetalon Mountains	46	43	43	0	0	0	0	37353	12397	0	1		
 forever	wiki:forever:1442:Both	Stonetalon Mountains Quests 17-22	Quests	Both	1442	Stonetalon Mountains	5	5	5	0	0	0	0	595	106	0	1		
-forever	wiki:forever:1442:Horde	Stonetalon Mountains Quests 12-26 (Horde)	Quests	Horde	1442	Stonetalon Mountains	79	75	75	0	0	0	0	66234	10697	0	1		
-forever	wiki:forever:1453:Alliance:1	Stormwind City Quests 1-20 (Alliance) - Part 1/3	Quests	Alliance	1453	Stormwind City	82	30	30	0	0	0	0	42159	6247	0	1		
-forever	wiki:forever:1453:Alliance:2	Stormwind City Quests 15-30 (Alliance) - Part 2/3	Quests	Alliance	1453	Stormwind City	156	113	113	0	0	0	0	88381	12114	0	1		
-forever	wiki:forever:1453:Alliance:3	Stormwind City Quests 1-60 (Alliance) - Part 3/3	Quests	Alliance	1453	Stormwind City	212	180	180	0	0	0	0	162740	21287	0	1		
-forever	wiki:forever:1453:Both	Stormwind City Quests 30-60	Quests	Both	1453	Stormwind City	55	18	18	0	0	0	0	6606	1570	0	1		
+forever	wiki:forever:1442:Horde	Stonetalon Mountains Quests 12-26 (Horde)	Quests	Horde	1442	Stonetalon Mountains	82	78	78	0	0	0	0	69786	10787	0	1		
+forever	wiki:forever:1453:Alliance:1	Stormwind City Quests 1-22 (Alliance) - Part 1/3	Quests	Alliance	1453	Stormwind City	93	41	41	0	0	0	0	43987	6622	0	1		
+forever	wiki:forever:1453:Alliance:2	Stormwind City Quests 16-30 (Alliance) - Part 2/3	Quests	Alliance	1453	Stormwind City	155	109	109	0	0	0	0	79558	11912	0	1		
+forever	wiki:forever:1453:Alliance:3	Stormwind City Quests 1-60 (Alliance) - Part 3/3	Quests	Alliance	1453	Stormwind City	185	165	165	0	0	0	0	164099	19503	0	1		
+forever	wiki:forever:1453:Both	Stormwind City Quests 1-60	Quests	Both	1453	Stormwind City	57	19	19	0	0	0	0	6864	3290	0	1		
 forever	wiki:forever:1453:Horde	Stormwind City Quests (Horde)	Quests	Horde	1453	Stormwind City	2	2	2	0	0	0	0	10143	603	0	1		
 forever	wiki:forever:1434:Alliance	Stranglethorn Vale Quests 6-40 (Alliance)	Quests	Alliance	1434	Stranglethorn Vale	62	56	56	0	0	0	0	48993	5787	0	1		
-forever	wiki:forever:1434:Both:1	Stranglethorn Vale Quests 28-43 - Part 1/2	Quests	Both	1434	Stranglethorn Vale	131	112	112	0	0	0	0	37365	8252	0	1		
-forever	wiki:forever:1434:Both:2	Stranglethorn Vale Quests 28-60 - Part 2/2	Quests	Both	1434	Stranglethorn Vale	179	161	161	0	0	0	0	50114	7312	0	1		
+forever	wiki:forever:1434:Both:1	Stranglethorn Vale Quests 28-43 - Part 1/2	Quests	Both	1434	Stranglethorn Vale	135	116	116	0	0	0	0	39704	8517	0	1		
+forever	wiki:forever:1434:Both:2	Stranglethorn Vale Quests 1-60 - Part 2/2	Quests	Both	1434	Stranglethorn Vale	201	183	183	0	0	0	0	47982	6981	0	1		
 forever	wiki:forever:1434:Horde	Stranglethorn Vale Quests 20-45 (Horde)	Quests	Horde	1434	Stranglethorn Vale	86	78	78	0	0	0	0	107019	9458	0	1		
 forever	wiki:forever:1435:Alliance	Swamp of Sorrows Quests 32-42 (Alliance)	Quests	Alliance	1435	Swamp of Sorrows	13	13	13	0	0	0	0	3422	611	0	1		
-forever	wiki:forever:1435:Both	Swamp of Sorrows Quests 30-55	Quests	Both	1435	Swamp of Sorrows	41	28	28	0	0	0	0	12515	6600	0	1		
+forever	wiki:forever:1435:Both	Swamp of Sorrows Quests 30-55	Quests	Both	1435	Swamp of Sorrows	52	34	34	0	0	0	0	13760	8207	0	1		
 forever	wiki:forever:1435:Horde	Swamp of Sorrows Quests 30-50 (Horde)	Quests	Horde	1435	Swamp of Sorrows	40	39	39	0	0	0	0	22358	1652	0	1		
 forever	wiki:forever:1446:Alliance	Tanaris Quests 42-50 (Alliance)	Quests	Alliance	1446	Tanaris	17	14	14	0	0	0	0	55060	4655	0	1		
-forever	wiki:forever:1446:Both:1	Tanaris Quests 38-49 - Part 1/2	Quests	Both	1446	Tanaris	137	125	125	0	0	0	0	66587	11889	0	1		
-forever	wiki:forever:1446:Both:2	Tanaris Quests 40-60 - Part 2/2	Quests	Both	1446	Tanaris	190	149	149	0	0	0	0	139644	18183	0	1		
-forever	wiki:forever:1438:Alliance	Teldrassil Quests 1-11 (Alliance)	Quests	Alliance	1438	Teldrassil	191	143	143	0	0	0	0	35723	7061	0	1		
+forever	wiki:forever:1446:Both:1	Tanaris Quests 20-49 - Part 1/2	Quests	Both	1446	Tanaris	140	131	131	0	0	0	0	59041	11730	0	1		
+forever	wiki:forever:1446:Both:2	Tanaris Quests 30-60 - Part 2/2	Quests	Both	1446	Tanaris	115	106	106	0	0	0	0	59949	10650	0	1		
+forever	wiki:forever:1446:Horde	Tanaris Quests 38-46 (Horde)	Quests	Horde	1446	Tanaris	13	11	11	0	0	0	0	3805	2914	0	1		
+forever	wiki:forever:1438:Alliance	Teldrassil Quests 1-16 (Alliance)	Quests	Alliance	1438	Teldrassil	220	167	167	0	0	0	0	64308	10573	0	1		
 forever	wiki:forever:1438:Both	Teldrassil Quests 60	Quests	Both	1438	Teldrassil	17	15	15	0	0	0	0	41762	4022	0	1		
-forever	wiki:forever:1413:Alliance	The Barrens Quests 11-59 (Alliance)	Quests	Alliance	1413	The Barrens	44	27	27	0	0	0	0	0	14400	8	1		
+forever	wiki:forever:1413:Alliance	The Barrens Quests 10-59 (Alliance)	Quests	Alliance	1413	The Barrens	65	30	30	0	0	0	0	3269	14917	8	1		
 forever	wiki:forever:1413:Both	The Barrens Quests 9-40	Quests	Both	1413	The Barrens	151	96	96	0	0	0	0	73908	9470	0	1		
 forever	wiki:forever:1413:Horde:1	The Barrens Quests 9-18 (Horde) - Part 1/2	Quests	Horde	1413	The Barrens	147	97	97	0	0	0	0	47289	7576	0	1		
-forever	wiki:forever:1413:Horde:2	The Barrens Quests 10-33 (Horde) - Part 2/2	Quests	Horde	1413	The Barrens	185	141	141	0	0	0	0	102884	29127	9	1		
-forever	wiki:forever:1425:Alliance	The Hinterlands Quests 38-48 (Alliance)	Quests	Alliance	1425	The Hinterlands	37	33	33	0	0	0	0	49269	7801	0	1		
-forever	wiki:forever:1425:Both	The Hinterlands Quests 38-53	Quests	Both	1425	The Hinterlands	10	10	10	0	0	0	0	37850	3100	0	1		
-forever	wiki:forever:1425:Horde	The Hinterlands Quests 35-51 (Horde)	Quests	Horde	1425	The Hinterlands	82	79	79	0	0	0	0	95536	8225	0	1		
+forever	wiki:forever:1413:Horde:2	The Barrens Quests 10-36 (Horde) - Part 2/2	Quests	Horde	1413	The Barrens	191	148	148	0	0	0	0	107786	29082	9	1		
+forever	wiki:forever:1425:Alliance	The Hinterlands Quests 1-50 (Alliance)	Quests	Alliance	1425	The Hinterlands	35	30	30	0	0	0	0	58619	6244	0	1		
+forever	wiki:forever:1425:Both	The Hinterlands Quests 38-50	Quests	Both	1425	The Hinterlands	13	12	12	0	0	0	0	52133	3892	0	1		
+forever	wiki:forever:1425:Horde	The Hinterlands Quests 35-51 (Horde)	Quests	Horde	1425	The Hinterlands	84	80	80	0	0	0	0	92341	9368	0	1		
 forever	wiki:forever:1441:Alliance	Thousand Needles Quests 23-30 (Alliance)	Quests	Alliance	1441	Thousand Needles	7	7	7	0	0	0	0	3019	3276	0	1		
 forever	wiki:forever:1441:Both	Thousand Needles Quests 24-44	Quests	Both	1441	Thousand Needles	80	74	74	0	0	0	0	34210	10182	0	1		
 forever	wiki:forever:1441:Horde	Thousand Needles Quests 20-35 (Horde)	Quests	Horde	1441	Thousand Needles	77	71	71	0	0	0	0	67818	7932	0	1		
 forever	wiki:forever:1456:Alliance	Thunder Bluff Quests (Alliance)	Quests	Alliance	1456	Thunder Bluff	2	2	2	0	0	0	0	9944	710	0	1		
 forever	wiki:forever:1456:Both	Thunder Bluff Quests	Quests	Both	1456	Thunder Bluff	2	2	2	0	0	0	0	292	52	0	1		
-forever	wiki:forever:1456:Horde	Thunder Bluff Quests 1-55 (Horde)	Quests	Horde	1456	Thunder Bluff	157	102	102	0	0	0	0	103783	13692	0	1		
+forever	wiki:forever:1456:Horde	Thunder Bluff Quests 1-50 (Horde)	Quests	Horde	1456	Thunder Bluff	169	115	115	0	0	0	0	108699	15817	0	1		
 forever	wiki:forever:1420:Alliance	Tirisfal Glades Quests 1-10 (Alliance)	Quests	Alliance	1420	Tirisfal Glades	14	13	13	0	0	0	0	7507	906	0	1		
 forever	wiki:forever:1420:Both	Tirisfal Glades Quests 55-60	Quests	Both	1420	Tirisfal Glades	18	15	15	0	0	0	0	26439	2878	0	1		
-forever	wiki:forever:1420:Horde:1	Tirisfal Glades Quests 1-7 (Horde) - Part 1/3	Quests	Horde	1420	Tirisfal Glades	133	96	96	0	0	0	0	17959	3042	0	1		
-forever	wiki:forever:1420:Horde:2	Tirisfal Glades Quests 1-11 (Horde) - Part 2/3	Quests	Horde	1420	Tirisfal Glades	116	71	71	0	0	0	0	15201	2522	0	1		
-forever	wiki:forever:1420:Horde:3	Tirisfal Glades Quests 1-55 (Horde) - Part 3/3	Quests	Horde	1420	Tirisfal Glades	73	46	46	0	0	0	0	55169	5836	0	1		
+forever	wiki:forever:1420:Horde:1	Tirisfal Glades Quests 1-7 (Horde) - Part 1/3	Quests	Horde	1420	Tirisfal Glades	133	96	96	0	0	0	0	17054	2881	0	1		
+forever	wiki:forever:1420:Horde:2	Tirisfal Glades Quests 1-12 (Horde) - Part 2/3	Quests	Horde	1420	Tirisfal Glades	118	73	73	0	0	0	0	15846	2637	0	1		
+forever	wiki:forever:1420:Horde:3	Tirisfal Glades Quests 1-55 (Horde) - Part 3/3	Quests	Horde	1420	Tirisfal Glades	79	42	42	0	0	0	0	50108	4904	0	1		
 forever	wiki:forever:1449:Alliance	Un'Goro Crater Quests 47-52 (Alliance)	Quests	Alliance	1449	Un'Goro Crater	11	11	11	0	0	0	0	7913	2390	0	1		
-forever	wiki:forever:1449:Both	Un'Goro Crater Quests 30-55	Quests	Both	1449	Un'Goro Crater	77	71	71	0	0	0	0	68232	7033	0	1		
+forever	wiki:forever:1449:Both	Un'Goro Crater Quests 47-55	Quests	Both	1449	Un'Goro Crater	75	71	71	0	0	0	0	69926	5244	0	1		
 forever	wiki:forever:1449:Horde	Un'Goro Crater Quests 47-52 (Horde)	Quests	Horde	1449	Un'Goro Crater	14	14	14	0	0	0	0	9300	2140	0	1		
 forever	wiki:forever:1458:Alliance	Undercity Quests (Alliance)	Quests	Alliance	1458	Undercity	2	2	2	0	0	0	0	0	886	0	1		
 forever	wiki:forever:1458:Both	Undercity Quests	Quests	Both	1458	Undercity	2	2	2	0	0	0	0	0	0	0	1		
-forever	wiki:forever:1458:Horde:1	Undercity Quests 1-21 (Horde) - Part 1/2	Quests	Horde	1458	Undercity	102	31	31	0	0	0	0	7015	1253	0	1		
-forever	wiki:forever:1458:Horde:2	Undercity Quests 1-60 (Horde) - Part 2/2	Quests	Horde	1458	Undercity	177	144	144	0	0	0	0	100635	16949	0	1		
+forever	wiki:forever:1458:Horde:1	Undercity Quests 1-21 (Horde) - Part 1/3	Quests	Horde	1458	Undercity	102	31	31	0	0	0	0	6395	1142	0	1		
+forever	wiki:forever:1458:Horde:2	Undercity Quests 15-52 (Horde) - Part 2/3	Quests	Horde	1458	Undercity	119	91	91	0	0	0	0	45100	9123	0	1		
+forever	wiki:forever:1458:Horde:3	Undercity Quests 1-80 (Horde) - Part 3/3	Quests	Horde	1458	Undercity	54	51	51	0	0	0	0	54807	5863	0	1		
 forever	wiki:forever:1422:Alliance	Western Plaguelands Quests 48-60 (Alliance)	Quests	Alliance	1422	Western Plaguelands	62	50	50	0	0	0	0	13482	4004	0	1		
-forever	wiki:forever:1422:Both	Western Plaguelands Quests 50-60	Quests	Both	1422	Western Plaguelands	90	78	78	0	0	0	0	48380	7227	0	1		
+forever	wiki:forever:1422:Both	Western Plaguelands Quests 50-60	Quests	Both	1422	Western Plaguelands	94	83	83	0	0	0	0	46187	7034	0	1		
 forever	wiki:forever:1422:Horde	Western Plaguelands Quests 9-60 (Horde)	Quests	Horde	1422	Western Plaguelands	71	62	62	0	0	0	0	24925	5143	0	1		
-forever	wiki:forever:1436:Alliance	Westfall Quests 8-24 (Alliance)	Quests	Alliance	1436	Westfall	145	124	124	0	0	0	0	75303	11064	0	1		
-forever	wiki:forever:1436:Both	Westfall Quests 1-19	Quests	Both	1436	Westfall	27	27	27	0	0	0	0	8971	1577	0	1		
-forever	wiki:forever:1437:Alliance	Wetlands Quests 16-31 (Alliance)	Quests	Alliance	1437	Wetlands	126	117	117	0	0	0	0	54977	8609	0	1		
-forever	wiki:forever:1452:Alliance	Winterspring Quests 50-59 (Alliance)	Quests	Alliance	1452	Winterspring	33	28	28	0	0	0	0	28142	5718	0	1		
-forever	wiki:forever:1452:Both	Winterspring Quests 1-60	Quests	Both	1452	Winterspring	134	132	132	0	0	0	0	74803	12652	0	1		
+forever	wiki:forever:1436:Alliance	Westfall Quests 8-24 (Alliance)	Quests	Alliance	1436	Westfall	145	124	124	0	0	0	0	73609	11317	0	1		
+forever	wiki:forever:1436:Both	Westfall Quests 1-53	Quests	Both	1436	Westfall	34	31	31	0	0	0	0	13185	1937	0	1		
+forever	wiki:forever:1437:Alliance	Wetlands Quests 16-31 (Alliance)	Quests	Alliance	1437	Wetlands	131	122	122	0	0	0	0	58351	8605	0	1		
+forever	wiki:forever:1452:Alliance	Winterspring Quests 50-59 (Alliance)	Quests	Alliance	1452	Winterspring	43	36	36	0	0	0	0	19878	7277	0	1		
+forever	wiki:forever:1452:Both	Winterspring Quests 1-60	Quests	Both	1452	Winterspring	137	134	134	0	0	0	0	74826	12662	0	1		
 forever	wiki:forever:1452:Horde	Winterspring Quests 49-59 (Horde)	Quests	Horde	1452	Winterspring	14	14	14	0	0	0	0	20952	2438	0	1		
 forever	wiki:forever:2521:Alliance	Zephras Isle Quests 2-9 (Alliance)	Quests	Alliance	2521	Zephras Isle	10	3	3	0	0	0	0	1620	289	0	1		
-forever	wiki:forever:2521:Both	Zephras Isle Quests 1-5	Quests	Both	2521	Zephras Isle	58	46	46	0	0	0	0	5409	966	0	1		
+forever	wiki:forever:2521:Both	Zephras Isle Quests 1-5	Quests	Both	2521	Zephras Isle	58	46	46	0	0	0	0	5626	1005	0	1		
 forever	wiki:forever:2521:Horde	Zephras Isle Quests 2-9 (Horde)	Quests	Horde	2521	Zephras Isle	14	7	7	0	0	0	0	5673	1013	0	1		
-forever	wiki:forever:0:Alliance	Other Quests Quests 4-60 (Alliance)	Quests	Alliance	Other		65	57	57	0	0	0	0	0	0	0	1		
-forever	wiki:forever:0:Both	Other Quests Quests 1-60	Quests	Both	Other		167	161	161	0	0	0	0	0	0	0	1		
-forever	wiki:forever:0:Horde	Other Quests Quests 4-54 (Horde)	Quests	Horde	Other		37	28	28	0	0	0	0	0	0	0	1		
+forever	wiki:forever:0:Alliance	Other Quests Quests 4-60 (Alliance)	Quests	Alliance	Other		84	57	57	0	0	0	0	0	0	0	1		
+forever	wiki:forever:0:Both	Other Quests Quests 1-60	Quests	Both	Other		173	166	166	0	0	0	0	0	0	0	1		
+forever	wiki:forever:0:Horde	Other Quests Quests 4-59 (Horde)	Quests	Horde	Other		63	39	39	0	0	0	0	0	0	0	1		
 forever	dungeon:forever:ragefire-chasm:Horde	Ragefire Chasm (Horde)	Dungeons	Horde	1454	Orgrimmar	29	28	28	0	0	0	0	16746	1164	0	1		
-forever	dungeon:forever:hall-of-thanes:Alliance	The Hall of Thanes (Alliance)	Dungeons	Alliance	1455	Ironforge	25	22	22	0	0	0	0	4852	866	0	1		
+forever	dungeon:forever:hall-of-thanes:Alliance	The Hall of Thanes (Alliance)	Dungeons	Alliance	1455	Ironforge	25	22	22	0	0	0	0	4860	868	0	1		
 forever	dungeon:forever:hall-of-thanes:Horde	The Hall of Thanes (Horde)	Dungeons	Horde	1455	Ironforge	4	3	3	0	0	0	0	0	0	0	1		
 forever	dungeon:forever:wailing-caverns:Horde	Wailing Caverns (Horde)	Dungeons	Horde	1413	The Barrens	48	46	46	0	0	0	0	39233	4430	0	1		
 forever	dungeon:forever:wailing-caverns:Alliance	Wailing Caverns (Alliance)	Dungeons	Alliance	1413	The Barrens	24	24	24	0	0	0	0	26742	3452	0	1		
-forever	dungeon:forever:deadmines:Alliance	The Deadmines (Alliance)	Dungeons	Alliance	1436	Westfall	34	32	32	0	0	0	0	26593	1993	0	1		
+forever	dungeon:forever:deadmines:Alliance	The Deadmines (Alliance)	Dungeons	Alliance	1436	Westfall	34	32	32	0	0	0	0	26621	1996	0	1		
 forever	dungeon:forever:shadowfang-keep:Horde	Shadowfang Keep (Horde)	Dungeons	Horde	1421	Silverpine Forest	9	9	9	0	0	0	0	9137	1106	0	1		
 forever	dungeon:forever:stormwind-stockade:Alliance	Stormwind Stockade (Alliance)	Dungeons	Alliance	1453	Stormwind City	33	31	31	0	0	0	0	22931	2255	0	1		
 forever	dungeon:forever:blackfathom-deeps:Horde	Blackfathom Deeps (Horde)	Dungeons	Horde	1440	Ashenvale	33	28	28	0	0	0	0	32271	4428	0	1		
@@ -163,25 +172,24 @@ forever	dungeon:forever:scarlet-monastery:Alliance	Scarlet Monastery (Alliance)	
 forever	dungeon:forever:uldaman:Alliance	Uldaman (Alliance)	Dungeons	Alliance	1418	Badlands	103	83	83	0	0	0	0	54259	7025	0	1		
 forever	dungeon:forever:uldaman:Horde	Uldaman (Horde)	Dungeons	Horde	1418	Badlands	62	46	46	0	0	0	0	54583	9841	0	1		
 forever	dungeon:forever:temple-of-atal-hakkar:Alliance	Temple of Atal'Hakkar (Alliance)	Dungeons	Alliance	1435	Swamp of Sorrows	97	55	55	0	0	0	0	114775	15269	0	1		
-forever	dungeon:forever:temple-of-atal-hakkar:Horde	Temple of Atal'Hakkar (Horde)	Dungeons	Horde	1435	Swamp of Sorrows	104	64	64	0	0	0	0	90385	15231	0	1		
+forever	dungeon:forever:temple-of-atal-hakkar:Horde	Temple of Atal'Hakkar (Horde)	Dungeons	Horde	1435	Swamp of Sorrows	104	64	64	0	0	0	0	90443	15237	0	1		
 forever	dungeon:forever:maraudon:Alliance	Maraudon (Alliance)	Dungeons	Alliance	1443	Desolace	27	27	27	0	0	0	0	50844	4513	0	1		
 forever	dungeon:forever:maraudon:Horde	Maraudon (Horde)	Dungeons	Horde	1443	Desolace	27	27	27	0	0	0	0	48008	3608	0	1		
 forever	dungeon:forever:zul-farrak:Alliance	Zul'Farrak (Alliance)	Dungeons	Alliance	1446	Tanaris	49	47	47	0	0	0	0	33298	8060	0	1		
 forever	dungeon:forever:zul-farrak:Horde	Zul'Farrak (Horde)	Dungeons	Horde	1446	Tanaris	44	41	41	0	0	0	0	58615	7618	0	1		
-forever	dungeon:forever:blackrock-depths:Alliance	The Blackrock Depths (Alliance)	Dungeons	Alliance	1428	Burning Steppes	142	133	133	0	0	0	0	117214	17556	0	1		
-forever	dungeon:forever:blackrock-depths:Horde	The Blackrock Depths (Horde)	Dungeons	Horde	1428	Burning Steppes	159	146	146	0	0	0	0	144016	20636	0	1		
-forever	dungeon:forever:stratholme:Alliance	Stratholme (Alliance)	Dungeons	Alliance	1423	Eastern Plaguelands	96	87	87	0	0	0	0	124180	11393	0	1		
-forever	dungeon:forever:stratholme:Horde	Stratholme (Horde)	Dungeons	Horde	1423	Eastern Plaguelands	137	124	124	0	0	0	0	207941	17022	0	1		
-forever	dungeon:forever:scholomance:Alliance	Scholomance (Alliance)	Dungeons	Alliance	1422	Western Plaguelands	122	110	110	0	0	0	0	155406	17680	0	1		
-forever	dungeon:forever:scholomance:Horde	Scholomance (Horde)	Dungeons	Horde	1422	Western Plaguelands	128	107	107	0	0	0	0	146188	18014	0	1		
+forever	dungeon:forever:blackrock-depths:Alliance	The Blackrock Depths (Alliance)	Dungeons	Alliance	1428	Burning Steppes	142	133	133	0	0	0	0	111370	17712	0	1		
+forever	dungeon:forever:blackrock-depths:Horde	The Blackrock Depths (Horde)	Dungeons	Horde	1428	Burning Steppes	159	146	146	0	0	0	0	137304	20863	0	1		
+forever	dungeon:forever:stratholme:Alliance	Stratholme (Alliance)	Dungeons	Alliance	1423	Eastern Plaguelands	96	86	86	0	0	0	0	154637	12302	0	1		
+forever	dungeon:forever:stratholme:Horde	Stratholme (Horde)	Dungeons	Horde	1423	Eastern Plaguelands	137	122	122	0	0	0	0	170828	15265	0	1		
+forever	dungeon:forever:scholomance:Alliance	Scholomance (Alliance)	Dungeons	Alliance	1422	Western Plaguelands	122	110	110	0	0	0	0	150429	18580	0	1		
+forever	dungeon:forever:scholomance:Horde	Scholomance (Horde)	Dungeons	Horde	1422	Western Plaguelands	128	108	108	0	0	0	0	138105	18470	0	1		
 forever	dungeon:forever:upper-blackrock-spire:Alliance	Upper Blackrock Spire (Alliance)	Dungeons	Alliance	1428	Burning Steppes	98	91	91	0	0	0	0	39672	8914	0	1		
 forever	dungeon:forever:dire-maul:Alliance	Dire Maul (Alliance)	Dungeons	Alliance	1444	Feralas	120	92	92	0	0	0	0	73514	13677	0	1		
-forever	dungeon:forever:dire-maul:Horde	Dire Maul (Horde)	Dungeons	Horde	1444	Feralas	145	113	113	0	0	0	0	125159	15843	0	1		
+forever	dungeon:forever:dire-maul:Horde	Dire Maul (Horde)	Dungeons	Horde	1444	Feralas	147	115	115	0	0	0	0	138915	16677	0	1		
 forever	dungeon:forever:lower-blackrock-spire:Alliance	Lower Blackrock Spire (Alliance)	Dungeons	Alliance	1428	Burning Steppes	72	66	66	0	0	0	0	30273	10678	0	1		
 forever	dungeon:forever:lower-blackrock-spire:Horde	Lower Blackrock Spire (Horde)	Dungeons	Horde	1428	Burning Steppes	72	67	67	0	0	0	0	39751	11958	0	1		
 forever	dungeon:forever:upper-blackrock-spire:Horde	Upper Blackrock Spire (Horde)	Dungeons	Horde	1428	Burning Steppes	88	79	79	0	0	0	0	70284	14364	0	1		
-forever	dungeon:forever:zul-gurub:Alliance	Zul'Gurub (Alliance)	Dungeons	Alliance	1434	Stranglethorn Vale	222	204	204	0	0	0	0	52261	8289	0	1		
-forever	dungeon:forever:zul-gurub:Horde	Zul'Gurub (Horde)	Dungeons	Horde	1434	Stranglethorn Vale	222	204	204	0	0	0	0	47873	8411	0	1		
+forever	dungeon:forever:zul-gurub	Zul'Gurub	Dungeons	Both	1434	Stranglethorn Vale	222	204	204	0	0	0	0	52261	8289	0	1		
 forever	dungeon:forever:blackwing-lair:Alliance	Blackwing Lair (Alliance)	Dungeons	Alliance	1428	Burning Steppes	38	35	35	0	0	0	0	49350	5350	0	1		
 forever	dungeon:forever:blackwing-lair:Horde	Blackwing Lair (Horde)	Dungeons	Horde	1428	Burning Steppes	37	34	34	0	0	0	0	46567	5652	0	1		
 forever	dungeon:forever:molten-core	Molten Core	Dungeons	Both	1428	Burning Steppes	58	53	53	0	0	0	0	51328	9986	0	1		

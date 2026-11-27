@@ -56,14 +56,16 @@ def outdoor_continent(maps, uid):
 
 
 def build(maps, map_rows, ji_rows, door_rows):
-    ji_map = {}
+    ji_map, container = {}, set()
     for r in ji_rows:
         try:
             ji_map[r["ID"]] = int(r["MapID"])
         except (KeyError, ValueError):
-            pass
+            continue
+        if int(r.get("Flags") or 0) & 2:           # a world-boss container ("Azeroth", "Pandaria") sharing a raid's Map
+            container.add(r["ID"])
     journal = {}                                   # instance map id -> (cont, wx, wy, jid)
-    for r in sorted(door_rows, key=lambda r: (r.get("Faction") != "-1", int(r["ID"]))):
+    for r in sorted(door_rows, key=lambda r: (r.get("JournalInstanceID") in container, r.get("Faction") != "-1", int(r["ID"]))):
         try:
             mid, wx, wy, cont = ji_map[r["JournalInstanceID"]], float(r["Position_0"]), float(r["Position_1"]), int(r["MapID"])
         except (KeyError, ValueError):
