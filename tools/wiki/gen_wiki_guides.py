@@ -594,6 +594,13 @@ class Places:
                 out += [t for t, _ in WT.links(lk.group(0))]
         return out
 
+    def formerly(self, page):
+        """does the location field say the subject stood somewhere else before ("[[Shadowfang Keep]] ... formerly
+        [[Southshore]]", Magistrate Henry Maleb)?  Its links then name a later place than a Classic client has."""
+        box = next(WT.find_templates(self.text(page), re.compile(r"npcbox|objectbox", re.I)), None)
+        return bool(box) and bool(re.search(r"\b(?:formerly|previously|originally)\b",
+                                            WT.split_params(box[3])[1].get("location", ""), re.I))
+
     def links(self, page):
         """the location field's links, most specific first"""
         if page in self.cache:
@@ -968,6 +975,8 @@ class Gen:
         refs = list(ref_maps) or ([zmid] if zmid is not None else [])
         if not refs:
             return None
+        if fl in CLASSICISH and self.places.formerly(page):
+            return None     # the location field names where the NPC stands now, not on this client (Maleb)
         for ln in links:
             pg, _ = self.resolve_title(ln)
             if pg and self.places.post_cata(pg, fl):
