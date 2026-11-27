@@ -18,6 +18,8 @@
   forbidden sources. test_contrib_gen adjusted (emu is below contributions; wiki_point_sources gains `emu`).
 * Retail gap stays: modern NPCs have no open spawn data; item/event objectives have no target row (loot tables =
   follow-up). Rebake 989 guides, 0 failed, dry run 0 to do. check_all green.
+* vplayer (CR_TMP vp_emu_*): era 182, tbc 265, forever 199, mop 566, retail Dungeons 271 (--guidecap 600 --taxi all):
+  0 stalls, 0 errors. Full Retail run not repeated.
 
 ## 2026-11-27: PR #40 reviewed; bake_resume CR_TMP fix (`bake-tmp-default`, PR #41)
 
