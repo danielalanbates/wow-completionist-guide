@@ -991,7 +991,8 @@ class Gen:
                 continue
             for e in table.get(GS.norm(pg or ln), []):
                 if e["map"] in maps.maps and any(self.agree(fl, e["map"], m) for m in refs):
-                    return e["map"], f"{e['x']:.1f},{e['y']:.1f}", page, False, "db2:" + e["name"]
+                    return (e["map"], f"{e['x']:.1f},{e['y']:.1f}", page, False,
+                            "db2:" + e["name"] + (" (shared map overlay)" if e.get("shared") else ""))
         return None
 
     def place_links(self, page, fl):

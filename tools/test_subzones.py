@@ -35,12 +35,15 @@ with tempfile.TemporaryDirectory() as td:
         {"ID": "14", "AreaName_lang": "Durotar", "ParentAreaID": "0"},
         {"ID": "362", "AreaName_lang": "Razor Hill", "ParentAreaID": "14"},
         {"ID": "363", "AreaName_lang": "Shared A", "ParentAreaID": "14"},
-        {"ID": "364", "AreaName_lang": "Shared B", "ParentAreaID": "14"}])
+        {"ID": "364", "AreaName_lang": "Shared B", "ParentAreaID": "14"},
+        {"ID": "365", "AreaName_lang": "Small A", "ParentAreaID": "14"},
+        {"ID": "366", "AreaName_lang": "Small B", "ParentAreaID": "14"}])
     ov = lambda i, a0, a1="0", l="400", r="600", t="200", b="400": {
         "ID": i, "UiMapArtID": "5", "TextureWidth": "256", "TextureHeight": "256", "OffsetX": "380", "OffsetY": "180",
         "HitRectTop": t, "HitRectBottom": b, "HitRectLeft": l, "HitRectRight": r, "AreaID_0": a0, "AreaID_1": a1,
         "AreaID_2": "0", "AreaID_3": "0"}
-    write(d, "WorldMapOverlay", [ov("1", "362"), ov("2", "363", "364"), ov("3", "14")])
+    write(d, "WorldMapOverlay", [ov("1", "362"), ov("2", "363", "364"), ov("3", "14"),
+                                 ov("4", "365", "366", "700", "760", "700", "760"), ov("5", "362", "364", "0", "900", "0", "900")])
     write(d, "UiMapXMapArt", [{"ID": "1", "PhaseID": "0", "UiMapArtID": "5", "UiMapID": "1411"}])
     write(d, "UiMapArt", [{"ID": "5", "UiMapArtStyleID": "1"}])
     write(d, "UiMapArtStyleLayer", [{"ID": "1", "LayerIndex": "0", "LayerWidth": "1000", "LayerHeight": "1000",
@@ -50,7 +53,12 @@ with tempfile.TemporaryDirectory() as td:
     e = t.get("razorhill", [None])[0]
     check(e and e["map"] == 1411 and e["x"] == 50.0 and e["y"] == 30.0 and e["parent_name"] == "Durotar",
           f"Razor Hill centre {e}")
-    check("shareda" not in t and "sharedb" not in t, "an overlay shared by two areas gives no point")
+    check("shareda" not in t and "sharedb" not in t, "a large shared overlay (20 units) gives no point")
+    e = t.get("smalla", [None])[0]
+    check(e and e.get("shared") and e["x"] == 73.0 and e["y"] == 73.0 and t.get("smallb"),
+          f"a small shared overlay (6 units) gives its centre to each area, tagged shared: {e}")
+    e = t.get("razorhill", [None])[0]
+    check(e and not e.get("shared") and e["x"] == 50.0, "an area with a single-area overlay ignores shared ones")
     check("durotar" not in t, "a zone (ParentAreaID 0) is not a subzone")
     check(GS.norm("Valley of Honor (Orgrimmar)") == "valleyofhonor", "wiki disambiguator dropped")
 
@@ -66,6 +74,9 @@ for fl, rows in known.items():
     for n, m, x, y in rows:
         e = next((e for e in t.get(n, []) if e["map"] == m), None)
         check(e and abs(e["x"] - x) < 3 and abs(e["y"] - y) < 3, f"{fl} {n} on {m}: {t.get(n)}")
+    if fl == "era":   # Booty Bay is only in shared overlays; its point must lie inside Stranglethorn's south tip
+        e = next((e for e in t.get("bootybay", []) if e["map"] == 1434), None)
+        check(e and e.get("shared") and 20 < e["x"] < 32 and 68 < e["y"] < 82, f"era Booty Bay (shared overlay): {e}")
 
 # the location field's "formerly" guard (gen_wiki_guides Places.formerly): Magistrate Henry Maleb stands in Shadowfang
 # Keep now and in Southshore on the Classic clients, so the Classic subzone rung must not place him at the keep
