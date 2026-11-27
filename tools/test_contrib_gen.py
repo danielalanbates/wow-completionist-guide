@@ -512,7 +512,7 @@ def part2(tmp, cdir, sha):
 
     # --- the chart ---
     v0, v1 = sqlite3.connect(base_dir / "verification.sqlite"), sqlite3.connect(with_dir / "verification.sqlite")
-    q = "select steps, wiki, poi, place, fallback, zone, none, contrib from wiki_point_sources where flavor='era' and build='no-fallback'"
+    q = "select steps, wiki, poi, place, fallback, zone, none, contrib, subzone from wiki_point_sources where flavor='era' and build='no-fallback'"
     r0, r1 = v0.execute(q).fetchone(), v1.execute(q).fetchone()
     check(r0 is not None and r0[7] == 0 and sum(r0[1:]) == r0[0], "wiki_point_sources without contributions: contrib 0, the sources add up", r0)
     check(r1 is not None and r1[7] == 7 and sum(r1[1:]) == r1[0] and r1[0] == r0[0] and r1[1] == r0[1],
@@ -621,6 +621,7 @@ def part3(tmp, sha):
 
 # ---------------------------------------------------------------------------------------------------------------------
 PLACE_NOTE = "(location: the wiki's "
+SUBZONE_NOTE = "(location: Blizzard map data for "   # rung 5b ranks below contributions too
 
 
 def guides_of(text):
@@ -704,7 +705,7 @@ def part4(tmp, fl, base=None):
     # without |PRE| and the faction gate: a quest whose guide changes, because its contributed steps now have a map,
     # is copied per faction or not by tools/wiki/gen_spine.py, with the same steps.)
     strip = re.compile(r"\|PRE\|[\d;]+(?=\|)|\|FACTION\|(?:Alliance|Horde)(?=\|)")
-    own = {strip.sub("", ln) for ln in b if "|M|" in ln and PLACE_NOTE not in ln}
+    own = {strip.sub("", ln) for ln in b if "|M|" in ln and PLACE_NOTE not in ln and SUBZONE_NOTE not in ln}
     kept = {strip.sub("", ln) for ln in n_lines if NOTE not in ln}
     lost = sorted(own - kept)
 
