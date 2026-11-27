@@ -67,5 +67,20 @@ for fl, rows in known.items():
         e = next((e for e in t.get(n, []) if e["map"] == m), None)
         check(e and abs(e["x"] - x) < 3 and abs(e["y"] - y) < 3, f"{fl} {n} on {m}: {t.get(n)}")
 
+# the location field's "formerly" guard (gen_wiki_guides Places.formerly): Magistrate Henry Maleb stands in Shadowfang
+# Keep now and in Southshore on the Classic clients, so the Classic subzone rung must not place him at the keep
+sys.path.insert(0, str(Path(__file__).resolve().parent / "wiki"))
+import gen_wiki_guides as GW  # noqa: E402
+pl = GW.Places.__new__(GW.Places)
+pl.raw, pl.cache = None, {}
+pages = {"Maleb": "{{Npcbox\n | name = Maleb\n | location = [[Shadowfang Keep]] ([[Silverpine Forest]])<br /> formerly "
+                  "[[Southshore]], [[Hillsbrad Foothills]]\n}}",
+         "Grull": "{{Npcbox\n | name = Grull\n | location = [[Camp Narache]], [[Mulgore]]\n}}"}
+pl.text = pages.get
+check(pl.formerly("Maleb"), "location field 'formerly' detected")
+check(not pl.formerly("Grull"), "plain location field is not 'formerly'")
+src = open(Path(__file__).resolve().parent / "wiki" / "gen_wiki_guides.py", encoding="utf-8").read()
+check("if fl in CLASSICISH and self.places.formerly(page):" in src, "subzone rung checks Places.formerly on Classic")
+
 print("test_subzones:", "FAIL" if fails else "ok")
 sys.exit(1 if fails else 0)
