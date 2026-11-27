@@ -2,6 +2,7 @@
 
 Read this first, then `docs/STATUS.md` (newest section on top), `docs/IDEAS.md` and `docs/FINISH_PLAN.md`.
 
+**2026-11-26 night:** db2-subzones merged: subzone centres from Blizzard WorldMapOverlay cut zone-only steps on all five (docs/STATUS.md top). Next: same rung in gen_dungeons.py; Midnight doors; pocket-map portals.
 **2026-11-26 late:** doors-review merged: Uldir door journal-id fix + test; no regressions (era/forever/tbc rerun). Next unchanged.
 **2026-11-26:** retail-vplayer merged: Retail vplayer 2,970 guides, 0 errors/stalls; DB2 instance doors cut no_route 6,431 -> 3,019 (docs/STATUS.md top). Next: Midnight instance doors, pocket-map portals, zone-only steps Era/TBC/Forever.
 **2026-11-25 late night:** wiki-refresh-forever reviewed (move-log fix + test), merged, pushed, installed in the clients not running, Drive canonical synced. Next: owner beta feedback; unnamed Forever ids; Retail vplayer.
