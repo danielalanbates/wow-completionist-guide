@@ -1,5 +1,25 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
+
+## 2026-11-26 night: Dungeons guides get the subzone points (`dungeon-subzones`)
+
+* `tools/wiki/gen_dungeons.py` copies the zone guides' step lines, so it needs no rung of its own: the
+  Imported_Dungeons files were simply last generated 11-25, before db2-subzones. Regenerated all five.
+* Zone-only Dungeon steps (step_points, rows `before-/after-dungeon-subzones-2026-11-26`): era 973 -> 679 (-30%),
+  tbc 2,776 -> 2,356 (-15.1%), forever 966 -> 724 (-25%), mop 3,257 -> 2,944 (-9.6%, under the 15% goal),
+  retail 7,633 -> 7,341 (-3.8%).
+* What is left: tbc 1,704 and mop 2,116 of the remaining lines are byte-identical to zone-only Wiki lines (the wiki
+  rungs already failed for them); the rest are "Inside <instance>" steps the door/instance map handles. A rung inside
+  gen_dungeons.py would add nothing; the next gain is in the wiki rungs (shared overlays: Honor Hold etc.).
+* Trace: 30 random new points per flavor (150): every point equals its Subzones.json overlay centre on the step's map.
+  Known wrong NPC (inherited from the Wiki guides, not new code): Jergosh the Invoker (Hidden Enemies 5728,
+  era/tbc/forever) at Caer Darrow; Classic has him in Ragefire Chasm; his wiki page's zone is Caer Darrow.
+* test_subzones: every wiki subzone line of a quest the dungeon file carries must be in it. Bake: nothing stale (dungeon
+  guides are not baked). check_all green.
+* vplayer (CR_TMP vp_dsz_*): era 182, tbc 264, forever 200: 0 stalls, 0 errors; mop 567: 0 stalls, 1 error
+  (`ach:mop:exploration_eastern_kingdoms`, guide time cap; an achievement guide this branch does not touch);
+  retail Dungeons 271 (--guidecap 600 --taxi all): 0 stalls, 0 errors. Full retail run not repeated (only Dungeons changed).
+
 ## 2026-11-26 late night: review of db2-subzones (`subzone-formerly-guard`, merged)
 
 * Forbidden-source grep of the new code: none (wago.tools DB2 via fetch_db2.py only). check_all green.
