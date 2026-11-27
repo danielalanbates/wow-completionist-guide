@@ -1,6 +1,17 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
 
+## 2026-11-27: PR #40 reviewed; bake_resume CR_TMP fix (`bake-tmp-default`, PR #41)
+
+* Review: no forbidden sources in the #40 diff. 201 random shared-overlay steps (Wiki era/tbc/mop/retail 30 each,
+  Dungeons tbc 21, mop 30, retail 30; seed 1127) traced: point = Subzones.json shared centre on the step's map, parent =
+  step zone, cited wiki page names the subzone: 201/201. check_all green; bake dry run 0 to do on all five.
+* Fix: `tools/bake_resume.py` crashed when CR_TMP was unset (regex wanted a literal TMP_DEFAULT); it now imports
+  optimize_routes.TMP_DEFAULT. Test in tools/test_bake_gate.py.
+* vplayer rerun (CR_TMP vp_rv_*): era 182, tbc 263, retail Dungeons 271: 0 stalls/errors. mop 567: 1 error, "guide
+  time cap" on ach:mop:exploration_eastern_kingdoms (unchanged guide, no shared steps; 344/371 steps at the 90 s CPU
+  cap; finishes with --guidecap 300 in 106 s). Timing edge, not a #40 regression; the guide needs a speed-up or cap.
+
 ## 2026-11-27: subzones that appear only in shared map overlays (`shared-overlays`)
 
 * `tools/gen_subzones.py`: an area with no single-area WorldMapOverlay takes the union rectangle of the overlays it
