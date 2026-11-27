@@ -16,6 +16,10 @@
   retail 2,574 (670). mop/retail step totals shift slightly (spine relocation depends on points).
 * Agreement on steps that already have a wiki point (`agree_questie.py`): median 0.10-0.28 map units, 85.9-91.6%
   within 3. Trace (`trace_questie.py`, 25 per Wiki/Dungeons file, seed 1127): 250/250.
+* Regenerated all generators; rebake 1,015 guides, 0 failed, dry run 0 to do. check_all green (test_contrib_gen counts
+  the questie column).
+* vplayer (CR_TMP vp_q_*): era 182, tbc 265, forever 199, mop 564, retail Dungeons 270 (--guidecap 600 --taxi all),
+  retail Quests 838: 0 stalls, 0 errors.
 * Roadmap entry for issue #34 (time estimates, opt-in timing recorder, XP/min routing): docs/IDEAS.md.
 
 ## 2026-11-27: emulator spawn points, last rung (`emu-spawn-points`)
