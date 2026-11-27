@@ -82,5 +82,31 @@ check(not pl.formerly("Grull"), "plain location field is not 'formerly'")
 src = open(Path(__file__).resolve().parent / "wiki" / "gen_wiki_guides.py", encoding="utf-8").read()
 check("if fl in CLASSICISH and self.places.formerly(page):" in src, "subzone rung checks Places.formerly on Classic")
 
+# Dungeons guides (tools/wiki/gen_dungeons.py) copy the zone guides' step lines, so a subzone point reaches a dungeon
+# step only when Imported_Dungeons_<fl>.lua is regenerated after Imported_Wiki_<fl>.lua (it was not, 11-26: the
+# dungeon zone-only count stayed the same).  Every wiki subzone line of a quest the dungeon file carries must be in it.
+GD = Path(__file__).resolve().parents[1] / "CompletionRoute" / "Guides"
+
+
+def subzone_gap(fl, dfile=None):
+    wf, df = GD / f"Imported_Wiki_{fl}.lua", Path(dfile) if dfile else GD / f"Imported_Dungeons_{fl}.lua"
+    if not wf.exists() or not df.exists():
+        return None
+    qid = lambda ln: (ln.strip()[:1], ln.split("|QID|", 1)[1].split("|", 1)[0]) if "|QID|" in ln else None
+    dl = df.read_text(encoding="utf-8").splitlines()
+    dset, dq = {ln.strip() for ln in dl}, {qid(ln) for ln in dl}
+    return [ln.strip() for ln in wf.read_text(encoding="utf-8").splitlines()
+            if "(location: Blizzard map data for " in ln and qid(ln) in dq and ln.strip() not in dset]
+
+
+check(subzone_gap("era", "/nonexistent") is None, "missing dungeon file is skipped")
+for fl in ("era", "tbc", "forever", "mop", "retail"):
+    gap = subzone_gap(fl)
+    if gap is None:
+        print("skip", fl, "dungeons (guides not generated)")
+        continue
+    check(not gap, f"{fl}: {len(gap)} wiki subzone steps missing from Imported_Dungeons (regenerate gen_dungeons.py); "
+                   f"first: {gap[:1]}")
+
 print("test_subzones:", "FAIL" if fails else "ok")
 sys.exit(1 if fails else 0)
