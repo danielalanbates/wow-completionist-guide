@@ -1,5 +1,17 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
+## 2026-11-26 late night: review of db2-subzones (`subzone-formerly-guard`, merged)
+
+* Forbidden-source grep of the new code: none (wago.tools DB2 via fetch_db2.py only). check_all green.
+* 30 random subzone steps per flavor (150) traced: every point equals its Subzones.json overlay centre on the step's
+  map. One wrong NPC: **Magistrate Henry Maleb** (11 steps on era/tbc/forever) was placed at Shadowfang Keep; his
+  Npcbox says "formerly [[Southshore]]", and Southshore is where Classic has him. Fix: on Classic the subzone rung
+  skips an NPC whose location field says formerly/previously/originally (`Places.formerly`; test in test_subzones.py).
+  Only Maleb hits it. Subzone steps era 577 -> 566, tbc 829 -> 818, forever 631 -> 620 (chart rows
+  `after-formerly-guard-2026-11-26`). His steps still carry the quest's zone (Silverpine) except the turn-in: older gap.
+* Regenerated wiki + gold guides era/tbc/forever, rebake 6 guides (all current), vplayer era 183, tbc 265, forever 199:
+  0 stalls, 0 errors. MoP/Retail untouched.
+
 ## 2026-11-26 night: subzone points from Blizzard map overlays (`db2-subzones`)
 
 * NPC/object steps whose Npcbox location names a subzone with no wiki place point now get the centre of that
