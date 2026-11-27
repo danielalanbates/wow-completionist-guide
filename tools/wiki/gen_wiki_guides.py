@@ -108,6 +108,8 @@ import wikimaps  # noqa: E402
 import wikitext as WT  # noqa: E402
 import gen_spine  # noqa: E402
 import step_detail as SD  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+import gen_subzones as GS  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 WIKI = ROOT / "tools" / "wiki" / "wiki.sqlite"
@@ -686,6 +688,7 @@ class Gen:
         self.place_rejected = Counter()     # (client, why) -> place-page points not used (place_coords)
         self.moved_seen = set()             # (client, NPC page) already counted by place_links
         self.place_zone_cache = {}
+        self.subzones = {}                  # client -> tools/gen_subzones.py table
         self.step_detail = SD.StepDetail(self)     # what a step with no point says instead (tools/wiki/step_detail.py)
 
     # ---- locations ---------------------------------------------------------------------------------
@@ -951,6 +954,27 @@ class Gen:
                 self.place_rejected[(fl, "outside the NPC's or the quest's maps")] += 1
                 continue
             return r[0], r[1], page, ex, pg
+        return self.subzone_coords(page, fl, links[:-1] if zone else links, zone or home_name, ref_maps)
+
+    def subzone_coords(self, page, fl, links, zone_name, ref_maps=()):
+        """rung 5b: the first linked place with no point of its own that is a subzone in this client's own map data
+        (tools/gen_subzones.py: the centre of its explored-area overlay, Blizzard DB2 of the client's build).  The
+        overlay's map must agree with the NPC page's maps (ref_maps), else with its zone link / the quest's zone, so a
+        subzone of the same name elsewhere never moves the step.  via = "db2:<subzone>"."""
+        if fl not in self.subzones:
+            self.subzones[fl] = GS.load(fl)
+        table, maps = self.subzones[fl], self.atlas.sets[fl]
+        zmid = maps.resolve(zone_name) if zone_name else None
+        refs = list(ref_maps) or ([zmid] if zmid is not None else [])
+        if not refs:
+            return None
+        for ln in links:
+            pg, _ = self.resolve_title(ln)
+            if pg and self.places.post_cata(pg, fl):
+                continue
+            for e in table.get(GS.norm(pg or ln), []):
+                if e["map"] in maps.maps and any(self.agree(fl, e["map"], m) for m in refs):
+                    return e["map"], f"{e['x']:.1f},{e['y']:.1f}", page, False, "db2:" + e["name"]
         return None
 
     def place_links(self, page, fl):
@@ -1345,10 +1369,15 @@ class Gen:
                         if c and c[4]:
                             break
                         c = None
-                    if c:
+                    if c and c[4].startswith("db2:"):
+                        lines[i] = (f"{p['head']}{mz((c[0], c[1]))}{p['tail']} (location: Blizzard map data for "
+                                    f"{clean(c[4][4:], 60)}; {clean(c[2], 60)}'s own page has no point)|")
+                        st["steps_subzone"] += 1
+                    elif c:
                         lines[i] = (f"{p['head']}{mz((c[0], c[1]))}{p['tail']} (location: the wiki's {clean(c[4], 60)} "
                                     f"page; {clean(c[2], 60)}'s own page has no point)|")
                         st["steps_place"] += 1
+                    if c:
                         if not emaps:
                             others = ([zmid] if zmid is not None else []) + refs
                             if not others:
@@ -1653,6 +1682,10 @@ class Gen:
                     "none, measured, contrib) values (?,?,?,?,?,?,?,?,?,datetime('now'),?)",
                     (fl, "fallback" if self.use_fallback else "no-fallback", st["steps"], st["steps_wiki"], st["steps_poi"],
                      st["steps_place"], st["steps_fallback"], st["steps_zone"], st["steps_none"], st["steps_contrib"]))
+        if "subzone" not in [c[1] for c in con.execute("pragma table_info(wiki_point_sources)")]:
+            con.execute("alter table wiki_point_sources add column subzone int default 0")
+        con.execute("update wiki_point_sources set subzone = ? where flavor = ? and build = ?",
+                    (st["steps_subzone"], fl, "fallback" if self.use_fallback else "no-fallback"))
         con.commit()
         con.close()
 
@@ -1730,7 +1763,7 @@ def main(argv=None):
         s = st["steps"] or 1
         print(f"{fl:6} wiki ids {st['wiki_quest_ids']}, assigned {st['assigned']}, guides {st['guides']}, "
               f"steps {st['steps']}: wiki coords {st['steps_wiki']} ({100*st['steps_wiki']/s:.1f}%), client quest POI "
-              f"{st['steps_poi']}, player contributions {st['steps_contrib']}, wiki place page {st['steps_place']}, "
+              f"{st['steps_poi']}, player contributions {st['steps_contrib']}, wiki place page {st['steps_place']}, Blizzard subzone {st['steps_subzone']}, "
               + (f"reference file {st['steps_fallback']} ({100*st['steps_fallback']/s:.1f}%), " if measure else "")
               + f"(of the wiki coords: pre-4.0.3 revision {st['steps_history']}), zone only {st['steps_zone']}, none {st['steps_none']} "
               f"({100*st['steps_none']/s:.1f}%); DB2-only gap {st['db2_only_gap']}; {st['file_kb']} KB")

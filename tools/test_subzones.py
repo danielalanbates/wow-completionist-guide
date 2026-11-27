@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+# CompletionRoute :: tools/test_subzones.py
+# Copyright (c) 2026 Daniel Bates / Bates LLC. All rights reserved.
+# Licensed under PolyForm Noncommercial 1.0.0 + 10% commercial-revenue rider (see LICENSE).
+# https://batesai.org  help@batesai.org
+"""tools/gen_subzones.py: subzone centres from WorldMapOverlay, on a tiny synthetic DB2 set, plus known places on the
+real tables when they are present (skipped otherwise).   python3 tools/test_subzones.py"""
+import csv, sys, tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import gen_subzones as GS  # noqa: E402
+
+fails = 0
+
+
+def check(ok, msg):
+    global fails
+    if not ok:
+        fails += 1
+        print("FAIL", msg)
+
+
+def write(d, name, rows):
+    with open(d / f"{name}.csv", "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+
+
+with tempfile.TemporaryDirectory() as td:
+    d = Path(td) / "x"
+    d.mkdir()
+    write(d, "AreaTable", [
+        {"ID": "14", "AreaName_lang": "Durotar", "ParentAreaID": "0"},
+        {"ID": "362", "AreaName_lang": "Razor Hill", "ParentAreaID": "14"},
+        {"ID": "363", "AreaName_lang": "Shared A", "ParentAreaID": "14"},
+        {"ID": "364", "AreaName_lang": "Shared B", "ParentAreaID": "14"}])
+    ov = lambda i, a0, a1="0", l="400", r="600", t="200", b="400": {
+        "ID": i, "UiMapArtID": "5", "TextureWidth": "256", "TextureHeight": "256", "OffsetX": "380", "OffsetY": "180",
+        "HitRectTop": t, "HitRectBottom": b, "HitRectLeft": l, "HitRectRight": r, "AreaID_0": a0, "AreaID_1": a1,
+        "AreaID_2": "0", "AreaID_3": "0"}
+    write(d, "WorldMapOverlay", [ov("1", "362"), ov("2", "363", "364"), ov("3", "14")])
+    write(d, "UiMapXMapArt", [{"ID": "1", "PhaseID": "0", "UiMapArtID": "5", "UiMapID": "1411"}])
+    write(d, "UiMapArt", [{"ID": "5", "UiMapArtStyleID": "1"}])
+    write(d, "UiMapArtStyleLayer", [{"ID": "1", "LayerIndex": "0", "LayerWidth": "1000", "LayerHeight": "1000",
+                                     "UiMapArtStyleID": "1"}])
+    GS.DB2 = Path(td)
+    t = GS.build("x")
+    e = t.get("razorhill", [None])[0]
+    check(e and e["map"] == 1411 and e["x"] == 50.0 and e["y"] == 30.0 and e["parent_name"] == "Durotar",
+          f"Razor Hill centre {e}")
+    check("shareda" not in t and "sharedb" not in t, "an overlay shared by two areas gives no point")
+    check("durotar" not in t, "a zone (ParentAreaID 0) is not a subzone")
+    check(GS.norm("Valley of Honor (Orgrimmar)") == "valleyofhonor", "wiki disambiguator dropped")
+
+GS.DB2 = Path(__file__).resolve().parents[1] / "tools" / "db2"
+known = {"era": [("razorhill", 1411, 54.6, 42.7), ("goldshire", 1429, 41.2, 64.7)],
+         "tbc": [("bloodwatch", 1950, 54.7, 55.5)],
+         "mop": [("klaxxivess", 422, 57.5, 31.9)]}
+for fl, rows in known.items():
+    if not all((GS.DB2 / fl / f"{x}.csv").exists() for x in GS.TABLES):
+        print("skip", fl, "(DB2 tables not fetched)")
+        continue
+    t = GS.build(fl)
+    for n, m, x, y in rows:
+        e = next((e for e in t.get(n, []) if e["map"] == m), None)
+        check(e and abs(e["x"] - x) < 3 and abs(e["y"] - y) < 3, f"{fl} {n} on {m}: {t.get(n)}")
+
+print("test_subzones:", "FAIL" if fails else "ok")
+sys.exit(1 if fails else 0)

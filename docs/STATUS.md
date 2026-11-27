@@ -1,5 +1,27 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
+## 2026-11-26 night: subzone points from Blizzard map overlays (`db2-subzones`)
+
+* NPC/object steps whose Npcbox location names a subzone with no wiki place point now get the centre of that
+  subzone's explored-area overlay from the client's own DB2 (new `tools/gen_subzones.py`: WorldMapOverlay ->
+  UiMapXMapArt -> UiMapArt -> UiMapArtStyleLayer; AreaTable for names/parents; per-flavor builds of fetch_db2.py).
+  UiMapAssignment was the planned source but has no subzone rows on era/tbc/forever (31 on mop, 124 on retail).
+  Rung 5b in `gen_wiki_guides.py` (`subzone_coords`), after the place page, before contributions never (contributions
+  still outrank it). The overlay's uiMap must agree with the NPC page's maps, else its zone link / the quest's zone;
+  post-patch place guard kept. Note: "(location: Blizzard map data for <subzone>; ...)". Chart column
+  `wiki_point_sources.subzone`.
+* Zone-only Wiki steps (no-fallback): era 3,786 -> 3,209; tbc 5,914 -> 5,085; forever 4,127 -> 3,496; mop 12,404 ->
+  10,804; retail 22,164 -> 20,902. Subzone points: 577 / 829 / 631 / 1,602 / 1,264. Chart rows
+  `before-/after-subzones-2026-11-26` (wiki_point_sources, step_points).
+* Checks: every subzone step (4,903) traced to AreaTable: map = step zone in all; parent name differs only by naming
+  (Eversong Woods (Burning Crusade), Mechagon, Razorfen Kraul parent Northern Barrens on the Southern Barrens map).
+  30 random per flavor: 150/150 right zone. Retail centroid vs wiki place-page points (372 pairs): median 2.1, p90 6.9
+  map units, 22 over 10.
+* Rebake 781 guides, 0 failed. check_all green (test_subzones new; test_contrib_gen updated). vplayer era 183, tbc 265,
+  forever 199, mop 568: 0 stalls, 0 errors. Retail vplayer not run (points only).
+* Not done: Dungeons guides (gen_dungeons.py) do not use the rung; overlays shared by several areas give no point
+  (Honor Hold, Newhome, Deliverance Point have none).
+
 ## 2026-11-26 late: review of retail-vplayer (`doors-review`, merged)
 
 * Forbidden-source grep of dd3ef37..9d09f76: none. `gen_doors.py` regenerates `Doors_retail.lua` byte-identical.

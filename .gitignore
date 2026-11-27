@@ -76,3 +76,5 @@ CompletionRoute/Data/QuestIndex_*.lua
 tools/teleports_db2
 # release builds (tools/package_release.py --write); never committed
 dist
+# subzone centres (regenerate: python3 tools/gen_subzones.py)
+tools/db2/*/Subzones.json
