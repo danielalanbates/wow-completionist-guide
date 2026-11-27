@@ -601,6 +601,14 @@ class Places:
         return bool(box) and bool(re.search(r"\b(?:formerly|previously|originally)\b",
                                             WT.split_params(box[3])[1].get("location", ""), re.I))
 
+    def classic_page(self, page):
+        """the "<page> (Classic)" page a hatnote at the top points to ("{{for|the Ragefire Chasm encounter|Jergosh the
+        Invoker (Classic)}}"), when it is cached: this page is a later appearance (Jergosh at Caer Darrow in Legion) and
+        the Classic clients take the location from that one.  None otherwise."""
+        cp = f"{page} (Classic)"
+        m = re.search(r"\{\{\s*for\s*\|[^{}]*?(?:\{\{[^{}]*\}\}[^{}]*?)*\|\s*" + re.escape(cp) + r"\s*\}\}", self.text(page)[:600])
+        return cp if m and self.text(cp) else None
+
     def links(self, page):
         """the location field's links, most specific first"""
         if page in self.cache:
@@ -993,6 +1001,9 @@ class Gen:
         Vivian Lagrave stands in the Undercity now and "was located at [[Kargath]], [[Badlands]]" before; a page that
         says she moved but links no place gives nothing, so the step keeps the quest's zone."""
         if fl in CLASSICISH:
+            cp = self.places.classic_page(page)
+            if cp:
+                return self.places.links(cp)    # the page is a later appearance; its "(Classic)" page says where (Jergosh)
             old = self.places.classic_links(page)
             if old is not None:
                 S, out = self.atlas.sets[fl], []
