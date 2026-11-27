@@ -1,6 +1,25 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
 
+## 2026-11-27: subzones that appear only in shared map overlays (`shared-overlays`)
+
+* `tools/gen_subzones.py`: an area with no single-area WorldMapOverlay takes the union rectangle of the overlays it
+  shares, only when it spans <= 12 map units each way (SHARED_SPAN); entries carry "shared": true and the step note says
+  "(shared map overlay)". MAX_SPAN and the uiMap-agreement check unchanged. Points: era 469->484, tbc 682->795,
+  forever 544->545, mop 1,145->1,509, retail 1,358->1,723. Booty Bay, Honor Hold and Ammen Vale now have points;
+  Allerian Stronghold, Anvilmar, Algaz Station, Agmar's Hammer and 7th Legion Front stay out (span >12); Brackenwall has
+  no overlay.
+* Zone-only Wiki steps (step_points `before-/after-shared-overlays-2026-11-26`): era 3,224->3,191 (-1.0%), tbc
+  5,137->5,015 (-2.4%), forever 3,534 (=), mop 10,913->10,567 (-3.2%), retail 21,210->20,984 (-1.1%).
+  **Goal of -5% on tbc/mop not met** with the 12-unit cap; a larger cap would put centres too far from the NPC.
+  Dungeons: era 679 (=), tbc 2,357->2,338, forever 724 (=), mop 2,944->2,915, retail 7,341->7,309.
+* Trace: 30 random shared-overlay steps per flavor (era 33, tbc 146, mop 407, retail 282 in all; forever has none):
+  0 wrong-map; every point equals its Subzones.json shared centre on the step's map, and the subzone's parent is the
+  step zone (mop Ammen Vale: AreaTable parents it to itself; map is Azuremyst Isle).
+* Regenerated wiki (all five), gold, dungeons, quest index; rebake 211 guides, 0 failed, dry run 0 to do. check_all green.
+* vplayer (CR_TMP vp_sho_*): era 182, tbc 263, mop 567: 0 stalls, 0 errors; retail Dungeons 271 (--guidecap 600
+  --taxi all): 0 stalls, 0 errors. Forever unchanged (no shared steps), not rerun; full Retail run still not repeated.
+
 ## 2026-11-26 late: dungeon-subzones reviewed; Jergosh Classic place (`jergosh-classic-page`)
 
 * Review of PR #38: no forbidden sources; 150 Dungeons subzone steps (30 per flavor, seed 426) re-traced to their

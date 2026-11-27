@@ -9,8 +9,10 @@ UiMapAssignment gives almost no subzone rows (0 on era, tbc and forever; 31 on m
 the explored-area overlays instead: WorldMapOverlay (AreaID_0..3, hit rectangle in map-art pixels) -> UiMapXMapArt
 (art -> uiMap) -> UiMapArt -> UiMapArtStyleLayer (art size in pixels, layer 0).  Each overlay that covers exactly one
 AreaTable area that is a subzone (ParentAreaID != 0) gives that area a rectangle on a uiMap; its centre, in the map's
-0-100 coordinates, is the subzone point.  Overlays shared by several areas are left out (no one centre), and an area
-whose overlays on one map are more than MAX_SPAN units apart is left out (two places of one name).
+0-100 coordinates, is the subzone point.  An area whose overlays on one map are more than MAX_SPAN units apart is left
+out (two places of one name).  An area that has no single-area overlay at all (Booty Bay, Honor Hold, Ammen Vale) takes
+the rectangle of the overlays it shares with other areas, but only when that rectangle spans SHARED_SPAN units or less
+each way, so its centre lies within a few yards of every area in it; such points carry "shared": true.
 
     python3 tools/gen_subzones.py [flavor ...]     # writes tools/db2/<flavor>/Subzones.json, prints counts
     import gen_subzones as GS; GS.load("era")      # {norm(name): [{"area", "name", "parent", "parent_name", "map", "x", "y"}]}
@@ -23,6 +25,7 @@ DB2 = ROOT / "tools" / "db2"
 FLAVORS = ("era", "tbc", "forever", "mop", "retail")
 TABLES = ("AreaTable", "WorldMapOverlay", "UiMapXMapArt", "UiMapArt", "UiMapArtStyleLayer")
 MAX_SPAN = 25.0
+SHARED_SPAN = 12.0
 csv.field_size_limit(1 << 28)
 
 
@@ -56,10 +59,11 @@ def build(fl):
     for r in _rows(fl, "UiMapXMapArt"):
         if r["PhaseID"] == "0":
             art_map.setdefault(r["UiMapArtID"], r["UiMapID"])
-    boxes = {}      # (area, uiMap) -> [x0, y0, x1, y1] in 0-100
+    boxes, shared = {}, {}      # (area, uiMap) -> [x0, y0, x1, y1] in 0-100; single-area / shared overlays
     for r in _rows(fl, "WorldMapOverlay"):
         ids = [r[f"AreaID_{i}"] for i in range(4) if r.get(f"AreaID_{i}", "0") not in ("0", "")]
-        if len(ids) != 1 or ids[0] not in area or area[ids[0]]["ParentAreaID"] == "0":
+        subs = [i for i in ids if i in area and area[i]["ParentAreaID"] != "0"]
+        if not subs:
             continue
         wh, mid = art_wh.get(r["UiMapArtID"]), art_map.get(r["UiMapArtID"])
         if not wh or not mid or not wh[0] or not wh[1]:
@@ -69,14 +73,21 @@ def build(fl):
             l, t = float(r["OffsetX"]), float(r["OffsetY"])
             rt, b = l + float(r["TextureWidth"]), t + float(r["TextureHeight"])
         bx = [l / wh[0] * 100, t / wh[1] * 100, rt / wh[0] * 100, b / wh[1] * 100]
-        k = (ids[0], int(mid))
-        if k in boxes:
-            o = boxes[k]
-            bx = [min(o[0], bx[0]), min(o[1], bx[1]), max(o[2], bx[2]), max(o[3], bx[3])]
-        boxes[k] = bx
+        dest = boxes if len(ids) == 1 else shared
+        for aid in (subs if len(ids) > 1 else ids if ids == subs else []):
+            k = (aid, int(mid))
+            b = bx
+            if k in dest:
+                o = dest[k]
+                b = [min(o[0], b[0]), min(o[1], b[1]), max(o[2], b[2]), max(o[3], b[3])]
+            dest[k] = b
+    single = {aid for aid, _ in boxes}
+    rows = [(k, v, False) for k, v in boxes.items()]
+    rows += [(k, v, True) for k, v in shared.items() if k[0] not in single]
     out = {}
-    for (aid, mid), (x0, y0, x1, y1) in sorted(boxes.items(), key=lambda kv: (int(kv[0][0]), kv[0][1])):
-        if x1 - x0 > MAX_SPAN * 2 or y1 - y0 > MAX_SPAN * 2:
+    for (aid, mid), (x0, y0, x1, y1), sh in sorted(rows, key=lambda kv: (int(kv[0][0]), kv[0][1])):
+        lim = SHARED_SPAN if sh else MAX_SPAN * 2
+        if x1 - x0 > lim or y1 - y0 > lim:
             continue
         a = area[aid]
         p = area.get(a["ParentAreaID"], {})
@@ -84,6 +95,8 @@ def build(fl):
             "area": int(aid), "name": a["AreaName_lang"].strip(), "parent": int(a["ParentAreaID"]),
             "parent_name": p.get("AreaName_lang", ""), "map": mid,
             "x": round(max(0.0, min(100.0, (x0 + x1) / 2)), 1), "y": round(max(0.0, min(100.0, (y0 + y1) / 2)), 1)})
+        if sh:
+            out[norm(a["AreaName_lang"].strip())][-1]["shared"] = True
     return out
 
 
