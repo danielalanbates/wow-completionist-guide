@@ -91,6 +91,15 @@ class BakeGate(unittest.TestCase):
             return out
         return run
 
+    def test_opt_tmp_without_cr_tmp(self):
+        """bake_resume finds the optimizer's job directory when CR_TMP is unset (TMP_DEFAULT is computed, not a literal)."""
+        old = os.environ.pop("CR_TMP", None)
+        try:
+            self.assertEqual(bake_resume.opt_tmp(), opt.TMP_DEFAULT)
+        finally:
+            if old is not None:
+                os.environ["CR_TMP"] = old
+
     def test_kill_during_gate_keeps_the_solves(self):
         seen = {}
 
