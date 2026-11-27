@@ -110,6 +110,8 @@ import gen_spine  # noqa: E402
 import step_detail as SD  # noqa: E402
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 import gen_subzones as GS  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[1] / "emu"))
+import emu_points as EP  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 WIKI = ROOT / "tools" / "wiki" / "wiki.sqlite"
@@ -1607,6 +1609,17 @@ class Gen:
             guides[(hm, fac)].append((qid, lv, r["levelreq"], name, lines))
             steps_out[qid] = len(lines)
 
+        # ---- last rung: emulator spawns (tools/emu/emu_points.py) for steps still without a point -----------
+        # CR_NO_EMU=1 leaves it out (the before/after measurement only; the build always has it)
+        emu = None if (self.use_fallback or os.environ.get("CR_NO_EMU")) else EP.EmuPoints(fl, maps)
+        if emu and emu.sources:
+            for lst in guides.values():
+                for g in lst:
+                    emu.fill(g[4])
+            st["steps_emu"] = len(emu.placed)
+            st["steps_zone"] -= emu.n_zone
+            st["steps_none"] -= emu.n_none
+
         # ---- write ------------------------------------------------------------------------------------
         today = datetime.date.today().isoformat()
         if self.out_dir:
@@ -1636,6 +1649,8 @@ class Gen:
                        f"{poi.build} (client data, facts only; see Guides/WIKI_DATA_LICENSE.md).")
         if contrib and st["steps_contrib"]:
             hdr.append(contrib.header())
+        if emu:
+            hdr += emu.header()
         hdr += ["local _, NS = ...", flavor_gate(fl), "local R = NS.Guide.Register", ""]
         body = []
         # zone order, split of huge zone guides and the step order inside each guide: tools/wiki/gen_spine.py
@@ -1661,6 +1676,10 @@ class Gen:
         if self.use_fallback:
             return st       # the measurement writes nothing else: no spine sidecar, no wiki.sqlite tables
         gen_spine.write_sidecar(fl, parts, pre, cycles, self.out_dir)
+        if emu:
+            con = self.verif()
+            emu.chart(con, out.name)
+            con.close()
 
         # ---- SQL ---------------------------------------------------------------------------------------
         db = sqlite3.connect(self.out_dir / "wiki.sqlite" if self.out_dir else WIKI)
@@ -1707,6 +1726,10 @@ class Gen:
             con.execute("alter table wiki_point_sources add column subzone int default 0")
         con.execute("update wiki_point_sources set subzone = ? where flavor = ? and build = ?",
                     (st["steps_subzone"], fl, "fallback" if self.use_fallback else "no-fallback"))
+        if "emu" not in [c[1] for c in con.execute("pragma table_info(wiki_point_sources)")]:
+            con.execute("alter table wiki_point_sources add column emu int default 0")
+        con.execute("update wiki_point_sources set emu = ? where flavor = ? and build = ?",
+                    (st["steps_emu"], fl, "fallback" if self.use_fallback else "no-fallback"))
         con.commit()
         con.close()
 
@@ -1784,7 +1807,7 @@ def main(argv=None):
         s = st["steps"] or 1
         print(f"{fl:6} wiki ids {st['wiki_quest_ids']}, assigned {st['assigned']}, guides {st['guides']}, "
               f"steps {st['steps']}: wiki coords {st['steps_wiki']} ({100*st['steps_wiki']/s:.1f}%), client quest POI "
-              f"{st['steps_poi']}, player contributions {st['steps_contrib']}, wiki place page {st['steps_place']}, Blizzard subzone {st['steps_subzone']}, "
+              f"{st['steps_poi']}, player contributions {st['steps_contrib']}, wiki place page {st['steps_place']}, Blizzard subzone {st['steps_subzone']}, emulator spawn {st['steps_emu']}, "
               + (f"reference file {st['steps_fallback']} ({100*st['steps_fallback']/s:.1f}%), " if measure else "")
               + f"(of the wiki coords: pre-4.0.3 revision {st['steps_history']}), zone only {st['steps_zone']}, none {st['steps_none']} "
               f"({100*st['steps_none']/s:.1f}%); DB2-only gap {st['db2_only_gap']}; {st['file_kb']} KB")
