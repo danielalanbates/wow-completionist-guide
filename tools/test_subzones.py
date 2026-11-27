@@ -82,6 +82,21 @@ check(not pl.formerly("Grull"), "plain location field is not 'formerly'")
 src = open(Path(__file__).resolve().parent / "wiki" / "gen_wiki_guides.py", encoding="utf-8").read()
 check("if fl in CLASSICISH and self.places.formerly(page):" in src, "subzone rung checks Places.formerly on Classic")
 
+# a page whose hatnote points to its "(Classic)" page is a later appearance: Classic takes the place from that page
+# (Jergosh the Invoker: Caer Darrow in Legion, Ragefire Chasm in Classic)
+import importlib.util  # noqa: E402
+_gw = importlib.util.spec_from_file_location("gw", Path(__file__).resolve().parent / "wiki" / "gen_wiki_guides.py")
+GW = importlib.util.module_from_spec(_gw)
+sys.path.insert(0, str(Path(__file__).resolve().parent / "wiki"))
+_gw.loader.exec_module(GW)
+cpl = GW.Places()
+cpl.text = lambda pg: {"J": "{{for|the {{C|Ragefire Chasm}} encounter|J (Classic)}}\n{{Npcbox|location = [[Caer Darrow]]}}",
+                       "J (Classic)": "{{Npcbox|location = [[Ragefire Chasm]]}}", "K": "{{for|other|K (Classic)}}"}.get(pg, "")
+check(cpl.classic_page("J") == "J (Classic)", "hatnote to a cached (Classic) page is followed")
+check(cpl.classic_page("K") is None, "hatnote to an uncached (Classic) page is ignored")
+check(cpl.classic_page("J (Classic)") is None, "a (Classic) page has no further Classic page")
+check("cp = self.places.classic_page(page)" in src, "place_links uses the (Classic) page on Classic")
+
 # Dungeons guides (tools/wiki/gen_dungeons.py) copy the zone guides' step lines, so a subzone point reaches a dungeon
 # step only when Imported_Dungeons_<fl>.lua is regenerated after Imported_Wiki_<fl>.lua (it was not, 11-26: the
 # dungeon zone-only count stayed the same).  Every wiki subzone line of a quest the dungeon file carries must be in it.

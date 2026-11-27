@@ -1,6 +1,18 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
 
+## 2026-11-26 late: dungeon-subzones reviewed; Jergosh Classic place (`jergosh-classic-page`)
+
+* Review of PR #38: no forbidden sources; 150 Dungeons subzone steps (30 per flavor, seed 426) re-traced to their
+  WorldMapOverlay centre on the step's map: 150/150 match.
+* Fix: on era/tbc/forever a page whose top hatnote points to "<page> (Classic)" (cached) takes its place from that page
+  (`Places.classic_page`). Jergosh the Invoker (Hidden Enemies 5728) no longer points at Caer Darrow: Dungeons step now
+  at the Ragefire Chasm entrance (Orgrimmar 53.0,48.9). Only that step changed in the Wiki/Dungeons files. Test in
+  `tools/test_subzones.py`.
+* Regenerated wiki + dungeons era/tbc/forever, quest index; rebake 13 guides (0 failed), dry run 0 to do on all five.
+  check_all green. vplayer era 182, tbc 264, forever 200: 0 stalls, 0 errors. MoP `ach:mop:exploration_eastern_kingdoms`
+  alone: finished (the earlier error was a timeout under the full run).
+
 ## 2026-11-26 night: Dungeons guides get the subzone points (`dungeon-subzones`)
 
 * `tools/wiki/gen_dungeons.py` copies the zone guides' step lines, so it needs no rung of its own: the
