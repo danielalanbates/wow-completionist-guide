@@ -1,5 +1,17 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
+## 2026-11-26 late: review of retail-vplayer (`doors-review`, merged)
+
+* Forbidden-source grep of dd3ef37..9d09f76: none. `gen_doors.py` regenerates `Doors_retail.lua` byte-identical.
+* 30 random doors traced to DB2 (JournalInstanceEntrance/Map, zone via UiMapAssignment): 29 right; **Uldir** (10 uiMaps)
+  carried journal id 1028 ("Azeroth", the BfA world-boss container sharing Map 1861), so the live journal pin (1031)
+  never matched. Fix: world-boss containers (JournalInstance.Flags & 2) lose the pin tie; test in `test_doors.lua`.
+  Coordinates unchanged, so routes and the bake are unchanged.
+* check_all green. vplayer rerun era 183/183 (no_route 48, same), forever 199/199 (49), tbc 265/265 (960); tbc run
+  with the pre-door router (dd3ef37 CostModel/Instances) is identical per guide: no cross-flavor regression. Retail
+  2,970/0/0/3,019 from the 17:17 run stands (doors' coordinates unchanged). MoP not rerun.
+* Drive writes from vplayer leave " 2.tsv" conflict copies with the real file zeroed; write run output to CR_TMP.
+
 ## 2026-11-26: Retail vplayer + shipped instance doors (`retail-vplayer`, merged)
 
 Offline only. **Nothing here has run in a real WoW client.**
