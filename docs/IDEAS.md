@@ -174,3 +174,10 @@ Goal: level faster by preferring quests that finish in the least time (a "kill 1
    medians per quest and group size into the estimate, replacing the model where enough samples exist.
 4. **Router weighing XP/min:** an option to weight each quest by XP (quest XP tables) divided by estimated minutes
    (travel + objectives), skipping low-yield quests unless a chain needs them (quest-skip rules apply).
+
+## WoW Forever: Legacy Points section (owner goal, 2026-11-27)
+Forever-only guide category covering every Legacy Challenge (achievement-like; each grants Legacy Points,
+account-wide; ~65 points at launch; trees: Professions, Adventure, Resourcefulness; season rewards at 15/25/40/55
+from Innkeeper Wiley, Ratchet). Source: warcraft.wiki.gg Legacy_System / Legacy_Tree pages + Forever DB2 achievement/
+criteria tables via wago.tools; locations via the existing point chain. One guide per challenge group, routed.
+Status: queued; weekly agent limit hit 2026-11-27, resumes after Dec 1.
