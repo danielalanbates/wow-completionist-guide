@@ -36,6 +36,7 @@ t("journal pins are most of them", journal * 2 > n, journal .. "/" .. n)
 t("every door leaves its instance's continent", #bad == 0, bad[1])
 t("Blackfathom Deeps (221) door is in Kalimdor", doors[221] and doors[221][1] == 1 and doors[221][4] == 227)
 t("Legion Icecrown Citadel (698) uses the Wrath door", doors[698] and doors[698][5] == "twin" and doors[186] and doors[698][2] == doors[186][2])
+t("Uldir (1148) pin is matched by Uldir's journal id, not the world-boss container's", doors[1148] and doors[1148][4] == 1031, doors[1148] and doors[1148][4])
 t("Brawl'gar Arena (503) has no guessed door", doors[503] == nil)
 
 -- ---------------------------------------------------------------------------
