@@ -160,3 +160,17 @@ Quest skipping (drop a quest and its locked chain, rebuild the guide, re-plan fo
 - **Hardcore.** Importing another addon's recorded-death data was dropped; danger data comes from the wiki and DB2 only.
 - **Node packs.** Only players' own consented recordings, never third-party packs.
 - **Nothing had to be dropped for needing the AI to play.** Every in-game check above is either an offline harness or something Daniel does in his beta.
+
+## Roadmap: per-quest time estimates (GitHub issue #34)
+
+Goal: level faster by preferring quests that finish in the least time (a "kill 10" quest beats "loot 10 snouts at
+20%").
+1. **Offline estimate per quest:** travel (router) + objective time. Kill/interact counts from the quest objectives;
+   loot objectives scale by expected kills = count / drop chance (drop chances from open emulator loot tables, facts
+   only), times a per-level kill time; respawn density from spawn counts in the zone.
+2. **Opt-in local timing recorder:** off by default; when on, stores per quest accept time, objective progress events
+   and turn-in time in SavedVariables (solo/group size noted, no names). Never sent anywhere by itself.
+3. **Optional sharing:** an export string / file the player may submit (beta-report path); the offline pipeline folds
+   medians per quest and group size into the estimate, replacing the model where enough samples exist.
+4. **Router weighing XP/min:** an option to weight each quest by XP (quest XP tables) divided by estimated minutes
+   (travel + objectives), skipping low-yield quests unless a chain needs them (quest-skip rules apply).

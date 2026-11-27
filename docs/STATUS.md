@@ -1,6 +1,23 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
 
+## 2026-11-27: community quest database rung after the emulator rung (`questie-points`)
+
+* Owner decision 2026-11-27: Questie data allowed (facts only, GPLv3; name/logo never in the add-on). The data now
+  lives in github.com/Questie/QuestieDB (@ed772a89; same licence terms). `tools/questie/extract_questie.lua` applies
+  its Corrections and converts areaId -> uiMap with its own tables; `questie_points.py` places A/T/C steps still without
+  a point after emu (item objectives via the item's drop sources, explore areas). Note: "(location: community quest
+  database spawn of ...)"; repo + commit per value in verification.sqlite `questie_points`. Docs: EMU_DATA.md, CREDITS.md.
+* Zone-only / none Wiki steps (step_points `before-/after-questie-2026-11-27`, before = clean CR_NO_QUESTIE=1 regen):
+  era 1,689/603 -> 913/514; tbc 2,616/605 -> 1,428/507; forever 2,032/707 -> 1,250/613; mop 6,560/1,090 -> 1,782/756;
+  retail 18,908/2,867 -> 16,602/2,624. Points: era 76.3->85.3%, tbc 78.5->87.1%, forever 74.4->82.6%, mop 76.4->92.1%,
+  retail 75.9->78.7%. Dungeons zone-only: era 318->161, tbc 1,622->1,331, forever 330->182, mop 1,991->982,
+  retail 6,518->6,015. Placed: era 858 (669 item drops), tbc 1,265 (826), forever 869 (662), mop 5,014 (1,443),
+  retail 2,574 (670). mop/retail step totals shift slightly (spine relocation depends on points).
+* Agreement on steps that already have a wiki point (`agree_questie.py`): median 0.10-0.28 map units, 85.9-91.6%
+  within 3. Trace (`trace_questie.py`, 25 per Wiki/Dungeons file, seed 1127): 250/250.
+* Roadmap entry for issue #34 (time estimates, opt-in timing recorder, XP/min routing): docs/IDEAS.md.
+
 ## 2026-11-27: emulator spawn points, last rung (`emu-spawn-points`)
 
 * New rung after wiki / quest pins / subzones: `tools/emu/emu_points.py` places A/T/C steps still without a point at

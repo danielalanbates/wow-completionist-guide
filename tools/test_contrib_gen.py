@@ -513,13 +513,13 @@ def part2(tmp, cdir, sha):
 
     # --- the chart ---
     v0, v1 = sqlite3.connect(base_dir / "verification.sqlite"), sqlite3.connect(with_dir / "verification.sqlite")
-    q = "select steps, wiki, poi, place, fallback, zone, none, contrib, subzone, coalesce(emu, 0) from wiki_point_sources where flavor='era' and build='no-fallback'"
+    q = "select steps, wiki, poi, place, fallback, zone, none, contrib, subzone, coalesce(emu, 0), coalesce(questie, 0) from wiki_point_sources where flavor='era' and build='no-fallback'"
     r0, r1 = v0.execute(q).fetchone(), v1.execute(q).fetchone()
     check(r0 is not None and r0[7] == 0 and sum(r0[1:]) == r0[0], "wiki_point_sources without contributions: contrib 0, the sources add up", r0)
     check(r1 is not None and r1[7] == 7 and sum(r1[1:]) == r1[0] and r1[0] == r0[0] and r1[1] == r0[1],
           "wiki_point_sources with the fixture: contrib 7, same steps, same wiki points, the sources add up", r1)
-    check(r1[3] == r0[3] - 1 and r0[5] + r0[6] + r0[9] - r1[5] - r1[6] - r1[9] == 6,
-          "one step moved from the wiki place page to contributions, six from zone-only, no location or an emulator spawn", (r0, r1))
+    check(r1[3] == r0[3] - 1 and r0[5] + r0[6] + r0[9] + r0[10] - r1[5] - r1[6] - r1[9] - r1[10] == 6,
+          "one step moved from the wiki place page to contributions, six from zone-only, no location, an emulator spawn or a quest-database point", (r0, r1))
     cq = "select quest_id, field, wiki_value, db2_value, note from wiki_db2_conflict where flavor='era' and field like '%_xy_contrib' order by quest_id"
     rows = v1.execute(cq).fetchall()
     check(v0.execute(cq).fetchall() == [], "without contributions no contribution conflict is logged")
