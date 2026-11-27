@@ -2,6 +2,7 @@
 
 Read this first, then `docs/STATUS.md` (newest section on top), `docs/IDEAS.md` and `docs/FINISH_PLAN.md`.
 
+**2026-11-26:** retail-vplayer merged: Retail vplayer 2,970 guides, 0 errors/stalls; DB2 instance doors cut no_route 6,431 -> 3,019 (docs/STATUS.md top). Next: Midnight instance doors, pocket-map portals, zone-only steps Era/TBC/Forever.
 **2026-11-25 late night:** wiki-refresh-forever reviewed (move-log fix + test), merged, pushed, installed in the clients not running, Drive canonical synced. Next: owner beta feedback; unnamed Forever ids; Retail vplayer.
 **2026-11-25 night:** branch wiki-refresh-forever: incremental wiki refresh (`tools/wiki/refresh_changed.py`), Forever quest pins, Forever-only ids charted in `forever_unmapped` (docs/STATUS.md top).
 **2026-11-25 evening:** branch history-points-complete finished the history fetch, added the Cataclysm beta rule, regenerated and rebaked (docs/STATUS.md top). Not merged or installed.

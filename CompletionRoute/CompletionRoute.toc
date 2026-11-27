@@ -35,6 +35,7 @@ Data\Taxi_era.lua
 Data\Taxi_tbc.lua
 Data\Taxi_mop.lua
 Data\Taxi_retail.lua
+Data\Doors_retail.lua
 Data\RouteOrder_retail.lua
 Data\QuestDeps_retail.lua
 Data\QuestIndex_retail.lua

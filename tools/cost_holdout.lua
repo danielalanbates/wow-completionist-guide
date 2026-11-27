@@ -26,7 +26,7 @@ for i = 2, #arg do
 end
 local TOC = { era = 11507, tbc = 20506, mop = 50504, retail = 120100, forever = 16001 }
 local TAXI = "Data/Taxi_" .. flavor .. ".lua"
-local EXTRA = { forever = "Data/MapFix_forever.lua" }
+local EXTRA = { forever = "Data/MapFix_forever.lua", retail = "Data/Doors_retail.lua" }   -- retail: shipped instance doors
 STUB_MAPS = dofile("tools/maps_" .. flavor .. ".lua")
 local ADDON, NS = "CompletionRoute", {}
 dofile("tools/stubs.lua")

@@ -1,5 +1,21 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
+## 2026-11-26: Retail vplayer + shipped instance doors (`retail-vplayer`, merged)
+
+Offline only. **Nothing here has run in a real WoW client.**
+* First full Retail vplayer since 11-08 on the current build (dd3ef37; `--guidecap 600 --taxi all`): 2,970 guides
+  (was 150 on 11-08), 2,970 finished, **0 errors, 0 stalls** (11-08: 135/150, 15 errors), 6,431 no_route steps.
+* no_route classified (`noroute_class_runs` label before-doors-2026-11-26): to_dungeon 3,001, from_instance_or_pocket
+  1,798, to_pocket_or_orphan 866, zone_to_zone 766.
+* Fix: `tools/gen_doors.py` writes `Data/Doors_retail.lua` from DB2 (JournalInstanceEntrance, Map corpse point,
+  instance twins); the router and Core/Instances use the door for instance destinations and zone-only instance steps;
+  journal pin matched by id. Test `tools/test_doors.lua` (in check_all). Rebake retail 375/375, check_all green.
+* Rerun once: 2,970/2,970 finished, 0 errors, 0 stalls, **no_route 6,431 -> 3,019** (label after-doors-2026-11-26):
+  to_dungeon 954, zone_to_zone 789, from_instance_or_pocket 756, to_pocket_or_orphan 520.
+* Left: the 954 to_dungeon are mostly Midnight instances (Voidscar Arena, Den of Nalorakk, Murder Row, Maisara Caverns,
+  Magisters' Terrace new) with no JournalInstanceEntrance row yet; pocket/orphan maps (The Maw, Telogrus Rift, Exile's
+  Reach, Molten Front) need portal links (AreaTrigger / wiki portal pages). Next round: zone-only steps in Era/TBC/Forever.
+
 ## 2026-11-25 late night: review of wiki-refresh-forever (PR #33, merged, installed)
 
 Offline only. **Nothing here has run in a real WoW client.**
