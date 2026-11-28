@@ -25,6 +25,7 @@ step python3 tools/test_refresh_changed.py
 step python3 tools/test_subzones.py
 step python3 tools/test_emu_points.py
 step python3 tools/test_questie_points.py
+step python3 tools/test_att_points.py
 step python3 tools/test_legacy.py
 [ "$fail" = 0 ] && echo "\nall checks passed" || echo "\nsome checks FAILED"
 exit "$fail"

@@ -1037,7 +1037,8 @@ class Gen:
             extra = [ln for ln in src if ln.startswith("-- ") and ("QuestPOI" in ln or "(location: player contributions" in ln
                                                                or "wow-completionist-data" in ln
                                                                or "emulator world database" in ln
-                                                               or "community quest database" in ln)]
+                                                               or "community quest database" in ln
+                                                               or "community collection database" in ln)]
             hdr[7:7] = extra
         body = []
 

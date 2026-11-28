@@ -62,11 +62,15 @@ class Source:
 
 
 class QuestiePoints(EP.EmuPoints):
+    LABEL, TABLE, DIR, SOURCES, SRC = LABEL, "questie_points", QDB, SOURCES, Source
+    WHAT = {"c": "npc", "g": "object", "t": "quest area"}
+
     def __init__(self, fl, maps, sources=None, paths=None):
         self.fl, self.maps = fl, maps
-        names = SOURCES.get(fl, []) if sources is None else sources
+        names = self.SOURCES.get(fl, []) if sources is None else sources
         paths = paths or {}
-        self.sources = [Source(n, paths.get(n)) for n in names if paths.get(n) or (QDB / f"{n}.sqlite").exists()]
+        self.sources = [self.SRC(n, paths.get(n) or self.DIR / f"{n}.sqlite") for n in names
+                        if paths.get(n) or (self.DIR / f"{n}.sqlite").exists()]
         self.placed = []        # (qid, act, mid, x, y, kind, entry, via, source repo, commit)
         self.n_zone = self.n_none = 0
         self.n_item = 0
@@ -137,8 +141,8 @@ class QuestiePoints(EP.EmuPoints):
                 cut = min([i for i in (line.find(k) for k in ("|FACTION|", "|RACE|", "|CLASS|", "|LVL|", "|N|")) if i > 0]
                           or [len(line.rstrip("|"))])
                 line = line[:cut] + mz + line[cut:]
-            what = {"c": "npc", "g": "object", "t": "quest area"}[kind]
-            tag = f"(location: {LABEL} spawn of {what} {entry}" + (f", drops item {via})" if via else ")")
+            what = self.WHAT[kind]
+            tag = f"(location: {self.LABEL} spawn of {what} {entry}" + (f", drops item {via})" if via else ")")
             line = line.rstrip("|") + (" " if "|N|" in line else "|N|") + tag + "|"
             self.n_zone += z is not None
             self.n_none += z is None

@@ -23,3 +23,27 @@ Data sources used by the generators (facts only where noted). Full licence notes
   Corrections applied. Facts only (ids and coordinates); no text, code or artwork. The Questie name and logo are not
   used in the add-on: a placed step's note says "(location: community quest database spawn of npc N)". Source and
   commit of every value: `docs/verification.sqlite`, table `questie_points`. See `docs/EMU_DATA.md`.
+* **AllTheThings** (<https://github.com/ATTWoWAddon/AllTheThings>, MIT licence), commit
+  `789b0feb395396c181999063b691f854167595c6`, folders `db/Vanilla`, `db/Camelot`, `db/TBC`, `db/Mists`,
+  `db/Standard` (owner decision 2026-11-27), for steps the rungs above still leave without a point: quest giver npc /
+  object ids and spawn coordinates, quest start and objective coordinates, achievement and criterion coordinates.
+  Facts only (ids and coordinates); no text, code or artwork. The add-on's guide files do not name it: a placed step's
+  note says "(location: community database ...)". Source and commit of every value: `docs/verification.sqlite`,
+  table `att_points`. See `docs/EMU_DATA.md`. Its licence notice:
+
+  > MIT License
+  >
+  > Copyright (c) 2026 AllTheThings WoW Addon
+  >
+  > Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+  > documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+  > the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  > permit persons to whom the Software is furnished to do so, subject to the following conditions:
+  >
+  > The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+  > the Software.
+  >
+  > THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+  > WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+  > COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+  > OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

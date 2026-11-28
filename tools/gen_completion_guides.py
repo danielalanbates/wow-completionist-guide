@@ -74,7 +74,7 @@ QuestLineXQuest,GarrMission}.csv.  Everything written is gitignored (Imported_*.
 
     python3 tools/gen_completion_guides.py --selfcheck    # place rules on synthetic rows (run by tools/test_completion.lua)
 """
-import bisect, csv, json, re, sqlite3, sys, collections
+import bisect, csv, json, os, re, sqlite3, sys, collections
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -83,6 +83,7 @@ GUIDES = ROOT / "CompletionRoute" / "Guides"
 MAX_CRIT = 60
 WIKI_DB = ROOT / "tools" / "wiki" / "wiki.sqlite"
 sys.path.insert(0, str(ROOT / "tools" / "wiki"))
+sys.path.insert(0, str(ROOT / "tools" / "att"))
 csv.field_size_limit(1 << 28)
 ZONE_TYPES = (3, 4, 5, 6)   # uiMap types a step may head for: zone, dungeon, micro, orphan (never continent / world)
 # Map.InstanceType: 1 party, 2 raid, 5 scenario are places; 3 battleground and 4 arena are a queue
@@ -840,6 +841,9 @@ def header(fl, what):
         contrib = wiki_contrib_line(fl) if have else None
         if contrib:
             out.append(contrib)     # steps and criterion points taken from the wiki file keep their contribution credit
+        if have:                    # ... and their community collection database credit
+            wl = (GUIDES / f"Imported_Wiki_{fl}.lua").read_text(encoding="utf-8").splitlines()[:30]
+            out += [ln for ln in wl if ln.startswith("-- ") and "community collection database" in ln]
     return out + ["local _, NS = ...", f'if NS.flavor ~= "{fl}" then return end', "local R = NS.Guide.Register"]
 
 
@@ -889,6 +893,7 @@ def expansions(achs, catpath, k=7):
 
 def gen_achievements(fl):
     every = [r for r in rows(fl, "Achievement") if not (int(r["Flags"] or 0) & 0x1)]
+    att = None      # set once the client's maps are known (below)
     ach = [r for r in every if not internal_achievement(r)]
     if not ach:
         print(f"{fl}: no Achievement.csv - skipped")
@@ -904,6 +909,10 @@ def gen_achievements(fl):
         kids[k].sort(key=lambda r: (int(r["OrderIndex"] or 0), int(r["ID"])))
     achname = {int(r["ID"]): shown_title(r) for r in every}
     place = Places(fl)
+    if not os.environ.get("CR_NO_ATT"):
+        import att_points
+        att = att_points.ATTPoints(fl, place.maps)
+        att = att if att.sources else None
 
     def rootcat(cid):
         seen = set()
@@ -1108,6 +1117,17 @@ def gen_achievements(fl):
                 st[f"achievement-level {'point' if fallback.startswith('M|') else 'zone'} {fwhy}"] += 1
             elif z is not None:
                 fixed_zone, why, fixed_src = place._zone(z), "meta", "where its part achievements' steps are"
+        # no point yet: the MIT community collection database's coordinates for the achievement and its criteria, when
+        # they all sit close together on one map (inside the zone found so far); CR_NO_ATT=1 = the before measurement
+        if att and not any_point and not (fixed_zone or "").startswith("M|") and root not in NOGEO_ROOTS \
+                and not (types and types <= NOGEO_TYPES):
+            zm = re.match(r"Z\|(\d+);", fixed_zone or "")
+            hit = att.ach_point(aid, int(zm.group(1)) if zm else None)
+            if hit:
+                mid, x, y, _src = hit
+                fixed_zone = f"M|{x:.1f},{y:.1f}|Z|{mid}; {place.maps.maps[mid]['name']}|"
+                why, fixed_src = "att", "location: community database"
+                st["achievement-level point community database"] += 1
         if fixed_zone:
             any_point |= fixed_zone.startswith("M|")
             any_zone |= not fixed_zone.startswith("M|")
@@ -1131,6 +1151,8 @@ def gen_achievements(fl):
         guides[catpath(int(a["Category"] or 0))].extend(body)
         nsteps += len(body)
     lines = header(fl, "achievements")
+    if att:
+        lines[-3:-3] = [h for h in att.header() if h not in lines]
     for name in sorted(guides):
         gid = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
         lines.append(f'R({{ id="ach:{fl}:{gid}", name="{lua_str(name)}", type="Achievements", '
@@ -1139,6 +1161,10 @@ def gen_achievements(fl):
         lines.append("]==] })")
     out = GUIDES / f"Imported_Achievements_{fl}.lua"
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    if att:
+        con = sqlite3.connect(ROOT / "docs" / "verification.sqlite")
+        att.chart(con, out.name)
+        con.close()
     print(f"{fl}: {len(ach)} achievements ({len(every) - len(ach)} internal left out) -> {len(guides)} category guides, "
           f"{nsteps} steps -> {shown(out)}")
     print(f"  achievements by best location: {dict(achs)}")

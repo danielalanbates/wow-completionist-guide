@@ -2,6 +2,8 @@
 
 Read this first, then `docs/STATUS.md` (newest section on top), `docs/IDEAS.md` and `docs/FINISH_PLAN.md`.
 
+**2026-11-27 (6):** att-points merged: community collection database rung (AllTheThings, MIT) after the quest database rung + achievement points; Retail zone-only Wiki 16,602 -> 13,687, Dungeons 6,015 -> 5,081 (docs/STATUS.md top). Rebaked, check_all + vplayer clean. Not installed.
+
 **2026-11-27 (5):** PR #43 review found nothing to fix; legacy-points (PR #44, 964e0d3) merged; QuestIndex_forever regenerated; installed in anniversary/classic/classic_era/retail (Forever running, not installed); Drive synced. Next: owner confirms Innkeeper Wiley and which Legacy id copy Forever counts; install into Forever when closed.
 **2026-11-27 (4):** questie-points: community quest database (QuestieDB, GPLv3, facts only) rung after emu; zone-only era -46%, tbc -45%, forever -38%, mop -73%, retail -12% (docs/STATUS.md top). Issue #34 roadmap in IDEAS.md.
 **2026-11-27 (3):** emu-spawn-points merged: GPL emulator spawns (cmangos/TrinityCore) fill zone-only/no-point steps; zone-only era -47%, tbc -48%, forever -43%, mop -38%, retail -10% (docs/STATUS.md top). Next: loot-table objectives, Midnight doors.

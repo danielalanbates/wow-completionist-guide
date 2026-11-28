@@ -81,3 +81,4 @@ tools/db2/*/Subzones.json
 # emulator spawn databases (regenerate: sh tools/emu/fetch_emu.sh)
 tools/db2/emu/
 tools/db2/questie/
+tools/db2/att/
