@@ -1185,7 +1185,10 @@ local function autoload(attempt)
         -- the player loads a route (the owner, 2026-11-12: "it should bring up the main window"; until then it opened
         -- once, and a character that closed it unpicked got a route loaded at the next login).  P.Load saves the route,
         -- so from the first load on the login loads the saved route as before.
-        if id == nil then
+        -- Each character's route is hand-picked (owner, 2026-11-27): no saved route, or a saved route missing from this
+        -- version of the data, opens the routes list for THIS character instead of loading a guess.
+        if id == nil or not G.registry[id] then
+            if id ~= nil then NS:Print("Your saved route is not in this version of the add-on; pick a route for this character.") NS.db.char.guide = nil end
             if NS.GuideMenu and NS.GuideMenu.Show then
                 NS.GuideMenu.Show()
                 NS:Print("Pick a route to start: the list is open (/cr routes opens it again).")
