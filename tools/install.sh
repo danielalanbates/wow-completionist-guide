@@ -74,7 +74,7 @@ for f in "$SRC"/Guides/Imported_* "$SRC"/Data/Imported_* "$SRC"/Data/RouteOrder_
       stop "$rel is not part of the build (replaced by Guides/Imported_QuestLines_retail.lua) - delete it";;
     Data/Imported_*)
       stop "$rel is not part of the build (no generated file belongs in Data/Imported_*; the dungeon-door table was retired on 2026-11-11) - delete it";;
-    Guides/Imported_Wiki_*.lua|Guides/Imported_Spine_*.lua|Guides/Imported_Dungeons_*.lua|Guides/Imported_Professions_*.lua|Guides/Imported_Gold_*.lua|Guides/Imported_Achievements_*.lua|Guides/Imported_QuestLines_*.lua|Guides/Imported_Missions_*.lua|Data/RouteOrder_*.lua|Data/QuestDeps_*.lua|Data/QuestIndex_*.lua)
+    Guides/Imported_Wiki_*.lua|Guides/Imported_Spine_*.lua|Guides/Imported_Dungeons_*.lua|Guides/Imported_Professions_*.lua|Guides/Imported_Gold_*.lua|Guides/Imported_Achievements_*.lua|Guides/Imported_QuestLines_*.lua|Guides/Imported_Missions_*.lua|Guides/Imported_Legacy_*.lua|Data/RouteOrder_*.lua|Data/QuestDeps_*.lua|Data/QuestIndex_*.lua)
       is_flavor "${base##*_}" || stop "unknown generated file $rel (no client has the flavor '${base##*_}') - delete it first";;
     *) stop "unknown generated file $rel is not on the allowlist - delete it first";;
   esac

@@ -1,6 +1,19 @@
 # Status / handoff (2026-11-25: pre-4.0.3 history fetch complete, Cataclysm beta rule, regen + rebake)
 
 
+
+## 2026-11-27: WoW Forever Legacy Points section (`legacy-points`)
+
+* `tools/gen_legacy.py` (+ `--fetch` for 5 wiki pages into tools/wiki/cache/legacy) writes `Guides/Imported_Legacy_forever.lua`,
+  listed only in the Forever and Camelot TOCs (guard `NS.isForever`); category "Legacy Points". Challenges = Forever
+  Achievement rows rewarding Legacy Points (two id copies; lower id = the wiki's), checked against wiki Legacy Challenges: 65/65.
+* 11 guides: Season Rewards (Innkeeper Wiley, Ratchet; thresholds 15/25/40/55 from wiki Legacy System), Classes (class-gated),
+  Tradeskills, PvP (NOGEO), Lord Valthalak quest line (37 quests, one per title+faction), Explorer EK/Kalimdor (549/549 areas
+  at WorldMapOverlay centres; Era art converted to Forever maps), Novice/Experienced/Master Spelunker, Raids.
+* Located: 8 of 8 geographic challenges (6 point, 2 zone-only: Hyjal Summit, Barrow Deeps entrances unknown; Blackmaw Hold zone
+  only). 57 counters NOGEO. Rewards vendor (Wiley) is owner scope; the wiki does not name it.
+* check_all green (test_legacy.py added); vplayer forever: Legacy 11 guides and full 210 guides, 0 stalls, 0 errors. Bake dry run: 0 to do (Legacy guides are not quest guides; nothing to rebake).
+
 ## 2026-11-27: community quest database rung after the emulator rung (`questie-points`)
 
 * Owner decision 2026-11-27: Questie data allowed (facts only, GPLv3; name/logo never in the add-on). The data now

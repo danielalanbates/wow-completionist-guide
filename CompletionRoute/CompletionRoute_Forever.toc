@@ -69,6 +69,7 @@ Guides\Imported_Spine_forever.lua
 Guides\Imported_Professions_forever.lua
 Guides\Imported_Gold_forever.lua
 Guides\Imported_Dungeons_forever.lua
+Guides\Imported_Legacy_forever.lua
 Guides\Guides.xml
 Core\Sweep.lua
 Core\Slash.lua

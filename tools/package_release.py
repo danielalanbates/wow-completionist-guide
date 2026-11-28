@@ -164,6 +164,11 @@ RULES = (
       "pages; each located step names its source",
       "tools/gen_completion_guides.py (achievements)",
       "generated"),
+    R("Guides/Imported_Legacy_*.lua", "wiki-cc-by-sa", CC_BY_SA, "WoW Forever Legacy Challenges: Blizzard Achievement, "
+      "Achievement_Category, CriteriaTree, Criteria and WorldMapOverlay tables (facts); reward thresholds, challenge list "
+      "and instance entrances from Warcraft Wiki pages; quest steps and dungeon entrances are lines of "
+      "Imported_Wiki_forever.lua / Imported_Dungeons_forever.lua and keep their notes (the header repeats their "
+      "provenance lines)", "tools/gen_legacy.py", "generated"),
     R("Guides/Imported_QuestLines_*.lua", "wiki-cc-by-sa", CC_BY_SA, "Blizzard QuestLine/QuestLineXQuest order and "
       "QuestPOIBlob/QuestPOIPoint pins (facts); step text, gates and points from Imported_Wiki_retail.lua "
       "(player contributions where that file credits them); "
