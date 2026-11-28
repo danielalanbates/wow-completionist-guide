@@ -118,6 +118,31 @@ t("dungeon: every quest accepted before the entrance", enter and order:find("A20
 t("dungeon: turn-ins after the run", order:find("T201") and order:find("T201") > enter, order)
 t("dungeon finished and recorded", NS.db.char.auto.done.Dungeons["t:dungeon"] == true)
 
+-- Dungeons: a dungeon whose run is level-gated is skipped for now, never recorded as done
+G.Register({ id = "t:dungeon2", name = "Gated Dungeon", type = "Dungeons", instance = "Dungeon", zone = 1429, minlevel = 1, maxlevel = 20, text = table.concat({
+    "A Gated Quest|QID|301|M|44.0,60.0|Z|1429; Elwynn Forest|",
+    "D Enter Gated|LVL|30|M|72.0,72.0|Z|1429; Elwynn Forest|",
+    "T Gated Quest|QID|301|LVL|30|M|44.0,60.0|Z|1429; Elwynn Forest|",
+}, "\n") })
+A.Invalidate()
+t("start Dungeons (gated)", A.Start("dungeons") ~= nil)
+for _ = 1, 6 do
+    local s = P.current
+    if not s then break end
+    if s.action == "A" then LOG[s.qid[1]] = "log" else P.MarkDone(s) end
+    P.Refresh()
+end
+t("gated dungeon: quest collected", LOG[301] ~= nil)
+t("gated dungeon: not recorded as done", NS.db.char.auto.done.Dungeons["t:dungeon2"] ~= true, tostring(NS.db.char.auto.done.Dungeons["t:dungeon2"]))
+A.Start("dungeons")
+t("gated dungeon: re-checked on a new start, still not done", NS.db.char.auto.done.Dungeons["t:dungeon2"] ~= true)
+-- per character: a second character starts with no progress
+local saved = NS.db.char
+NS.db.char = {}
+t("per character: fresh character has no category / progress", A.Store().cat == nil and next(A.Store().done) == nil)
+NS.db.char = saved
+t("per character: first character keeps its progress", A.Store().done.Dungeons["t:dungeon"] == true)
+
 -- Gold
 printed = {}
 A.goldHintShown = nil

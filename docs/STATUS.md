@@ -5,6 +5,10 @@
 
 ## 2026-11-27: category routing (`category-routes`)
 
+* 2026-11-27 verify (`auto-route-verify`): adversarial offline check of AutoRoute. Real bug fixed: a dungeon whose run was
+  level-gated was recorded as DONE for good (blocked branch fell through to `done=true`); now marked "blocked" for the sitting and
+  re-checked on the next start. test_auto_route.lua 27/27 (new: gated dungeon, per-character isolation). Installed to all 5 clients.
+
 * Owner spec 2026-11-27: the routes list shows only categories (Quests, Dungeons, Gold, Professions, Achievements on MoP/Retail,
   Legacy Points on Forever); "Advanced" (top right) brings back the single-route list for testing. `/cr quests`, `/cr dungeons`...
   or `/cr category <name>` do the same. New `Core/AutoRoute.lua` (all six TOCs); hook in Progress.Refresh; per character
