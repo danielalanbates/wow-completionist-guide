@@ -15,7 +15,7 @@ local U, G, Cond = NS.Util, NS.Guide, NS.Cond
 local R = {}
 NS.Recommend = R
 
-R.CATEGORIES = { "Leveling", "Quests", "Dungeons", "Gold", "Professions", "Dailies", "Reputation" }
+R.CATEGORIES = { "Leveling", "Quests", "Dungeons", "Professions", "Dailies", "Reputation" }
 R.PICKS = 6
 local CACHED_LEVELS = 6       -- a full ranked list per level is not small: only keep the few the player is looking at
 

@@ -219,6 +219,20 @@ advanced:SetSize(20, 20); advanced:SetPoint("TOPRIGHT", -30, -6)
 local advLabel = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
 advLabel:SetPoint("RIGHT", advanced, "LEFT", -2, 0); advLabel:SetText("Advanced")
 advanced:SetScript("OnClick", function(self) listPrefs().advanced = self:GetChecked() and true or false M.Refresh() end)
+-- Owner spec 2026-11-28: "Batch" ticks several nearby quests together (Core/AutoRoute.lua A.BatchOn).
+local batch = CreateFrame("CheckButton", "CompletionRouteGuideMenuBatch", f, "UICheckButtonTemplate")
+batch:SetSize(20, 20); batch:SetPoint("RIGHT", advLabel, "LEFT", -10, 0)
+local batchLabel = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
+batchLabel:SetPoint("RIGHT", batch, "LEFT", -2, 0); batchLabel:SetText("Batch")
+batch:SetScript("OnClick", function(self) if NS.Auto then NS.Auto.SetBatch(self:GetChecked() and true or false) end M.Refresh() end)
+batch:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText("Batch")
+    GameTooltip:AddLine("Take every open quest in your zone (or the quest's destination zone) at once instead of one at a time. Dungeons always gather all their quests first.", 1, 1, 1, true)
+    GameTooltip:Show()
+end)
+batch:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
 
 function M.UpdateLevelControls()
     if not NS.db then return end
@@ -227,6 +241,7 @@ function M.UpdateLevelControls()
     levelHint:SetText(v == myLevel() and "your level" or ("your level: " .. myLevel()))
     local prefs = listPrefs()
     advanced:SetChecked(prefs.advanced and true or false)
+    batch:SetChecked(NS.Auto and NS.Auto.BatchOn() or false)
     onlyLevel:SetChecked(prefs.onlyLevel and true or false)
     groupLevel:SetChecked(prefs.groupByLevel and true or false)
     -- the labels grow with the text size: the buttons fit their labels, and the second tick box moves right of the
@@ -272,7 +287,7 @@ end
 -- Category display order; anything else lands after, alphabetical
 local REC_CAT = "Recommended"     -- style key; the row reads "Recommended" (or "Recommended for level N")
 local RECENT_CAT = "Recent"
-local CAT_ORDER = { [RECENT_CAT] = -2, [REC_CAT] = 0, Leveling = 1, Quests = 2, Dungeons = 3, Dailies = 4, Daily = 4, Gold = 5, Professions = 6, Profession = 6,
+local CAT_ORDER = { [RECENT_CAT] = -2, [REC_CAT] = 0, Leveling = 1, Quests = 2, Dungeons = 3, Dailies = 4, Daily = 4, Items = 5, Professions = 6, Profession = 6,
     Reputation = 7, Reputations = 7, Achievements = 8, Achievement = 8, Titles = 9, ["Pets & Mounts"] = 10, Events = 11, ["Legacy Points"] = 12 }
 
 -- Per-category icon + tint (TBC-era icons only). Rendered inline via |T escapes.
@@ -283,7 +298,7 @@ local CAT_STYLE = {
     Quests     = { icon = "Interface\\GossipFrame\\AvailableQuestIcon",   color = "ffee66" },
     Dungeons   = { icon = "Interface\\Icons\\INV_Misc_Head_Dragon_01",   color = "ff6a5a" },
     Dailies    = { icon = "Interface\\Icons\\INV_Misc_Note_01",          color = "6ac9ff" },
-    Gold       = { icon = "Interface\\Icons\\INV_Misc_Coin_02",          color = "ffe14d" },
+    Items      = { icon = "Interface\\Icons\\INV_Misc_Bag_10",           color = "a335ee" },
     Professions = { icon = "Interface\\Icons\\Trade_BlackSmithing",       color = "ff9e3d" },
     Reputation = { icon = "Interface\\Icons\\INV_BannerPVP_02",          color = "b48cff" },
     Achievements = { icon = "Interface\\Icons\\INV_Crown_02",            color = "ffc94d" },
@@ -526,9 +541,8 @@ end
 -- leveling guide and a gold guide and a location quest guide. location guide should be whatever is closest"):
 --   Leveling        the next unfinished route of the leveling chain that fits the level
 --   Nearest quests  the closest quest route that fits the level (M.ClosestQuests), not the leveling pick again
---   Gold            the best gold route for the level (Core/Recommend.lua's ranking)
 -- M.recKind[route id] is the word its row starts with.
-M.REC_KINDS = { "Leveling", "Nearest quests", "Gold" }
+M.REC_KINDS = { "Leveling", "Nearest quests" }
 M.recKind = {}
 function M.Recommended(level, force)
     level = level or M.ViewLevel()
@@ -549,8 +563,6 @@ function M.Recommended(level, force)
             break
         end
     end
-    local gold = Rec.ForLevel(level, { category = "Gold", fitOnly = true, unfinishedOnly = true, limit = 1 })[1]
-    if gold and not kind[gold.g.id] then list[#list + 1] = gold.g kind[gold.g.id] = M.REC_KINDS[3] end
     M.recKind = kind
     return list
 end

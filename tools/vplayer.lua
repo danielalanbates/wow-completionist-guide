@@ -82,8 +82,9 @@ for i = 2, #arg do
     elseif a == "--turnins" then fireTurnins = true
     elseif a == "--who" then whoMode = arg[i + 1]          -- warrior (default) | plan | gate (see the header)
     elseif a == "--both-as" then bothAs = arg[i + 1]       -- Alliance | Horde: the faction a guide for both factions is played as
-    elseif a == "--category" then categoryMode = arg[i + 1]   -- Quests|Dungeons|Gold|Professions|Achievements|Legacy Points (Core/AutoRoute.lua)
+    elseif a == "--category" then categoryMode = arg[i + 1]   -- Quests|Dungeons|Items|Professions|Achievements|Legacy Points (Core/AutoRoute.lua)
     elseif a == "--items" then categoryItems = tonumber(arg[i + 1])
+    elseif a == "--batch" then categoryBatch = true                -- batch mode (Core/AutoRoute.lua A.BatchOn)
     elseif a == "--level" then categoryLevel = tonumber(arg[i + 1])
     elseif a == "--verbose" then verbose = true end
 end
@@ -205,7 +206,7 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
     ("Guides/Imported_Missions_" .. flavor .. ".lua"), ("Guides/Imported_Legacy_" .. flavor .. ".lua") }) do load(f) end
 -- the spine reuses the wiki guides' text under "spine:" ids; only with --spine, so a default run plays each guide once
 if withSpine or categoryMode then load("Guides/Imported_Spine_" .. flavor .. ".lua") end
-if categoryMode then load("Guides/Imported_Gold_" .. flavor .. ".lua") load("Guides/Imported_Professions_" .. flavor .. ".lua") end
+if categoryMode then load("Guides/Imported_Professions_" .. flavor .. ".lua") end
 if orderMode == "baked" then
     if routeOrderPath then
         assert(loadfile(routeOrderPath))(ADDON, NS)
@@ -783,6 +784,7 @@ end
 if categoryMode then
     local A = NS.Auto
     local cat = A.Canon(categoryMode) or categoryMode
+    if categoryBatch then NS.db.profile.autoBatch = true end
     FACTION = forceFaction or "Alliance"
     RACE = (FACTION == "Horde") and "Orc" or "Human"
     NS.player.faction, NS.player.class, NS.player.race = FACTION, CLASS, RACE

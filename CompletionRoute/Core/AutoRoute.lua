@@ -1,5 +1,5 @@
 -- CompletionRoute :: Core/AutoRoute.lua
--- Category routing (owner spec 2026-11-27): the player picks a CATEGORY (Quests, Dungeons, Gold, Professions,
+-- Category routing (owner spec 2026-11-27): the player picks a CATEGORY (Quests, Dungeons, Items, Professions,
 -- Achievements, Legacy Points on WoW Forever) and the add-on routes to the closest thing this character has not done,
 -- choosing again after every completion.  The registered guides are only data for the categories.
 --
@@ -10,9 +10,15 @@
 --   Professions   the closest profession route that fits the character's skill (or an apprentice route).
 --   Achievements  the closest undone achievement / criterion step (quest-based criteria one quest at a time).
 --   Legacy Points the closest undone WoW Forever Legacy challenge.
---   Gold          the best estimated gold per hour nearby, counting the trip there.  Price data from Auctionator, TSM
---                 or Auctioneer is used when one is loaded (measured laps are priced with it, Core/Farm.lua); without
---                 one the player is told how to get it and still routed by the built-in estimate.
+--   Items         (owner 2026-11-28, replaces Gold) the closest item this character does not own yet, one item id per
+--                 unit, from every route step that names an item (loot, buy, treasure, quest objective items, mount and
+--                 pet routes).  Owned = in bags/bank, or the step that gets it is done.  Coverage is the items our
+--                 community data gives a source for, not literally every item id in the game (docs/ITEMS.md).
+--
+-- Batch mode (owner 2026-11-28, A.BatchOn, the "Batch" box on the routes list, /cr batch): Quests / Achievements /
+-- Legacy Points load the closest unit plus every other open unit in the player's zone or that unit's zone (up to
+-- A.BATCH_MAX) as one route; accepts first, then objectives, then turn-ins, and the step optimizer orders them.
+-- Dungeons always gather every quest first, batch or not.
 --
 -- Mechanism: one synthetic route per category ("auto:<cat>", in G.registry but not in G.list, so the advanced list never
 -- shows it) whose steps are the steps of ONE unit.  When the unit has nothing left, Progress.Refresh calls A.Advance,
@@ -28,7 +34,8 @@ local U, G, Cond = NS.Util, NS.Guide, NS.Cond
 local A = {}
 NS.Auto = A
 
-A.ORDER = { "Quests", "Dungeons", "Gold", "Professions", "Achievements", "Legacy Points" }
+A.ORDER = { "Quests", "Dungeons", "Items", "Professions", "Achievements", "Legacy Points" }
+A.BATCH_MAX = 15
 -- guide types that feed each category (Core/Guide.lua G.NormalizeType names)
 A.SOURCES = {
     Quests = { Quests = true, Storylines = true, Missions = true, Leveling = true, Dailies = true, Reputation = true },
@@ -42,7 +49,7 @@ A.FOLLOWUP_BONUS = 45    -- seconds: the follow-up of the quest just turned in
 A.OFFSPINE_PENALTY = 900 -- seconds: a quest the leveling spine leaves out (events, raid drops) waits behind spine quests
 
 local CAT_ALIAS = { quest = "Quests", quests = "Quests", q = "Quests", dungeon = "Dungeons", dungeons = "Dungeons", d = "Dungeons",
-    gold = "Gold", g = "Gold", prof = "Professions", profs = "Professions", profession = "Professions", professions = "Professions",
+    items = "Items", item = "Items", i = "Items", prof = "Professions", profs = "Professions", profession = "Professions", professions = "Professions",
     ach = "Achievements", achievement = "Achievements", achievements = "Achievements", legacy = "Legacy Points",
     ["legacy points"] = "Legacy Points", lp = "Legacy Points" }
 function A.Canon(s) return s and CAT_ALIAS[U.trim(tostring(s)):lower()] or nil end
@@ -112,6 +119,11 @@ local function who() return tostring(NS.player and NS.player.faction) .. tostrin
 function A.Pool(cat)
     local p = pools[cat]
     if p and p.who == who() then return p.units end
+    if cat == "Items" then
+        local units = A.ItemUnits()
+        pools[cat] = { units = units, who = who() }
+        return units
+    end
     local src = A.SOURCES[cat]
     if not src then return {} end
     local units, seen = {}, {}
@@ -176,6 +188,17 @@ local function stepDone(s)
 end
 -- "done" | "blocked" (something left, nothing this character can do now) | first pending step
 function A.UnitState(u)
+    if u.batch then
+        for _, b in ipairs(u.batch) do
+            local st = A.UnitState(b)
+            if st ~= "done" and st ~= "blocked" then
+                for _, s in ipairs(u.steps) do if not stepDone(s) and Cond.StepApplies(s) then return s end end
+                return st
+            end
+        end
+        return "done"
+    end
+    if u.item and U.ItemCount(u.item) > 0 then return "done" end
     if u.q and U.IsQuestComplete(u.q) then return "done" end
     if NS.Skip and u.q and NS.Skip.IsRemoved(u.q) then return "done" end
     if doneSet(u.cat)[u.key] then return "done" end
@@ -269,7 +292,7 @@ function A.PickClosest(units, opts)
 end
 
 -- ---------------------------------------------------------------------------
--- Guide-level categories (Dungeons, Professions, Gold)
+-- Guide-level categories (Dungeons, Professions)
 -- ---------------------------------------------------------------------------
 local function guideCands(cat, filter)
     local R = NS.Recommend
@@ -387,41 +410,86 @@ local function nextProfession()
 end
 
 -- ---------------------------------------------------------------------------
--- Gold
+-- Items
 -- ---------------------------------------------------------------------------
--- The price source the player runs, or nil.
-function A.PriceSource()
-    if _G.Auctionator and Auctionator.API and Auctionator.API.v1 then return "Auctionator" end
-    if _G.TSM_API and TSM_API.GetCustomPriceValue then return "TradeSkillMaster" end
-    if _G.AucAdvanced and AucAdvanced.API then return "Auctioneer" end
-    return nil
+local ITEM_ACTION = { l = true, B = true, ["$"] = true, K = true, C = true, U = true, A = true, T = true, t = true }
+local function stepItems(s)
+    local out = {}
+    for _, l in ipairs(s.loot or s.L or {}) do local id = tonumber(type(l) == "table" and (l.id or l[1]) or l) if id then out[#out + 1] = id end end
+    local u = tonumber(s.item or s.useItem or s.U)
+    if u and s.action == "B" then out[#out + 1] = u end
+    return out
 end
--- copper per hour by route kind at level 60 (a coarse built-in estimate; measured laps replace it, Core/Farm.lua)
-A.KIND_GPH = { ["Mob Farming"] = 400000, Gathering = 600000, Fishing = 350000, Instances = 900000, ["Daily Gold"] = 500000, Methods = 150000 }
-function A.GoldPerHour(g)
-    local st = NS.Farm and NS.Farm.Stats and NS.Farm.Stats(g.id)
-    if st and st.perHour and st.perHour > 0 then return st.perHour, "measured" end
-    local base = A.KIND_GPH[g.goldKind or ""] or 200000
-    local lv = math.max(1, math.min(tonumber(g.maxlevel) or U.PlayerLevel(), U.PlayerLevel()))
-    local scale = (lv / 60) ^ 1.6
-    return base * math.max(0.02, scale), "estimate"
+A.StepItems = stepItems
+-- one unit per item id over every applicable route; a quest-bound item brings its whole quest (accept .. turn-in)
+function A.ItemUnits()
+    local units, seen = {}, {}
+    for _, id in ipairs(G.list) do
+        local g = G.registry[id]
+        if g and not g.auto and g.type ~= "Gold" and guideApplies(g) then
+            local ok, steps = pcall(G.Steps, g.id)
+            if ok and steps then
+                local byQ
+                for _, s in ipairs(steps) do
+                    if ITEM_ACTION[s.action] then
+                        for _, item in ipairs(stepItems(s)) do
+                            if not seen[item] then
+                                seen[item] = true
+                                local q = s.qid and s.qid[1]
+                                local us = { s }
+                                if q then
+                                    if not byQ then
+                                        byQ = {}
+                                        for _, t in ipairs(steps) do
+                                            local tq = t.qid and t.qid[1]
+                                            if tq and QUEST_ACTION[t.action] then byQ[tq] = byQ[tq] or {} table.insert(byQ[tq], t) end
+                                        end
+                                    end
+                                    us = byQ[q] or us
+                                end
+                                units[#units + 1] = { key = "i" .. item, cat = "Items", item = item, q = q, steps = us, guide = g, pre = {},
+                                    lvl = s.minlevel or tonumber(g.minlevel) }
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return units
 end
-local function bestGold()
-    local cands = guideCands("Gold", function(e) return e.reqRank ~= 0 end)
-    local scored = {}
-    for _, e in ipairs(cands) do
-        local gph = A.GoldPerHour(e.g)
-        scored[#scored + 1] = { g = e.g, gph = gph }
+
+-- ---------------------------------------------------------------------------
+-- Batch mode
+-- ---------------------------------------------------------------------------
+function A.BatchOn() return NS.db and NS.db.profile and NS.db.profile.autoBatch == true or false end
+function A.SetBatch(on)
+    NS.db.profile.autoBatch = on and true or false
+    NS:Print("Batch mode " .. (on and "on: nearby quests in your zone are taken together." or "off: one at a time."))
+    local g = NS.Progress and NS.Progress.guide
+    if g and g.auto and g.unit then A.current, g.unit = nil, nil A.Advance() end
+end
+local PHASE = { A = 1, a = 1, ["!"] = 1, T = 3, t = 3 }
+-- the picked unit plus the other open units of the same zone (the player's, or the picked step's destination)
+function A.MakeBatch(units, first, firstStep)
+    local pzone = U.PlayerPos()
+    local zones = { [firstStep.zone or -1] = true }
+    if pzone then zones[pzone] = true end
+    local members = { first }
+    for _, u in ipairs(units) do
+        if #members >= A.BATCH_MAX then break end
+        if u ~= first and not u.dead and not u.batch then
+            local st = A.UnitState(u)
+            if type(st) == "table" and st.zone and zones[st.zone] then members[#members + 1] = u end
+        end
     end
-    table.sort(scored, function(a, b) if a.gph ~= b.gph then return a.gph > b.gph end return tostring(a.g.id) < tostring(b.g.id) end)
-    local best, bestVal
-    for i = 1, math.min(#scored, 12) do
-        local e = scored[i]
-        local secs = travelTo(guideStartStep(e.g)) or 1800
-        local val = e.gph * 3600 / (3600 + secs)     -- gold over the first hour, the trip counted
-        if not bestVal or val > bestVal then best, bestVal = e.g, val end
-    end
-    return best, bestVal
+    if #members == 1 then return first end
+    local steps = {}
+    for _, u in ipairs(members) do for _, s in ipairs(u.steps) do steps[#steps + 1] = { s = s, ph = PHASE[s.action] or 2, n = #steps } end end
+    table.sort(steps, function(a, b) if a.ph ~= b.ph then return a.ph < b.ph end return a.n < b.n end)
+    local flat = {}
+    for i, e in ipairs(steps) do flat[i] = e.s end
+    return { key = "batch:" .. first.key, cat = first.cat, steps = flat, guide = first.guide, pre = {}, batch = members }
 end
 
 -- ---------------------------------------------------------------------------
@@ -433,7 +501,7 @@ function A.Categories()
         local have = false
         if cat == "Legacy Points" then have = NS.isForever and A.HasType("Legacy Points")
         elseif cat == "Achievements" then have = A.HasType("Achievements")
-        elseif cat == "Quests" then have = true
+        elseif cat == "Quests" or cat == "Items" then have = true
         else have = A.HasType(cat) end
         if have then out[#out + 1] = cat end
     end
@@ -482,6 +550,7 @@ end
 local exhausted = {}
 local function finishUnit(u)
     if not u then return end
+    if u.batch then for _, b in ipairs(u.batch) do if A.UnitState(b) == "done" then finishUnit(b) end end A.gen = A.gen + 1 return end
     doneSet(u.cat)[u.key] = true
     if u.q then A.Store().lastQuest = u.q end
     A.gen = A.gen + 1
@@ -502,7 +571,11 @@ function A.Advance()
         local u, s, secs, counts
         if cat == "Dungeons" then u, s = nextDungeon()
         elseif cat == "Professions" then u, s = nextProfession()
-        else u, s, secs, counts = A.PickClosest(A.Pool(cat)) end
+        else
+            local pool = A.Pool(cat)
+            u, s, secs, counts = A.PickClosest(pool)
+            if u and cat ~= "Items" and A.BatchOn() then u = A.MakeBatch(pool, u, s) end
+        end
         A.lastCounts = counts
         if not u then
             setUnit(g, nil)
@@ -522,7 +595,9 @@ function A.Advance()
             return true
         end
         -- everything in it was already done (or not doable after all): note it and pick again
-        if A.UnitState(u) == "done" then finishUnit(u) else doneSet(cat)[u.key] = "blocked" A.gen = A.gen + 1 end
+        if A.UnitState(u) == "done" then finishUnit(u)
+        elseif u.batch then for _, b in ipairs(u.batch) do doneSet(cat)[b.key] = "blocked" end A.gen = A.gen + 1
+        else doneSet(cat)[u.key] = "blocked" A.gen = A.gen + 1 end
     end
     return false
 end
@@ -539,32 +614,16 @@ function A.Start(cat)
     -- blocked marks are only for one sitting: a new start looks at everything again
     for k, v in pairs(doneSet(cat)) do if v == "blocked" then doneSet(cat)[k] = nil end end
     exhausted[cat] = nil
-    if cat == "Gold" then return A.StartGold() end
     local g = ensureGuide(cat)
     setUnit(g, nil)
     return P.Load(g.id, { picked = true })
 end
 
-function A.StartGold()
-    local src = A.PriceSource()
-    if not src and not A.goldHintShown then
-        A.goldHintShown = true
-        NS:Print("Gold: no auction price data found. Install Auctionator (or TSM / Auctioneer) and scan the Auction House once; "
-            .. "until then the route uses built-in vendor estimates.")
-    end
-    local g, val = bestGold()
-    if not g then NS:Print("Gold: no farm fits your level and professions here yet.") return false end
-    NS:Print(("Gold: %s (~%s/hr%s, trip counted)."):format(G.DisplayName(g), U.FmtMoney(math.floor(val or 0)),
-        src and (", " .. src .. " prices on measured laps") or ", estimate"))
-    A.Store().goldGuide = g.id
-    return NS.Progress.Load(g.id, { picked = true })
-end
-
 -- What the UI shows under the category name
 function A.Describe(cat)
-    if cat == "Gold" then return A.PriceSource() and ("prices: " .. A.PriceSource()) or "no price add-on: estimates" end
+    if cat == "Items" then return "closest item you do not own" end
     if cat == "Dungeons" then local d = A.Store().dungeon return d and G.registry[d] and ("now: " .. G.DisplayName(G.registry[d])) or "closest level-fitting dungeon" end
     if cat == "Professions" then return "next band of your professions" end
-    return "closest undone first"
+    return A.BatchOn() and "batch: nearby together" or "closest undone first"
 end
 function A.Active() local g = NS.Progress and NS.Progress.guide return g and g.auto or nil end

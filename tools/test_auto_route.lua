@@ -5,7 +5,8 @@
 -- Offline tests of Core/AutoRoute.lua (category routing, owner spec 2026-11-27) on synthetic routes:
 --   categories offered; Quests loads ONE quest at a time and picks the closest; a quest never comes before its
 --   prerequisite; the next quest loads by itself after a turn-in; level gates; Dungeons collects the dungeon's quests
---   before the entrance; Gold names a price source or tells the player how to get one; the choice is per character.
+--   before the entrance; Items routes to the closest unowned item; Batch takes the zone's open quests together;
+--   the choice is per character.
 -- Run: luajit tools/test_auto_route.lua   (from repo root)
 package.path = "./?.lua;" .. package.path
 local ADDON, NS = "CompletionRoute", {}
@@ -61,12 +62,17 @@ G.Register({ id = "t:dungeon", name = "Test Dungeon", type = "Dungeons", instanc
     "T Dungeon Quest|QID|201|M|45.0,60.0|Z|1429; Elwynn Forest|",
     "T Dungeon Quest Two|QID|202|M|60.0,60.0|Z|1429; Elwynn Forest|",
 }, "\n") })
-G.Register({ id = "t:gold", name = "Test Gold", type = "Gold", goldKind = "Mob Farming", zone = 1429, minlevel = 1, maxlevel = 20, loop = true,
-    text = "G Spot 1|M|50.0,50.0|Z|1429; Elwynn Forest|RAD|40|\nG Spot 2|M|55.0,50.0|Z|1429; Elwynn Forest|RAD|40|\nG Spot 3|M|55.0,55.0|Z|1429; Elwynn Forest|RAD|40|" })
+G.Register({ id = "t:items", name = "Test Items", type = "Pets", zone = 1429, minlevel = 1, maxlevel = 20, text = table.concat({
+    "$ Far Chest|L|9002 1|M|85.0,85.0|Z|1429; Elwynn Forest|",
+    "B Near Bread|ITEM|9001|M|40.1,60.1|Z|1429; Elwynn Forest|",
+}, "\n") })
+BAGS = {}
+C_Item = C_Item or {}
+C_Item.GetItemCount = function(id) return BAGS[id] or 0 end
 
 local function cats() local s = {} for _, c in ipairs(A.Categories()) do s[c] = true end return s end
 local c = cats()
-t("categories: Quests, Dungeons, Gold offered", c.Quests and c.Dungeons and c.Gold)
+t("categories: Quests, Dungeons, Items offered; no Gold", c.Quests and c.Dungeons and c.Items and not c.Gold)
 t("categories: no Achievements / Legacy without routes", not c.Achievements and not c["Legacy Points"])
 
 local function quests()
@@ -143,18 +149,42 @@ t("per character: fresh character has no category / progress", A.Store().cat == 
 NS.db.char = saved
 t("per character: first character keeps its progress", A.Store().done.Dungeons["t:dungeon"] == true)
 
--- Gold
-printed = {}
-A.goldHintShown = nil
-t("start Gold", A.Start("gold"))
-t("gold: no price add-on -> how to get price data", (table.concat(printed, " "):find("Install Auctionator")) ~= nil, printed[1])
-t("gold: the farm route is loaded", P.guide and P.guide.id == "t:gold")
-Auctionator = { API = { v1 = { GetAuctionPriceByItemID = function() return 100 end } } }
-t("gold: Auctionator detected as the price source", A.PriceSource() == "Auctionator")
-Auctionator = nil
-TSM_API = { GetCustomPriceValue = function() return 1 end }
-t("gold: TSM detected", A.PriceSource() == "TradeSkillMaster")
-TSM_API = nil
+-- Items
+NS.db.char = {}
+A.Invalidate()
+t("start Items", A.Start("items"))
+local function curItem() return A.current and A.current.item end
+t("items: closest unowned item first (bread)", curItem() == 9001, curItem())
+BAGS[9001] = 1
+P.Refresh()
+t("items: owned -> next item (far chest)", curItem() == 9002, curItem())
+local nItems = 0 for _, u in ipairs(A.ItemUnits()) do nItems = nItems + 1 end
+t("items: one unit per item id", nItems == 2, nItems)
+
+-- Batch (fresh quests: 301/302 open in Elwynn, 303 needs 302, 304 in another zone)
+G.Register({ id = "t:batch", name = "Batch Quests", type = "Quests", zone = 1429, minlevel = 1, maxlevel = 10, text = table.concat({
+    "A B1|QID|301|M|43.0,60.0|Z|1429; Elwynn Forest|", "T B1|QID|301|M|43.0,60.0|Z|1429; Elwynn Forest|",
+    "A B2|QID|302|M|60.0,40.0|Z|1429; Elwynn Forest|", "T B2|QID|302|M|60.0,41.0|Z|1429; Elwynn Forest|",
+    "A B3|QID|303|PRE|302|M|44.0,60.0|Z|1429; Elwynn Forest|", "T B3|QID|303|M|44.0,60.0|Z|1429; Elwynn Forest|",
+    "A B4|QID|304|M|50.0,50.0|Z|1436; Westfall|", "T B4|QID|304|M|50.0,50.0|Z|1436; Westfall|",
+}, "\n") })
+DONE[101], DONE[102], DONE[103], DONE[104] = true, true, true, true
+NS.db.char = {}
+A.Invalidate()
+A.SetBatch(true)
+t("batch: on", A.BatchOn())
+t("start Quests batched", A.Start("quests"))
+local qs = {}
+for _, u in ipairs(A.current and A.current.batch or {}) do qs[u.q] = true end
+t("batch: open quests of the zone together (301, 302)", qs[301] and qs[302], A.current and A.current.key)
+t("batch: prerequisite / other-zone quests left out", not qs[303] and not qs[304])
+local st = P.guide and P.guide.steps or {}
+t("batch: accepts come first", st[1] and st[1].action == "A" and st[2] and st[2].action == "A", st[1] and st[1].action)
+DONE[301], DONE[302] = true, true
+P.Refresh()
+t("batch: done batch moves on (303 now open)", A.current and (A.current.q == 303 or (A.current.batch and A.current.batch[1].q == 303)), A.current and A.current.key)
+A.SetBatch(false)
+t("batch: off", not A.BatchOn())
 
 print(("\n%d passed, %d failed"):format(passed, failed))
 os.exit(failed == 0 and 0 or 1)
