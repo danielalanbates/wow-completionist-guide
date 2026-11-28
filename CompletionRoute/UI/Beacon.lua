@@ -382,21 +382,33 @@ end
 -- Pin frames are created HIDDEN and are never shown by us: HereBeDragons reparents and shows
 -- them once it has placed them. Showing one ourselves left an unplaced icon floating in the
 -- middle of the screen whenever HBD declined the placement.
-local function pin(i)
+-- Numbered pins: "1" = the current step (gold, large), "2" = the next step (blue, smaller).
+local function pin(i, n)
     pins[i] = pins[i] or (function()
         local p = CreateFrame("Frame", nil, UIParent)
-        p:SetSize(16, 16)
         p:SetPoint("CENTER")
-        local t = p:CreateTexture(nil, "OVERLAY")
+        local t = p:CreateTexture(nil, "ARTWORK")
         t:SetAllPoints()
-        t:SetTexture("Interface\\Minimap\\ObjectIcons")
-        t:SetTexCoord(0.125, 0.25, 0, 0.125)   -- the gold quest-objective blob
+        t:SetTexture(TEX .. "circle")
+        local r = p:CreateTexture(nil, "OVERLAY")
+        r:SetAllPoints()
+        r:SetTexture(TEX .. "ring")
+        local fs = p:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        fs:SetPoint("CENTER", 0, 0)
+        p.tex, p.label = t, fs
         p:Hide()
         return p
     end)()
-    return pins[i]
+    local p = pins[i]
+    local big = (n == 1)
+    p:SetSize(big and 22 or 16, big and 22 or 16)
+    if big then p.tex:SetVertexColor(1, 0.82, 0) else p.tex:SetVertexColor(0.25, 0.6, 1) end
+    p.label:SetText(tostring(n))
+    p.label:SetTextColor(0, 0, 0)
+    return p
 end
 
+B.PIN_STEPS = 2   -- current + next
 function B.UpdatePins()
     B.pinState = "no lib"
     if not HBDPins then return end
@@ -405,21 +417,32 @@ function B.UpdatePins()
     if not NS.db or not NS.db.profile.beacon.enabled or not NS.db.profile.beacon.pins then
         B.pinState = "disabled" return
     end
-    local s = NS.Progress.current
-    if not s then B.pinState = "no step" return end
-    if not s.zone or not s.coords then B.pinState = "step has no map coords" return end
-    for i, c in ipairs(s.coords) do
-        if i > 4 then break end
-        local p = pin(i)
-        local ok, err = pcall(HBDPins.AddMinimapIconMap, HBDPins, B, p, s.zone, c.x, c.y, true, true)
-        if not ok then B.pinError = "minimap: " .. tostring(err) end
-        local p2 = pin(i + 10)
-        -- SHOW_PARENT (1) keeps the pin visible on the parent zone map too
-        local ok2, err2 = pcall(HBDPins.AddWorldMapIconMap, HBDPins, B, p2, s.zone, c.x, c.y, 1)
-        if not ok2 then B.pinError = (B.pinError and (B.pinError .. " | ") or "") .. "worldmap: " .. tostring(err2) end
-        if ok or ok2 then B.pinCount = B.pinCount + 1 end
+    local cur = NS.Progress.current
+    if not cur then B.pinState = "no step" return end
+    local list = { cur }
+    for _, s in ipairs(NS.Progress.Pending(B.PIN_STEPS + 1) or {}) do
+        if #list >= B.PIN_STEPS then break end
+        if s ~= cur then list[#list + 1] = s end
     end
-    B.pinState = ("%d pin(s) on map %s"):format(B.pinCount, tostring(s.zone))
+    local slot = 0
+    for n, s in ipairs(list) do
+        if s.zone and s.coords then
+            for j, c in ipairs(s.coords) do
+                if j > (n == 1 and 4 or 1) then break end
+                slot = slot + 1
+                local p = pin(slot, n)
+                local ok, err = pcall(HBDPins.AddMinimapIconMap, HBDPins, B, p, s.zone, c.x, c.y, true, true)
+                if not ok then B.pinError = "minimap: " .. tostring(err) end
+                local p2 = pin(slot + 20, n)
+                -- SHOW_PARENT (1) keeps the pin visible on the parent zone map too
+                local ok2, err2 = pcall(HBDPins.AddWorldMapIconMap, HBDPins, B, p2, s.zone, c.x, c.y, 1)
+                if not ok2 then B.pinError = (B.pinError and (B.pinError .. " | ") or "") .. "worldmap: " .. tostring(err2) end
+                if ok or ok2 then B.pinCount = B.pinCount + 1 end
+            end
+        end
+    end
+    if B.pinCount == 0 then B.pinState = "step has no map coords" return end
+    B.pinState = ("%d pin(s), current on map %s"):format(B.pinCount, tostring(cur.zone))
 end
 
 function B.ApplySettings()
