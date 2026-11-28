@@ -116,14 +116,29 @@ function A.GameTypeName(t)
     return (GAMETYPE_NAME[base] or base) .. (hc and " Hardcore" or "")
 end
 
+-- The scope is PER CHARACTER (owner, 2026-11-27): it lives in the character's saved variables and is mirrored into the
+-- shared profile on load, so picking "All characters" on one character never changes another.  Characters that never
+-- chose start at "char".
+local function adoptCharScope()
+    local p, c = NS.db and NS.db.profile, NS.db and NS.db.char
+    if not (p and c) then return end
+    if c.scope == nil then c.scope = "char" end
+    if p.scope ~= c.scope then
+        p.scope, p.accountWide = c.scope, (c.scope ~= "char")
+        A.ClearCompletionCaches()
+    end
+end
+A.AdoptCharScope = adoptCharScope
 function A.Scope()
     local p = NS.db and NS.db.profile
     if not p then return "char" end
+    if not A._scopeAdopted then A._scopeAdopted = true adoptCharScope() end
     if not p.scope then p.scope = p.accountWide and "account" or "char" end   -- migrate the old boolean
     -- Anything that still flips the accountWide boolean directly (the options check box, the
     -- verifier's temporary override, an old saved-variable file) wins: adopt it and re-sync.
     if p.accountWide ~= (p.scope ~= "char") then
         p.scope = p.accountWide and "account" or "char"
+        if NS.db.char then NS.db.char.scope = p.scope end
         A.ClearCompletionCaches()
     end
     return p.scope
@@ -132,6 +147,7 @@ function A.SetScope(sc)
     local p = NS.db.profile
     p.scope = sc
     p.accountWide = (sc ~= "char")
+    if NS.db.char then NS.db.char.scope = sc end
     A.ClearCompletionCaches()
 end
 function A.ScopeLabel(sc) return A.SCOPE_LABEL[sc or A.Scope()] or "?" end
