@@ -2,6 +2,11 @@
 
 
 
+## 2026-11-27: PR #43 review + Legacy install
+
+* PR #43 (questie rung) checked: trace seed 4242 275/275; raw QuestieDB 59/125 direct, sampled rest = correction files; emu cross-check no wrong zones. Risk: Retail borrows MoP/Cata data (moved NPCs in Stormwind/Orgrimmar).
+* QuestIndex_forever was stale after Legacy guides: regenerated. Installed in _anniversary_, _classic_, _classic_era_, _retail_; Forever was running, not installed.
+
 ## 2026-11-27: WoW Forever Legacy Points section (`legacy-points`)
 
 * `tools/gen_legacy.py` (+ `--fetch` for 5 wiki pages into tools/wiki/cache/legacy) writes `Guides/Imported_Legacy_forever.lua`,
