@@ -11,6 +11,7 @@ Read this first, then `docs/STATUS.md` (newest section on top), `docs/IDEAS.md` 
 **2026-11-27:** shared-overlays merged: subzones only in shared overlays get small-rectangle centres; zone-only tbc -2.4%, mop -3.2% (5% goal missed; docs/STATUS.md top). Next: Midnight doors, Retail full vplayer.
 **2026-11-26 late (3):** dungeon-subzones reviewed (150/150 traces ok); Jergosh Classic place fixed (jergosh-classic-page), rebaked, installed, synced. Next: shared overlays (Honor Hold), Midnight doors.
 **2026-11-26 night (2):** dungeon-subzones merged: Dungeons guides regenerated after the subzone rung, zone-only tbc -15%, mop -10% (docs/STATUS.md top). Next: shared overlays (Honor Hold), Jergosh Classic location, Midnight doors.
+**2026-11-27:** att-points (#45) reviewed: 250 sampled ATT points match source + zone, MIT notice verified in full, installed in all 5 clients, Drive canonical synced. Next: Retail C/T steps (no ATT objectives/enders); subzone rung in gen_dungeons.py.
 **2026-11-26 night:** db2-subzones merged: subzone centres from Blizzard WorldMapOverlay cut zone-only steps on all five (docs/STATUS.md top). Next: same rung in gen_dungeons.py; Midnight doors; pocket-map portals.
 **2026-11-26 late:** doors-review merged: Uldir door journal-id fix + test; no regressions (era/forever/tbc rerun). Next unchanged.
 **2026-11-26 late night:** db2-subzones reviewed; Classic "formerly" guard (Maleb) merged, installed, synced (docs/STATUS.md top). Next: subzone rung in gen_dungeons.py; shared overlays.

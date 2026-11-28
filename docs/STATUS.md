@@ -18,6 +18,10 @@
 * Agreement on A steps that have a wiki point (`agree_att.py`): median 0.10-0.28 map units, 82.8-92.7% within 3.
 * Not covered: Retail C/T steps (Standard has no objective rows and no enders); Legacy: Camelot data has no
   achievement coordinates, the 2 zone-only challenges are instance entrances.
+* Review 2026-11-27: 25 random att_points rows per version x 2 seeds (250) checked against the ATT sqlite row and the
+  guide line's |Z|: 0 real faults (3 script false alarms: Retail City of Threads 2213 points correctly moved onto
+  Azj-Kahet 2255 by the map transform; one Achievements-file row). CREDITS MIT notice matches LICENSE @789b0feb in
+  full. Installed in all 5 clients; Drive canonical synced.
 * Regenerated all generators; rebake 640 batches, 0 failed, dry run 0 to do. check_all green (test_att_points.py added;
   test_contrib_gen knows the att column/note).
 * vplayer (--guidecap 600 --taxi all, CR_TMP vp_att_*): era 137, tbc 189, forever 150, mop 331 Quests, retail Quests 836,
