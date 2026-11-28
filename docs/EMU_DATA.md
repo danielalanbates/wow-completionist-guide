@@ -56,3 +56,35 @@ Chain: wiki -> Blizzard quest pins -> Blizzard subzones -> emulator spawns -> **
   (2026-11-27: median 0.10-0.28 map units, 85.9-91.6% within 3 units on all five).
 * **UI wording:** guide files never contain the word "questie" (`tools/install.sh` and the packager refuse such files);
   the note says "community quest database". Repo + commit per value: verification.sqlite `questie_points`.
+
+# Community collection database rung (after the quest database rung)
+
+Chain: wiki -> Blizzard quest pins -> Blizzard subzones -> emulator spawns -> community quest database ->
+**community collection database** (owner decision 2026-11-27: AllTheThings data is allowed, MIT, facts only; its
+name never appears in guide files).
+
+| Client | Source folder (`db/`) |
+|---|---|
+| Classic Era | `Vanilla` |
+| WoW Forever | `Camelot`, then `Vanilla` |
+| TBC Anniversary | `TBC` |
+| MoP Classic | `Mists` |
+| Retail | `Standard` |
+
+* **Rebuild:** `sh tools/att/fetch_att.sh`: shallow, blobless, sparse clone of only those five `db/` folders (no
+  LocalizationDB; ~40 MB of a ~7 GB repo) into `$CR_TMP/att`; `tools/att/extract_att.lua` (Lua 5.4+) runs the
+  compiled category files against a stand-in namespace and walks the tree (NeverImplemented and Hidden*Triggers are
+  skipped); `tools/att/build_att.py` writes `tools/db2/att/<source>.sqlite` (gitignored, ~10 MB in all; same tables as
+  the quest database plus `ach` / `achvia`); the clone is deleted.
+* **What a step takes** (`tools/att/att_points.py`): A = giver npc/object spawns (`qgs` / `providers` / the npc the
+  quest is listed under), else the quest's own start coordinates; C = the objective's (`qo`) npcs or its own
+  coordinates (Classic clients only; Retail's data has no objectives). No quest enders: T steps are left alone.
+  Quests whose data differs per faction (`aqd` / `hqd`) are not read. Same zone rules as the quest database rung.
+* **Achievements** (`tools/gen_completion_guides.py`, Retail and MoP): an achievement line still without a point takes
+  one when all coordinates of the achievement and its criteria (and spawns of criterion npcs without coordinates) are
+  on one map, inside the zone found so far, within 10 map units of their median.
+* **Check:** `python3 tools/att/agree_att.py <flavor> CompletionRoute/Guides/Imported_Wiki_<flavor>.lua` (A steps
+  with a wiki point; 2026-11-27: median 0.10-0.28 map units, 82.8-92.7% within 3 units).
+* **UI wording:** the note says "(location: community database spawn of npc N)", "... start of quest N)" or
+  "... objective K of quest N)". Repo + commit per value: verification.sqlite `att_points`. Credit and MIT notice:
+  `CREDITS.md`.

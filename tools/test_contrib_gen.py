@@ -51,6 +51,7 @@ sys.path.insert(0, str(TOOLS))
 sys.path.insert(0, str(TOOLS / "wiki"))
 import gen_wiki_guides as gw  # noqa: E402
 EMU_NOTE = " spawn of "   # tools/emu/emu_points.py: "(location: <repo> spawn of npc|object <id>)"
+ATT_NOTE = "(location: community database "   # tools/att/att_points.py (also "start of quest N", "objective K of quest N")
 import gen_completion_guides as gc  # noqa: E402
 import package_release as pr  # noqa: E402
 import coverage as cov  # noqa: E402
@@ -449,7 +450,7 @@ def part2(tmp, cdir, sha):
     if not ok:
         return base
     nopoint = ["A:46", "A:45", "A:176", "A:5805", "C:45:0", "C:15:1", "C:52:2", "C:3904:1", "T:37"]
-    check(all("|M|" not in pre[k] or EMU_NOTE in pre[k] for k in nopoint), "precondition: these steps have no wiki point", drift)
+    check(all("|M|" not in pre[k] or EMU_NOTE in pre[k] or ATT_NOTE in pre[k] for k in nopoint), "precondition: these steps have no wiki point", drift)
     check("the wiki's Sentinel Hill page" in pre["T:6181"], "precondition: A Swift Message's turn-in comes from a wiki place page", drift)
     wikipt = ["A:60", "T:60", "C:60:1", "C:7:1", "T:54"]
     check(all("|M|" in pre[k] and "(location:" not in pre[k] for k in wikipt), "precondition: these steps have a wiki point", drift)
@@ -513,13 +514,13 @@ def part2(tmp, cdir, sha):
 
     # --- the chart ---
     v0, v1 = sqlite3.connect(base_dir / "verification.sqlite"), sqlite3.connect(with_dir / "verification.sqlite")
-    q = "select steps, wiki, poi, place, fallback, zone, none, contrib, subzone, coalesce(emu, 0), coalesce(questie, 0) from wiki_point_sources where flavor='era' and build='no-fallback'"
+    q = "select steps, wiki, poi, place, fallback, zone, none, contrib, subzone, coalesce(emu, 0), coalesce(questie, 0), coalesce(att, 0) from wiki_point_sources where flavor='era' and build='no-fallback'"
     r0, r1 = v0.execute(q).fetchone(), v1.execute(q).fetchone()
     check(r0 is not None and r0[7] == 0 and sum(r0[1:]) == r0[0], "wiki_point_sources without contributions: contrib 0, the sources add up", r0)
     check(r1 is not None and r1[7] == 7 and sum(r1[1:]) == r1[0] and r1[0] == r0[0] and r1[1] == r0[1],
           "wiki_point_sources with the fixture: contrib 7, same steps, same wiki points, the sources add up", r1)
-    check(r1[3] == r0[3] - 1 and r0[5] + r0[6] + r0[9] + r0[10] - r1[5] - r1[6] - r1[9] - r1[10] == 6,
-          "one step moved from the wiki place page to contributions, six from zone-only, no location, an emulator spawn or a quest-database point", (r0, r1))
+    check(r1[3] == r0[3] - 1 and r0[5] + r0[6] + r0[9] + r0[10] + r0[11] - r1[5] - r1[6] - r1[9] - r1[10] - r1[11] == 6,
+          "one step moved from the wiki place page to contributions, six from zone-only, no location, an emulator spawn, a quest-database or a community-database point", (r0, r1))
     cq = "select quest_id, field, wiki_value, db2_value, note from wiki_db2_conflict where flavor='era' and field like '%_xy_contrib' order by quest_id"
     rows = v1.execute(cq).fetchall()
     check(v0.execute(cq).fetchall() == [], "without contributions no contribution conflict is logged")
@@ -707,7 +708,7 @@ def part4(tmp, fl, base=None):
     # is copied per faction or not by tools/wiki/gen_spine.py, with the same steps.)
     strip = re.compile(r"\|PRE\|[\d;]+(?=\|)|\|FACTION\|(?:Alliance|Horde)(?=\|)")
     own = {strip.sub("", ln) for ln in b if "|M|" in ln and PLACE_NOTE not in ln and SUBZONE_NOTE not in ln
-           and EMU_NOTE not in ln}   # an emulator spawn is the last rung: a contribution comes before it
+           and EMU_NOTE not in ln and ATT_NOTE not in ln}   # an emulator spawn is the last rung: a contribution comes before it
     kept = {strip.sub("", ln) for ln in n_lines if NOTE not in ln}
     lost = sorted(own - kept)
 

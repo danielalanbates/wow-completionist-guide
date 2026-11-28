@@ -114,6 +114,8 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / "emu"))
 import emu_points as EP  # noqa: E402
 sys.path.append(str(Path(__file__).resolve().parents[1] / "questie"))
 import questie_points as QP  # noqa: E402
+sys.path.append(str(Path(__file__).resolve().parents[1] / "att"))
+import att_points as AP  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 WIKI = ROOT / "tools" / "wiki" / "wiki.sqlite"
@@ -1631,6 +1633,16 @@ class Gen:
             st["steps_questie"] = len(qdb.placed)
             st["steps_zone"] -= qdb.n_zone
             st["steps_none"] -= qdb.n_none
+        # ---- after it: the MIT community collection database (tools/att/att_points.py); CR_NO_ATT=1 = before run
+        att = None if (self.use_fallback or os.environ.get("CR_NO_ATT")) else AP.ATTPoints(fl, maps)
+        st["steps_att"] = 0
+        if att and att.sources:
+            for lst in guides.values():
+                for g in lst:
+                    att.fill(g[4])
+            st["steps_att"] = len(att.placed)
+            st["steps_zone"] -= att.n_zone
+            st["steps_none"] -= att.n_none
 
         # ---- write ------------------------------------------------------------------------------------
         today = datetime.date.today().isoformat()
@@ -1665,6 +1677,8 @@ class Gen:
             hdr += emu.header()
         if qdb:
             hdr += qdb.header()
+        if att:
+            hdr += att.header()
         hdr += ["local _, NS = ...", flavor_gate(fl), "local R = NS.Guide.Register", ""]
         body = []
         # zone order, split of huge zone guides and the step order inside each guide: tools/wiki/gen_spine.py
@@ -1697,6 +1711,10 @@ class Gen:
         if qdb:
             con = self.verif()
             qdb.chart(con, out.name)
+            con.close()
+        if att:
+            con = self.verif()
+            att.chart(con, out.name)
             con.close()
 
         # ---- SQL ---------------------------------------------------------------------------------------
@@ -1752,6 +1770,10 @@ class Gen:
             con.execute("alter table wiki_point_sources add column questie int default 0")
         con.execute("update wiki_point_sources set questie = ? where flavor = ? and build = ?",
                     (st.get("steps_questie", 0), fl, "fallback" if self.use_fallback else "no-fallback"))
+        if "att" not in [c[1] for c in con.execute("pragma table_info(wiki_point_sources)")]:
+            con.execute("alter table wiki_point_sources add column att int default 0")
+        con.execute("update wiki_point_sources set att = ? where flavor = ? and build = ?",
+                    (st.get("steps_att", 0), fl, "fallback" if self.use_fallback else "no-fallback"))
         con.commit()
         con.close()
 

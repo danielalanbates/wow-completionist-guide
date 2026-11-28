@@ -2,6 +2,27 @@
 
 
 
+## 2026-11-27: community collection database rung after the quest database rung (`att-points`)
+
+* Owner decision 2026-11-27: AllTheThings data allowed (MIT; facts only; never named in guide files). Sparse blobless
+  clone of db/{Vanilla,Camelot,TBC,Mists,Standard} @789b0feb (~40 MB), `tools/att/extract_att.lua` -> `build_att.py` ->
+  tools/db2/att/*.sqlite (gitignored, ~10 MB), clone deleted. `att_points.py`: A = giver spawns, else quest start coords;
+  C = objective (`qo`) npcs/coords (Classic data only); no enders. Achievements (gen_completion_guides): one-map,
+  10-unit-spread points. Note "(location: community database ...)"; repo + commit per value: verification.sqlite `att_points`.
+* Zone-only / none Wiki steps (step_points `before-/after-att-2026-11-27`, before = CR_NO_ATT=1 regen = master):
+  era 913/514 -> 896/505; tbc 1,428/507 -> 1,410/496; forever 1,250/613 -> 1,140/585; mop 1,782/756 -> 1,675/728;
+  retail 16,602/2,624 -> 13,687/2,438. Points: era 85.3->85.5%, tbc 87.1->87.3%, forever 82.6->83.9%, mop 92.1->92.6%,
+  retail 78.7->82.2%. Dungeons zone-only: era 161->158, tbc 1,331->1,329, forever 182->178, mop 982->972,
+  retail 6,015->5,081 (none 437->400). Achievement lines with a point: retail 1,617->1,736, mop 19->24.
+  Placed: era 26, tbc 28, forever 131, mop 139, retail 3,042 quest steps + 119 achievements.
+* Agreement on A steps that have a wiki point (`agree_att.py`): median 0.10-0.28 map units, 82.8-92.7% within 3.
+* Not covered: Retail C/T steps (Standard has no objective rows and no enders); Legacy: Camelot data has no
+  achievement coordinates, the 2 zone-only challenges are instance entrances.
+* Regenerated all generators; rebake 640 batches, 0 failed, dry run 0 to do. check_all green (test_att_points.py added;
+  test_contrib_gen knows the att column/note).
+* vplayer (--guidecap 600 --taxi all, CR_TMP vp_att_*): era 137, tbc 189, forever 150, mop 331 Quests, retail Quests 836,
+  retail Dungeons 271: all finished, 0 stalls, 0 errors.
+
 ## 2026-11-27: PR #43 review + Legacy install
 
 * PR #43 (questie rung) checked: trace seed 4242 275/275; raw QuestieDB 59/125 direct, sampled rest = correction files; emu cross-check no wrong zones. Risk: Retail borrows MoP/Cata data (moved NPCs in Stormwind/Orgrimmar).
