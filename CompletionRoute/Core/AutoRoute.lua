@@ -351,13 +351,18 @@ local function nextDungeon()
             local ist = A.UnitState(du.inside)
             if ist ~= "done" and ist ~= "blocked" then return du.inside, ist end
             if ist == "blocked" then
-                -- what is left inside is gated (level): move on, the dungeon comes back later
+                -- what is left inside is gated (level): move on for this sitting, the dungeon comes back later
+                -- (a "blocked" mark is cleared by the next A.Start; it must never be recorded as done)
+                doneSet("Dungeons")[g.id] = "blocked"
                 st.dungeon = nil
-                doneSet("Dungeons")[g.id] = nil
+            else
+                doneSet("Dungeons")[g.id] = true
+                st.dungeon = nil
             end
+        else
+            doneSet("Dungeons")[g.id] = true
+            st.dungeon = nil
         end
-        doneSet("Dungeons")[g.id] = true
-        st.dungeon = nil
     end
 end
 

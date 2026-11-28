@@ -85,6 +85,10 @@ separate GitHub repo** (see section 5, phase 4).
 
 ## 4. In flight when this was written
 
+* 2026-11-27 verify (`auto-route-verify`): adversarial offline check of AutoRoute. Real bug fixed: a dungeon whose run was
+  level-gated was recorded as DONE for good (blocked branch fell through to `done=true`); now marked "blocked" for the sitting and
+  re-checked on the next start. test_auto_route.lua 27/27 (new: gated dungeon, per-character isolation). Installed to all 5 clients.
+
 **Update 2026-11-10, 21:20.** The Mac slept from about 20:50 to 21:00, which killed two builders mid-response. To prevent
 idle sleep, `caffeinate -is -w <bake pid>` is now attached to the bake driver and ends with it. State:
 * `beta-bug-report` is **done**: built, independently verified (1 major and 4 minor findings, all fixed with regression
