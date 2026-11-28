@@ -180,4 +180,4 @@ Forever-only guide category covering every Legacy Challenge (achievement-like; e
 account-wide; ~65 points at launch; trees: Professions, Adventure, Resourcefulness; season rewards at 15/25/40/55
 from Innkeeper Wiley, Ratchet). Source: warcraft.wiki.gg Legacy_System / Legacy_Tree pages + Forever DB2 achievement/
 criteria tables via wago.tools; locations via the existing point chain. One guide per challenge group, routed.
-Status: queued; weekly agent limit hit 2026-11-27, resumes after Dec 1.
+Status: DONE 2026-11-27 (`legacy-points`): tools/gen_legacy.py -> Guides/Imported_Legacy_forever.lua (Forever + Camelot TOCs only). 65/65 challenges; 8 have a place (Explorer 549/549 areas, Valthalak line, 3 Spelunker, 3 raids: Hyjal Summit/Barrow Deeps/Blackmaw Hold zone only); 57 are counters (level, skill, rank, reputation, journey).

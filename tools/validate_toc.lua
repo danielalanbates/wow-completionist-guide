@@ -20,7 +20,7 @@ local ROUTE_ORDER = { ["CompletionRoute.toc"] = "retail", ["CompletionRoute_Mist
 -- for the TOC's own flavor only.  Any other Guides/Imported_* line, and every Data/Imported_* line, names a file that
 -- never ships (data derived from another addon, generator input, a retired file): a TOC must not list it.
 local SHIPPED_GUIDES = { Wiki = true, Spine = true, Gold = true, Professions = true, Achievements = true, QuestLines = true,
-    Missions = true, Dungeons = true }
+    Missions = true, Dungeons = true, Legacy = true }
 local function neverShips(rel, flavor)
     if rel:match("^Data/Imported_") then return "no Data/Imported_* file ships" end
     local kind, rest = rel:match("^Guides/Imported_(%a+)_(.+)%.lua$")

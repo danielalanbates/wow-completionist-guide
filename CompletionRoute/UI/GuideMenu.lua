@@ -264,7 +264,7 @@ end
 local REC_CAT = "Recommended"     -- style key; the row reads "Recommended" (or "Recommended for level N")
 local RECENT_CAT = "Recent"
 local CAT_ORDER = { [RECENT_CAT] = -2, [REC_CAT] = 0, Leveling = 1, Quests = 2, Dungeons = 3, Dailies = 4, Daily = 4, Gold = 5, Professions = 6, Profession = 6,
-    Reputation = 7, Reputations = 7, Achievements = 8, Achievement = 8, Titles = 9, ["Pets & Mounts"] = 10, Events = 11 }
+    Reputation = 7, Reputations = 7, Achievements = 8, Achievement = 8, Titles = 9, ["Pets & Mounts"] = 10, Events = 11, ["Legacy Points"] = 12 }
 
 -- Per-category icon + tint (TBC-era icons only). Rendered inline via |T escapes.
 local CAT_STYLE = {
@@ -281,6 +281,7 @@ local CAT_STYLE = {
     Titles     = { icon = "Interface\\Icons\\INV_Crown_02",              color = "ffc94d" },
     ["Pets & Mounts"] = { icon = "Interface\\Icons\\Ability_Mount_RidingHorse", color = "7ddf8f" },
     Events     = { icon = "Interface\\Icons\\INV_Misc_Gift_01",          color = "5ad9c9" },
+    ["Legacy Points"] = { icon = "Interface\\Icons\\INV_Misc_Map_01",  color = "c9a0ff" },   -- WoW Forever only
     Band       = { icon = "Interface\\Icons\\INV_Misc_Map_01",           color = "cfe3ff" },
 }
 local DEFAULT_STYLE = { icon = "Interface\\Icons\\INV_Misc_QuestionMark", color = "cccccc" }

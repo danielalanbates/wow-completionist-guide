@@ -199,7 +199,7 @@ for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "C
     -- quest guides exactly as the flavor TOC loads them: the wiki guides
     ("Guides/Imported_Wiki_" .. flavor .. ".lua"), ("Guides/Imported_Dungeons_" .. flavor .. ".lua"),
     ("Guides/Imported_Achievements_" .. flavor .. ".lua"), ("Guides/Imported_QuestLines_" .. flavor .. ".lua"),
-    ("Guides/Imported_Missions_" .. flavor .. ".lua") }) do load(f) end
+    ("Guides/Imported_Missions_" .. flavor .. ".lua"), ("Guides/Imported_Legacy_" .. flavor .. ".lua") }) do load(f) end
 -- the spine reuses the wiki guides' text under "spine:" ids; only with --spine, so a default run plays each guide once
 if withSpine then load("Guides/Imported_Spine_" .. flavor .. ".lua") end
 if orderMode == "baked" then
