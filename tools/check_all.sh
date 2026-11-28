@@ -16,6 +16,7 @@ if command -v luacheck >/dev/null 2>&1; then step lint; else echo "luacheck not 
 step luajit tools/validate_toc.lua
 step luajit tools/test_load_all.lua
 step luajit tools/test_offline.lua
+step luajit tools/test_auto_route.lua
 step luajit tools/test_doors.lua
 step python3 tools/test_package.py
 step python3 tools/test_contrib_gen.py

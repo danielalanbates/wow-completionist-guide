@@ -325,6 +325,15 @@ local function itemValue(itemID)
         local ok, v = pcall(Auctionator.API.v1.GetAuctionPriceByItemID, "CompletionRoute", itemID)
         if ok and v and v > 0 then return v, "AH" end
     end
+    if _G.TSM_API and TSM_API.GetCustomPriceValue then
+        local ok, v = pcall(TSM_API.GetCustomPriceValue, "dbmarket", "i:" .. itemID)
+        if ok and v and v > 0 then return v, "AH" end
+    end
+    if _G.AucAdvanced and AucAdvanced.API and AucAdvanced.API.GetMarketValue then
+        local link = select(2, (C_Item and C_Item.GetItemInfo or GetItemInfo)(itemID))
+        local ok, v = link and pcall(AucAdvanced.API.GetMarketValue, link)
+        if ok and v and v > 0 then return v, "AH" end
+    end
     local sell = select(11, (C_Item and C_Item.GetItemInfo or GetItemInfo)(itemID))
     return sell or 0, "vendor"
 end

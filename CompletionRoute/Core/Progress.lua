@@ -914,6 +914,16 @@ function P.Refresh(force)
         end
         return
     end
+    -- category routes (Core/AutoRoute.lua): the unit is finished, pick the next closest one
+    if not newcur and P.guide and P.guide.auto then
+        if not P.inAuto and NS.Auto then
+            P.inAuto = true
+            local ok, err = pcall(NS.Auto.Advance)
+            P.inAuto = nil
+            if not ok then NS:Error("category route: " .. tostring(err)) end
+        end
+        return
+    end
     if not newcur and P.guide then
         -- Gold and profession guides are chosen on purpose: never drop into one automatically, and never pull
         -- the player out of one into a leveling guide when it ends

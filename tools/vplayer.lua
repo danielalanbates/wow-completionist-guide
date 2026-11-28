@@ -82,6 +82,9 @@ for i = 2, #arg do
     elseif a == "--turnins" then fireTurnins = true
     elseif a == "--who" then whoMode = arg[i + 1]          -- warrior (default) | plan | gate (see the header)
     elseif a == "--both-as" then bothAs = arg[i + 1]       -- Alliance | Horde: the faction a guide for both factions is played as
+    elseif a == "--category" then categoryMode = arg[i + 1]   -- Quests|Dungeons|Gold|Professions|Achievements|Legacy Points (Core/AutoRoute.lua)
+    elseif a == "--items" then categoryItems = tonumber(arg[i + 1])
+    elseif a == "--level" then categoryLevel = tonumber(arg[i + 1])
     elseif a == "--verbose" then verbose = true end
 end
 -- --repro / --capture: the report decides the flavor, the order mode, the live window and the spine (tools/vplayer_repro.lua)
@@ -195,13 +198,14 @@ end
 for _, f in ipairs({ "Core/Init.lua", "Core/Util.lua", "Core/Conditions.lua", "Core/Guide.lua", TAXI[flavor], EXTRA[flavor] or TAXI[flavor], "Data/Transit.lua", "Data/Access.lua",
     "Data/Inns.lua", "Data/ZoneAliases.lua", "Data/Roads_ek.lua", "Data/Roads_kalimdor.lua",
     "Routing/CostModel.lua", "Routing/TravelGraph.lua", "Routing/Roads.lua", "Routing/StepOrder.lua", "Routing/Router.lua", "Routing/Loop.lua",
-    "Core/Account.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
+    "Core/Account.lua", "Core/Professions.lua", "Core/Progress.lua", "Core/Recommend.lua", "Core/AutoRoute.lua", "Core/Farm.lua", "Core/Instances.lua", "Data/Farm_routes.lua",
     -- quest guides exactly as the flavor TOC loads them: the wiki guides
     ("Guides/Imported_Wiki_" .. flavor .. ".lua"), ("Guides/Imported_Dungeons_" .. flavor .. ".lua"),
     ("Guides/Imported_Achievements_" .. flavor .. ".lua"), ("Guides/Imported_QuestLines_" .. flavor .. ".lua"),
     ("Guides/Imported_Missions_" .. flavor .. ".lua"), ("Guides/Imported_Legacy_" .. flavor .. ".lua") }) do load(f) end
 -- the spine reuses the wiki guides' text under "spine:" ids; only with --spine, so a default run plays each guide once
-if withSpine then load("Guides/Imported_Spine_" .. flavor .. ".lua") end
+if withSpine or categoryMode then load("Guides/Imported_Spine_" .. flavor .. ".lua") end
+if categoryMode then load("Guides/Imported_Gold_" .. flavor .. ".lua") load("Guides/Imported_Professions_" .. flavor .. ".lua") end
 if orderMode == "baked" then
     if routeOrderPath then
         assert(loadfile(routeOrderPath))(ADDON, NS)
@@ -496,6 +500,10 @@ local function act(step)
         for _, l in ipairs(step.loot or {}) do W.bags[l.id] = math.max(W.bags[l.id] or 0, l.qty or 1) end
     elseif a == "L" then
         if step.minlevel then W.level = math.max(W.level, step.minlevel) W.xp = 0 end
+    elseif a == "D" and categoryMode then
+        -- the player walks in: a zone-only entrance is reached once the character stands in that zone (the cost model may
+        -- have priced the leg to a door point on another map)
+        if not step.coords and step.zone and MAPS[step.zone] and MAPS[step.zone][3] and PLAYER.map ~= step.zone then place(step.zone, 0.5, 0.5) end
     elseif a == "h" then
         step.bindDone = true
         W.bind = step.zoneName or step.title
@@ -765,6 +773,96 @@ if chainFaction then
         reloaded, maxLoads, bounces, stepsDone, W.level, parkedLeft, stalls, noroute, secs, capSteps, taxiMode, taxiLearned))
     if bounces > 0 then os.exit(1) end
     os.exit(0)
+end
+
+-- ---------------------------------------------------------------------------
+-- --category: play a category route (Core/AutoRoute.lua) the way a character does: the add-on picks the closest undone
+-- unit, the player walks there and does each step; when nothing is left at this level the character levels up.
+-- Prints one CATEGORY line (tools/record_category.py folds it into docs/verification.sqlite).
+-- ---------------------------------------------------------------------------
+if categoryMode then
+    local A = NS.Auto
+    local cat = A.Canon(categoryMode) or categoryMode
+    FACTION = forceFaction or "Alliance"
+    RACE = (FACTION == "Horde") and "Orc" or "Human"
+    NS.player.faction, NS.player.class, NS.player.race = FACTION, CLASS, RACE
+    local START_LEVEL = { Quests = 1, Dungeons = 15, Gold = 30, Professions = 10, Achievements = 10, ["Legacy Points"] = 10 }
+    wipeWorld(categoryLevel or START_LEVEL[cat] or 1)
+    W.xpmax = 25 * (questsPerLevel or 6)
+    NS.db.char.done, NS.db.char.skipped, NS.db.char.reopened, NS.db.char.laps, NS.db.char.guide = {}, {}, {}, {}, nil
+    NS.db.char.parked, NS.db.char.parkReturn, NS.db.char.auto = {}, nil, nil
+    wipeMarks()
+    local errors, errText = 0, ""
+    NS.Error = function(_, m) errors = errors + 1 if errText == "" then errText = tostring(m) end end
+    -- start: the zone of the lowest-level route that feeds the category for this faction
+    local startZone, startMin
+    for _, id in ipairs(G.list) do
+        local g = G.registry[id]
+        local src = A.SOURCES[cat]
+        local feeds = (src and src[g.type]) or (not src and g.type == cat)
+        if feeds and g.zone and MAPS[g.zone] and MAPS[g.zone][3] and Cond.FactionMatch(g.faction) then
+            local m = tonumber(g.minlevel) or 999
+            if not startMin or m < startMin then startZone, startMin = g.zone, m end
+        end
+    end
+    -- Quests: where the faction's leveling spine starts
+    local spinePrefix, first = ("spine:%s:%s:"):format(flavor, FACTION:sub(1, 1)), nil
+    for _, id in ipairs(G.list) do if id:sub(1, #spinePrefix) == spinePrefix and (not first or id < first) then first = id end end
+    if cat == "Quests" and first and G.registry[first].zone then startZone = G.registry[first].zone end
+    if startZone then place(startZone, 0.5, 0.5) end
+    placeHere(W.level)
+    ctl.SetLevel(W.level)
+    R.Invalidate()
+    NS.TravelGraph.Build()
+    local units, unitSet = 0, {}
+    NS:On("AUTO_UNIT_DONE", function(u) units = units + 1 unitSet[u.key] = true end)
+    if os.getenv("CR_CAT_TRACE") then
+        NS:On("AUTO_UNIT", function(u, sec) io.stderr:write(("UNIT L%d %s %s %s %.0fs\n"):format(W.level, u.key, tostring(u.steps[1] and u.steps[1].title), tostring(u.steps[1] and u.steps[1].zone), sec or -1)) end)
+    end
+    local laps = 0
+    NS:On("LAP_COMPLETE", function() laps = laps + 1 end)
+    local ok0, started = pcall(A.Start, cat)
+    if not ok0 then errors = errors + 1 errText = tostring(started) end
+    local pool0 = A.lastCounts and { total = A.lastCounts.total, available = A.lastCounts.available, blocked = A.lastCounts.blocked } or nil
+    if cat ~= "Gold" and cat ~= "Dungeons" and cat ~= "Professions" then pool0 = pool0 or { total = #A.Pool(cat), available = 0, blocked = 0 } end
+    local maxItems = categoryItems or 300
+    local cap = NS.Recommend.LevelCap()
+    local steps, stalls, manual, noroute, secs, finished = 0, 0, 0, 0, 0, 0
+    local t0 = os.clock()
+    local stallOut2 = assert(io.open((outPath:gsub("%.tsv$", "")) .. "_cat_stalls.tsv", "w"))
+    while os.clock() - t0 < guideCap do
+        if units >= maxItems then break end
+        if cat == "Gold" and laps >= 2 then finished = 1 break end
+        local step = P.current
+        if not step then
+            while W.level < cap and not P.current do W.level = W.level + 1 W.xp = 0 P.Refresh() end
+            step = P.current
+            if not step then finished = 1 break end
+        end
+        local _, s2, routed, hasDest = walkTo(step)
+        secs = secs + (s2 or 0)
+        if not routed and hasDest then noroute = noroute + 1 end
+        act(step)
+        if W.level > cap then W.level, W.xp = cap, 0 end
+        local okr, er = pcall(P.Refresh)
+        if not okr then errors = errors + 1 if errText == "" then errText = tostring(er) end break end
+        steps = steps + 1
+        if P.current == step then
+            local canAuto, why = autoable(step)
+            if canAuto then
+                stalls = stalls + 1
+                stallOut2:write(table.concat({ FLABEL, cat, tostring(step.srcGuide or step.guide), step.action, (step.title or ""):gsub("\t", " "):sub(1, 80), tostring(step.qid and step.qid[1] or "") }, "\t") .. "\n")
+            else manual = manual + 1 end
+            P.MarkDone(step)
+        end
+    end
+    stallOut2:close()
+    local timedOut = (os.clock() - t0 >= guideCap) and 1 or 0
+    local reached = units >= maxItems and 1 or 0
+    print(("CATEGORY\t%s\t%s\t%s\tunits=%d\tsteps=%d\tstalls=%d\tmanual=%d\terrors=%d\tnoroute=%d\tlevel=%d\tfinished=%d\titemcap=%d\ttimecap=%d\tpool=%d\tavailable=%d\tblocked=%d\tsecs=%.0f\tlaps=%d\terr=%s"):format(
+        FLABEL, cat, FACTION, units, steps, stalls, manual, errors, noroute, W.level, finished, reached, timedOut,
+        pool0 and pool0.total or -1, pool0 and pool0.available or -1, pool0 and pool0.blocked or -1, secs, laps, (errText:gsub("[\t\n]", " "))))
+    os.exit((stalls == 0 and errors == 0) and 0 or 1)
 end
 
 -- ---------------------------------------------------------------------------

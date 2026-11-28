@@ -212,12 +212,21 @@ local GROUP_X = 262
 local groupLevel = viewCheck("CompletionRouteGuideMenuGroupLevel", GROUP_X, "Group by level",
     "Show the list as level bands, then category, then route. Routes with no level data go under Any level.", "groupByLevel")
 
+-- Owner spec 2026-11-27: the list shows only the route CATEGORIES (Core/AutoRoute.lua); "Advanced" brings back the
+-- full list of single routes (for testing).
+local advanced = CreateFrame("CheckButton", "CompletionRouteGuideMenuAdvanced", f, "UICheckButtonTemplate")
+advanced:SetSize(20, 20); advanced:SetPoint("TOPRIGHT", -30, -6)
+local advLabel = f:CreateFontString(nil, "OVERLAY", U.Font("Small"))
+advLabel:SetPoint("RIGHT", advanced, "LEFT", -2, 0); advLabel:SetText("Advanced")
+advanced:SetScript("OnClick", function(self) listPrefs().advanced = self:GetChecked() and true or false M.Refresh() end)
+
 function M.UpdateLevelControls()
     if not NS.db then return end
     local v = M.ViewLevel()
     if not (levelBox.HasFocus and levelBox:HasFocus()) then levelBox:SetText(tostring(v)) end
     levelHint:SetText(v == myLevel() and "your level" or ("your level: " .. myLevel()))
     local prefs = listPrefs()
+    advanced:SetChecked(prefs.advanced and true or false)
     onlyLevel:SetChecked(prefs.onlyLevel and true or false)
     groupLevel:SetChecked(prefs.groupByLevel and true or false)
     -- the labels grow with the text size: the buttons fit their labels, and the second tick box moves right of the
@@ -858,7 +867,15 @@ local function guideLabel(g, inNext)
 end
 
 -- Flatten visible tree into rows: { kind = "node"|"guide", depth, node|guide }
+local function categoryRows()
+    local rows = {}
+    local Auto = NS.Auto
+    if not Auto then return rows end
+    for _, cat in ipairs(Auto.Categories()) do rows[#rows + 1] = { kind = "cat", depth = 0, cat = cat } end
+    return rows
+end
 local function visibleRows()
+    if NS.Auto and not listPrefs().advanced then return categoryRows() end
     local rows = {}
     local function walk(n, depth)
         for _, k in ipairs(n.kids) do
@@ -911,7 +928,8 @@ function M.Refresh()
             b.right:SetPoint("RIGHT", -6, 0); b.right:SetJustifyH("RIGHT")
             b.hl = b:CreateTexture(nil, "HIGHLIGHT"); b.hl:SetAllPoints(); b.hl:SetColorTexture(1, 1, 1, 0.1)
             b:SetScript("OnClick", function(self)
-                if self.nodePath then
+                if self.cat then NS.Auto.Start(self.cat) f:Hide()
+                elseif self.nodePath then
                     expanded[self.nodePath] = not expanded[self.nodePath] or nil
                     M.Refresh()
                 elseif self.gid then P.Load(self.gid) f:Hide() end
@@ -957,7 +975,15 @@ function M.Refresh()
         b.text:ClearAllPoints()
         b.text:SetPoint("LEFT", indent, 0)
         b.text:SetPoint("RIGHT", b.right, "LEFT", -8, 0)
-        if row.kind == "node" then
+        b.cat = nil
+        if row.kind == "cat" then
+            b.nodePath, b.gid, b.cat = nil, nil, row.cat
+            local st = catStyle(row.cat)
+            local on = NS.Auto.Active() == row.cat
+            b.text:SetText(("%s |cff%s%s|r  |cff999999%s|r%s"):format(tex(st.icon, 16), st.color, row.cat, NS.Auto.Describe(row.cat),
+                on and "  |cff00ff00(active)|r" or ""))
+            b.right:SetText("")
+        elseif row.kind == "node" then
             b.nodePath, b.gid = row.node.path, nil
             local mark = expanded[row.node.path] and "|cffaaaaaa[-]|r " or "|cffaaaaaa[+]|r "
             if row.depth == 0 or row.node.styleKey then
@@ -1047,7 +1073,7 @@ end)
 function M.Toggle() if f:IsShown() then f:Hide() else openMenu() end end
 function M.Show() openMenu() end
 -- exposed for tools/test_offline.lua (headless tree checks); not used in-game
-M._test = { buildTree = function() return buildTree(true) end, buildTreeLazy = buildTree, guidePath = guidePath, visibleRows = visibleRows, searchRows = searchRows, expanded = expanded,
+M._test = { buildTree = function() return buildTree(true) end, buildTreeLazy = buildTree, guidePath = guidePath, visibleRows = visibleRows, categoryRows = categoryRows, searchRows = searchRows, expanded = expanded,
             scanSlice = scanSlice, scanStep = scanStep, scanned = function() return scanned end,
             tallies = function() return tallies end, nodeRight = nodeRight, totalText = totalText, totalLine = totalLine,
             sortRec = sortRec, natural = natural, sortKeys = function() local n = 0 for _ in pairs(sortRecs) do n = n + 1 end return n end,

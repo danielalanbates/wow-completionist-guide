@@ -2,6 +2,35 @@
 
 
 
+
+## 2026-11-27: category routing (`category-routes`)
+
+* Owner spec 2026-11-27: the routes list shows only categories (Quests, Dungeons, Gold, Professions, Achievements on MoP/Retail,
+  Legacy Points on Forever); "Advanced" (top right) brings back the single-route list for testing. `/cr quests`, `/cr dungeons`...
+  or `/cr category <name>` do the same. New `Core/AutoRoute.lua` (all six TOCs); hook in Progress.Refresh; per character
+  (`CompletionRouteCharDB.auto`).
+* Quests: one quest at a time (accept, objectives, turn-in), each quest id once over Quests/Storylines/Missions/Leveling routes;
+  next = closest by TravelGraph seconds after a straight-line shortlist (6 + 2 other-continent); in-log quests and the follow-up
+  of the last turn-in get a bonus; Cond.StepApplies gates faction/class/race/prof/level/PRE. Quests with no wiki level use the
+  spine band (two levels of slack) or the route range; quests the spine leaves out (events, raid drops) wait 900 s behind.
+* Dungeons: closest level-fitting undone dungeon (5-player first); its quests before the entrance one at a time (closest first),
+  then entrance + inside, then turn-ins. Professions: closest fitting band (learned first). Achievements / Legacy: closest
+  undone criterion (deduped by achievement + criterion). Gold: best of (gold/hr x 1 h / (1 h + trip)); gold/hr = measured laps
+  (priced with Auctionator / TSM / Auctioneer when loaded, Core/Farm.lua) else a built-in per-kind estimate; without a price
+  add-on it says "install Auctionator and scan the AH" and still routes.
+* Tests: `tools/test_auto_route.lua` (21 checks, in check_all). vplayer `--category <cat> [--faction] [--items N] [--level L]`
+  (character starts at its spine start, levels when nothing is open); `tools/record_category.py` -> verification.sqlite
+  `category_runs` (label category-2026-11-27, 46 rows, items cap 500 / 120 s per run): 0 stalls, 0 errors on every row.
+  Quests 500/500 per faction on all 5 (pools era 2,289/2,062, tbc 3,511/3,338, forever 2,465/2,276, mop 7,613/7,666,
+  retail 26,640/26,732). Dungeons finished to cap: era 241/260 units, tbc 339/352, forever 234/206, mop 446/380, retail 452
+  (Horde hit the 500 cap). Gold: 2 laps of the chosen circuit everywhere. Achievements mop 14,821 / retail 45,147 items, 500 done.
+  Legacy 716 items, 500 done (manual: Forever has no achievement API offline).
+* Gaps: Professions only plays the bands the offline skill stub allows (3-11 per run; craft steps are manual). Gold/hr without
+  measured laps is an estimate, not market data (gold routes carry no item ids to price). Retail pick ~40 ms in luajit (more in the
+  client's Lua 5.1). vplayer D-step fix: a zone-only entrance places the character in that zone (category mode only).
+  Pre-existing, not from this change: test_flow 2 fails (login opens the list since 9201dd4), test_quest_counts stale QuestIndex
+  era/tbc (uncommitted chains work in the tree), test_dungeons retail Hellfire Citadel.
+
 ## 2026-11-27: community collection database rung after the quest database rung (`att-points`)
 
 * Owner decision 2026-11-27: AllTheThings data allowed (MIT; facts only; never named in guide files). Sparse blobless
