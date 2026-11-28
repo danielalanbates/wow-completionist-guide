@@ -803,7 +803,7 @@ do
     local required = { "routes", "load", "icon", "why", "next", "skip", "undo", "reset", "arrow", "beacon", "demo",
                        "chars", "accountwide", "forget", "options", "route", "order", "taxi", "teleports",
                        "hearth", "switch", "scan", "verify", "verifyfeatures",
-                       "verifyall", "autoverify", "log", "stats", "debug", "test", "list", "gold", "prof",
+                       "verifyall", "autoverify", "log", "stats", "debug", "test", "list", "batch", "prof",
                        "skipstep", "unskip", "skipped", "marks", "auto" }
     local missing = {}
     for _, c in ipairs(required) do if not handled[c] then missing[#missing + 1] = c end end

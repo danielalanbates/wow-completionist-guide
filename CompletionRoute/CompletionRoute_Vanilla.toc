@@ -66,7 +66,6 @@ Adapters\DynamicQuests.lua
 Guides\Imported_Wiki_era.lua
 Guides\Imported_Spine_era.lua
 Guides\Imported_Professions_era.lua
-Guides\Imported_Gold_era.lua
 Guides\Imported_Dungeons_era.lua
 Guides\Guides.xml
 Core\Sweep.lua

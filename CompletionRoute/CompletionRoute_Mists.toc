@@ -67,7 +67,6 @@ Adapters\DynamicQuests.lua
 Guides\Imported_Wiki_mop.lua
 Guides\Imported_Spine_mop.lua
 Guides\Imported_Professions_mop.lua
-Guides\Imported_Gold_mop.lua
 Guides\Imported_Achievements_mop.lua
 Guides\Imported_Dungeons_mop.lua
 Guides\Guides.xml

@@ -431,8 +431,8 @@ def main():
         (d / pr.ADDON / wiki_tbc).write_text(contrib_hdr.format(commit=sha) + STAND_IN["wiki-cc-by-sa"], encoding="utf-8")
         code, res, _, _ = env.run(d)
         check(code == 0, "a file with the header and no contributed step passes")
-        expect_fail(env, "WoW-Pro guide text in gold data", "interop-derived", "Guides/Imported_Gold_tbc.lua",
-                    lambda d, a: append(a / "Guides" / "Imported_Gold_tbc.lua", 'R({ id="x", author="WoWPro Team", text=[[ ]] })\n'))
+        expect_fail(env, "WoW-Pro guide text in profession data", "interop-derived", "Guides/Imported_Professions_tbc.lua",
+                    lambda d, a: append(a / "Guides" / "Imported_Professions_tbc.lua", 'R({ id="x", author="WoWPro Team", text=[[ ]] })\n'))
         def plant_xml(d, a):
             x = a / "Guides" / "Guides.xml"
             x.write_text(x.read_text().replace("</Ui>", '\t<Script file="Imported_WoWPro_era.lua"/>\n</Ui>'))
@@ -471,8 +471,8 @@ def main():
                     lambda d, a: append(a / "Guides" / "Imported_Spine_era.lua", "-- ask someone.else@example.com\n"))
         expect_fail(env, "home folder path", "personal-data", "Data/RouteOrder_tbc.lua",
                     lambda d, a: append(a / "Data" / "RouteOrder_tbc.lua", "-- built in /Users/someone/Code\n"))
-        res, text = expect_fail(env, "WoW account name from WTF/Account", "personal-data", "Guides/Imported_Gold_era.lua",
-                                lambda d, a: append(a / "Guides" / "Imported_Gold_era.lua", "-- testacct42 was here\n"))
+        res, text = expect_fail(env, "WoW account name from WTF/Account", "personal-data", "Guides/Imported_Professions_era.lua",
+                                lambda d, a: append(a / "Guides" / "Imported_Professions_era.lua", "-- testacct42 was here\n"))
         check("TESTACCT42" not in text.upper(), "the report does not print the account name")
         res, text = expect_fail(env, "WoW character name from WTF/Account/<account>/<realm>", "personal-data",
                                 "Guides/Imported_Professions_era.lua",
@@ -505,12 +505,12 @@ def main():
                                    ("unquoted api_key=", "api_key" + "=" + "Zq8" * 12, "credential assignment"),
                                    ("env line OPENAI_API_KEY=", "export OPENAI_API" + "_KEY=" + "Zq8x" * 10, "credential assignment"),
                                    ("quoted MY_PASSWORD", 'MY_PASSWORD = "' + "hunter2hunter2" + '"', "credential assignment")):
-            res, _ = expect_fail(env, f"secret: {label}", "secret", "Guides/Imported_Gold_era.lua",
-                                 lambda d, a, v=value: append(a / "Guides" / "Imported_Gold_era.lua", f"-- {v}\n"))
+            res, _ = expect_fail(env, f"secret: {label}", "secret", "Guides/Imported_Professions_era.lua",
+                                 lambda d, a, v=value: append(a / "Guides" / "Imported_Professions_era.lua", f"-- {v}\n"))
             check(any(f.rule == "secret" and f.detail.startswith(said + " pattern") for f in res.failures),
                   f"... reported as \"{said}\"")
         d = env.scenario()
-        append(d / pr.ADDON / "Guides" / "Imported_Gold_era.lua", "-- api_key = NS.Config.apiKey; local token = GetToken()\n"
+        append(d / pr.ADDON / "Guides" / "Imported_Professions_era.lua", "-- api_key = NS.Config.apiKey; local token = GetToken()\n"
                "-- passwords = 3; hf_max_level = 60; task-csk-1; password: see the options panel\n")
         code, res, _, _ = env.run(d)
         check(code == 0 and not has(res, "secret"), "code that names a key without holding one does not fail the secret rule")

@@ -17,7 +17,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
         local c = NS.Auto and NS.Auto.Canon((cmd == "category" or cmd == "cat") and rest or msg)
         if c then NS.Auto.Start(c) else NS:Print("Categories: " .. table.concat(NS.Auto.Categories(), ", ")) end
     elseif cmd == "list" then NS.Recommend.PrintList(rest)
-    elseif cmd == "gold" then NS.Recommend.PrintGold(rest)
+    elseif cmd == "batch" then if NS.Auto then NS.Auto.SetBatch(rest == "" and not NS.Auto.BatchOn() or rest == "on") end
     elseif cmd == "prof" or cmd == "profs" or cmd == "professions" then NS.Recommend.PrintProf()
     elseif cmd == "load" then
         for _, id in ipairs(G.list) do
@@ -298,7 +298,7 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
             else NS:Print("-> " .. dest[1] .. ": zone not resolvable on this client") end
         end
     else
-        NS:Print("Commands: show | routes | list [level] [category] | gold [level] | prof | load <name> | next (mark the step done) | suggest | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | farm | log | bug [note] | contribute [on|off|export|clear] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
+        NS:Print("Commands: show | routes | list [level] [category] | batch [on|off] | prof | load <name> | next (mark the step done) | suggest | skip [questID] | skipstep | unskip <questID|all> | skipped | auto [accept|turnin|off] | undo | reset | marks | switch | scan | arrow | beacon | icon | demo | why | quest <id> | chars | accountwide | scope <char|server|gametype|all> | forget <char> | options | route | order | taxi | teleports | hearth | farm | log | bug [note] | contribute [on|off|export|clear] | stats | verify | verifyfeatures | verifyall | sweep [zone] | autoverify | test | debug")
     end
 end
 

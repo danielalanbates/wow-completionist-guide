@@ -69,7 +69,6 @@ Adapters\DynamicQuests.lua
 Guides\Imported_Wiki_retail.lua
 Guides\Imported_Spine_retail.lua
 Guides\Imported_Professions_retail.lua
-Guides\Imported_Gold_retail.lua
 Guides\Imported_Achievements_retail.lua
 Guides\Imported_QuestLines_retail.lua
 Guides\Imported_Missions_retail.lua
