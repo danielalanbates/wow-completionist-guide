@@ -30,6 +30,7 @@ Core\Contribute.lua
 Core\Farm.lua
 Core\Instances.lua
 Core\Recommend.lua
+Core\AutoRoute.lua
 Core\Archaeology.lua
 Data\Taxi_era.lua
 Data\Taxi_tbc.lua

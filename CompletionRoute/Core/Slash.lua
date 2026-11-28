@@ -12,6 +12,10 @@ SlashCmdList.COMPLETIONROUTE = function(msg)
     cmd = (cmd or ""):lower()
     if cmd == "" or cmd == "show" or cmd == "toggle" then NS.GuideFrame.Toggle()
     elseif cmd == "routes" or cmd == "guides" or cmd == "menu" then NS.GuideMenu.Toggle()
+    elseif cmd == "category" or cmd == "cat" or (NS.Auto and NS.Auto.Canon(msg)) then
+        -- /cr category quests | /cr quests | /cr dungeons ...: route to the closest undone thing (Core/AutoRoute.lua)
+        local c = NS.Auto and NS.Auto.Canon((cmd == "category" or cmd == "cat") and rest or msg)
+        if c then NS.Auto.Start(c) else NS:Print("Categories: " .. table.concat(NS.Auto.Categories(), ", ")) end
     elseif cmd == "list" then NS.Recommend.PrintList(rest)
     elseif cmd == "gold" then NS.Recommend.PrintGold(rest)
     elseif cmd == "prof" or cmd == "profs" or cmd == "professions" then NS.Recommend.PrintProf()

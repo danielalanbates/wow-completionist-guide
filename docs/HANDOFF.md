@@ -2,6 +2,7 @@
 
 Read this first, then `docs/STATUS.md` (newest section on top), `docs/IDEAS.md` and `docs/FINISH_PLAN.md`.
 
+**2026-11-27 (7):** category-routes: routes list = categories only, auto-routes to the closest undone item (Core/AutoRoute.lua); vplayer --category 0 stalls/errors on all 5 (docs/STATUS.md top). Not installed.
 **2026-11-27 (6):** att-points merged: community collection database rung (AllTheThings, MIT) after the quest database rung + achievement points; Retail zone-only Wiki 16,602 -> 13,687, Dungeons 6,015 -> 5,081 (docs/STATUS.md top). Rebaked, check_all + vplayer clean. Not installed.
 
 **2026-11-27 (5):** PR #43 review found nothing to fix; legacy-points (PR #44, 964e0d3) merged; QuestIndex_forever regenerated; installed in anniversary/classic/classic_era/retail (Forever running, not installed); Drive synced. Next: owner confirms Innkeeper Wiley and which Legacy id copy Forever counts; install into Forever when closed.
