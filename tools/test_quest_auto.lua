@@ -336,8 +336,8 @@ local function scenario(flavor, family)
     setup(flavor, family)
     local QA, P, S = NS.QuestAuto, NS.Progress, NS.Skip
     local LE = listEvent(family)
-    t(tag .. "defaults: pause key Shift, reward choice off", QA.Key() == "SHIFT" and NS.defaults.profile.autoChooseReward == false
-        and NS.defaults.profile.autoAccept == false and NS.defaults.profile.autoTurnin == false)
+    t(tag .. "defaults: pause key Shift, reward choice off, auto accept+turn-in on", QA.Key() == "SHIFT" and NS.defaults.profile.autoChooseReward == false
+        and NS.defaults.profile.autoAccept == true and NS.defaults.profile.autoTurnin == true)
     t(tag .. "setup: the guide's next quests are in the window", inWindow(201) and inWindow(202) and inWindow(203) and inWindow(204))
     t(tag .. "setup: 299 is outside the window, 209 is not open yet", not inWindow(299) and not inWindow(209))
 

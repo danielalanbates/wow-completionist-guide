@@ -59,7 +59,7 @@ NS.defaults = {
         textSize = 2,           -- points added to the addon's small text (Core/Util.lua U.Font); half of it to the rest
         -- Core/QuestAuto.lua: accept / turn in only the quests of the guide's live window; autoChooseReward takes a turn-in
         -- reward only when UI/ItemScore.lua sees a clear upgrade; holding autoModifier (SHIFT | CTRL | ALT | NONE) pauses it
-        autoAccept = false, autoTurnin = false, autoChooseReward = false, autoModifier = "SHIFT",
+        autoAccept = true, autoTurnin = true, autoChooseReward = false, autoModifier = "SHIFT",
         -- UI/Minimap.lua: the round button on the minimap's edge, and where on the edge it sits (degrees, 0 = east,
         -- counter-clockwise; dragging it saves the angle)
         minimapButton = true, minimapAngle = 200,
